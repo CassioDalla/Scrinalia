@@ -118,7 +118,8 @@ publicado responde 404, nunca 403, porque um status distinto confirmaria que a d
 A projeção pública é mais estreita que a do curador, campo a campo. Ela carrega os campos ISAD(G)
 `original_title`, `final_title`, `document_date`, `reference_code`, `level`, `scope_content`,
 `language_name` e `producers`; o enriquecimento `typology`, as tags (nome), as entidades (nome e
-tipo) e as categorias de assunto (nome e contagem); a miniatura; o ramo (`ancestors`) e o
+tipo) e as categorias de assunto (nome e contagem); a miniatura — ainda a referência `s3://`
+guardada, porque a rota pública que serve os bytes é a #46 (ADR 0017); o ramo (`ancestors`) e o
 `children_count`. Ela deliberadamente **não** carrega o processo de curadoria nem a narrativa não
 publicada: `review_status`, `is_anomaly`, `anomaly_reasons`, `archivist_notes`, `provenance`,
 `suggested_final_title`, `admin_bio_history`, `admin_archival_history` e `access_conditions`. O
@@ -358,13 +359,41 @@ arquivista escreve `final_title`.
 
 #### Descrição
 
-A decisão é o próprio registro: qualquer campo ISAD(G), o nível, a tipologia, `access_conditions` e
-`is_published`, com uma nota do porquê. A escrita é `PATCH /api/v1/documents/{description_id}`
-(`CURATE`). Ela registra o antes e o depois do que mudou em `archive_document_revisions`, grava a
-autoria a partir da sessão e define `HUMAN_APPROVED` — o que tira a descrição da fila da IA.
-Reversível: outra edição registra uma nova revisão; o histórico é só de acréscimo e o valor anterior
-fica visível na aba `Histórico`. Publicar e retirar usam o mesmo comando e são igualmente
-reversíveis.
+O primeiro cartão é a **miniatura**, e ela vem da API, não do navegador: a leitura anuncia
+`thumbnail_url` e a SPA a liga a um `<img>`, então o cliente nunca monta um caminho e nunca fala com o
+bucket (ADR 0017). Os bytes são `GET /api/v1/documents/{description_id}/thumbnail` (`AUTHENTICATED`);
+a rota responde 404 quando a origem não tinha imagem ou o objeto não está mais no bucket, e 503
+quando o próprio storage está indisponível. Quatro das 101 descrições do acervo de referência não
+têm imagem de origem, então "Sem imagem" é um estado normal, e uma URI guardada cujo objeto sumiu
+mostra "Imagem indisponível" — nunca o ícone de imagem quebrada. A lista do acervo mostra a mesma
+miniatura a 56 px, que é como se reconhece uma fotografia sem abrir o dossiê.
+
+A decisão é o próprio registro, agrupado nas áreas da norma — **3.1 Identidade**, **3.2 Contexto**,
+**3.3 Conteúdo e estrutura**, **3.4 Acesso e uso**, **3.5 Materiais relacionados**, **3.6 Notas** e
+**3.7 Controle da descrição** — mais o nível, a tipologia e o selo de difusão, com uma nota do porquê.
+O registro ISAD(G) inteiro é editável: o acervo guarda todo campo que o transform de staging
+interpretou, não o subconjunto que a transferência copiava. A escrita é `PATCH
+/api/v1/documents/{description_id}` (`CURATE`). Ela registra o antes e o depois do que mudou em
+`archive_document_revisions`, grava a autoria a partir da sessão e define `HUMAN_APPROVED` — o que tira
+a descrição da fila da IA. Reversível: outra edição registra uma nova revisão; o histórico é só de
+acréscimo e o valor anterior fica visível na aba `Histórico`. Publicar e retirar usam o mesmo comando e
+são igualmente reversíveis.
+
+Dois valores são exibidos e não editados, porque são evidência e não descrição: `date_expression` (a
+data como a fonte escreveu — `Década de 1980` ao lado do `1980-01-01` interpretado, que é o que o
+parser conseguiu dela) e `original_url` (a página de onde o registro foi lido). O nível e a tipologia
+são seletores sobre os seus catálogos; `language_name` é um seletor sobre `GET /api/v1/languages`, um
+catálogo declarado em código porque um idioma não carrega regra que a instituição edite. O valor
+guardado é o nome do catálogo: uma variante declarada (`Português/Brasil`, `Português Brasil`) é
+dobrada na transferência, então a coleção inteira lê uma grafia — e o seletor **mantém um valor que o
+catálogo não conhece**, marcado como tal, para que abrir o dossiê nunca apague um idioma que o
+catálogo nunca viu. O pai declarado aparece em 3.1 mesmo enquanto está pendente (`BR PRPMC —
+aguardando`), porque a origem pode entregar o filho antes do pai; o vínculo em si se faz na aba
+`Arranjo`.
+
+O cartão **Objeto digital** aparece com o controle **desabilitado**: o acervo guarda a descrição, não
+o arquivo, e o objeto digital é a #198. A frase que diz isso é definida uma vez
+(`apps/curator/src/lib/copy.ts`) e o formulário de entrada manual mostra a mesma.
 
 #### Assuntos
 
@@ -976,19 +1005,53 @@ correção é a revisão humana da ficha, na descrição.
 
 ## Sistema
 
-A máquina, não o acervo. Tudo aqui pertence a quem opera a instalação, e as três telas são alcançadas
-por `/configuracoes`, sob *Operação*: o menu ficou com o que o arquivista consulta catalogando, e não
-é isto.
+A máquina, não o acervo. Tudo aqui pertence a quem opera a instalação, e as quatro telas são
+alcançadas por `/configuracoes`, sob *Operação*: o menu ficou com o que o arquivista consulta
+catalogando, e não é isto. A tela de ingestão é a exceção à regra "só operador" — o formulário manual
+e a importação CSV são escritas do curador (#44, #191) — e por isso é um cartão `CURATE`.
 
 | Tela | Decisão | Reversível? |
 | --- | --- | --- |
+| Ingestão — `/sistema/ingestao` | qual origem ler, as URLs e a agenda (operador); e importar um CSV (curador) | a configuração e a agenda são reversíveis; uma linha importada entra no pipeline e é aprovada (ou rejeitada) no dossiê |
+| Nova descrição — `/sistema/ingestao/nova` | digitar uma descrição, campo a campo (curador) | o registro entra no pipeline como `PENDING_AI`; a aprovação (ou rejeição) acontece no dossiê, e só ali |
 | Workers de IA — `/sistema/workers` | se roda um worker agora | sim (a configuração da própria execução); os efeitos de uma execução seguem o que ela escreveu |
-| Execuções — `/sistema/execucoes` | nenhuma (o ledger e as falhas agrupadas) | sim (só leitura) |
+| Execuções — `/sistema/execucoes` | se para uma execução ativa (o ledger e as falhas agrupadas são só leitura) | sem desfazer: uma execução cancelada continua cancelada; uma nova execução é uma nova linha no ledger |
 | Saúde do sistema — `/sistema/diagnostico` | nenhuma (banco, modelos, storage, processo) | sim (só leitura) |
+
+### Ingestão — `/sistema/ingestao`
+
+A etapa à frente do Acervo, origem por origem (ADR 0016). Cada cartão é uma origem: a própria fila (o
+que a próxima execução leria), os números de processados e falhas, a última execução e a ativa, e a
+agenda. O **operador** edita a configuração do adaptador (URLs de listagem e detalhe da coleta de
+referência, a espera de cortesia), salva um cron de cinco campos num fuso IANA e **Enfileira
+execução**. A execução é o mesmo ledger dos workers de IA; um período que dispara com a origem já
+rodando é pulado, não enfileirado. As rotas genéricas de worker recusam `ingestion` — uma execução
+dela precisa da origem, e as rotas da origem são o seletor.
+
+O **curador** vê os mesmos cartões só para leitura, o cartão **Entrada manual** e o cartão
+**Importação CSV**. O cartão manual abre `/sistema/ingestao/nova`, uma tela própria, onde a descrição
+é digitada inteira: trinta controles nas sete áreas da norma, o nível e o idioma como seletores, a data
+como texto com a gramática do idioma, e o controle do objeto digital desabilitado até a #198. O
+formulário é a origem `manual`: o envio grava o registro digitado como payload bruto da origem,
+estrutura-o pelo mesmo transform e enfileira o mesmo worker `transfer`. A descrição do Acervo nasce
+`PENDING_AI`; as filas de IA a veem, e a aprovação é o `PATCH /documents/{id}` do dossiê depois que a
+IA rodar. Digitar um registro **não** é uma aprovação, e um `description_id` duplicado é recusado antes
+da gravação.
+
+O cartão de CSV é a origem `csv` (#191, ADR 0019). O arquivo é interpretado **no navegador**: o cartão
+mostra os cabeçalhos detectados, uma prévia e as conferências locais, e envia só as linhas como JSON —
+nada vai para o storage de objetos e não existe rota multipart, então uma instalação cujo storage não
+está configurado importa um CSV do mesmo jeito. O mapa é o da API (`GET
+/api/v1/ingestion/csv/spec`), então um cabeçalho não pode ser aceito pela tela e recusado pelo
+servidor; a API revalida cada linha com o contrato de staging, e a resposta por linha diz **aceita**,
+**duplicada** (o `description_id` já existe) ou **inválida**, com o campo e a frase. Uma importação
+parcial é normal. As linhas aceitas entram no staging como `origin_code='csv'` e uma `transfer` é
+enfileirada depois delas, então a descrição do Acervo nasce `PENDING_AI` como na entrada manual. O
+resto dos campos de staging é #192.
 
 ### Workers de IA — `/sistema/workers`
 
-O catálogo dos nove workers, na ordem do pipeline, com a engine, o preset e a configuração efetiva na
+O catálogo dos dez workers, na ordem do pipeline, com a engine, o preset e a configuração efetiva na
 linha recolhida — "com qual modelo isto está rodando?" é a pergunta que a tela existe para responder,
 e aqui a resposta é **só leitura**. O que a instalação está *configurada* a fazer é uma tela própria
 (*Configuração dos Workers*, abaixo), porque são perguntas diferentes: esta é o que a máquina está
@@ -1002,6 +1065,8 @@ cada um dos dois conta:
   efetiva, ajustada só para esta vez; nada ajustado aqui vira padrão. Toda execução deixa uma linha no
   ledger de execuções, e um worker com execução em andamento desabilita o botão — a garantia é o
   índice único parcial no banco, e a tela só evita oferecer o que o banco recusaria.
+
+A linha `ingestion` é a exceção ao botão de execução: a execução dela pertence a uma origem, então a linha leva a `/sistema/ingestao` (a tela da origem) e a rota genérica a recusa.
 
 Os campos do painel de execução vêm do contrato, não de uma caixa de texto: `declared_options` nomeia
 as opções que o worker aceita e, para uma lista de colunas, as colunas que o texto da IA tem
@@ -1022,15 +1087,21 @@ descrições (um registro de staging, um par, uma tag).
 
 ### Execuções — `/sistema/execucoes`
 
-O ledger de execuções, em leitura: uma linha por execução, da linha de comando e do painel, com a
-configuração **já resolvida** que a execução usou (então ele continua legível depois que um preset
-muda no código), as **opções efetivas do worker** (as colunas que ele leu, o limiar, o teto —
+O ledger de execuções, em leitura exceto pela parada: uma linha por execução, da linha de comando e do
+painel, com a configuração **já resolvida** que a execução usou (então ele continua legível depois que
+um preset muda no código), as **opções efetivas do worker** (as colunas que ele leu, o limiar, o teto —
 resolvidas quando a execução começou, então "quais colunas a execução #N leu?" tem resposta), a
 duração, o desfecho e quem pediu. Uma linha anterior à coluna de opções diz "opções não registradas
 nesta execução". Acima dele, as falhas dos últimos 30 dias
 agrupadas por causa (`GET /api/v1/system/failures`), que respondem à pergunta que o ledger não
 responde: quarenta linhas dizendo a mesma frase são uma causa. Clicar num grupo filtra o ledger
 abaixo em vez de abrir uma segunda lista, e a referência de uma falha é o que se procura no log.
+
+A única escrita é **Cancelar execução…** numa linha ativa (`POST /api/v1/system/runs/{run_id}/cancel`,
+`OPERATE`). Uma execução na fila que nenhum runner reivindicou é cancelada na hora; uma em andamento só
+recebe o pedido, e a linha continua dizendo "em execução" com uma nota até o worker chegar ao limite do
+lote — o lote em curso é comitado, não interrompido, porque uma passada do modelo não pode ser cortada
+no meio. Um segundo clique é o mesmo pedido, e uma execução que já terminou responde `409`.
 
 ### Saúde do sistema — `/sistema/diagnostico`
 

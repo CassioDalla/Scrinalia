@@ -46,8 +46,8 @@ def test_run_detail_scraping_job_success(mocker: MockerFixture, queue_mock: Scra
 
     # 5. Validate the orchestration
     mock_adapter.fetch_details.assert_called_once_with("doc-123")
-    mock_save.assert_called_once_with(mock_db, "doc-123", {"title": "Teste"})
-    mock_queue.assert_called_once_with(mock_db, "doc-123", ScrapeStatus.DONE)
+    mock_save.assert_called_once_with(mock_db, "doc-123", {"title": "Teste"}, origin_code=None)
+    mock_queue.assert_called_once_with(mock_db, "doc-123", ScrapeStatus.DONE, origin_code=None)
     # The raw payload and the queue status are committed atomically per item.
     mock_db.commit.assert_called_once()
 
@@ -82,7 +82,9 @@ def test_run_detail_scraping_job_not_found(mocker: MockerFixture, queue_mock: Sc
     worker.run_detail_scraping_job(mock_db, adapter=mock_adapter)
 
     mock_save.assert_not_called()
-    mock_queue.assert_called_once_with(mock_db, "doc-123", ScrapeStatus.NOT_FOUND, error_msg="Não existe")
+    mock_queue.assert_called_once_with(
+        mock_db, "doc-123", ScrapeStatus.NOT_FOUND, error_msg="Não existe", origin_code=None
+    )
 
 
 def test_run_detail_scraping_job_network_retry(mocker: MockerFixture, queue_mock: ScrapingQueue) -> None:
@@ -98,7 +100,12 @@ def test_run_detail_scraping_job_network_retry(mocker: MockerFixture, queue_mock
     worker.run_detail_scraping_job(mock_db, adapter=mock_adapter)
 
     mock_queue.assert_called_once_with(
-        mock_db, "doc-123", ScrapeStatus.NETWORK_ERROR, error_msg="Caiu a internet", increment_retry=True
+        mock_db,
+        "doc-123",
+        ScrapeStatus.NETWORK_ERROR,
+        error_msg="Caiu a internet",
+        increment_retry=True,
+        origin_code=None,
     )
 
 
@@ -115,7 +122,9 @@ def test_run_detail_scraping_job_max_retries_exceeded(mocker: MockerFixture, que
     worker.run_detail_scraping_job(mock_db, adapter=mock_adapter)
 
     # The Worker must detect that it went past 3 and raise it as FATAL
-    mock_queue.assert_called_once_with(mock_db, "doc-123", ScrapeStatus.FATAL_ERROR, error_msg="Caiu de novo")
+    mock_queue.assert_called_once_with(
+        mock_db, "doc-123", ScrapeStatus.FATAL_ERROR, error_msg="Caiu de novo", origin_code=None
+    )
 
 
 def test_run_detail_scraping_job_direct_fatal_error(mocker: MockerFixture, queue_mock: ScrapingQueue) -> None:
@@ -132,7 +141,9 @@ def test_run_detail_scraping_job_direct_fatal_error(mocker: MockerFixture, queue
 
     worker.run_detail_scraping_job(mock_db, adapter=mock_adapter)
 
-    mock_queue.assert_called_once_with(mock_db, "doc-123", ScrapeStatus.FATAL_ERROR, error_msg="HTML Malformado")
+    mock_queue.assert_called_once_with(
+        mock_db, "doc-123", ScrapeStatus.FATAL_ERROR, error_msg="HTML Malformado", origin_code=None
+    )
 
 
 # ==========================================

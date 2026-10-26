@@ -6,6 +6,7 @@ from litestar.status_codes import (
     HTTP_403_FORBIDDEN,
     HTTP_404_NOT_FOUND,
     HTTP_409_CONFLICT,
+    HTTP_413_REQUEST_ENTITY_TOO_LARGE,
     HTTP_422_UNPROCESSABLE_ENTITY,
     HTTP_423_LOCKED,
     HTTP_429_TOO_MANY_REQUESTS,
@@ -42,6 +43,7 @@ from scrinalia.domains.archive.exceptions import (
     InvalidMergeError,
     InvalidParam,
     InvalidTypologyError,
+    InvalidWorkerScheduleError,
     InvalidWorkerSettingsError,
     MacroCategoryNotFoundError,
     MaterialisationAlreadyUndoneError,
@@ -59,7 +61,9 @@ from scrinalia.domains.archive.exceptions import (
     UnresolvableConflictError,
     WorkerNotFoundError,
     WorkerRunAlreadyActiveError,
+    WorkerRunNotCancellableError,
     WorkerRunNotFoundError,
+    WorkerScheduleNotFoundError,
 )
 from scrinalia.domains.archive.repository.api_error_repo import ApiErrorRecorder
 from scrinalia.domains.archive.schemas.responses import RouteMessageCode
@@ -75,6 +79,13 @@ from scrinalia.domains.identity.exceptions import (
     TooManyLoginAttemptsError,
     UserNotFoundError,
     WeakPasswordError,
+)
+from scrinalia.domains.ingestion.exceptions import (
+    CsvImportLimitError,
+    DuplicateManualRecordError,
+    InvalidOriginConfigError,
+    OriginDisabledError,
+    OriginNotFoundError,
 )
 
 #: One recorder for the process. It opens its own short-lived session per write, so this instance
@@ -113,6 +124,8 @@ def domain_exception_handler(request: Request, exc: DomainException) -> Response
             MaterialisationNotFoundError,
             WorkerNotFoundError,
             WorkerRunNotFoundError,
+            WorkerScheduleNotFoundError,
+            OriginNotFoundError,
             UserNotFoundError,
             SessionNotFoundError,
         ),
@@ -134,12 +147,20 @@ def domain_exception_handler(request: Request, exc: DomainException) -> Response
             ConflictResolutionAlreadyUndoneError,
             DocumentHasChildrenError,
             WorkerRunAlreadyActiveError,
+            WorkerRunNotCancellableError,
+            OriginDisabledError,
+            DuplicateManualRecordError,
             DuplicateUserEmailError,
             LastAdminError,
             SetupAlreadyCompleteError,
         ),
     ):
         status_code = HTTP_409_CONFLICT
+
+    elif isinstance(exc, CsvImportLimitError):
+        # The payload is well formed and too large: the next move is to split the file, not to fix
+        # a field, which is why this is 413 and not 422.
+        status_code = HTTP_413_REQUEST_ENTITY_TOO_LARGE
 
     elif isinstance(exc, InvalidCredentialsError):
         # The one refusal that is about *being* someone rather than about the payload: the client's
@@ -167,7 +188,9 @@ def domain_exception_handler(request: Request, exc: DomainException) -> Response
             InvalidLLMCheckEngineError,
             InvalidTypologyError,
             UnresolvableConflictError,
+            InvalidWorkerScheduleError,
             InvalidWorkerSettingsError,
+            InvalidOriginConfigError,
             InvalidCurrentPasswordError,
             InvalidEmailError,
             WeakPasswordError,

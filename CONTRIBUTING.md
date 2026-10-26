@@ -55,7 +55,7 @@ uv run basedpyright
 uv run pytest
 uv sync --group docs && uv run mkdocs build --strict   # the site, plus the freshness report
 bun run contract               # regenerates openapi.json + the TypeScript client
-bun run --cwd apps/curator typecheck && bun run --cwd apps/curator lint && bun run --cwd apps/curator build
+bun run --cwd apps/curator typecheck && bun run --cwd apps/curator lint && bun run --cwd apps/curator test && bun run --cwd apps/curator build
 uv run alembic check           # fails on model/migration drift
 ```
 

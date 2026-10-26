@@ -2081,3 +2081,447 @@ with short or full shas, and part of a `## <date> — <title>` entry.
   type, so no pixel can differ. The materialisation routes were exercised only through their
   integration tests, not against a live server.
 
+
+## 2026-10-25 — the workers leave the API (ADR 0014)
+
+- **Range:** `74a3a5c..27063f7`
+- **Pages:**
+  - `adr/0014-the-workers-leave-the-api.md` — **created**
+  - `adr/0004-worker-execution-from-the-api.md` — **updated** (superseded)
+  - `adr/index.md` — **updated**
+  - `guides/install.md` / `install.pt.md` — **updated**: the runner and the API; the network and the
+    credential; the GPU host; the compose `runner` service.
+  - `guides/operate.md` / `operate.pt.md` — **updated**: the runner; interrupted runs by lease; the
+    queue in the ledger; the panel's runners and availability; the limits.
+  - `guides/data-model.md` / `data-model.pt.md` — **updated**: the request/runner/lease columns and
+    `archive_worker_runners`.
+  - `README.md` — **updated**: the runner, the image and `bun run dev`.
+  - `SECURITY.md` — **updated**: the runner's database reachability replaces the single-process
+    bullet.
+  - `guides/curate.md` / `curate.pt.md` — **no-change**: the report names them through the release's
+    version declarations; the curation contract and the screens did not move — the panel's new fields
+    are additive and belong to operate.
+- **Why the round exists:** #42, milestone 1.6: move the workers out of the API behind a runner and a
+  lease, before the retry (#43) and cancellation (#72) policies.
+- **What the round measured.** Six commits: the ADR; the queue columns/table/indexes; the runner
+  credential; the claim/lease/run; the API only enqueueing; the panel. The migration
+  `a842f9efad08`, and `alembic check` reports no drift. Full suite **2079 passed, 1 skipped**;
+  `basedpyright`, `ruff`, `tsc`, ESLint and the Vite build green. Rendered and looked at: the workers
+  panel (an online runner with two capabilities, `sem runner` on the seven others, `Enfileirar
+  execução`) and the run history (a live run enqueued by the panel, claimed and closed by a runner,
+  showing `runner`, `sinal` and `lease`). The run was #9, `SUCCESS`, claimed **0.46 s** after the
+  enqueue.
+- **Not verified, and said so.** The GPU host is not this machine: the runner rendered is the CPU one
+  and the CUDA path is the install guide's, not a measured run. A real remote database over
+  TLS/tunnel was not exercised; the `RUNNER_DATABASE_URL`/`DB_SSLMODE` path is tested against the
+  local database only. #43/#72 are vocabulary in the ADR, not code. The API with several processes was
+  not run; the claim/lease tests use two runners on one database.
+
+## 2026-10-25 — schedules and retries (ADR 0015)
+
+- **Range:** `27063f7..692de01`
+- **Pages:**
+  - `adr/0015-schedules-and-retries.md` — **created**: the agenda, the scheduler, the retry and the slot.
+  - `adr/index.md` — **updated**.
+  - `guides/install.md` / `install.pt.md` — **updated**: the `DEFAULT_TIMEZONE` row, the scheduler process,
+    the compose service.
+  - `guides/operate.md` / `operate.pt.md` — **updated**: the "no scheduler" section replaced by
+    "Scheduling and retries"; the agenda on `/configuracoes/workers` and `/sistema/workers`; the retry
+    policy and the slot; the limits.
+  - `guides/data-model.md` / `data-model.pt.md` — **updated**: `archive_worker_schedules` and the
+    `attempt`/`retry_of`/`not_before` columns.
+  - `README.md` — **updated**: the scheduler and the retry.
+  - `AGENTS.md` — **updated**: the scheduler command and the dev script (PATCH 1.2.2, 15,998 B).
+  - `.dsh/skills/workers`, `.dsh/skills/data` — **updated**: the scheduler/retry and the 34 settings.
+- **Why the round exists:** #43, milestone 1.6: the scheduling and the retry ADR 0014 deferred.
+- **What the round measured.** Six commits: the ADR 0015; the schedule table and the attempt columns; the
+  scheduler (the advisory lock, the tick, the skip, the catch-up, the cron's DST); the retry and the
+  API (the routes, the DTOs, the retry as a new row); the panel; the dev/deploy. The migration
+  `b7e4c2a9f1d0`, and `alembic check` reports no drift. Full suite **2124 passed, 1 skipped**;
+  `basedpyright`, `ruff`, `tsc`, ESLint and the Vite build green; `mkdocs --strict` green. Rendered and
+  looked at: the agenda in `/configuracoes/workers` (the `*/1 * * * *` cron, `America/Sao_Paulo`, the
+  enabled state and the next run), the **agenda** badge and fact in `/sistema/workers` (with `sem
+  runner` on the seven workers the runner does not accept) and four `SCHEDULE` runs in
+  `/sistema/execucoes`, claimed by `render:9055ae26`.
+- **Not verified, and said so.** The retry's live path was not rendered: the render's cleaning run
+  succeeds, so "tentativa 2/3" and "nova tentativa de #N" are covered by the integration tests, not by
+  a screenshot. The advisory lock's standby/failover was tested with two services on one test database,
+  not observed across two hosts. A GPU host or a multi-host deploy was not exercised.
+
+## 2026-10-25 — a run can be stopped from the panel (#72)
+
+- **Range:** `57c58fd..b84cad3`
+- **Pages:**
+  - `guides/operate.md` / `operate.pt.md` — **updated**: the ledger columns and the `CANCELLED`
+    status, the new **Cancelling a run** section (the request, the two outcomes, the batch boundary,
+    the CLI signals and the daemon's `INTERRUPTED`), the route and screen tables, the retry note and
+    the limits. The trigger list now names `SCHEDULE`, which the #43 round left out.
+  - `guides/data-model.md` / `data-model.pt.md` — **updated**: `cancel_requested_at`,
+    `cancel_requested_by`/`_user_id` and the `CANCELLED` value on `archive_worker_runs`.
+  - `guides/curate.md` / `curate.pt.md` — **updated**: the Execuções screen's one write, with the
+    confirmation and the honest granularity.
+  - `.dsh/skills/workers` — **updated**: the cancellation is a request, `RunControl.checkpoint`, the
+    source gate, the `BaseException` choice and the CLI/daemon split.
+  - `adr/0014` — **no-change**: decision 9 fixed this vocabulary and named #72; the ADR records the
+    decision, and this round is its implementation.
+- **Why the round exists:** #72, milestone 1.6 — the panel could start work it could not stop, and
+  the only lever was `docker compose stop`.
+- **What the round measured.** Four code commits: the ledger (the enum value, the two columns with
+  their author link, the migration `d72c0a4b1e9f`, the DTO and the repository); the runner (the one
+  `RunControl.checkpoint`, the six loop checks, the CLI signal handler, the service use case); the
+  API (the route, the two codes, the generated contract); the SPA (the status mirror and the row
+  action). Full suite **2146 passed, 1 skipped**; `basedpyright`, `ruff`, `tsc`, ESLint and the Vite
+  build green; `alembic upgrade head` and `alembic check` report no drift; `mkdocs --strict` green.
+- **What was rendered.** `.render/72-runs.png` shows the three states together: the `RUNNING`
+  `embedding` row with "Cancelamento pedido em 25/10/2026, 14:05 por Cassio…", the `CANCELLED`
+  `thumbnail` row, and the `QUEUED` `typology` row with **Cancelar execução…**.
+  `.render/72-confirm.png` shows the inline confirmation and its sentence; `.render/72-cancelled.png`
+  shows the `typology` row after the browser clicked **Confirmar cancelamento** — the POST ran
+  through the real route and the row came back **Cancelada**. The `RUNNING` row was claimed by
+  `render:demo` with a direct `UPDATE` (no worker process), and the request was recorded through the
+  API; the scratch session row and the three runs were deleted after the round.
+- **Not verified, and said so.** The batch-boundary stop of a real model run was not observed: the
+  checkpoint is covered by the integration tests with a double, not by a spaCy/torch run. The CLI's
+  signal handler is unit-tested as a callable, but no `SIGTERM` was delivered by the operating system
+  to a process mid-batch. The daemon's `SIGTERM` → lease → `INTERRUPTED` path was not exercised.
+
+
+## 2026-10-25 — the origin is a first-class object (#44)
+
+- **Range:** `b84cad3..8e0c42f`
+- **Pages:**
+  - `adr/0016-the-origin-is-a-first-class-object.md` — **created**: the decision (definition in
+    code + lifecycle row, `origin_code` as provenance, the `ingestion` stage in the same ledger, the
+    manual entry as `PENDING_AI`, the deferred CSV and per-origin AI settings).
+  - `adr/index.md`, `mkdocs.yml` — **updated**: the new ADR is linked and in the nav.
+  - `guides/operate.md` / `operate.pt.md` — **updated**: ten workers with `ingestion` first, the
+    origin table and screen, the manual entry, the per-origin slot and agenda, the removed
+    `ACERVO_SOURCE`, the origin routes, the `origin` filter on the ledger and the `ingestion` row that
+    links to the origin screen.
+  - `guides/install.md` / `install.pt.md` — **updated**: the origin is a row, not a setting;
+    `PUBLIC_SCRAPE_*` is the fallback for `pmc`; the migration seeds `pmc` and `manual`; the upgrade
+    path is `/sistema/ingestao`.
+  - `guides/data-model.md` / `data-model.pt.md` — **updated**: `ingestion_origins`, `origin_code` on
+    the queue/raw/staging/archive/run ledger, `created_by` on `raw_data`, and the provenance-not-key
+    rule.
+  - `guides/curate.md` / `curate.pt.md` — **updated**: the `/sistema/ingestao` screen, the worker row that links to it (the generic run button cannot name an origin) and the manual
+    form — data entry, not an approval; the AI queue sees the record; the operator controls are
+    hidden for a curator.
+  - `README.md` — **updated**: the ten worker names, the ingestion screen and the origin agenda.
+  - `.env.example` — **updated**: `ACERVO_SOURCE` removed; `PUBLIC_SCRAPE_*` documented as the
+    reference adapter's fallback.
+  - `.dsh/skills/ingestion` — **updated**: the origin object, per-record schema, the `ingestion`
+    stage and the manual origin; the old `ACERVO_SOURCE` rule removed.
+  - `.dsh/skills/workers` — **updated**: the `ingestion` spec and the per-origin slot.
+  - `.dsh/skills/data` — **updated**: 33 settings fields, no `ACERVO_SOURCE`, the origin is a row.
+- **Why the round exists:** #44, milestone 1.6 — the origin was a parameter with one selector and no
+  lifecycle, no agenda and no attribution; and the ingestion was the one stage the panel could not
+  answer for.
+- **What the round measured.** Full suite **2164 passed, 1 skipped**; `basedpyright` **0 errors**;
+  `ruff check` and `ruff format --check` green; `tsc`, ESLint and the Vite build green;
+  `alembic upgrade head` applied `44a1b2c3d4e5` and `alembic check` reports no drift;
+  `mkdocs build --strict` green. The generated contract was regenerated and matches the app.
+- **What was rendered.** `.render/44-ingestao.png` is the screen with the manual form and both origin
+  cards; `.render/44-ingestao-config.png` is the PMC configuration panel (URLs and delay);
+  `.render/44-ingestao-agenda.png` is its agenda (cron, IANA zone, save/remove);
+  `.render/44-ingestao-submit.png` is a **real** submit: the form filled, the POST ran, and the
+  success notice returned the manual id and "a transferência foi enfileirada". The record was staged
+  and the transfer row was queued; the scratch rows and the temporary account were removed after the
+  round.
+- **Not verified, and said so.** No runner was online, so the queued transfer was not executed by a
+  runner in the browser; the archive `PENDING_AI` and the NER queue are covered by the integration
+  test (`test_manual_ingestion_stages_the_record_and_queues_the_transfer`), which runs the transfer
+  directly. A real scraper execution of the `ingestion` worker against the reference site was not
+  run, and the scheduler's origin tick was tested against the test database, not observed in a live
+  process. The CSV import (#191) and the full manual field set (#192) are not in this change.
+
+## 2026-10-25 — the ingestion panel stops reporting a total (#49)
+
+- **Range:** `8e0c42f..e1362e1`
+- **Pages:**
+  - `guides/operate.md` / `operate.pt.md` — **updated**: the `ingestion` row in `/sistema/workers` has
+    no aggregate pending/processed/failed counters — those are per origin on `/sistema/ingestao`; the
+    health card reads `ingestion_origins` (active/total and each origin's label, with a link), and the
+    process card labels `PUBLIC_SCRAPE_*` as the environment fallback it is. The health route and
+    screen rows name the new summary.
+  - `.dsh/skills/workers` — **updated**: the `ingestion` spec has no aggregate counters; the row is
+    a pipeline index.
+  - `.dsh/skills/observability` — **updated**: the health probe reads the origin table, not the env
+    flag, and the queue stays on the ingestion screen.
+- **Why the round exists:** #49 was written before `/sistema/ingestao`; #44 delivered the intent, but
+  left a row whose `processed`/`failed` were record totals under an "origens" label, and a health flag
+  that could say "not configured" with the origin row configured. The round repurposes #49 for those
+  two truthfulness defects instead of duplicating the origin screen.
+- **What the round measured.** Full suite **2167 passed, 1 skipped**; `basedpyright` 0 errors;
+  `ruff check` and `ruff format --check` green; `tsc`, ESLint and the Vite build green; the API
+  contract was regenerated and matches; `mkdocs build --strict` green. Rendered with the dev database
+  and a temporary admin: `.render/49-health.png` shows "2 de 2 origens ativas", both labels and the
+  **Abrir ingestão** link, and the process card says "fallback de coleta no .env presente";
+  `.render/49-workers.png` shows the `ingestion` row with **Abrir ingestão**, no aggregate counters.
+- **Not verified, and said so.** The **Abrir ingestão** link was rendered and typechecked, but was not
+  followed in the browser this round; `/sistema/ingestao` itself was rendered in the #44 round. The
+  health probe's database-down path is a unit test with a double, not a stopped database. No new
+  migration: the table and columns are the #44 ones.
+
+## 2026-10-25 — the description thumbnail reaches the screen (#102)
+
+- **Range:** `89b2ec6..ed52347`
+- **Pages:**
+  - `adr/0017-the-thumbnail-reaches-the-browser-through-the-api.md` — **created**: the delivery
+    decision (an authenticated proxy route, a `thumbnail_url` derived on the read view, 404/503 for
+    the two failure states, the public route deferred to #46) and the rejected presigned, redirect
+    and public-read alternatives.
+  - `adr/index.md`, `mkdocs.yml` — **updated**: the new ADR is linked and in the nav.
+  - `guides/curate.md` / `curate.pt.md` — **updated**: the dossier's media card, the list's 56 px
+    miniature, the three states ("sem imagem", "indisponível", the image), the route and its
+    `thumbnail_url`, and the public projection still carrying the raw `s3://` reference (#46).
+  - `guides/operate.md` / `operate.pt.md` — **updated**: the worker writes the object; the API serves
+    it on demand, so the endpoint must stay reachable from the API and allow `GetObject`.
+- **Why the round exists:** #102 — the `thumbnail` worker had filled 97 of the 101 reference
+  descriptions and no screen read the field; the browser cannot resolve an `s3://` URI, and the
+  endpoint is the API's private one (`.env` says `http://localhost:8333`, the compose file says
+  `http://host.docker.internal:9000`). The issue also asked for a documented decision between a
+  presigned GET and a proxy, and for a screen that still renders when the object is gone.
+- **What the round measured.** Full suite **2187 passed, 1 skipped**; `basedpyright` **0 errors**;
+  `ruff check` and `ruff format --check` green; `tsc`, ESLint and the Vite build green; the API
+  contract was regenerated and matches the app; `mkdocs build --strict` green. The 101 descriptions
+  yield **97** with a `storage_thumbnail_uri` and **4** with neither a stored URI nor a source image;
+  one object sampled in the local bucket is **384×249, 119,702 bytes, image/jpeg**.
+- **What was rendered.** `.render/102-built-dossie-imagem.png` is the dossier with a real stored
+  image; `.render/102-built-dossie-sem-imagem.png` is description 2731, one of the four without a
+  source image; `.render/102-built-dossie-indisponivel.png` is description 1000, whose URI has no
+  object in the bucket and therefore answers 404; `.render/102-built-lista.png` is the collection
+  list with miniatures and the same two placeholders. All four are the **built** SPA served by the
+  API at `:8000`, rendered in the headless shell at 1280×1000, with a temporary session row that was
+  removed afterwards.
+- **Not verified, and said so.** The bucket used for the render had 40 of the 97 objects (copied
+  from the old `memoria-curitibana-bronze` volume into `meu-bucket-teste`); the other 57 answered
+  404 and are represented by the unavailable state, not by a success. The 503 path is an integration
+  test with a doubled reader, not a stopped endpoint observed in the browser. The mobile stack below
+  `sm` was **not** rendered; the evidence there is the classes. The public route is #46 and was not
+  implemented, so `PublicDocumentSummary` still publishes the raw `s3://` URI. No migration.
+
+## 2026-10-25 — a trial before committing the collection, and the gabarito it reads (#71)
+
+- **Range:** `984b514..06bada0`
+- **Pages:**
+  - `adr/0018-trials-and-the-human-gabarito.md` — **new**: a trial is a ledger row (`trial`,
+    `trial_result`) that runs two to four configurations over one sample and writes no archival
+    content; the gabarito is the human decision already recorded per axis — the latest
+    `archive_document_revisions` row that changed `typology_id`, `curated_macro_category`,
+    `origin=HUMAN`, the conflict resolution — and **never `HUMAN_APPROVED` alone**; the sample is the
+    verdict set plus a seeded ai-writable sample; the comparison produces the settings write. Index
+    and `mkdocs.yml` nav updated.
+  - `guides/operate.md` / `operate.pt.md` — **updated**: "Comparing configurations on a sample" (the
+    trial, the two populations, the save/run flow), the two new routes and the `trial` filter in the
+    operations table, the `ensaio` badge and the comparison card in the screens table, and
+    `trial`/`trial_result` in the run ledger.
+  - `guides/data-model.md` / `data-model.pt.md` — **updated**: the `archive_worker_runs` row carries
+    `trial` and `trial_result` (JSONB).
+  - `.dsh/skills/workers` — **updated**: the trial is a run kind, the metric lives in the package, the
+    gabarito rule, and the counter options now come from `configuration.counter_options`.
+  - `guides/curate.md` — **no-change**: the hook flags it because the SPA routes and the contract it
+    declares moved, but the comparison card lives on `/configuracoes/workers`, the operator screen
+    the operations guide owns, and it needs `OPERATE`; no curation workflow changed.
+  - `guides/install.md` — **no-change**: the runner daemon's flags and the deploy are unchanged; the
+    trial is dispatched from a claimed row, not from a new installation step.
+- **Why the round exists:** #70 made a classified description re-classifiable, so a configuration can
+  be re-run; #71 answers the question before the run — *which configuration is better on this
+  collection, and what does it cost?* The decision the issue demanded first, which screen owns the
+  human verdict and how it relates to `HUMAN_APPROVED`, is in ADR 0018: the verdict is the decision the
+  dossier, the tags screen or the conflicts screen already recorded; approving a record is not
+  certifying its labels. The plan, the metric and the bench now share one definition
+  (`domains/archive/evaluation/metrics.py`), and the worker calls the same `link_decision`.
+- **What the round measured.** Full suite **2197 passed, 1 skipped** on the rebased branch (test database on 5434,
+  `postgresql+psycopg2`); `basedpyright` 0 errors; `ruff check` and `ruff format --check` green; the
+  contract was regenerated with `bun run contract` and the SPA's `tsc`, ESLint and Vite build are green;
+  `mkdocs build --strict` green; `alembic upgrade head` applied `71a2b4c6d8e0` and `alembic check`
+  reports no drift. Rendered with the headless shell over CDP: `.render/71-trial-table.png` is the
+  comparison card of a finished trial (the side-by-side table, the `melhor concordância` badge and the
+  disabled **Rodar no acervo inteiro**), `.render/71-ledger-ensaio.png` is the ledger row with the
+  `ensaio` badge and the link back to the settings, and `.render/71-settings-trial.png` is the settings
+  screen with the card in place.
+- **Not verified, and said so.** The trial was **not run against a real model**: the rendered result is
+  a scratch `archive_worker_runs` row (and a scratch session) inserted into the dev database and deleted
+  after the round, so the numbers in the screenshot are a fixture, not a measurement of the reference
+  collection; the screen's **Rodar ensaio** was not clicked. The route is covered by the controller
+  test, the executor by unit tests with a fake engine, and the daemon dispatch by an integration test —
+  but the real cost per document on this machine is unmeasured, and no typology preset was chosen from
+  it. The comparison card's editors start from the current settings, not from the last trial's
+  configurations; repeating a measured comparison means re-entering it.
+
+## 2026-10-25 — a CSV imported without storage (#191)
+
+- **Range:** `6cc6349..6ff7c7d`
+- **Pages:**
+  - `adr/0019-the-csv-import-is-parsed-in-the-browser.md` — **created**: the file never leaves the
+    browser, the `csv` origin has no adapter and no storage, the map and the bounds are published by
+    the API, and the answer is a per-row report. The alternatives (bucket upload, server-side text
+    parse, one transfer per row, a durable import ledger, all staging fields now) and their reasons
+    are recorded there.
+  - `adr/index.md` — **updated**: the 0019 row.
+  - `guides/curate.md` / `curate.pt.md` — **updated**: the Importação CSV card in the ingestion
+    screen, the table row that now says a curator may type a record **or** import a CSV, and the
+    per-row answer (accepted/duplicated/invalid, partial import, `PENDING_AI`).
+  - `guides/operate.md` / `operate.pt.md` — **updated**: a "The CSV import" section beside the manual
+    entry (the browser parse, the spec route, the 413, the duplicate rule, the one transfer and the
+    re-import caveat), the two routes in the API table, the origins paragraph (`csv` has no adapter
+    configuration) and the permissions sentence that now names both curator writes.
+  - `guides/data-model.md` / `data-model.pt.md` — **updated**: `raw_data.created_by` is set by the
+    form-based origins (`manual`, `csv`), and `ingestion_origins.config` says the csv origin has none.
+    The Portuguese `raw_data` row had lost `origin_code` and the two author columns; the round put
+    them back in step with the English table.
+  - `guides/install.md` — **no-change**: the hook flags `package.json` and `sources.py`, but the
+    change adds a contributor test script and an origin vocabulary, not a setting or an installation
+    step; the `curator:test` command is in `CONTRIBUTING.md`, where the local checks live.
+  - `.dsh/skills/ingestion/SKILL.md` — **updated**: the CSV rules (no storage, the one catalogue and
+    the limits, the strict row rules, the `description_ids` staging window).
+  - `CHANGELOG.md` — **updated**: the Unreleased/Added entry.
+  - `mkdocs.yml` — **updated**: the ADR 0019 nav entry.
+- **Why the round exists.** #191 was the CSV ingestion ADR 0016 deferred, and the issue opened with
+  the constraint the design had to respect: the storage is optional, so an ingestion feature cannot
+  depend on it. The choice recorded in ADR 0019 keeps the file in the browser, publishes one map and
+  one set of bounds, and makes the API the authority over every row.
+- **What the round measured.** Full suite **2228 passed, 1 skipped** (the test database on 5434,
+  `postgresql+psycopg2`; 5433 was held by another process); `ruff check` and `ruff format --check`
+  green; `basedpyright` **0 errors**; the contract was regenerated with the repository's
+  `openapi.json` + `codegen` path and the SPA's `tsc`, ESLint, `bun test` (**20 pass**) and Vite build
+  are green; `mkdocs build --strict` green and the documentation coverage gate **29 passed**;
+  `alembic upgrade head` applied `191c5f0a7b2e` and `alembic check` reports no new operations.
+  Rendered with the headless shell over CDP at 1280×1600, against the built SPA served by the API and
+  a temporary session: `.render/191-preview.png` is the card with the detected headers, the preview
+  table and the local duplicate warning; `.render/191-result.png` is the per-row report — 2 accepted,
+  1 duplicated and 1 invalid (`A data 'banana' não foi reconhecida.`) — with the transfer enqueued.
+  The two accepted rows and the queued transfer were scratch data and were deleted after the round;
+  the temporary session and the sample file are gone, and the screenshots remain.
+- **Not verified, and said so.** The transfer was **not run** during the render — no runner was
+  attached — so the archive description reaching `PENDING_AI` was not observed in the browser; it is
+  asserted by the integration test that runs `worker_archive_transfer.execute` over the imported
+  rows. The **Baixar modelo** button was not clicked; `buildTemplate`/`toCsv` are covered by
+  `bun test`, and the button only creates the Blob. The HTTP 413 path is a controller test with the
+  service mocked, not a real oversized request. The install guide's `no-change` is a judgement from
+  the diff, not from a page render.
+
+## 2026-10-26 — the archive keeps the ISAD(G) record (#199)
+
+- **Range:** `6ff7c7d..08b3ccb`
+- **Pages:**
+  - `guides/data-model.md` / `data-model.pt.md` — **updated**: `staging_documents` gains
+    `date_expression` and the archive gains the full ISAD(G) text set plus `parent_reference_code`,
+    `date_expression` and `original_url`; the paragraph explains why the spelling travels beside the
+    parsed date and why the declared parent is a column now.
+  - `guides/curate.md` / `curate.pt.md` — **updated**: the description tab grouped in the norm's
+    seven areas, the whole record editable, the two evidence fields shown and not edited, the
+    language select that keeps a value the catalogue does not know, the pending parent, and the
+    digital object card with the disabled control pointing at #198.
+  - `guides/operate.md` / `operate.pt.md` — **no-change**: the round changed the archive and the
+    dossier, not the ingestion screen; the manual form still ships nine fields, and the sentence that
+    says the rest is #192 is still true.
+  - `guides/install.md` — **no-change**: no setting moved; the language catalogue is code, not a new
+    environment variable.
+  - `adr/` — **no-change**: no decision here is architectural enough for an ADR. The columns are
+    additive, and the language catalogue becoming a table is the facet issue's decision; the module
+    docstring and the issue record the reasoning.
+- **Why the round exists.** #192 expands the manual form, and the archive could not store what the
+  form would ask: the transfer copied 14 of the 33 content fields the staging transform parses. The
+  round closes the store first, so the form grows against a table that exists, and so the dossier can
+  finally show the record it claims to own.
+- **What the round measured.** Full suite **2238 passed, 1 skipped** (the test database on 5434,
+  `postgresql+psycopg2`; 5433 is held by another process); `ruff check` and `ruff format --check`
+  green; `basedpyright` **0 errors**; the contract regenerated with the repository's `openapi.json` +
+  `codegen` path, and the SPA's `tsc`, ESLint and Vite build green; `mkdocs build --strict` green and
+  the documentation coverage gate **29 passed**; `alembic upgrade head` applied `e3084fbf75ba` and
+  `alembic check` reports no new operations. The backfill was measured on the dev database
+  (`scrinalia_zeroed`): **101** archive rows against **100** staging rows, so the migration filled
+  **100** descriptions and left **1** empty (no staging row), and `date_expression` is **0** by design,
+  because the staging column did not exist when those rows were parsed. Rendered with the headless
+  shell over CDP at 1280×1600 against the Vite dev server and the API: `.render/199-dossier-top.png`
+  is 3.1 (level, typology, reference code, date, dimension and support, the parent named from the
+  branch) and 3.2 with the source link; `.render/199-dossier-mid.png` is 3.3 and 3.4, where the
+  language select shows **"Português Brasil (fora do catálogo)"** — the scraped spelling, kept
+  instead of erased; `.render/199-dossier-bottom.png` is 3.5 to 3.7, the diffusion flag, the disabled
+  **Objeto digital** control with the one sentence, and the save bar. The temporary render account and
+  its session were deleted after the round, and the browser profile and driver are gone.
+- **Not verified, and said so.** The transfer was **not run** over the collection, so the CDC re-read
+  and the AI re-queue that follow the hash change were not observed: the round-trip is the integration
+  test that stages a record with every field and asserts every column. No field was **saved** through
+  the dossier in the browser; the write path is the same `PATCH` covered by the curation test, and
+  what the render proves is that the controls exist, are bound to the stored values and render in the
+  right area. The language select was seen with an unknown value only; the known-value options come
+  from the same `GET /api/v1/languages` list the route test pins.
+
+## 2026-10-26 — the manual entry covers the whole record (#192)
+
+- **Range:** `08b3ccb..33217f7`
+- **Pages:**
+  - `guides/operate.md` / `operate.pt.md` — **updated**: the manual entry has a screen of its own at
+    `/sistema/ingestao/nova`, typed in the norm's areas; the three behaviours worth knowing (the date
+    is text with the language grammar, the level and the language are selects, the digital object
+    control is disabled until #198) replace the paragraph that said the form shipped the essential
+    fields.
+  - `guides/curate.md` / `curate.pt.md` — **updated**: the screens table gains the new row, and the
+    ingestion section says the card opens the form instead of embedding it.
+  - `guides/data-model.md` / `data-model.pt.md` — **no-change**: the round writes the same columns
+    the archive gained in #199; nothing new in the schema.
+  - `guides/install.md` — **no-change**: no setting moved, and the language catalogue is code, not a
+    variable.
+  - `adr/` — **no-change**: this is the form catching up with a contract that already existed.
+- **Why the round exists.** #199 made the archive store the whole ISAD(G) record; the form was the
+  last surface that still spoke a subset, and the CSV import had to grow with it or the file and the
+  form would accept different vocabularies (ADR 0019 pins the equality).
+- **What the round measured.** Full suite **2244 passed, 1 skipped** against the test database on
+  5434; `ruff check` and `ruff format --check` green; `basedpyright` **0 errors**; the contract
+  regenerated (31 fields in `ManualIngestionRequest`, `attachment_link` gone, the result carrying the
+  parsed date); the SPA's `tsc`, ESLint and Vite build green; `mkdocs build --strict` green and the
+  documentation coverage gate **29 passed**, including the new screen. Rendered with the headless
+  shell over CDP at 1280×1600 against the Vite dev server and the API:
+  `.render/192-form-top.png` is the identity area open — title, level, parent, reference code, the
+  **text** date with its placeholder and help, dimension and support — with the six other areas
+  collapsed, the disabled **Objeto digital** control and the submit disabled while the title is
+  empty; `.render/192-form-area.png` is 3.4 expanded with the language select and the help under each
+  control; `.render/192-ingestion.png` is the ingestion screen with the **Entrada manual** card
+  reduced to the explanation and the **Nova descrição** button, the CSV card and the origin cards
+  below. The temporary render account and its sessions were deleted, and the browser profile and
+  driver are gone.
+- **Not verified, and said so.** Nothing was **submitted** through the browser: the write path is the
+  integration test that stages a record with every field and asserts every column, and what the
+  render proves is that the controls exist, are bound and sit in the right area. The
+  `requires_parent` warning was not triggered (no rung that requires a parent was selected in the
+  render); it is a conditional in the same screen. The CSV card was rendered but not re-imported with
+  the wider template: the map and the caps are the same catalogue the spec publishes, covered by
+  `test_csv_import.py` and by the equality pin.
+
+## 2026-10-26 — one spelling per language (#203)
+
+- **Range:** `e9f0062..8660c6f`
+- **Pages:**
+  - `guides/data-model.md` / `data-model.pt.md` — **updated**: `language_name` holds the catalogue's
+    spelling, the fold happens at the transfer with the variants declared as aliases, and a language
+    the catalogue does not know is kept as the source wrote it; `staging_documents` keeps the
+    declared text.
+  - `guides/curate.md` / `curate.pt.md` — **updated**: the dossier's select reads the catalogued name
+    (a variant is folded before it arrives), and the `(fora do catálogo)` marker is now only for a
+    language the catalogue has never heard of.
+  - `guides/operate.md` / `operate.pt.md` — **no-change**: the manual form already sent a catalogue
+    name; the fold is about values arriving from the origins and from the past.
+  - `adr/` — **no-change**: it is the catalogue #199 created, given the normalisation every closed
+    catalogue in this codebase has.
+- **Why the round exists.** The render that closed #199 measured the collection: `Português Brasil`
+  in 78 descriptions and `Português/Brasil` in 22, both shown as unknown because the dossier compares
+  strings and the catalogue says `Português`. Keeping the source's text is the right default; two
+  spellings of one language in a closed list is not.
+- **What the round measured.** Full suite **2270 passed, 1 skipped** against the test database on
+  5434; `ruff check` and `ruff format --check` green; `basedpyright` **0 errors**; `mkdocs build
+  --strict` green and the documentation coverage gate **29 passed**; `alembic upgrade head` applied
+  `6c46426b048a` and `alembic check` reports no new operations. On the dev database the migration
+  folded **100** rows in `staging_documents` and **100** in `archive_documents` (the collection has
+  101 descriptions, one of them with no language), and the two spellings became one:
+  `Português 100`, `NULL 1`. Rendered with the headless shell over CDP at 1280×1600 against the Vite
+  dev server and the API: `.render/203-language.png` is the dossier's 3.4 area with the **Idioma**
+  select reading `Português` — the same record that showed `Português Brasil (fora do catálogo)`
+  before the fold. The temporary render account and its sessions were deleted, and the browser
+  profile and driver are gone.
+- **Not verified, and said so.** The fold was not exercised through a **new scrape**: the transfer
+  path is covered by the integration test that stages `Português/Brasil` and asserts the archive's
+  `Português` while staging keeps the declared text. The downgrade is a documented no-op and was not
+  run, because it cannot restore the spelling — the fold is lossy by design.

@@ -8,6 +8,7 @@ from scrinalia.core.logger import logger
 from scrinalia.core.unit_of_work import UnitOfWork
 from scrinalia.domains.archive.domain.hierarchy import build_path
 from scrinalia.domains.archive.domain.hierarchy_code import normalize_reference_code
+from scrinalia.domains.archive.domain.language_catalog import resolve_language
 from scrinalia.domains.archive.domain.level_catalog import resolve_level_id
 from scrinalia.domains.archive.models import ArchiveDocument, ArchiveReviewStatus
 from scrinalia.domains.archive.ports.staging_source import StagingRecordSource
@@ -183,8 +184,11 @@ def execute(
 
             doc_dto = ArchiveDocumentDTO(
                 description_id=doc_staging.description_id,
+                origin_code=doc_staging.origin_code,
                 original_title=doc_staging.title,
                 document_date=doc_staging.document_date,
+                date_expression=doc_staging.date_expression,
+                original_url=doc_staging.original_url,
                 summary=doc_staging.scope_content,
                 # Parsed content, not the raw payload: a parser fix must reach the archive.
                 staging_content_hash=doc_staging.parsed_content_hash(),
@@ -192,15 +196,38 @@ def execute(
                 storage_thumbnail_uri=None,
                 reference_code=doc_staging.reference_code,
                 level_id=level_id,
+                dimension_support=doc_staging.dimension_support,
                 producers=doc_staging.producers,
                 admin_bio_history=doc_staging.admin_bio_history,
                 admin_archival_history=doc_staging.admin_archival_history,
                 provenance=doc_staging.provenance,
                 scope_content=doc_staging.scope_content,
-                language_name=doc_staging.language_name,
+                appraisal_destruction=doc_staging.appraisal_destruction,
+                accruals=doc_staging.accruals,
+                arrangement=doc_staging.arrangement,
+                reproduction_conditions=doc_staging.reproduction_conditions,
+                # One language, one spelling: the catalogue's name when the declared one folds to
+                # it, and the source's text when it does not (#203). The staging row keeps what
+                # the origin declared, exactly like the level text.
+                language_name=resolve_language(doc_staging.language_name) or doc_staging.language_name,
+                physical_characteristics=doc_staging.physical_characteristics,
+                finding_aids=doc_staging.finding_aids,
+                originals_location=doc_staging.originals_location,
+                copies_location=doc_staging.copies_location,
+                related_units=doc_staging.related_units,
+                publication_notes=doc_staging.publication_notes,
+                conservation_notes=doc_staging.conservation_notes,
+                general_notes=doc_staging.general_notes,
                 archivist_notes=doc_staging.archivist_notes,
+                rules_conventions=doc_staging.rules_conventions,
+                description_dates=doc_staging.description_dates,
                 access_conditions=doc_staging.access_conditions,
+                parent_reference_code=doc_staging.parent_reference_code,
                 final_title=None,
+                # The flag and its reasons travel as a pair: nulling one and keeping the other left
+                # a description flagged with nothing explaining it. A changed parse re-runs the
+                # quality validator (the stamps are reset with the content), which re-derives both.
+                is_anomaly=False,
                 anomaly_reasons=None,
                 review_status=ArchiveReviewStatus.PENDING_AI,
                 execution_log=execution_log,

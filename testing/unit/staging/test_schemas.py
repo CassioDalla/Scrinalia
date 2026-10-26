@@ -102,6 +102,28 @@ def test_the_date_also_arrives_under_the_short_spelling() -> None:
     assert _from_payload({"title": "X", "Data": "1954"}).document_date == date(1954, 1, 1)
 
 
+def test_an_approximate_date_keeps_the_sources_spelling() -> None:
+    """
+    The parsed date is approximate and the spelling is the only evidence of it.
+
+    "Década de 1980" becomes January 1st of the decade, which is a real date at the precision the
+    source has — and a lossy one: the archive can only say "the eighties" if the expression travels
+    beside the value.
+    """
+    dto = _from_payload({"title": "X", "Data de Produção": "Década de 1980"})
+
+    assert dto.document_date == date(1980, 1, 1)
+    assert dto.date_expression == "Década de 1980"
+
+
+def test_a_placeholder_date_keeps_no_expression() -> None:
+    """``00/00/0000`` is the source saying "no date"; keeping it would look like a value."""
+    dto = _from_payload({"title": "X", "Data de Produção": "00/00/0000"})
+
+    assert dto.document_date is None
+    assert dto.date_expression is None
+
+
 def test_map_raw_to_staging_saves_junk_in_raw_metadata() -> None:
     """Guarantees that unknown HTML keys are not lost."""
     dto = _from_payload(

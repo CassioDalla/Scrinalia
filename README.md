@@ -15,8 +15,8 @@ three-layer pipeline, and enriches them with named entities, typologies and subj
 categories. Every AI decision is advisory: an archivist reviews and approves, and approved
 documents are locked against further automatic rewrites.
 
-> **Status:** `1.5.0`. The curator surface is complete: the pipeline, the AI workers, the review
-> governance, the authentication and the 26 screens are in place, and the documentation covers
+> **Status:** `1.6.0`. The curator surface is complete: the pipeline, the AI workers, the review
+> governance, the authentication and the 28 screens are in place, and the documentation covers
 > install, operation, curation and the data model. The curator UI is a React SPA (`apps/curator/`)
 > served by the API; the HTTP API is the stable contract, and the TypeScript client is generated from
 > it. The public diffusion site (`apps/public/`) is planned — the public projection and its routes
@@ -115,15 +115,16 @@ first-run screen instead of the sign-in form; both doors close forever once the 
 
 ### Running the whole system in a container
 
-The image contains the API **and** the curator SPA. That is the deployment shape the code already
-assumes rather than a packaging choice: `create_app()` mounts `apps/curator/dist` at `/` when the
-build exists, so the SPA has no process of its own, the browser stays on the same origin as the API
-and the project needs no CORS — which is also what makes the session cookie first-party and what
-`origin_guard` compares against. A second container in front of the API would have to re-create that
-same origin and a CORS configuration the project deliberately does not have.
+The image contains the API **and** the curator SPA, and the `app` profile starts it with a `runner`
+service: the worker process is no longer inside the API (ADR 0014). That is the deployment shape the
+code already assumes rather than a packaging choice: `create_app()` mounts `apps/curator/dist` at `/`
+when the build exists, so the SPA has no process of its own, the browser stays on the same origin as
+the API and the project needs no CORS — which is also what makes the session cookie first-party and
+what `origin_guard` compares against. A second container in front of the API would have to re-create
+that same origin and a CORS configuration the project deliberately does not have.
 
 ```bash
-docker compose --profile app up -d --build   # application + PostgreSQL
+docker compose --profile app up -d --build   # API + runner + PostgreSQL
 # → http://localhost:8000
 ```
 
@@ -150,11 +151,11 @@ Or skip it: with the container serving the UI, an installation with no account a
 first visit with the first-run screen — the same account, chosen by the person who will use it
 (ADR 0011).
 
-Two properties of the image are load-bearing before changing it. It runs **one** API process on
-purpose: the worker executor lives inside the API and `api/lifespan.py` marks any `QUEUED`/`RUNNING`
-run it finds at start-up as `INTERRUPTED`, so `--workers > 1` requires moving the executor out first.
-And the Python environment is installed **editable** at `/app/src`, which is what `api/spa.py`'s
-`parents[3]` needs to find the SPA build — `--no-editable` deploys an API with no UI, silently.
+Two properties of the image are load-bearing before changing it. Since ADR 0014 the workers are a
+separate `runner` service, so the API itself can be scaled with `--workers N`; the one execution slot
+per worker is a database index, not a process assumption. And the Python environment is installed
+**editable** at `/app/src`, which is what `api/spa.py`'s `parents[3]` needs to find the SPA build —
+`--no-editable` deploys an API with no UI, silently.
 
 > The lockfile pins the PyPI `torch`, whose Linux wheel pulls the whole CUDA runtime into the image
 > even though the container runs on CPU (`CUDA_VISIBLE_DEVICES=""`, as in the `Procfile`). A CPU-only
@@ -277,6 +278,7 @@ The screens that exist today, in the order the work happens:
 | `/qualidade/regras` | cleaning rules: `REWRITE` replaces, `VALIDATE`/`LLM_CHECK` only flag |
 | `/qualidade/anomalias` | what the quality validator marked, with the reason counts over the whole filtered set and each reason as the filter |
 | `/sistema/workers` | the AI workers as the machine sees them: the queue, the pending and failed counters, the effective configuration read only, and a run button |
+| `/sistema/ingestao` | the origins, one card each: its queue, adapters, agenda and run button; and the manual form, which is a `PENDING_AI` record, not an approval |
 | `/sistema/execucoes` | the execution ledger, and the failures of the last 30 days grouped by root cause; clicking a cause filters the ledger to its occurrences |
 | `/sistema/diagnostico` | database, Ollama models, thumbnail storage and the effective process configuration |
 | `/configuracoes` | the landing: one card per screen nobody opens in the middle of cataloguing, on three tabs |
@@ -293,26 +295,48 @@ recycle bin.
 
 ## Running the workers
 
-Prefer the unified runner, which exposes every worker behind one interface:
+Since ADR 0014 a runner outside the API executes the workers; the API only enqueues. Start the runner
+from the repository root:
+
+```bash
+uv run python -m scrinalia.domains.archive.workers.runner_daemon \
+    --name gpu-01 --workers ner,typology,embedding
+```
+
+`--workers` narrows what it accepts; `--concurrency`, the lease timings and `--once` are in the
+operations guide. The panel shows it and marks **sem runner** the workers no online runner accepts; a
+run enqueued for one waits. `bun run dev` starts the API, the runner and the SPA together.
+
+The **scheduler** is a third process (ADR 0015): `python -m
+scrinalia.domains.archive.workers.scheduler` turns each worker's agenda (a five-field cron in an
+explicit zone, pinned to a request) into `QUEUED` rows. It takes a database advisory lock, so one
+instance runs at a time; a tick that fires while the worker already has a run skips the period, and a
+period missed while it was down is a single catch-up. A scheduled run that ends `FAILED` or
+`INTERRUPTED` is retried as a new ledger row (three attempts, exponential backoff capped at 30
+minutes); a manual or CLI run is never retried. `bun run dev` starts the API, the runner and the
+scheduler together; the worker agenda is written on `/configuracoes/workers` and shown on
+`/sistema/workers`, while an origin's agenda is written on `/sistema/ingestao`.
+
+For one-off runs, the unified runner exposes every worker behind one interface:
 
 ```bash
 uv run python -m scrinalia.domains.archive.workers.runner <name> \
     [--engine X --preset Y --batch N --limit N --option key=value --by "who"]
 ```
 
-Available names: `transfer`, `cleaning`, `ner`, `typology`, `thumbnail`, `conflict-judge`,
-`macro-category`, `quality-validator`, `embedding`.
-Each of the nine workers above also carries an `execute(db, ...)` function and a `__main__` block, so
+Available names: `ingestion`, `transfer`, `cleaning`, `ner`, `typology`, `thumbnail`,
+`conflict-judge`, `macro-category`, `quality-validator`, `embedding`. The `ingestion` run takes
+`--origin` and is the stage in front of the transfer; each origin has its own row, queue and agenda.
+Each of the ten workers above also carries an `execute(db, ...)` function and a `__main__` block, so
 a single worker can be run directly while developing; `worker_suggest_macro_category.py` is the
 exception, a helper the API's category-suggestion route imports instead of running on its own.
 
 A worker runs with the **effective configuration**, which is `explicit argument > persisted
-override > signature default`; `/sistema/workers` in the curator UI shows it read-only and runs the
-worker, while `/configuracoes/workers` is where the persisted default is changed, and every run —
-from the CLI or from the screen — leaves a row in
-`archive_worker_runs` with the resolved configuration, the duration and the outcome. The screen's
-executor runs one worker at a time and is not a scheduler: there is no retry and no cron
-(`docs/adr/0004-worker-execution-from-the-api.md`).
+override > signature default`; `/sistema/workers` in the curator UI shows it read-only and
+**enqueues** a run, while `/configuracoes/workers` is where the persisted default is changed, and
+every run — from the CLI or from the screen — leaves a row in `archive_worker_runs` with the request,
+the resolved configuration, the runner and the lease. The queue is one slot per worker; the cron and the retry are the scheduler's
+(`docs/adr/0015-schedules-and-retries.md`).
 
 ## Development
 

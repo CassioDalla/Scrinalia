@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import argparse
 import inspect
+import os
+import signal
+import socket
 from collections.abc import Callable
 from typing import Any
 
@@ -23,14 +26,53 @@ from scrinalia.domains.archive.workers import (
     worker_thumbnail,
     worker_typology,
 )
+from scrinalia.domains.archive.workers.cancellation import RunControl, WorkerRunCancelled
 from scrinalia.domains.archive.workers.catalogue import WORKER_CATALOGUE, engine_option_values
 from scrinalia.domains.archive.workers.configuration import effective_worker_options, resolve_configuration
+from scrinalia.domains.archive.workers.lease import RunLeaseMonitor
 from scrinalia.domains.archive.workers.ledger import WorkerRunLedger
+from scrinalia.domains.ingestion import worker as ingestion_worker
 
 WorkerFn = Callable[..., None]
 
+
+class WorkerRunLeaseLostError(RuntimeError):
+    """The claim was swept between the claim and the start; the runner must not execute it."""
+
+
+class _StopOnSignal:
+    """
+    The CLI's two-step signal: the first asks, the second forces (#72).
+
+    A callable object rather than a closure in ``main`` so the behaviour is testable without sending
+    a real signal: ``signal.signal`` only takes a callable, and a test can call this one directly.
+    The first signal sets the same request the panel writes (through ``RunControl``), so the worker
+    stops at the next batch boundary; the second raises ``KeyboardInterrupt``, which ``run_worker``
+    closes ``CANCELLED`` before the process exits.
+    """
+
+    def __init__(self, control: RunControl) -> None:
+        self._control = control
+        self._received = 0
+
+    def __call__(self, _signum: int, _frame: object) -> None:
+        self._received += 1
+        if self._received == 1:
+            self._control.request_stop()
+            logger.warning(
+                "⏹️ Cancellation requested: the run stops at the end of the current batch. "
+                "Send the signal again to interrupt it now."
+            )
+            return
+        raise KeyboardInterrupt
+
+
 # Registry of executable workers. The key is the CLI name.
 WORKERS: dict[str, WorkerFn] = {
+    # The stage in front of the archive. It is a worker of the same ledger because it is the first
+    # operation the panel has to schedule, lease and cancel; it has no engine and its unit is an
+    # origin, not a document (ADR 0016).
+    "ingestion": ingestion_worker.execute,
     "transfer": worker_archive_transfer.execute,
     "cleaning": worker_cleaning_regex.execute,
     "ner": worker_ner.execute,
@@ -50,6 +92,7 @@ WORKERS: dict[str, WorkerFn] = {
 # after every worker that can change the document text, because it embeds that text and
 # keys its stamp on a hash of it.
 PIPELINE_ORDER = [
+    "ingestion",
     "transfer",
     "cleaning",
     "ner",
@@ -151,6 +194,8 @@ def _forward_kwargs(
     preset: str | None,
     db_batch_size: int | None,
     limit: int | None,
+    origin_code: str | None,
+    run_control: RunControl | None,
     extra: dict[str, Any],
 ) -> dict[str, Any]:
     """
@@ -173,6 +218,7 @@ def _forward_kwargs(
         ("preset", preset),
         ("db_batch_size", db_batch_size),
         ("limit", limit),
+        ("origin_code", origin_code),
     ):
         if value is None:
             continue
@@ -180,6 +226,11 @@ def _forward_kwargs(
             kwargs[key] = value
         else:
             logger.warning(f"⚠️ The worker does not declare '{key}': the value {value!r} was ignored.")
+
+    # ``run_control`` is internal, not a user option: it reaches a worker only when the worker
+    # declares it, never through ``**engine_kwargs`` (that door belongs to the engine constructor).
+    if run_control is not None and "run_control" in params:
+        kwargs["run_control"] = run_control
 
     for key, value in extra.items():
         if key in params or accepts_var_kwargs:
@@ -194,6 +245,7 @@ def run_worker(
     preset: str | None = None,
     db_batch_size: int | None = None,
     limit: int | None = None,
+    origin_code: str | None = None,
     extra: dict[str, Any] | None = None,
     engine_options: dict[str, Any] | None = None,
     db_factory: Callable[[], Any] = get_db,
@@ -201,6 +253,10 @@ def run_worker(
     run_id: int | None = None,
     trigger: WorkerRunTrigger = WorkerRunTrigger.CLI,
     requested_by: Author | None = None,
+    runner_id: str | None = None,
+    lease_seconds: int = 60,
+    lease_monitor: RunLeaseMonitor | None = None,
+    run_control: RunControl | None = None,
 ) -> None:
     """
     Resolves the configuration, opens a database session and dispatches to the requested worker.
@@ -214,13 +270,25 @@ def run_worker(
     test does not sweep the backlog, and a cap that outlived the command would be a trap. It is
     refused for a worker whose ``execute`` does not declare it, instead of being dropped.
 
-    ``ledger``/``run_id`` are how the execution becomes visible in the panel: the CLI passes a
-    ledger and no id (the runner opens the row), the API passes the id of the row it queued. A
-    programmatic caller that passes neither runs without a ledger line — explicit, not silent.
+    ``ledger``/``run_id`` are how the execution becomes visible in the panel. The CLI passes a
+    ledger, its own ``runner_id`` and no id: the runner opens the row with a lease. The external
+    runner passes the id it claimed **and** its ``runner_id``: the row is already ``RUNNING``, so
+    ``record_start`` writes the effective configuration and a lost lease aborts before the worker
+    runs. An id without the runner that claimed it is a programming error. A programmatic caller
+    that passes no ledger runs without a ledger line — explicit, not silent.
+
+    ``lease_monitor`` renews the run's lease while the worker executes; the CLI and the daemon both
+    pass one (ADR 0014).
 
     ``engine_options`` is the named exception of the option validation (#120): a raw pass-through to
     the engine constructor, per run, for an operator who knows the library. It is never persisted and
     never merged into the worker's declared options.
+
+    ``run_control`` is the cancellation of this one run (#72). When it is not given and the run has a
+    ledger row, the runner creates it here; the CLI passes one before the row exists so a signal that
+    arrives during ``ledger.start`` still reaches it. A requested cancellation is checked **before**
+    the worker is called — a run cancelled while queued must not build an engine to learn it — and
+    the worker repeats the check at every batch boundary through the same object.
     """
     if name not in WORKERS:
         raise ValueError(f"Unknown worker '{name}'. Options: {sorted(WORKERS)}")
@@ -244,10 +312,21 @@ def run_worker(
     logger.info(f"🚀 Runner executing the worker '{name}'...")
     with db_factory() as db:
         run_options: dict[str, Any] = {}
-        if spec is None:
+        run_config: dict[str, Any] = {}
+        if spec is not None and spec.origin_axis:
+            # The ingestion stage has no engine and does not read ``archive_worker_settings``: its
+            # configuration is the origin row, resolved by the job itself. The options are the
+            # request's; the origin is the axis and travels in its own column.
+            if not origin_code:
+                raise InvalidWorkerSettingsError(
+                    "O worker 'ingestion' precisa da origem: informe --origin ou a linha da fila."
+                )
+            resolved_engine, resolved_preset, resolved_batch = None, None, None
+            forwarded = explicit_extra
+            run_options = dict(explicit_extra)
+        elif spec is None:
             resolved_engine, resolved_preset, resolved_batch = engine_name, preset, db_batch_size
             forwarded = explicit_extra
-            run_config: dict[str, Any] = {}
         else:
             setting = WorkerSettingsRepository(db).get(name)
             resolved = resolve_configuration(
@@ -278,13 +357,49 @@ def run_worker(
                     engine_name=resolved_engine,
                     preset=resolved_preset,
                     config=run_config,
+                    origin_code=origin_code,
+                    options=run_options,
+                    runner_id=runner_id,
+                    lease_seconds=lease_seconds if runner_id is not None else None,
+                )
+            elif runner_id is None:
+                # A run id is a claim; without its owner there is nothing that can fence the close.
+                raise ValueError("run_worker() needs the runner_id that claimed the run")
+            else:
+                # The external runner claimed the row before resolving anything; this is where the
+                # effective configuration lands. ``False`` means the lease was swept in between.
+                recorded = ledger.record_start(
+                    run_id,
+                    runner_id=runner_id,
+                    engine_name=resolved_engine,
+                    preset=resolved_preset,
+                    config=run_config,
                     options=run_options,
                 )
+                if not recorded:
+                    raise WorkerRunLeaseLostError(
+                        f"run {run_id} is no longer owned by runner '{runner_id}': "
+                        "the lease expired before the run started"
+                    )
+
+        if run_id is not None and ledger is not None:
+            if run_control is None:
+                run_control = RunControl(ledger=ledger, run_id=run_id)
             else:
-                # The effective options are known only here, inside the run: a worker resolves the
-                # default of a column list from its own runner dataclass, and the request that
-                # queued the row never saw it.
-                ledger.mark_running(run_id, options=run_options)
+                run_control.bind(run_id, ledger)
+
+        # A cancellation requested while the row was queued is honoured here, before the engine is
+        # built: the batch-boundary check inside the worker would only run after a model load.
+        if run_control is not None:
+            try:
+                run_control.checkpoint()
+            except WorkerRunCancelled:
+                if ledger is not None and run_id is not None:
+                    ledger.finish(run_id, status=WorkerRunStatus.CANCELLED, runner_id=runner_id)
+                return
+
+        if lease_monitor is not None and run_id is not None:
+            lease_monitor.track(run_id)
 
         kwargs = _forward_kwargs(
             fn,
@@ -292,19 +407,36 @@ def run_worker(
             preset=resolved_preset,
             db_batch_size=resolved_batch,
             limit=limit,
+            origin_code=origin_code,
+            run_control=run_control,
             extra=forwarded,
         )
         kwargs[session_arg] = db
 
         try:
             fn(**kwargs)
+        except (WorkerRunCancelled, KeyboardInterrupt):
+            # A cancellation is not a failure (ADR 0014 decision 9): the worker committed the batch
+            # it had started and unwound, so the row closes CANCELLED with no error text — writing
+            # one would put the run in the failures screen as a root cause it is not.
+            if ledger is not None and run_id is not None:
+                ledger.finish(run_id, status=WorkerRunStatus.CANCELLED, runner_id=runner_id)
         except BaseException as exc:
             if ledger is not None and run_id is not None:
-                ledger.finish(run_id, status=WorkerRunStatus.FAILED, error=str(exc), error_kind=type(exc).__name__)
+                ledger.finish(
+                    run_id,
+                    status=WorkerRunStatus.FAILED,
+                    error=str(exc),
+                    error_kind=type(exc).__name__,
+                    runner_id=runner_id,
+                )
             raise
         else:
             if ledger is not None and run_id is not None:
-                ledger.finish(run_id, status=WorkerRunStatus.SUCCESS)
+                ledger.finish(run_id, status=WorkerRunStatus.SUCCESS, runner_id=runner_id)
+        finally:
+            if lease_monitor is not None and run_id is not None:
+                lease_monitor.release(run_id)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -313,6 +445,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--engine", dest="engine_name", help="Registered AI engine (e.g. spacy_ner).")
     parser.add_argument("--preset", dest="preset", help="Engine preset (e.g. gpu, cpu_local).")
     parser.add_argument("--batch", dest="db_batch_size", type=int, help="Batch size per transaction.")
+    parser.add_argument(
+        "--origin",
+        dest="origin_code",
+        default=None,
+        help="Origin code for the 'ingestion' worker; the archive workers do not take one.",
+    )
     parser.add_argument(
         "--limit",
         dest="limit",
@@ -323,6 +461,16 @@ def main(argv: list[str] | None = None) -> int:
         "--by",
         dest="requested_by",
         help="Quem está executando: texto livre, porque a CLI roda no host e não tem sessão.",
+    )
+    parser.add_argument(
+        "--lease-seconds",
+        dest="lease_seconds",
+        type=positive_int,
+        default=60,
+        help=(
+            "Lease the CLI gives its own run, renewed by a heartbeat; a crash is repaired by the "
+            "next CLI or runner instead of by the API's boot (ADR 0014)."
+        ),
     )
     parser.add_argument(
         "--option",
@@ -358,18 +506,50 @@ def main(argv: list[str] | None = None) -> int:
     known = engine_option_values(args.worker)
     engine_options = {key: _coerce_engine_option(key, value, known) for key, value in raw_engine_options.items()}
 
-    run_worker(
-        args.worker,
-        engine_name=args.engine_name,
-        preset=args.preset,
-        db_batch_size=args.db_batch_size,
-        limit=args.limit,
-        extra=extra,
-        engine_options=engine_options,
-        ledger=WorkerRunLedger(),
-        trigger=WorkerRunTrigger.CLI,
-        requested_by=Author(name=args.requested_by) if args.requested_by else None,
+    if args.lease_seconds < 2:
+        parser.error("--lease-seconds must be at least 2 so the heartbeat fits inside the lease.")
+
+    ledger = WorkerRunLedger()
+    # The control exists before the row does: a signal that arrives while ``run_worker`` is still
+    # opening the ledger line must reach the run, so the first signal sets the local half and the
+    # binding happens after ``ledger.start`` returns the id (#72).
+    control = RunControl()
+    stop_on_signal = _StopOnSignal(control)
+    signal.signal(signal.SIGINT, stop_on_signal)
+    signal.signal(signal.SIGTERM, stop_on_signal)
+
+    # The CLI is a one-shot runner: its own identity and lease, no registry row (ADR 0014). The
+    # sweep repairs a run a previous CLI left behind before this one opens another.
+    runner_id = f"cli:{socket.gethostname()}:{os.getpid()}"
+    monitor = RunLeaseMonitor(
+        runner_id,
+        lease_seconds=args.lease_seconds,
+        interval_seconds=max(1, args.lease_seconds // 4),
+        ledger=ledger,
+        heartbeat_runner=False,
     )
+    ledger.expire_stale_leases()
+    monitor.start()
+    try:
+        run_worker(
+            args.worker,
+            engine_name=args.engine_name,
+            preset=args.preset,
+            db_batch_size=args.db_batch_size,
+            limit=args.limit,
+            origin_code=args.origin_code,
+            extra=extra,
+            engine_options=engine_options,
+            ledger=ledger,
+            trigger=WorkerRunTrigger.CLI,
+            requested_by=Author(name=args.requested_by) if args.requested_by else None,
+            runner_id=runner_id,
+            lease_seconds=args.lease_seconds,
+            lease_monitor=monitor,
+            run_control=control,
+        )
+    finally:
+        monitor.stop()
     return 0
 
 

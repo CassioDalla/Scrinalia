@@ -45,6 +45,8 @@ export type ScreenId =
   | "typologies"
   | "vocabulary"
   | "workers"
+  | "ingestion"
+  | "manualEntry"
   | "workerSettings"
   | "runs"
   | "health"
@@ -184,6 +186,20 @@ export const SCREENS: Record<ScreenId, Screen> = {
     hint: "Presets, filas e execução",
     description: "O que roda, com qual preset e modelo, o que está na fila e o que já rodou.",
   },
+  ingestion: {
+    path: "/sistema/ingestao",
+    label: "Ingestão",
+    hint: "Origens, filas e entrada manual",
+    description:
+      "Cada origem com a sua fila, a sua agenda e a sua configuração; e a entrada manual, que entra na mesma fila de IA.",
+  },
+  manualEntry: {
+    path: "/sistema/ingestao/nova",
+    label: "Nova descrição",
+    hint: "Entrada manual, campo a campo",
+    description:
+      "Uma descrição digitada do zero, área por área: o registro inteiro entra no mesmo staging e na mesma fila de IA das demais origens, e nasce pendente de revisão.",
+  },
   workerSettings: {
     path: "/configuracoes/workers",
     label: "Configuração dos Workers",
@@ -200,8 +216,9 @@ export const SCREENS: Record<ScreenId, Screen> = {
   health: {
     path: "/sistema/diagnostico",
     label: "Saúde do sistema",
-    hint: "Banco, modelos e storage",
-    description: "Banco, modelos do Ollama, storage de miniaturas e a configuração efetiva do processo.",
+    hint: "Banco, modelos, storage e origens",
+    description:
+      "Banco, modelos do Ollama, storage de miniaturas, origens da ingestão e a configuração efetiva do processo.",
   },
   settings: {
     path: "/configuracoes",

@@ -1,6 +1,8 @@
 ---
 sources:
   - src/scrinalia/domains/ingestion/models.py
+  - src/scrinalia/domains/ingestion/origin_registry.py
+  - src/scrinalia/domains/ingestion/origins.py
   - src/scrinalia/domains/staging/models.py
   - src/scrinalia/domains/archive/models/**
   - src/scrinalia/domains/identity/models/**
@@ -9,6 +11,8 @@ sources:
   - src/scrinalia/domains/archive/repository/tag_repo.py
   - src/scrinalia/api/schemas/public.py
   - src/scrinalia/core/language/__init__.py
+  - migrations/versions/44a1b2c3d4e5_the_origin_is_a_first_class_object.py
+  - migrations/versions/b7e4c2a9f1d0_the_schedule_and_the_retry.py
   - migrations/versions/fe7fcab37207_add_the_failure_fingerprint_and_the_api_.py
   - testing/conftest.py
 ---
@@ -67,22 +71,36 @@ uv run python -c "from scrinalia.core.base import Base; import scrinalia.domains
 
 | Table | Purpose | Key columns |
 | --- | --- | --- |
-| `scraping_queue` | One row per identifier discovered at the origin, with its extraction state and retry count. | `description_id` (business key, unique), `scrape_status` (`ScrapeStatus`), `discovered_at`, `last_scraped_at`, `retry_count`, `last_error_message` |
-| `raw_data` | The exact payload returned by the adapter, with no typing or cleaning. | `description_id` (unique), `content_hash`, `raw_title`, `payload` (JSONB) |
+| `ingestion_origins` | One origin's lifecycle, configuration and agenda: what the operator edits without a deploy. | `code` (primary key), `enabled`, `config` (JSONB: URLs and delay; the `csv` origin has none), `options` (JSONB: the run policy), `cron`, `timezone`, `next_run_at`, `last_enqueued_at`, `last_skipped_at`, `updated_by`, `updated_by_user_id` |
+| `scraping_queue` | One row per identifier discovered at the origin, with its extraction state and retry count. | `description_id` (business key, unique), `origin_code`, `scrape_status` (`ScrapeStatus`), `discovered_at`, `last_scraped_at`, `retry_count`, `last_error_message` |
+| `raw_data` | The exact payload returned by the adapter, with no typing or cleaning. | `description_id` (unique), `origin_code`, `content_hash`, `raw_title`, `payload` (JSONB), `created_by`, `created_by_user_id` |
 
 `scrape_status` distinguishes a transient failure (`NETWORK_ERROR`, retried) from a permanent one
 (`NOT_FOUND`, `FATAL_ERROR`). `raw_data.payload` is the evidence of what the origin actually sent;
-nothing downstream reads it directly.
+nothing downstream reads it directly. `raw_data.created_by` is set by the form-based origins
+(`manual`, `csv`): a person typed or uploaded the record, while a scraper has no author — its author
+is the origin.
+
+**The origin is provenance, not identity.** `origin_code` is on every layer and on the run ledger,
+but `description_id` stays the global business key; an adapter that could collide namespaces its own
+ids (`manual-<uuid>`). The origin's **definition** — its adapter and the `SourceSchema` that says
+which label fills which staging column — lives next to the adapter in code; the row above is the
+lifecycle, and a row whose code left the registry stays readable but cannot run (ADR 0016). The
+staging transform resolves the schema **per record**, so one run can read several origins; the
+origin is deliberately excluded from `StagingRecord.parsed_content_hash()`, or every row would look
+changed once for a column no AI worker writes.
 
 ### Staging — the parsed record
 
 | Table | Purpose | Key columns |
 | --- | --- | --- |
-| `staging_documents` | The sanitised, typed description before any AI touches it: the single source of sanitised truth. | `description_id` (primary key), `raw_content_hash`, `title`, `document_date`, `reference_code`, `parent_reference_code`, `hierarchy_path`, `level`, the ISAD(G) text columns, `raw_metadata` (JSONB), `created_at`, `updated_at` |
+| `staging_documents` | The sanitised, typed description before any AI touches it: the single source of sanitised truth. | `description_id` (primary key), `origin_code`, `raw_content_hash`, `title`, `document_date`, `date_expression`, `original_url`, `reference_code`, `parent_reference_code`, `hierarchy_path`, `level`, the ISAD(G) text columns, `raw_metadata` (JSONB), `created_at`, `updated_at` |
 
 `parent_reference_code` is optional on purpose: an origin that delivers a child before its parent
-leaves the description orphan and *marked* instead of failing the batch. `raw_metadata` keeps the
-keys that did not map to a column.
+leaves the description orphan and *marked* instead of failing the batch. `date_expression` keeps the
+date **as the source spelled it** (`Década de 1980`, `1951-1953`) beside the parsed value, because
+the parser approximates an expression into a real date and the spelling is the only evidence of that
+approximation. `raw_metadata` keeps the keys that did not map to a column.
 
 ### Archive — the description and everything around it
 
@@ -90,7 +108,30 @@ keys that did not map to a column.
 
 | Table | Purpose | Key columns |
 | --- | --- | --- |
-| `archive_documents` | The final cleaned and enriched description, served to users and enriched by the AI workers. | `description_id` (primary key), `original_title`, `final_title`, `document_date`, `summary`, `staging_content_hash`, `reference_code`, `level_id`, `typology_id`, `parent_id`, `path`, `review_status`, `is_anomaly`, `anomaly_reasons`, `is_published`, `execution_log` (JSONB), `embedding` (`vector(384)`), `search_vector` (generated), timestamps |
+| `archive_documents` | The final cleaned and enriched description, served to users and enriched by the AI workers. | `description_id` (primary key), `origin_code`, `original_title`, `final_title`, `document_date`, `date_expression`, `original_url`, `summary`, `staging_content_hash`, `reference_code`, `level_id`, `typology_id`, `parent_id`, `parent_reference_code`, `path`, the ISAD(G) text columns, `review_status`, `is_anomaly`, `anomaly_reasons`, `is_published`, `execution_log` (JSONB), `embedding` (`vector(384)`), `search_vector` (generated), timestamps |
+
+The **ISAD(G) text columns** are the whole record, not a subset: `dimension_support`,
+`producers`, `admin_bio_history`, `admin_archival_history`, `provenance`, `scope_content`,
+`appraisal_destruction`, `accruals`, `arrangement`, `access_conditions`, `reproduction_conditions`,
+`language_name`, `physical_characteristics`, `finding_aids`, `originals_location`, `copies_location`,
+`related_units`, `publication_notes`, `conservation_notes`, `general_notes`, `archivist_notes`,
+`rules_conventions` and `description_dates`. The staging transform parsed all of them from the
+beginning; the transfer copied a subset until the archive gained the rest, which is why the dossier
+can now show and edit the record area by area.
+
+`parent_reference_code` is the parent the origin **declared**, kept even when the link cannot be
+resolved yet: the transfer marks the child as pending and the code used to live only inside the
+`hierarchy_parent_v1` stamp value. `date_expression` and `original_url` are evidence rather than
+editable description: how the source spelled the date, and the page the record was read from.
+
+`language_name` holds the **catalogue's** spelling. The origins do not agree on how to write a
+language — the reference collection declared `Português Brasil` in 78 descriptions and
+`Português/Brasil` in 22 — so the transfer resolves the declared text against
+`domain/language_catalog.py` (accent-, case- and punctuation-insensitive, with the variants declared
+as aliases) and writes the canonical name. A language the catalogue does not know is kept exactly as
+the source wrote it: the catalogue never replaces a source's word with a guess, and that is what the
+dossier's `(fora do catálogo)` marker is for. `staging_documents.language_name` keeps the declared
+text, like the level text.
 
 Three properties of this table carry the model:
 
@@ -203,14 +244,28 @@ is what the subject axis stops guessing at — they are not a state of the tag.
 | --- | --- | --- |
 | `archive_worker_settings` | The persisted default configuration of one worker. | `worker_name` (primary key), `engine_name`, `preset`, `db_batch_size`, `options` (JSONB), `updated_by`, `updated_at` |
 | `archive_worker_settings_revisions` | Audit trail of configuration writes, one row per write. | `id`, `worker_name`, `before` (JSONB), `after` (JSONB), `changed_by`, `changed_by_user_id`, `changed_at` |
-| `archive_worker_runs` | One row per worker execution, from the CLI and from the panel alike. | `id`, `worker_name`, `status` (`WorkerRunStatus`), `trigger` (`WorkerRunTrigger`), `requested_by`, `requested_by_user_id`, `engine_name`, `preset`, `config` (JSONB), `options` (JSONB), `queued_at`, `started_at`, `finished_at`, `duration_ms`, `error`, `error_fingerprint` (generated) |
+| `archive_worker_runs` | One row per worker execution, from the CLI and from the panel alike; since ADR 0014 a `QUEUED` row is also the queue item a runner claims. An ingestion run names the origin it processed in `origin_code`; an archive worker's run leaves it null. A **trial** (`trial = true`, ADR 0018) is a comparison of configurations that writes no archival content and carries its measurements in `trial_result`; it holds the worker's slot like any run, but the panel's "last run" ignores it. | `id`, `worker_name`, `origin_code`, `status` (`WorkerRunStatus`), `trigger` (`WorkerRunTrigger`), `trial`, `requested_by`, `requested_by_user_id`, `engine_name`, `preset`, `request` (JSONB, the validated request), `config` (JSONB), `options` (JSONB), `trial_result` (JSONB), `attempt`, `retry_of`, `not_before`, `queued_at`, `runner_id`, `started_at`, `heartbeat_at`, `lease_expires_at`, `cancel_requested_at`, `cancel_requested_by`, `cancel_requested_by_user_id`, `finished_at`, `duration_ms`, `error`, `error_fingerprint` (generated) |
+| `archive_worker_schedules` | The agenda of one worker: a five-field cron in an explicit zone, the pinned request it runs and the next run. | `worker_name` (primary key), `enabled`, `cron`, `timezone`, `request` (JSONB, the validated request), `next_run_at`, `last_enqueued_at`, `last_skipped_at`, `updated_by`, `updated_by_user_id`, `created_at`, `updated_at` |
+| `archive_worker_runners` | The live runner registry: who is connected, which workers it accepts, and when it last signalled. | `runner_id` (primary key), `name`, `hostname`, `version`, `capabilities` (text array), `concurrency`, `heartbeat_seconds`, `started_at`, `last_heartbeat_at`, `stopped_at` |
 | `archive_api_errors` | The API's own unexpected HTTP failures. | `id`, `occurred_at`, `request_id`, `method`, `path`, `status_code`, `message`, `error_fingerprint` (generated) |
 
 `archive_worker_settings` is a **partial** row on purpose: a field left `NULL` keeps following the
 code, so the precedence is `explicit argument > this row > the signature default`. `archive_worker_runs`
 carries the **resolved** configuration — `config` for the engine, `options` for the worker's own
 options, resolved when the run starts — so the row keeps its meaning when a preset or a code default
-changes in code.
+changes in code. Since ADR 0014 the run ledger is also the queue: a `QUEUED` row carries the validated
+`request`, so a runner reproduces the execution without the process that accepted it, and the claim
+writes `runner_id`, `started_at`, `heartbeat_at` and `lease_expires_at` with PostgreSQL's clock. The
+runner renews the lease; a claim whose lease expires is marked `INTERRUPTED` by the next runner, never
+by the API's boot. `archive_worker_runners` is the registry the panel reads to answer whether a runner
+is alive and whether it can run a given worker.
+
+`archive_worker_schedules` is one row per worker because the queue is one slot per worker: two
+agendas for the same worker would only collide. `next_run_at` is what the scheduler's tick reads;
+`last_enqueued_at`/`last_skipped_at` are the facts the panel shows. The retry's columns are the three
+the ledger needs to explain a second attempt: `attempt` (1 for a run asked once), `retry_of` (the
+failed row) and `not_before` (when the claim may take it). A retry is a new row created after the
+previous one is terminal, so the partial unique index is never violated (ADR 0015).
 There is deliberately no foreign key from either table to a worker table: workers are code, not rows.
 `archive_api_errors` records only *unexpected* failures — a 404, a 409 and a 422 are answers the API
 owes a client, and recording them buries the real defects.

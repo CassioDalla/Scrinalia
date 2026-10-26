@@ -33,6 +33,9 @@ class DocumentRepositoryPort(Protocol):
     def get_by_id(self, description_id: str) -> DocumentSummary | None:
         raise NotImplementedError
 
+    def get_thumbnail_uri(self, description_id: str) -> str | None:
+        raise NotImplementedError
+
     def fetch_documents_for_clustering(self, columns_to_extract: list[str] | None = None) -> list[str]:
         raise NotImplementedError
 

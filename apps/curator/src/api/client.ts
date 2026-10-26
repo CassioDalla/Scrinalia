@@ -90,6 +90,8 @@ export type DocumentDeletion = components["schemas"]["DocumentDeletionDTO"];
 export type DocumentDeletionList = components["schemas"]["DocumentDeletionListResponse"];
 export type DocumentDeletionResponse = components["schemas"]["DocumentDeletionResponse"];
 export type DescriptionLevel = components["schemas"]["DescriptionLevelDTO"];
+/** A language a description may declare: the name the archive stores and its ISO code. */
+export type Language = components["schemas"]["LanguageDTO"];
 export type ArchiveReviewStatus = components["schemas"]["ArchiveReviewStatus"];
 export type DocumentUpdateRequest = components["schemas"]["DocumentUpdateRequest"];
 
@@ -351,8 +353,11 @@ export type SystemWorkers = components["schemas"]["SystemWorkersResponse"];
 export type SystemWorkerSettings = components["schemas"]["SystemWorkerSettingsResponse"];
 export type WorkerSettingsItem = components["schemas"]["WorkerSettingsItemDTO"];
 export type WorkerStatus = components["schemas"]["WorkerStatusDTO"];
+export type WorkerRunner = components["schemas"]["WorkerRunnerDTO"];
 export type WorkerSettings = components["schemas"]["WorkerSettingsDTO"];
 export type WorkerSettingsRequest = components["schemas"]["WorkerSettingsRequest"];
+export type WorkerSchedule = components["schemas"]["WorkerScheduleDTO"];
+export type WorkerScheduleRequest = components["schemas"]["WorkerScheduleRequest"];
 export type WorkerQueuePreview = components["schemas"]["WorkerQueuePreviewDTO"];
 export type WorkerSettingsRevision = components["schemas"]["WorkerSettingsRevisionDTO"];
 export type WorkerSettingsRevisionList = components["schemas"]["WorkerSettingsRevisionListResponse"];
@@ -360,11 +365,35 @@ export type WorkerEngine = components["schemas"]["WorkerEngineDTO"];
 export type WorkerPreset = components["schemas"]["WorkerPresetDTO"];
 export type WorkerOption = components["schemas"]["WorkerOptionDTO"];
 export type WorkerRun = components["schemas"]["WorkerRunDTO"];
+export type WorkerRunDetail = components["schemas"]["WorkerRunDetailDTO"];
 export type WorkerRunList = components["schemas"]["WorkerRunListResponse"];
+export type WorkerRunCancel = components["schemas"]["WorkerRunCancelResponse"];
+export type WorkerTrialRequest = components["schemas"]["WorkerTrialRequest"];
+export type WorkerTrialResult = components["schemas"]["WorkerTrialResultDTO"];
+export type WorkerTrialConfig = components["schemas"]["WorkerTrialConfigDTO"];
+export type WorkerTrialSample = components["schemas"]["WorkerTrialSampleDTO"];
 export type FailureGroup = components["schemas"]["FailureGroupDTO"];
 export type FailureGroupList = components["schemas"]["FailureGroupListResponse"];
 export type FailureSource = components["schemas"]["FailureSource"];
 export type WorkerRunRequest = components["schemas"]["WorkerRunRequest"];
+/** The ingestion origin and the writes its screen owns (#44). */
+export type IngestionOrigin = components["schemas"]["IngestionOriginDTO"];
+export type IngestionOriginList = components["schemas"]["IngestionOriginListResponse"];
+export type IngestionOriginUpdateRequest = components["schemas"]["IngestionOriginUpdateRequest"];
+export type IngestionScheduleRequest = components["schemas"]["IngestionScheduleRequest"];
+export type IngestionRunRequest = components["schemas"]["IngestionRunRequest"];
+export type IngestionOption = components["schemas"]["IngestionOptionDTO"];
+export type OriginConfigField = components["schemas"]["OriginConfigFieldDTO"];
+export type ManualIngestionRequest = components["schemas"]["ManualIngestionRequest"];
+export type ManualIngestionResponse = components["schemas"]["ManualIngestionResponse"];
+/** The CSV import's map, its bounded rows and its per-row report (#191). */
+export type CsvImportSpecResponse = components["schemas"]["CsvImportSpecResponse"];
+export type CsvImportRequest = components["schemas"]["CsvImportRequest"];
+export type CsvImportResponse = components["schemas"]["CsvImportResponse"];
+export type CsvImportResult = components["schemas"]["CsvImportResultDTO"];
+export type CsvRowResult = components["schemas"]["CsvRowResultDTO"];
+export type CsvRowStatus = components["schemas"]["CsvRowStatus"];
+export type CsvRowIssue = components["schemas"]["CsvRowIssueDTO"];
 export type SystemHealth = components["schemas"]["SystemHealthResponse"];
 export type DatabaseHealth = components["schemas"]["DatabaseHealthDTO"];
 export type OllamaHealth = components["schemas"]["OllamaHealthDTO"];
@@ -489,6 +518,17 @@ export async function updateDocument(
       body,
     }),
   );
+}
+
+/**
+ * The languages a description may declare.
+ *
+ * The catalogue is declared in the API's code, not in a table: a language carries no rule an
+ * institution edits, so the screen reads it and offers the names it publishes. The dossier keeps a
+ * value the catalogue does not know — a source that says "Port." is quoted, not corrected.
+ */
+export async function fetchLanguages(): Promise<Language[]> {
+  return unwrap<Language[]>(await client.GET("/api/v1/languages"));
 }
 
 export async function fetchLevels(): Promise<DescriptionLevel[]> {
@@ -1614,6 +1654,124 @@ export async function triggerWorkerRun(worker: string, body: WorkerRunRequest): 
   );
 }
 
+/**
+ * Queues a comparison of configurations over one sample, writing nothing (ADR 0018).
+ *
+ * The answer is the queued row, like a run. The trial holds the worker's slot and, when the runner
+ * finishes it, its result is read from {@link fetchSystemRun}.
+ */
+export async function triggerWorkerTrial(worker: string, body: WorkerTrialRequest): Promise<WorkerRun> {
+  return unwrap<WorkerRun>(
+    await client.POST("/api/v1/system/workers/{worker_name}/trial", {
+      params: { path: { worker_name: worker } },
+      body,
+    }),
+  );
+}
+
+/** One execution with its trial result, when it is a comparison. */
+export async function fetchSystemRun(runId: number): Promise<WorkerRunDetail> {
+  return unwrap<WorkerRunDetail>(
+    await client.GET("/api/v1/system/runs/{run_id}", { params: { path: { run_id: runId } } }),
+  );
+}
+
+// --- The ingestion origins: the stage in front of the archive --------------------------------
+
+/** Every origin with its queue, its last run and its agenda — one request for the whole screen. */
+export async function listIngestionOrigins(): Promise<IngestionOriginList> {
+  return unwrap<IngestionOriginList>(await client.GET("/api/v1/ingestion/origins"));
+}
+
+/** Saves the origin's lifecycle and adapter configuration; the agenda has its own call. */
+export async function updateIngestionOrigin(
+  code: string,
+  body: IngestionOriginUpdateRequest,
+): Promise<IngestionOrigin> {
+  return unwrap<IngestionOrigin>(
+    await client.PATCH("/api/v1/ingestion/origins/{code}", {
+      params: { path: { code } },
+      body,
+    }),
+  );
+}
+
+/** Creates or replaces the origin's cron in an explicit IANA zone. */
+export async function saveIngestionSchedule(
+  code: string,
+  body: IngestionScheduleRequest,
+): Promise<IngestionOrigin> {
+  return unwrap<IngestionOrigin>(
+    await client.PUT("/api/v1/ingestion/origins/{code}/schedule", {
+      params: { path: { code } },
+      body,
+    }),
+  );
+}
+
+/** Removes the agenda; the configuration and the runs stay. */
+export async function deleteIngestionSchedule(code: string): Promise<IngestionOrigin> {
+  return unwrap<IngestionOrigin>(
+    await client.DELETE("/api/v1/ingestion/origins/{code}/schedule", { params: { path: { code } } }),
+  );
+}
+
+/** Enqueues one ingestion execution for the origin; the body overrides this run's options. */
+export async function triggerIngestionRun(code: string, body: IngestionRunRequest): Promise<WorkerRun> {
+  return unwrap<WorkerRun>(
+    await client.POST("/api/v1/ingestion/origins/{code}/runs", {
+      params: { path: { code } },
+      body,
+    }),
+  );
+}
+
+/**
+ * The manual origin's one-record write.
+ *
+ * It returns the record id and whether the transfer was queued or is waiting for the one in flight;
+ * the record is not approved by being typed, so the screen says it entered the AI queue, not that it
+ * is done.
+ */
+export async function createManualIngestion(body: ManualIngestionRequest): Promise<ManualIngestionResponse> {
+  return unwrap<ManualIngestionResponse>(await client.POST("/api/v1/ingestion/manual", { body }));
+}
+
+/**
+ * The CSV map and its bounds, read before the file is sent.
+ *
+ * The card parses and validates against this answer; the route re-validates the rows, so this is a
+ * convenience and never the authority.
+ */
+export async function fetchCsvImportSpec(): Promise<CsvImportSpecResponse> {
+  return unwrap<CsvImportSpecResponse>(await client.GET("/api/v1/ingestion/csv/spec"));
+}
+
+/**
+ * Sends the parsed CSV rows — never the file.
+ *
+ * The body is bounded by the limits the spec publishes, and each row carries its identity; the
+ * answer is a per-row report, not a single success, because a partial import is normal. Nothing is
+ * uploaded: the browser parsed the file and the API only sees the rows (#191).
+ */
+export async function importCsv(body: CsvImportRequest): Promise<CsvImportResponse> {
+  return unwrap<CsvImportResponse>(await client.POST("/api/v1/ingestion/csv", { body }));
+}
+
+/**
+ * Asks one execution to stop, and answers which of the two things happened.
+ *
+ * A run still queued with no runner closes ``CANCELLED`` at once; a run in flight only receives the
+ * request and stops at the next batch boundary, because a thread cannot be killed mid-batch
+ * (ADR 0014 decision 9). The code is the distinction, and the row comes back so the screen updates
+ * the line it already shows.
+ */
+export async function cancelWorkerRun(runId: number): Promise<WorkerRunCancel> {
+  return unwrap<WorkerRunCancel>(
+    await client.POST("/api/v1/system/runs/{run_id}/cancel", { params: { path: { run_id: runId } } }),
+  );
+}
+
 /** Persists the default engine/preset/batch/options of one worker. */
 export async function saveWorkerSettings(
   worker: string,
@@ -1650,6 +1808,37 @@ export async function previewWorkerQueue(
 export async function clearWorkerSettings(worker: string): Promise<WorkerSettings> {
   return unwrap<WorkerSettings>(
     await client.DELETE("/api/v1/system/workers/{worker_name}/settings", {
+      params: { path: { worker_name: worker } },
+    }),
+  );
+}
+
+/** The worker's agenda, or ``null`` when it has none (ADR 0015). */
+export async function fetchSystemSchedule(worker: string): Promise<WorkerSchedule | null> {
+  return unwrap<WorkerSchedule | null>(
+    await client.GET("/api/v1/system/workers/{worker_name}/schedule", {
+      params: { path: { worker_name: worker } },
+    }),
+  );
+}
+
+/** Creates or replaces the worker's agenda: the cron, the zone and the pinned request. */
+export async function saveWorkerSchedule(
+  worker: string,
+  body: WorkerScheduleRequest,
+): Promise<WorkerSchedule> {
+  return unwrap<WorkerSchedule>(
+    await client.PUT("/api/v1/system/workers/{worker_name}/schedule", {
+      params: { path: { worker_name: worker } },
+      body,
+    }),
+  );
+}
+
+/** Removes the agenda; the runs it already created stay in the ledger. */
+export async function clearWorkerSchedule(worker: string): Promise<void> {
+  return unwrap<void>(
+    await client.DELETE("/api/v1/system/workers/{worker_name}/schedule", {
       params: { path: { worker_name: worker } },
     }),
   );

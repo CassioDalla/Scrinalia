@@ -2,6 +2,7 @@
 
 from collections.abc import Iterator
 from functools import lru_cache
+from typing import Protocol, runtime_checkable
 
 from litestar import Request
 from litestar.di import NamedDependency
@@ -13,7 +14,6 @@ from scrinalia.api.security import (
     AuthenticatedUser,
     authenticated_user_of,
 )
-from scrinalia.api.worker_runtime import provide_worker_runtime
 from scrinalia.core.database import create_session
 from scrinalia.core.unit_of_work import UnitOfWork
 from scrinalia.domains.archive.engines.base import EmbeddingEngine
@@ -44,10 +44,12 @@ from scrinalia.domains.archive.services.text_quality_service import TextQualityS
 from scrinalia.domains.archive.services.typology_service import TypologyService
 from scrinalia.domains.archive.services.worker_operations_service import WorkerOperationsService
 from scrinalia.domains.archive.services.worker_run_service import WorkerRunService
+from scrinalia.domains.archive.services.worker_schedule_service import WorkerScheduleService
 from scrinalia.domains.identity.repository.login_attempt_repo import LoginAttemptRecorder
 from scrinalia.domains.identity.repository.session_repo import SessionRepository
 from scrinalia.domains.identity.repository.user_repo import UserRepository
 from scrinalia.domains.identity.services.auth_service import AuthService
+from scrinalia.domains.ingestion.service import IngestionOriginService
 
 
 @lru_cache(maxsize=1)
@@ -62,6 +64,35 @@ def provide_embedding_engine() -> EmbeddingEngine:
     from scrinalia.domains.archive.engines.embeddings.registry import get_engine
 
     return get_engine("sentence_transformer", preset="multilingual_minilm")
+
+
+@runtime_checkable
+class ThumbnailReader(Protocol):
+    """
+    What the miniature route needs from the object storage: one object, by the URI the archive wrote.
+
+    A protocol and not ``S3Storage`` so this module — imported by the app at start-up — does not
+    import boto3, and so the route's test can hand it a dictionary. ``S3Storage`` satisfies it
+    structurally: ``(bytes, media_type)``, or ``None`` when there is nothing to serve.
+    """
+
+    def read_object(self, uri: str) -> tuple[bytes, str] | None:
+        raise NotImplementedError
+
+
+@lru_cache(maxsize=1)
+def provide_thumbnail_reader() -> ThumbnailReader:
+    """
+    The process-wide object reader behind ``GET /documents/{id}/thumbnail``.
+
+    Cached because a boto3 client costs milliseconds to build and a page of twenty-five miniatures
+    would build twenty-five of them. The import is local for the reason the health probe's is: the
+    API must start — and serve every other screen — in an installation whose object storage is
+    missing or misconfigured.
+    """
+    from scrinalia.core.storage import S3Storage
+
+    return S3Storage()
 
 
 def provide_unit_of_work() -> Iterator[UnitOfWork]:
@@ -184,10 +215,26 @@ def provide_worker_run_service(unit_of_work: NamedDependency[UnitOfWork]) -> Wor
     """
     Builds the trigger/ledger service.
 
-    The runtime is the process-wide executor; the ledger writes through its own committed sessions,
-    which is what lets the background thread see the queued row before the request transaction ends.
+    The API only enqueues now: the run is a queue item an external runner claims (ADR 0014). The
+    ledger writes through its own committed session, so the row is durable before the response.
     """
-    return WorkerRunService(unit_of_work.db, provide_worker_runtime())
+    return WorkerRunService(unit_of_work.db)
+
+
+def provide_worker_schedule_service(unit_of_work: NamedDependency[UnitOfWork]) -> WorkerScheduleService:
+    """Builds the agenda service over the request transaction; the write commits before returning."""
+    return WorkerScheduleService(unit_of_work.db)
+
+
+def provide_ingestion_origin_service(unit_of_work: NamedDependency[UnitOfWork]) -> IngestionOriginService:
+    """
+    Builds the origin service over the request transaction.
+
+    The service reads the origin row and counts its queue in that transaction; the two writes that
+    have to outlive the request — the run row and the manual transfer — go through the ledger's own
+    committed session, exactly like every other execution the panel enqueues.
+    """
+    return IngestionOriginService(unit_of_work.db)
 
 
 def provide_failure_service(unit_of_work: NamedDependency[UnitOfWork]) -> FailureService:

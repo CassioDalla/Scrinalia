@@ -1,6 +1,6 @@
 [project]
 name = "scrinalia"
-version = "1.5.0"
+version = "1.6.0"
 description = "Archival description cataloguing and AI-driven enrichment system (ISAD(G))"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -17,6 +17,7 @@ dependencies = [
     "beautifulsoup4>=4.14.3",
     "bertopic>=0.17.4",
     "boto3>=1.43.27",
+    "croniter>=6.2.4",
     "dotenv>=0.9.9",
     "litestar[standard]>=2.24.0",
     "loguru>=0.7.3",

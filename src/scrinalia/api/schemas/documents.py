@@ -42,6 +42,35 @@ class DocumentUpdateRequest(RequestModel):
         description="ISAD(G) 4.1 — condições de acesso. Sem ele o acervo não tem como declarar "
         "que uma descrição é restrita, e a difusão não tem como respeitar a restrição.",
     )
+
+    # O resto do registro ISAD(G). O acervo passou a guardar estas colunas e o arquivista é quem
+    # completa ou corrige o que a origem não declarou; o corpo é o espelho de
+    # ``DocumentReviewCommand`` sem os dois campos que a rota possui (o id vem do caminho, o autor
+    # da sessão), e um teste pina a igualdade entre os dois.
+    dimension_support: str | None = Field(default=None, description="ISAD(G) 3.1.5 — dimensão e suporte.")
+    appraisal_destruction: str | None = Field(
+        default=None, description="ISAD(G) 3.3.2 — avaliação, eliminação e temporalidade."
+    )
+    accruals: str | None = Field(default=None, description="ISAD(G) 3.3.3 — incorporações.")
+    arrangement: str | None = Field(default=None, description="ISAD(G) 3.3.4 — sistema de arranjo.")
+    reproduction_conditions: str | None = Field(default=None, description="ISAD(G) 3.4.2 — condições de reprodução.")
+    physical_characteristics: str | None = Field(
+        default=None, description="ISAD(G) 3.4.4 — características físicas e requisitos técnicos."
+    )
+    finding_aids: str | None = Field(default=None, description="ISAD(G) 3.4.5 — instrumentos de pesquisa.")
+    originals_location: str | None = Field(
+        default=None, description="ISAD(G) 3.5.1 — existência e localização dos originais."
+    )
+    copies_location: str | None = Field(
+        default=None, description="ISAD(G) 3.5.2 — existência e localização das cópias."
+    )
+    related_units: str | None = Field(default=None, description="ISAD(G) 3.5.3 — unidades de descrição relacionadas.")
+    publication_notes: str | None = Field(default=None, description="ISAD(G) 3.5.4 — notas de publicação.")
+    conservation_notes: str | None = Field(default=None, description="Nota da instituição sobre o estado físico.")
+    general_notes: str | None = Field(default=None, description="ISAD(G) 3.6.1 — notas gerais.")
+    rules_conventions: str | None = Field(default=None, description="ISAD(G) 3.7.2 — regras ou convenções.")
+    description_dates: str | None = Field(default=None, description="ISAD(G) 3.7.3 — datas da descrição.")
+
     is_published: bool | None = Field(
         default=None,
         description="Decisão de difusão, ortogonal ao status de revisão. Publicar não bloqueia a IA "

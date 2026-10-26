@@ -17,6 +17,7 @@ from scrinalia.domains.archive.engines.classification.registry import (
     describe_config,
     get_engine,
 )
+from scrinalia.domains.archive.evaluation.metrics import link_decision
 from scrinalia.domains.archive.models import ArchiveDocument, ArchiveReviewStatus
 from scrinalia.domains.archive.models.governance import AnomalyType, ArchiveAIReviewQueue
 from scrinalia.domains.archive.repository import TypologyRepository
@@ -26,6 +27,7 @@ from scrinalia.domains.archive.repository.text_quality_repo import (
     composed_text_sql,
 )
 from scrinalia.domains.archive.worker_stamp import TYPOLOGY, identity_stamp_conditions, producer_fingerprint
+from scrinalia.domains.archive.workers.cancellation import RunControl, checkpoint
 from scrinalia.domains.archive.workers.run_budget import RunBudget
 
 
@@ -100,6 +102,29 @@ def producer_identity(
     )
 
 
+def column_conditions(columns_to_classify: list[str]) -> ColumnElement[bool]:
+    """
+    The "has text in at least one column it reads" half of the typology predicate.
+
+    Extracted so the trial's sample and the worker's queue use the same expression (ADR 0018): a
+    trial that sampled a broader or narrower set would price a run the worker does not have. An
+    empty column list is refused by the option validator before it reaches here; ``or_()`` of
+    nothing is the SQL false, which would be the honest answer for a worker with no text to read.
+    """
+    return or_(*[getattr(ArchiveDocument, column).is_not(None) for column in columns_to_classify])
+
+
+def candidate_conditions(columns_to_classify: list[str]) -> list[ColumnElement[bool]]:
+    """
+    The scope a typology run (or a trial) may read: ai-writable and with text in the columns.
+
+    This is the half of the queue predicate that does **not** depend on the producer identity, and
+    it is what a trial samples: the configuration that is already applied has an empty pending queue,
+    so a sample drawn from ``pending_conditions`` could not re-measure it.
+    """
+    return [ai_writable_documents(), column_conditions(columns_to_classify)]
+
+
 def pending_conditions(
     columns_to_classify: list[str],
     producer: str,
@@ -121,11 +146,7 @@ def pending_conditions(
     out of reach here. ``force`` widens the queue to everything ai-writable, and the worker advances
     by cursor so a forced run still ends.
     """
-    filters_columns = [getattr(ArchiveDocument, col).is_not(None) for col in columns_to_classify]
-    conditions: list[ColumnElement[bool]] = [
-        ai_writable_documents(),
-        or_(*filters_columns),
-    ]
+    conditions = candidate_conditions(columns_to_classify)
     conditions.extend(identity_stamp_conditions(ArchiveDocument.execution_log, TYPOLOGY, producer, force=force))
     return conditions
 
@@ -164,6 +185,7 @@ def execute(
     confidence_threshold: float | None = None,
     force: bool = False,
     limit: int | None = None,
+    run_control: RunControl | None = None,
     **engine_kwargs,
 ) -> None:
     """
@@ -278,6 +300,7 @@ def execute(
     budget = RunBudget(limit)
 
     while True:
+        checkpoint(run_control)
         try:
             query = (
                 select(ArchiveDocument, text_expression.label("effective_text"))
@@ -325,15 +348,19 @@ def execute(
                     failed = False
                     try:
                         best_label = result["labels"][0]
-                        confidence_score = result["scores"][0]
+                        confidence_score = float(result["scores"][0])
+                        # The floor is the metric module's rule, shared with the bench and the
+                        # panel's trial: a second copy of "strictly above" here is a second
+                        # abstention rate for the same model (ADR 0018, principle IV).
+                        prediction = link_decision(result, confidence_threshold)
 
-                        if confidence_score > confidence_threshold:
-                            t_id = typologies_map.get(best_label)
+                        if prediction.label is not None:
+                            t_id = typologies_map.get(prediction.label)
 
                             if t_id is not None:
                                 doc.typology_id = t_id
                                 logger.debug(
-                                    f"Doc {doc.description_id} ➡️ {best_label} ({(confidence_score * 100):.1f}%)"
+                                    f"Doc {doc.description_id} ➡️ {prediction.label} ({(confidence_score * 100):.1f}%)"
                                 )
                             else:
                                 logger.warning(

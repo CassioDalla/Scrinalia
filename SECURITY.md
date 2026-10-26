@@ -66,8 +66,11 @@ These are deliberate decisions, documented in the ADRs and the README, not vulne
 - **The OpenAPI document (`/schema`) is public.** It is a contract, not a secret.
 - **`/api/v1/public/*` is open by design**, and answers 404 (never 403) for an unpublished record.
 - **No 2FA, no SSO/OIDC and no e-mail password recovery.** The way back in is the CLI on the host.
-- **A single-process assumption:** `uvicorn --workers > 1` corrupts the worker executor's state. It
-  is documented in ADR 0004 and in the deployment guide; it is an operational constraint.
+- **The runner reaches the database:** a runner on another machine needs a network path to
+  PostgreSQL and a credential. The install guide documents the private path, TLS and the optional
+  least-privilege role (ADR 0014); this is an accepted residual, not a finding. The API no longer
+  executes workers, so `uvicorn --workers > 1` is safe for the API; the one execution slot per worker
+  is a database index, not a process lock.
 - **Denial of service by resource exhaustion on a self-hosted instance** (uploading a huge document,
   triggering a worker in a loop): the account that can do it is already an authenticated
   administrator or curator.

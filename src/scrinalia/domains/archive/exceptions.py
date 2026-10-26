@@ -342,8 +342,29 @@ class WorkerRunAlreadyActiveError(DomainException):
     pass
 
 
+class WorkerRunNotCancellableError(DomainException):
+    """Raised when a run that already reached a terminal state is asked to cancel (#72)."""
+
+    # Ideal translation in Litestar: HTTP 409 (Conflict)
+    pass
+
+
 class InvalidWorkerSettingsError(DomainException):
     """Raised when an override names an engine/preset/option the worker cannot accept."""
+
+    # Ideal translation in Litestar: HTTP 422 (Unprocessable Entity)
+    pass
+
+
+class WorkerScheduleNotFoundError(DomainException):
+    """Raised when a worker has no agenda to read or remove (ADR 0015)."""
+
+    # Ideal translation in Litestar: HTTP 404 (Not Found)
+    pass
+
+
+class InvalidWorkerScheduleError(DomainException):
+    """Raised when the cron, the zone or the pinned request is not something the worker accepts."""
 
     # Ideal translation in Litestar: HTTP 422 (Unprocessable Entity)
     pass

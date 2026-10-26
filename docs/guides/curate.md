@@ -3,6 +3,7 @@ sources:
   - apps/curator/src/router.tsx
   - apps/curator/src/components/layout/AppShell.tsx
   - apps/curator/src/components/layout/PageHeader.tsx
+  - apps/curator/src/components/description/**
   - apps/curator/src/components/layout/LoginForm.tsx
   - apps/curator/src/components/layout/PasswordChangeForm.tsx
   - apps/curator/src/routes/**
@@ -10,6 +11,7 @@ sources:
   - apps/curator/src/lib/screens.ts
   - apps/curator/src/lib/copy.ts
   - src/scrinalia/api/controllers/**
+  - src/scrinalia/domains/archive/schemas/document_schema.py
   - src/scrinalia/api/schemas/public.py
   - src/scrinalia/api/security.py
   - src/scrinalia/domains/archive/domain/governance.py
@@ -141,7 +143,8 @@ never 403, because a distinct status would confirm that the description exists.
 The public projection is narrower than the curator's, field by field. It carries the ISAD(G) fields
 `original_title`, `final_title`, `document_date`, `reference_code`, `level`, `scope_content`,
 `language_name` and `producers`; the enrichment `typology`, the tags (name), the entities (name and
-type) and the subject categories (name and count); the thumbnail; the branch (`ancestors`) and the
+type) and the subject categories (name and count); the thumbnail — still the stored `s3://` reference,
+because the public route that serves the bytes is #46 (ADR 0017); the branch (`ancestors`) and the
 `children_count`. It deliberately does **not** carry the curation process or the unpublished
 narrative: `review_status`, `is_anomaly`, `anomaly_reasons`, `archivist_notes`, `provenance`,
 `suggested_final_title`, `admin_bio_history`, `admin_archival_history` and `access_conditions`. The
@@ -380,13 +383,42 @@ only the archivist writes `final_title`.
 
 #### Descrição
 
-The decision is the record itself: any ISAD(G) field, the level, the typology, `access_conditions`
-and `is_published`, with a note on why. The write is `PATCH /api/v1/documents/{description_id}`
-(`CURATE`). It records the before and after of what changed in `archive_document_revisions`, writes
-the author from the session, and sets `HUMAN_APPROVED` — which takes the description out of the AI's
-queue. Reversible: another edit records a new revision; the history is append-only and the earlier
-value is visible in the `Histórico` tab. Publishing and withdrawing use the same command and are
-equally reversible.
+The first card is the **miniature**, and it comes from the API, not from the browser: the read view
+advertises `thumbnail_url` and the SPA binds it to an `<img>`, so the client never assembles a path
+and never talks to the bucket (ADR 0017). The bytes are `GET
+/api/v1/documents/{description_id}/thumbnail` (`AUTHENTICATED`); the route answers 404 when the
+source had no image or the object is no longer in the bucket, and 503 when the storage itself is
+unavailable. Four of the reference collection's 101 descriptions have no source image, so "Sem
+imagem" is a normal state, and a stored URI whose object is gone shows "Imagem indisponível" — never
+a broken-image glyph. The collection list shows the same miniature at 56 px, which is how a
+photograph is recognised without opening the dossier.
+
+The decision is the record itself, grouped in the norm's own areas — **3.1 Identidade**, **3.2
+Contexto**, **3.3 Conteúdo e estrutura**, **3.4 Acesso e uso**, **3.5 Materiais relacionados**, **3.6
+Notas** and **3.7 Controle da descrição** — plus the level, the typology and the diffusion flag, with
+a note on why. The whole ISAD(G) record is editable: the archive stores every field the staging
+transform parsed, not the subset the transfer used to copy. The write is `PATCH
+/api/v1/documents/{description_id}` (`CURATE`). It records the before and after of what changed in
+`archive_document_revisions`, writes the author from the session, and sets `HUMAN_APPROVED` — which
+takes the description out of the AI's queue. Reversible: another edit records a new revision; the
+history is append-only and the earlier value is visible in the `Histórico` tab. Publishing and
+withdrawing use the same command and are equally reversible.
+
+Two values are shown and not edited, because they are evidence rather than description:
+`date_expression` (the date as the source spelled it — `Década de 1980` beside the parsed
+`1980-01-01`, which is what the parser could make of it) and `original_url` (the page the record was
+read from). The level and the typology are selects over their catalogues; `language_name` is a select
+over `GET /api/v1/languages`, a catalogue declared in code because a language carries no rule an
+institution edits. The stored value is the catalogue's name: a declared variant (`Português/Brasil`,
+`Português Brasil`) is folded at the transfer, so the whole collection reads one spelling — and the
+select **keeps a value the catalogue does not know**, marked as such, so opening the dossier never
+erases a language the catalogue has never heard of. The declared parent is shown in 3.1 even while it
+is pending (`BR PRPMC — aguardando`), because the origin is allowed to deliver the child before the
+parent; the link itself is made in the `Arranjo` tab.
+
+The **Objeto digital** card is rendered with its control **disabled**: the archive keeps the
+description and not the file, and the digital object is #198. The sentence that says so is defined
+once (`apps/curator/src/lib/copy.ts`) and the manual entry form shows the same one.
 
 #### Assuntos
 
@@ -999,18 +1031,53 @@ the human review of the record, in the dossier.
 ## Sistema
 
 The machine, not the collection. Everything here belongs to whoever operates the installation, and
-all three screens are reached from `/configuracoes`, under *Operação*: the menu kept what the
-archivist consults while cataloguing, and this is not it.
+all four screens are reached from `/configuracoes`, under *Operação*: the menu kept what the
+archivist consults while cataloguing, and this is not it. The ingestion screen is the one exception
+to the "operator only" rule — its manual form and its CSV import are a curator's writes (#44, #191) —
+and it is therefore a `CURATE` card.
 
 | Screen | Decision | Reversible? |
 | --- | --- | --- |
+| Ingestão — `/sistema/ingestao` | which origin to read, its URLs and its agenda (operator); and importing a CSV (curator) | the configuration and the agenda are reversible; an imported row enters the pipeline and is approved (or rejected) in the dossier |
+| Nova descrição — `/sistema/ingestao/nova` | typing one description, field by field (curator) | the record enters the pipeline as `PENDING_AI`; it is approved (or rejected) in the dossier, and only there |
 | Workers de IA — `/sistema/workers` | whether to run a worker now | yes (the run's own configuration); a run's effects follow what it wrote |
-| Execuções — `/sistema/execucoes` | none (the ledger and the grouped failures) | yes (read only) |
+| Execuções — `/sistema/execucoes` | whether to stop an active run (the ledger and the grouped failures are read-only) | no undo: a cancelled run stays cancelled; a new run is a new ledger row |
 | Saúde do sistema — `/sistema/diagnostico` | none (database, models, storage, process) | yes (read only) |
+
+### Ingestão — `/sistema/ingestao`
+
+The stage in front of the archive, origin by origin (ADR 0016). Each card is one origin: its own
+queue (what the next execution would read), processed and failed numbers, the last and the active
+run, and the agenda. The **operator** can edit the adapter configuration (the reference scraper's
+listing and detail URLs, the politeness delay), save a five-field cron in an IANA zone and
+**Enfileirar execução**. The run is the same ledger the AI workers use; a period that fires while the
+origin is already running is skipped, not queued. The generic worker routes refuse `ingestion` — a
+run of it needs the origin, and the origin routes are the selector.
+
+The **curator** sees the same cards read-only, the **Entrada manual** card and the **Importação CSV**
+card. The manual card opens `/sistema/ingestao/nova`, a screen of its own, where the description is
+typed in full: thirty controls in the norm's seven areas, the level and the language as selects, the
+date as text with the language grammar, and the digital object control disabled until #198. The manual
+origin is the `manual` origin: the submit writes the typed record as the origin's raw
+payload, stages it through the same transform and enqueues the same `transfer` worker. The archive
+description is born `PENDING_AI`; the AI queues see it, and the approval is the dossier's
+`PATCH /documents/{id}` after the AI runs. Typing a record is **not** an approval, and a duplicate
+`description_id` is refused before the write.
+
+The CSV card is the `csv` origin (#191, ADR 0019). The file is parsed **in the browser**: the card
+shows the detected headers, a preview and the local checks, and sends only the rows as JSON — nothing
+is uploaded to the object storage and there is no multipart route, so an installation whose storage is
+unconfigured imports a CSV exactly the same. The map is the API's (`GET /api/v1/ingestion/csv/spec`),
+so a header cannot be accepted by the screen and refused by the server; the API re-validates every
+row with the staging contract, and the per-row answer says **accepted**, **duplicated** (the
+`description_id` already exists) or **invalid**, with the field and the sentence. A partial import is
+normal. The accepted rows are staged as `origin_code='csv'` and one `transfer` is enqueued after them,
+so the archive description is born `PENDING_AI` like the manual entry. The rest of the staging fields
+is #192.
 
 ### Workers de IA — `/sistema/workers`
 
-The catalogue of the nine workers, in pipeline order, with the effective engine, preset and config on
+The catalogue of the ten workers, in pipeline order, with the effective engine, preset and config on
 the collapsed row — "with which model is this running?" is the question the screen exists to answer,
 and here the answer is **read only**. What the installation is *set* to do is a screen of its own
 (*Configuração dos Workers*, below), because the two questions are different: this one is what the
@@ -1025,6 +1092,8 @@ of the two counts:
   run leaves a row in the run ledger, and a worker with a run in flight disables the button — the
   guarantee is the partial unique index in the database, and the screen only avoids offering what
   the database would reject.
+
+The `ingestion` row is the one exception to the run button: its execution belongs to an origin, so the row links to `/sistema/ingestao` (the origin screen) and the generic route refuses it.
 
 The run panel's fields come from the contract, not from a text box: `declared_options` names the
 options the worker accepts and, for a column list, the columns the AI text has
@@ -1044,14 +1113,21 @@ staging record, a pair, a tag).
 
 ### Execuções — `/sistema/execucoes`
 
-The run ledger, read-only: one row per execution, from the command line and from the panel, carrying
-the **resolved** configuration the run used (so it stays readable after a preset changes in code),
+The run ledger, read-only except for the stop: one row per execution, from the command line and from
+the panel, carrying the **resolved** configuration the run used (so it stays readable after a preset
+changes in code),
 the **effective worker options** (the columns it read, the floor, the cap — resolved when the run
 started, so "which columns did run #N read?" has an answer), the duration, the outcome and who
 asked. A row older than the options column says "opções não registradas nesta execução". Above it, the failures of the last 30 days grouped by root
 cause (`GET /api/v1/system/failures`), which answer the question the ledger cannot: forty rows saying
 the same sentence are one cause. Clicking a group filters the ledger below instead of opening a
 second list, and a failure's reference is what is searched in the log.
+
+The one write is **Cancelar execução…** on an active row (`POST /api/v1/system/runs/{run_id}/cancel`,
+`OPERATE`). A queued run no runner claimed is cancelled at once; a running one is only asked, and the
+row keeps saying "em execução" with a note until the worker reaches the batch boundary — the batch in
+progress is committed, not interrupted, because a model pass cannot be cut in the middle. A second
+click is the same request, and a run that already finished answers `409`.
 
 ### Saúde do sistema — `/sistema/diagnostico`
 

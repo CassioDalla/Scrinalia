@@ -49,6 +49,14 @@ class WorkerSpec:
     unit: WorkerUnit = "document"
     governed: bool = True
     engine_source: EngineSource = "none"
+    #: True when the worker has a trial implementation registered in
+    #: ``domains/archive/evaluation/trial.py`` (ADR 0018). The panel offers the comparison only for
+    #: these, and a test keeps this flag equal to the executor's registry so the screen cannot offer
+    #: a comparison the runner does not know how to run.
+    trial: bool = False
+    #: True for the one stage whose run is about an **origin**, not about a document or a tag. The
+    #: runner resolves no engine for it, and the ledger's origin column is its axis (ADR 0016).
+    origin_axis: bool = False
     #: Stamp whose presence in ``execution_log`` means "this unit was processed". It is always an
     #: ``IdentityStamp``: the five catalogue workers whose ledger is a stamp all key their queue on
     #: *what produced* the answer, so the panel reads their processed/failed numbers as one breakdown
@@ -89,6 +97,28 @@ _WORKERS_PACKAGE = "scrinalia.domains.archive.workers"
 WORKER_CATALOGUE: dict[str, WorkerSpec] = {
     spec.name: spec
     for spec in (
+        WorkerSpec(
+            name="ingestion",
+            label="Ingestão por origem",
+            description=(
+                "Lê uma origem para o raw, estrutura o resultado no staging e o deixa pronto para a "
+                "transferência. A unidade é a origem, não a descrição; a fila e a agenda são as da "
+                "origem, e a tela de ingestão mostra cada uma."
+            ),
+            module="scrinalia.domains.ingestion.worker",
+            unit="origin",
+            governed=False,
+            origin_axis=True,
+            counter=None,
+            processed_counter=None,
+            failed_counter=None,
+            unmeasurable_reason=(
+                "A fila e os contadores são por origem: a tela de ingestão mostra quantos registros "
+                "cada origem tem pendentes, processados e com falha, com a mesma política que a próxima "
+                "execução usa."
+            ),
+            note="Sem modelo: a etapa lê a origem e estrutura o staging; a transferência e a IA vêm depois.",
+        ),
         WorkerSpec(
             name="transfer",
             label="Transferência staging → archive",
@@ -131,6 +161,7 @@ WORKER_CATALOGUE: dict[str, WorkerSpec] = {
             module=f"{_WORKERS_PACKAGE}.worker_typology",
             axis="classification",
             engine_source="signature",
+            trial=True,
             stamp=TYPOLOGY,
             stamp_model="document",
             option_resolver="effective_options",

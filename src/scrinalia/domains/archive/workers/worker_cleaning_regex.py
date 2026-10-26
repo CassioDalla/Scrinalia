@@ -9,6 +9,7 @@ from scrinalia.core.unit_of_work import UnitOfWork
 from scrinalia.domains.archive.repository.cleaning_repo import CleaningRepository
 from scrinalia.domains.archive.schemas.cleaning_schema import CleaningUpdateCommand
 from scrinalia.domains.archive.worker_stamp import cleaning_rule_stamp
+from scrinalia.domains.archive.workers.cancellation import RunControl, checkpoint
 
 BATCH_SIZE = 500
 
@@ -28,10 +29,13 @@ def count_pending(db: Session, **options: Any) -> int:
     )
 
 
-def execute(db: Session) -> None:
+def execute(db: Session, run_control: RunControl | None = None) -> None:
     """
     Worker that applies dynamic Regex rules (Text Cleaning) created by the curators.
     Processes documents incrementally using the 'execution_log' as a tracker.
+
+    ``run_control`` is the cancellation of this execution (#72); the loop consults it once per batch,
+    before reading the next one, so the batch that was committed is the work the run keeps.
     """
     logger.info("🧹 Starting the Data Quality Cleaner Worker...")
 
@@ -60,6 +64,7 @@ def execute(db: Session) -> None:
         changes_made = 0
 
         while True:
+            checkpoint(run_control)
             # Fetches the next batch of documents that have not yet seen THIS rule
             batch_docs = repo.get_unprocessed_documents_for_rule(
                 rule_id=rule.rule_id, target_column=rule.target_column, limit=BATCH_SIZE

@@ -8,6 +8,7 @@ import {
   fetchDeletions,
   fetchConflictResolutions,
   fetchCrossDomainConflicts,
+  fetchCsvImportSpec,
   fetchJudgedConflicts,
   fetchDiagnosticSummary,
   fetchDiagnostics,
@@ -21,6 +22,7 @@ import {
   fetchHierarchyVocabulary,
   fetchInbox,
   fetchLevelCatalog,
+  fetchLanguages,
   fetchLevels,
   fetchMacroCategories,
   fetchTypologies,
@@ -41,7 +43,10 @@ import {
   previewSubjectExclusions,
   fetchSystemFailures,
   fetchSystemHealth,
+  listIngestionOrigins,
+  fetchSystemRun,
   fetchSystemRuns,
+  fetchSystemSchedule,
   fetchSystemWorkerSettings,
   fetchSystemWorkers,
   fetchTagRelevance,
@@ -179,6 +184,19 @@ export const queries = {
     queryOptions({
       queryKey: ["hierarchy", "levels"],
       queryFn: fetchLevels,
+      staleTime: 5 * 60_000,
+    }),
+
+  /**
+   * The languages of the catalogues, for the dossier's and the form's select.
+   *
+   * The list is code, so it cannot change while the app is open; the same five minutes the level
+   * ladder uses is more than enough.
+   */
+  languages: () =>
+    queryOptions({
+      queryKey: ["languages"],
+      queryFn: fetchLanguages,
       staleTime: 5 * 60_000,
     }),
 
@@ -639,6 +657,33 @@ export const queries = {
     }),
 
   /**
+   * The ingestion origins, their queues and their agendas.
+   *
+   * A read of its own: the panel's worker rows answer "what is the machine doing", this one answers
+   * "which origin is this queue and what does it read". The counts are cached for 15 s, the cadence
+   * the worker panel uses for a queued run.
+   */
+  ingestionOrigins: () =>
+    queryOptions({
+      queryKey: ["ingestion", "origins"],
+      queryFn: listIngestionOrigins,
+      staleTime: 15_000,
+    }),
+
+  /**
+   * The CSV map and its limits.
+   *
+   * Static for a running API — a deploy changes it — so it is fetched with the screen and kept for
+   * the session; the card validates the file against this answer before sending it.
+   */
+  csvImportSpec: () =>
+    queryOptions({
+      queryKey: ["ingestion", "csv", "spec"],
+      queryFn: fetchCsvImportSpec,
+      staleTime: 5 * 60_000,
+    }),
+
+  /**
    * The persisted defaults of the nine workers, without the queues.
    *
    * A read of its own and not a filter over `systemWorkers`: that one carries the counts, and this
@@ -652,17 +697,70 @@ export const queries = {
     }),
 
   /** The execution ledger, one page at a time; the filters are server-side like the collection's. */
+  /**
+   * The agenda of one worker. One worker's read, because the card opens for one; the whole panel's
+   * nine agendas are already on ``systemWorkers``.
+   */
+  systemSchedule: (worker: string) =>
+    queryOptions({
+      queryKey: ["system", "workers", worker, "schedule"],
+      queryFn: () => fetchSystemSchedule(worker),
+      staleTime: 10_000,
+    }),
+
   systemRuns: (
     worker: string | undefined,
     status: WorkerRunStatus | undefined,
     offset: number,
     fingerprint?: string,
+    origin?: string,
+    trial?: boolean,
   ) =>
     queryOptions({
-      queryKey: ["system", "runs", worker ?? "", status ?? "", fingerprint ?? "", offset],
-      queryFn: () => fetchSystemRuns({ worker, status, fingerprint, limit: RUNS_PAGE_SIZE, offset }),
+      queryKey: [
+        "system",
+        "runs",
+        worker ?? "",
+        status ?? "",
+        fingerprint ?? "",
+        origin ?? "",
+        trial === undefined ? "" : String(trial),
+        offset,
+      ],
+      queryFn: () => fetchSystemRuns({ worker, origin, status, fingerprint, trial, limit: RUNS_PAGE_SIZE, offset }),
       staleTime: 10_000,
       placeholderData: (previous) => previous,
+    }),
+
+  /**
+   * The most recent trial of one worker, for the comparison card's first paint.
+   *
+   * The list read is enough to find the row; the detail (with the result) is a second read, because
+   * the ledger's list deliberately carries no per-configuration tables (ADR 0018).
+   */
+  latestTrial: (worker: string) =>
+    queryOptions({
+      queryKey: ["system", "runs", worker, "trial", "latest"],
+      queryFn: () => fetchSystemRuns({ worker, trial: true, limit: 1, offset: 0 }),
+      staleTime: 5_000,
+    }),
+
+  /**
+   * One execution, with the trial result when it is a comparison.
+   *
+   * Polls while the row is queued or running and stops at the first terminal status: the card has
+   * nothing to say until the runner finishes, and a finished trial does not change.
+   */
+  systemRun: (runId: number | null) =>
+    queryOptions({
+      queryKey: ["system", "runs", "detail", runId ?? 0],
+      queryFn: () => fetchSystemRun(runId as number),
+      enabled: runId !== null && runId > 0,
+      refetchInterval: (query) => {
+        const status = query.state.data?.status;
+        return status === "QUEUED" || status === "RUNNING" ? 3_000 : false;
+      },
+      staleTime: 0,
     }),
 
   /**

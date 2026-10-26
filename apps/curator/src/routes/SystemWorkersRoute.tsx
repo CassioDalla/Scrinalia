@@ -1,9 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
 import { useState } from "react";
 
 import {
   triggerWorkerRun,
   type WorkerRunRequest,
+  type WorkerRunner,
   type WorkerStatus,
 } from "@/api/client";
 import { queries } from "@/api/queries";
@@ -22,35 +24,44 @@ import { formatCount, formatDateTime } from "@/lib/format";
 import {
   describeConfig,
   formatDuration,
-  hasActiveRun,
   isActiveRun,
+  MAX_ATTEMPTS,
   parseOptions,
   RUN_STATUS_LABEL,
   RUN_STATUS_TONE,
+  TRIGGER_LABEL,
   UNIT_LABEL,
 } from "@/lib/system";
 
 /**
- * The machine view of the AI workers: what is in each queue, and running one now.
+ * The machine view of the AI workers: what is in each queue, which runners are connected, and
+ * enqueueing one run.
  *
  * The configuration side left this screen in issue #53 — the persisted default of each worker and
  * its revisions are `/configuracoes/workers` now. What stays is the operational question: the
  * catalogue is read as a panel, each row answers what the machine is doing (pending, processed,
- * last and active run), and the two writes here are "run it once" and nothing else. A worker with a
- * run in flight disables the button, because the API would refuse a second one anyway — the
- * guarantee is the partial unique index, and the screen only avoids offering what the database will
- * reject.
+ * last and active run), and the two writes here are "enqueue one run" and nothing else. The API
+ * only enqueues since ADR 0014; a runner outside the API claims the row, so a run whose row is
+ * `QUEUED` is waiting for one. A worker with a run in flight disables the button, because the
+ * partial unique index would refuse a second one anyway.
  *
- * The effective configuration stays on the row as **read-only**: "with which model is this running?"
- * is what the screen exists to answer, and moving the answer behind the configuration screen would
- * trade one click for a lie about where the machine's state is read.
+ * ``runner_available`` is the panel's answer to "will anyone pick it up?": the runner cards say who
+ * is online and which workers each accepts, and a worker no online runner accepts still accepts the
+ * click — the row waits (ADR 0014). The effective configuration stays read-only: "with which model
+ * is this running?" is what the screen exists to answer.
  */
 export function SystemWorkersRoute() {
   const { data, isPending, error } = useQuery({
     ...queries.systemWorkers(),
-    // Poll only while something is running. The counts are not free — the transfer's counter
-    // validates the whole staging table — so an idle panel keeps what it read.
-    refetchInterval: (query) => (hasActiveRun(query.state.data?.workers) ? 5_000 : false),
+    // Poll while a run is in flight. A running one changes every few seconds; a queued one changes
+    // when a runner appears, which does not justify the whole panel at the running cadence. The
+    // counts are not free — the transfer's counter validates the whole staging table.
+    refetchInterval: (query) => {
+      const workers = query.state.data?.workers ?? [];
+      if (workers.some((worker) => worker.active_run?.status === "RUNNING")) return 5_000;
+      if (workers.some((worker) => worker.active_run?.status === "QUEUED")) return 15_000;
+      return false;
+    },
   });
 
   return (
@@ -67,9 +78,76 @@ export function SystemWorkersRoute() {
           </div>
         ) : null}
 
+        {data ? <RunnersCard runners={data.runners ?? []} /> : null}
+
         {(data?.workers ?? []).map((worker) => <WorkerCard key={worker.name} worker={worker} />)}
       </PageBody>
     </>
+  );
+}
+
+/**
+ * Who is connected, and what each one accepts.
+ *
+ * The other half of the panel since ADR 0014: the API enqueues and a runner outside it claims the
+ * row. Without a runner the queue is a waiting room, so the card says it in words instead of
+ * leaving the operator to infer it from a `QUEUED` row that never moves.
+ */
+function RunnersCard({ runners }: { runners: WorkerRunner[] }) {
+  const online = runners.filter((runner) => runner.online);
+
+  return (
+    <Card>
+      <CardBody className="grid gap-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-[11px] font-semibold tracking-wide text-(--color-muted) uppercase">Runners</span>
+          <Badge tone={online.length > 0 ? "ok" : "warn"}>{online.length} online</Badge>
+          {runners.length > online.length ? <Badge tone="neutral">{runners.length - online.length} offline</Badge> : null}
+        </div>
+
+        {online.length === 0 ? (
+          <Notice tone="warn" as="div" className="grid gap-1">
+            <p className="font-medium">Nenhum runner conectado</p>
+            <p>
+              Uma execução enfileirada espera até um runner subir. O painel só enfileira: o processo que
+              roda os workers fora da API (ADR 0014).
+            </p>
+          </Notice>
+        ) : null}
+
+        {runners.length > 0 ? (
+          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+            {runners.map((runner) => (
+              <div
+                key={runner.runner_id}
+                className="rounded-md bg-black/[0.02] px-3 py-2 ring-1 ring-(--color-line)"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="truncate text-sm font-medium">{runner.name}</span>
+                  <Badge tone={runner.online ? "ok" : "neutral"}>{runner.online ? "online" : "offline"}</Badge>
+                </div>
+                <p className="mt-1 font-mono text-[11px] text-(--color-muted)">
+                  {runner.hostname}
+                  {runner.version ? ` · v${runner.version}` : ""} · {runner.concurrency}×
+                </p>
+                <p className="mt-1 text-xs text-(--color-muted)">
+                  {(runner.capabilities ?? []).length > 0
+                    ? (runner.capabilities ?? []).join(", ")
+                    : "nenhum worker"}
+                </p>
+                <p className="mt-1 text-[11px] text-(--color-muted)">
+                  último sinal {formatDateTime(runner.last_heartbeat_at)}
+                </p>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-xs text-(--color-muted)">
+            Nenhum runner se registrou ainda. Suba um com <span className="font-mono">runner_daemon</span>.
+          </p>
+        )}
+      </CardBody>
+    </Card>
   );
 }
 
@@ -93,19 +171,39 @@ function WorkerCard({ worker }: { worker: WorkerStatus }) {
         setOpen(next);
         if (!next) setPanel("none");
       }}
-      toggleLabel="Ver detalhes e rodar"
+      toggleLabel="Ver detalhes e enfileirar"
       className={active ? "ring-(--color-accent)/40" : undefined}
       header={<WorkerHeader worker={worker} />}
       actions={
-        <Button
-          size="sm"
-          variant="primary"
-          onClick={() => openPanel("run")}
-          disabled={active}
-          title={active ? "Há uma execução em andamento" : "Rodar agora com a configuração efetiva"}
-        >
-          {active ? "Em execução…" : ACTION.run.label}
-        </Button>
+        /*
+          The ingestion stage is in this catalogue because the panel must show the stage, but its
+          run is about an origin: the generic route refuses it (there is no origin in a
+          `WorkerRunRequest`), so the row points at the screen that owns the origin instead of
+          offering a button the API would answer 422 to.
+        */
+        worker.name === "ingestion" ? (
+          <Link to="/sistema/ingestao">
+            <Button size="sm" variant="secondary">
+              Abrir ingestão
+            </Button>
+          </Link>
+        ) : (
+          <Button
+            size="sm"
+            variant="primary"
+            onClick={() => openPanel("run")}
+            disabled={active}
+            title={
+              active
+                ? "Há uma execução em andamento"
+                : worker.runner_available
+                  ? "Enfileirar uma execução com a configuração efetiva"
+                  : "Nenhum runner online aceita este worker: a execução espera na fila"
+            }
+          >
+            {active ? RUN_STATUS_LABEL[worker.active_run!.status] : ACTION.run.label}
+          </Button>
+        )
       }
     >
       <div className="grid gap-4">
@@ -183,7 +281,11 @@ function WorkerCard({ worker }: { worker: WorkerStatus }) {
                 <Badge tone={RUN_STATUS_TONE[worker.last_run.status]}>{RUN_STATUS_LABEL[worker.last_run.status]}</Badge>
                 <p className="mt-1 text-xs text-(--color-muted)">
                   {formatDateTime(worker.last_run.queued_at)} · {formatDuration(worker.last_run.duration_ms)} ·{" "}
-                  {worker.last_run.trigger === "API" ? "painel" : "linha de comando"}
+                  {TRIGGER_LABEL[worker.last_run.trigger]}
+                  {worker.last_run.attempt > 1
+                    ? ` · tentativa ${worker.last_run.attempt}/${MAX_ATTEMPTS}`
+                    : ""}
+                  {worker.last_run.runner_id ? ` · ${worker.last_run.runner_id}` : ""}
                 </p>
                 {worker.last_run.error ? (
                   <p className="mt-1 text-xs text-(--color-danger)">{worker.last_run.error}</p>
@@ -191,6 +293,27 @@ function WorkerCard({ worker }: { worker: WorkerStatus }) {
               </>
             ) : (
               <span className="text-sm text-(--color-muted)">nunca rodou</span>
+            )}
+          </Fact>
+
+          <Fact label="Agenda">
+            {worker.schedule ? (
+              <>
+                <span className="font-mono text-xs">{worker.schedule.cron}</span>
+                <p className="mt-1 text-xs text-(--color-muted)">
+                  {worker.schedule.timezone} ·{" "}
+                  {worker.schedule.enabled
+                    ? `próxima ${formatDateTime(worker.schedule.next_run_at)}`
+                    : "pausada"}
+                </p>
+                {worker.schedule.last_skipped_at ? (
+                  <p className="mt-1 text-xs text-(--color-muted)">
+                    pulada em {formatDateTime(worker.schedule.last_skipped_at)} (execução ativa)
+                  </p>
+                ) : null}
+              </>
+            ) : (
+              <span className="text-sm text-(--color-muted)">sem agenda</span>
             )}
           </Fact>
         </div>
@@ -234,6 +357,12 @@ function WorkerHeader({ worker }: { worker: WorkerStatus }) {
       <span className="font-mono text-[11px] text-(--color-muted)">{worker.name}</span>
       {worker.settings.overridden ? <Badge tone="accent">padrão alterado</Badge> : null}
       {active ? <Badge tone="accent">{RUN_STATUS_LABEL[worker.active_run!.status]}</Badge> : null}
+      {!worker.runner_available ? <Badge tone="warn">sem runner</Badge> : null}
+      {worker.schedule ? (
+        <Badge tone={worker.schedule.enabled ? "accent" : "neutral"}>
+          {worker.schedule.enabled ? `agenda ${worker.schedule.cron}` : "agenda pausada"}
+        </Badge>
+      ) : null}
       {worker.pending != null && worker.pending > 0 ? (
         <Badge tone="warn">{formatCount(worker.pending)} na fila</Badge>
       ) : null}
@@ -247,6 +376,13 @@ function WorkerHeader({ worker }: { worker: WorkerStatus }) {
         {worker.settings.preset ? ` · ${worker.settings.preset}` : ""}
         {worker.settings.engine_name ? ` — ${describeConfig(worker.settings.config)}` : ""}
       </span>
+      {worker.active_run?.runner_id ? (
+        <span className="w-full font-mono text-[11px] text-(--color-muted)">
+          runner {worker.active_run.runner_id}
+          {worker.active_run.heartbeat_at ? ` · sinal ${formatDateTime(worker.active_run.heartbeat_at)}` : ""}
+          {worker.active_run.not_before ? ` · recomeça às ${formatDateTime(worker.active_run.not_before)}` : ""}
+        </span>
+      ) : null}
       <span className="w-full text-xs text-(--color-muted)">{worker.description}</span>
     </span>
   );
@@ -292,7 +428,7 @@ function RunPanel({ worker, onDone }: { worker: WorkerStatus; onDone: (message: 
     },
     onSuccess: (created) => {
       void queryClient.invalidateQueries({ queryKey: ["system"] });
-      onDone(`Execução #${created.run_id} aceita; acompanhe na aba Execuções.`);
+      onDone(`Execução #${created.run_id} enfileirada; acompanhe na aba Execuções.`);
     },
   });
 
@@ -302,6 +438,12 @@ function RunPanel({ worker, onDone }: { worker: WorkerStatus; onDone: (message: 
         <p className="text-xs text-(--color-muted)">
           Esta execução usa a configuração efetiva acima, ajustada só para esta vez. Nada aqui vira padrão.
         </p>
+
+        {!worker.runner_available ? (
+          <Notice tone="warn">
+            Nenhum runner online aceita este worker: a execução fica na fila até um subir.
+          </Notice>
+        ) : null}
 
         {settings.engine_source === "signature" ? (
           <div className="grid gap-3 sm:grid-cols-2">

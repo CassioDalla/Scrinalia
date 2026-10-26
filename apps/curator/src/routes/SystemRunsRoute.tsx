@@ -1,17 +1,25 @@
-import { useQuery } from "@tanstack/react-query";
-import { getRouteApi, useNavigate } from "@tanstack/react-router";
+import { useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { getRouteApi, Link, useNavigate } from "@tanstack/react-router";
 
+import {
+  cancelWorkerRun,
+  type FailureGroup,
+  type WorkerRun,
+  type WorkerRunStatus,
+} from "@/api/client";
 import { queries, FAILURES_PAGE_SIZE, RUNS_PAGE_SIZE } from "@/api/queries";
-import type { FailureGroup, WorkerRunStatus } from "@/api/client";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { EmptyState, ErrorState, Skeleton } from "@/components/ui/Feedback";
 import { Select } from "@/components/ui/Input";
+import { Notice } from "@/components/ui/Notice";
 import { PageBody } from "@/components/layout/PageBody";
 import { formatCount, formatDateTime } from "@/lib/format";
 import { cn } from "@/lib/cn";
+import { routeMessage } from "@/lib/messages";
 import { asEnum, asNumber, asString } from "@/lib/search";
 import {
   describeConfig,
@@ -19,21 +27,38 @@ import {
   FAILURE_SOURCE_LABEL,
   formatDuration,
   isActiveRun,
+  isCancelRequested,
+  MAX_ATTEMPTS,
   RUN_STATUS_LABEL,
   RUN_STATUS_TONE,
+  TRIGGER_LABEL,
 } from "@/lib/system";
 
 const routeApi = getRouteApi("/sistema/execucoes");
 
 /** The closed vocabulary of the run lifecycle, read from the contract's enum. */
-const RUN_STATUSES: readonly WorkerRunStatus[] = ["QUEUED", "RUNNING", "SUCCESS", "FAILED", "INTERRUPTED"];
+const RUN_STATUSES: readonly WorkerRunStatus[] = [
+  "QUEUED",
+  "RUNNING",
+  "SUCCESS",
+  "FAILED",
+  "INTERRUPTED",
+  "CANCELLED",
+];
 
-export type SystemRunsSearch = { worker?: string; status?: WorkerRunStatus; fingerprint?: string; offset?: number };
+export type SystemRunsSearch = {
+  worker?: string;
+  origin?: string;
+  status?: WorkerRunStatus;
+  fingerprint?: string;
+  offset?: number;
+};
 
 export function validateSystemRunsSearch(search: Record<string, unknown>): SystemRunsSearch {
   const offset = asNumber(search.offset);
   return {
     worker: asString(search.worker),
+    origin: asString(search.origin),
     status: asEnum(search.status, RUN_STATUSES),
     fingerprint: asString(search.fingerprint),
     offset: offset !== undefined && offset > 0 ? offset : undefined,
@@ -56,7 +81,7 @@ export function SystemRunsRoute() {
 
   const offset = search.offset ?? 0;
   const page = useQuery({
-    ...queries.systemRuns(search.worker, search.status, offset, search.fingerprint),
+    ...queries.systemRuns(search.worker, search.status, offset, search.fingerprint, search.origin),
     // A queued or running entry is the only reason the ledger changes by itself.
     refetchInterval: (query) => (query.state.data?.items?.some(isActiveRun) ? 5_000 : false),
   });
@@ -67,6 +92,14 @@ export function SystemRunsRoute() {
   // does not show the queue counts, so there is no reason to pay for them repeatedly.
   const catalogue = useQuery({
     ...queries.systemWorkers(),
+    staleTime: 5 * 60_000,
+    refetchInterval: false,
+  });
+
+  // The origin vocabulary is the ingestion screen's read; the ledger reuses it for its own filter, so
+  // a run of `ingestion` says *which* origin it processed instead of only its worker name.
+  const origins = useQuery({
+    ...queries.ingestionOrigins(),
     staleTime: 5 * 60_000,
     refetchInterval: false,
   });
@@ -119,6 +152,19 @@ export function SystemRunsRoute() {
           </Select>
 
           <Select
+            className="max-w-56"
+            value={search.origin ?? ""}
+            onChange={(event) => patch({ origin: event.target.value || undefined })}
+          >
+            <option value="">todas as origens</option>
+            {(origins.data?.origins ?? []).map((origin) => (
+              <option key={origin.code} value={origin.code}>
+                {origin.label}
+              </option>
+            ))}
+          </Select>
+
+          <Select
             className="max-w-48"
             value={search.status ?? ""}
             onChange={(event) => patch({ status: (event.target.value || undefined) as WorkerRunStatus | undefined })}
@@ -131,11 +177,13 @@ export function SystemRunsRoute() {
             ))}
           </Select>
 
-          {search.worker || search.status || search.fingerprint ? (
+          {search.worker || search.origin || search.status || search.fingerprint ? (
             <Button
               size="sm"
               variant="ghost"
-              onClick={() => patch({ worker: undefined, status: undefined, fingerprint: undefined })}
+              onClick={() =>
+                patch({ worker: undefined, origin: undefined, status: undefined, fingerprint: undefined })
+              }
             >
               limpar filtros
             </Button>
@@ -166,7 +214,7 @@ export function SystemRunsRoute() {
         {page.data && total === 0 ? (
           <EmptyState
             title="Nenhuma execução registrada"
-            hint="Nada rodou desde que o ledger existe. O botão 'Rodar agora' na tela de workers cria a primeira entrada."
+            hint="Nada rodou desde que o ledger existe. O botão 'Enfileirar execução' na tela de workers cria a primeira entrada."
           />
         ) : null}
 
@@ -180,7 +228,16 @@ export function SystemRunsRoute() {
                       <Badge tone={RUN_STATUS_TONE[run.status]}>{RUN_STATUS_LABEL[run.status]}</Badge>
                       <span className="truncate text-sm font-medium">{labelOf(run.worker_name)}</span>
                       <span className="font-mono text-[11px] text-(--color-muted)">{run.worker_name}</span>
-                      <Badge tone="neutral">{run.trigger === "API" ? "painel" : "linha de comando"}</Badge>
+                      {run.origin_code ? <Badge tone="accent">origem {run.origin_code}</Badge> : null}
+                      {run.trial ? (
+                        <Badge
+                          tone="accent"
+                          title="Um ensaio compara configurações e não escreve no acervo (ADR 0018)."
+                        >
+                          ensaio
+                        </Badge>
+                      ) : null}
+                      <Badge tone="neutral">{TRIGGER_LABEL[run.trigger]}</Badge>
                     </div>
                     <span className="text-xs text-(--color-muted)">
                       #{run.run_id} · {formatDateTime(run.queued_at)} · {formatDuration(run.duration_ms)}
@@ -188,20 +245,56 @@ export function SystemRunsRoute() {
                   </div>
 
                   <p className="text-xs text-(--color-muted)">
-                    <span className="font-mono">{run.engine_name ?? "sem modelo"}</span>
-                    {run.preset ? ` · ${run.preset}` : ""}
-                    {run.engine_name ? ` · ${describeConfig(run.config)}` : ""}
+                    {run.trial ? (
+                      <>
+                        comparação de configurações · o resultado e a escolha ficam em{" "}
+                        <Link to="/configuracoes/workers" className="underline">
+                          Configurações › {labelOf(run.worker_name)}
+                        </Link>
+                      </>
+                    ) : (
+                      <>
+                        <span className="font-mono">{run.engine_name ?? "sem modelo"}</span>
+                        {run.preset ? ` · ${run.preset}` : ""}
+                        {run.engine_name ? ` · ${describeConfig(run.config)}` : ""}
+                      </>
+                    )}
                     {run.requested_by ? ` · pedido por ${run.requested_by}` : ""}
                   </p>
 
                   {/*
                     What the run actually read (#120): the columns, the floor, the cap. It sits on
                     its own line because it is the answer to a different question than "with which
-                    model?", and a row older than the column says so instead of guessing.
+                    model?", and a row older than the column says so instead of guessing. A trial has
+                    one options set per configuration, so the aggregate line would be a half-truth.
                   */}
-                  <p className="font-mono text-[11px] text-(--color-muted)">{describeOptions(run.options)}</p>
+                  {run.trial ? null : (
+                    <p className="font-mono text-[11px] text-(--color-muted)">{describeOptions(run.options)}</p>
+                  )}
+
+                  {run.attempt > 1 || run.retry_of || (run.not_before && run.status === "QUEUED") ? (
+                    <p className="text-xs text-(--color-muted)">
+                      {run.attempt > 1 ? `tentativa ${run.attempt}/${MAX_ATTEMPTS}` : ""}
+                      {run.retry_of ? `${run.attempt > 1 ? " · " : ""}nova tentativa de #${run.retry_of}` : ""}
+                      {run.not_before && run.status === "QUEUED"
+                        ? `${run.attempt > 1 || run.retry_of ? " · " : ""}começa em ${formatDateTime(run.not_before)}`
+                        : ""}
+                    </p>
+                  ) : null}
+
+                  {run.runner_id ? (
+                    <p className="font-mono text-[11px] text-(--color-muted)">
+                      runner {run.runner_id}
+                      {run.heartbeat_at ? ` · sinal ${formatDateTime(run.heartbeat_at)}` : ""}
+                      {run.lease_expires_at && isActiveRun(run)
+                        ? ` · lease até ${formatDateTime(run.lease_expires_at)}`
+                        : ""}
+                    </p>
+                  ) : null}
 
                   {run.error ? <p className="text-xs text-(--color-danger)">{run.error}</p> : null}
+
+                  <RunCancel run={run} />
                 </CardBody>
               </Card>
             </li>
@@ -235,6 +328,75 @@ export function SystemRunsRoute() {
         ) : null}
       </PageBody>
     </>
+  );
+}
+
+/**
+ * The stop of one run: the button, its confirmation, and the pending request.
+ *
+ * The confirmation is inline and in two steps, the shape the other destructive actions use: closing
+ * a run is not deleting a record, so a typed code would be ceremony, but a single click on a page
+ * full of rows would stop the wrong execution. The sentence is the honest limit — the current batch
+ * is committed, not interrupted — and the row keeps saying "em execução" until the worker honours
+ * the request, because releasing the slot before then would let a second run overlap it (#72).
+ */
+function RunCancel({ run }: { run: WorkerRun }) {
+  const queryClient = useQueryClient();
+  const [open, setOpen] = useState(false);
+
+  const cancel = useMutation({
+    mutationFn: () => cancelWorkerRun(run.run_id),
+    onSuccess: () => {
+      setOpen(false);
+      void queryClient.invalidateQueries({ queryKey: ["system"] });
+    },
+    // A 409 means the row finished between the render and the click: refetch so the screen stops
+    // offering an action that no longer exists.
+    onError: () => {
+      void queryClient.invalidateQueries({ queryKey: ["system"] });
+    },
+  });
+
+  if (!isActiveRun(run)) return null;
+
+  if (isCancelRequested(run)) {
+    return (
+      <p className="text-xs text-(--color-warn)">
+        Cancelamento pedido em {formatDateTime(run.cancel_requested_at)}
+        {run.cancel_requested_by ? ` por ${run.cancel_requested_by}` : ""}. A execução para no fim do lote
+        atual; o que já foi gravado fica.
+      </p>
+    );
+  }
+
+  return (
+    <div className="grid gap-2">
+      <div>
+        <Button size="sm" variant="danger" onClick={() => setOpen((current) => !current)}>
+          {open ? "Fechar" : "Cancelar execução…"}
+        </Button>
+      </div>
+
+      {open ? (
+        <Notice tone="warn" as="div" className="grid gap-2">
+          <p>
+            A execução para no fim do lote atual e o que já foi gravado fica. Se ela ainda não começou, é
+            cancelada agora. O lote em curso não é interrompido: uma passada do modelo não pode ser cortada no
+            meio.
+          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button size="sm" variant="danger" disabled={cancel.isPending} onClick={() => cancel.mutate()}>
+              {cancel.isPending ? "Cancelando…" : "Confirmar cancelamento"}
+            </Button>
+            <Button size="sm" variant="ghost" disabled={cancel.isPending} onClick={() => setOpen(false)}>
+              Voltar
+            </Button>
+          </div>
+          {cancel.error ? <ErrorState error={cancel.error} /> : null}
+          {cancel.data ? <p className="text-xs text-(--color-muted)">{routeMessage(cancel.data)}</p> : null}
+        </Notice>
+      ) : null}
+    </div>
   );
 }
 

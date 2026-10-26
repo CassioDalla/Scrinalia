@@ -23,7 +23,7 @@ from __future__ import annotations
 import types
 from dataclasses import dataclass, field
 from functools import cache
-from inspect import Parameter
+from inspect import Parameter, signature
 from typing import Any, Literal, Union, get_args, get_origin, get_type_hints
 
 from sqlalchemy.orm import Session
@@ -43,7 +43,9 @@ from scrinalia.domains.archive.workers.catalogue import (
 #: opens, the runner dataclass (``NerRunnerConfig``/``TypologyRunnerConfig``) and the ports
 #: (``source``, ``storage``). ``config`` reaching ``execute`` as a dict would fail with an attribute
 #: error instead of a sentence, and a port cannot travel through JSON at all.
-NON_OPTION_PARAMETERS: frozenset[str] = frozenset({"db", "db_session", "config", "source", "storage"})
+NON_OPTION_PARAMETERS: frozenset[str] = frozenset(
+    {"db", "db_session", "config", "source", "storage", "run_control", "origin_code"}
+)
 
 #: Why each of them is refused, as the fragment the refusal sentence adds.
 NON_OPTION_REASONS: dict[str, str] = {
@@ -52,6 +54,8 @@ NON_OPTION_REASONS: dict[str, str] = {
     "storage": "é a porta de armazenamento e não pode ser definida pela tela",
     "db": "é a sessão de banco que o runner abre",
     "db_session": "é a sessão de banco que o runner abre",
+    "run_control": "é o controle de cancelamento da execução, não uma opção do worker",
+    "origin_code": "é o eixo da execução de ingestão e vem da linha da origem, não de um campo de opções",
 }
 
 #: Parameters that already have a field of their own in the configuration. Accepting them inside
@@ -506,3 +510,31 @@ def effective_worker_options(spec: WorkerSpec, resolved: ResolvedWorkerConfig) -
         resolver = getattr(worker_module(spec.module), spec.option_resolver)
         values.update(resolver(**values))
     return values
+
+
+def counter_options(spec: WorkerSpec, resolved: ResolvedWorkerConfig) -> dict[str, Any]:
+    """
+    Only what the counter declares: the options, plus the engine and the preset it reads.
+
+    The counter is a reader, not the worker: handing it ``columns_to_extract`` is useful, handing it
+    a parameter it does not read (or a runner dataclass) is not. The filter is by the counter's own
+    signature, so a new counter cannot be broken by an unrelated option.
+
+    The engine and the preset travel **resolved** — the same pair the run would use — because the
+    queue is keyed on the producer identity: a counter that fell back to its signature defaults
+    would show the number for a model the next run is not going to use, which is the lying panel the
+    shared predicate exists to prevent. ``quality-validator`` declares neither: its engine lives in
+    the active ``LLM_CHECK`` rule and its counter reads it there.
+
+    One definition for the panel (``WorkerOperationsService``) and the trial (#71), which needs the
+    same number for the same configuration it is about to price.
+    """
+    counter_name = spec.counter or spec.processed_counter
+    if counter_name is None:
+        return {}
+    parameters = signature(getattr(worker_module(spec.module), counter_name)).parameters
+    resolved_engine = {
+        key: value for key, value in {"engine_name": resolved.engine_name, "preset": resolved.preset}.items() if value
+    }
+    candidates = {**resolved.forwarded_options, **resolved_engine}
+    return {key: value for key, value in candidates.items() if key in parameters}

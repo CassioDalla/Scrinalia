@@ -5,8 +5,8 @@ translation_of: guides/operate.md
 # Operação
 
 Esta página é para quem opera a máquina no dia a dia: quais workers existem, em que ordem rodam,
-como disparar um, como a configuração efetiva é resolvida, o que o painel de sistema mostra e o que
-fazer quando algo quebra. Instalar e configurar o sistema está em
+como subir o runner ou disparar uma execução pontual, como a configuração efetiva é resolvida, o que
+o painel de sistema mostra e o que fazer quando algo quebra. Instalar e configurar o sistema está em
 [Instalação e implantação](install.md); as decisões arquivísticas de cada tela estão em
 [Curadoria](curate.md).
 
@@ -17,32 +17,34 @@ dele no pipeline, a unidade que a fila conta, se ele respeita a governança de r
 que escreve. O catálogo não importa nenhum worker — resolve cada módulo sob demanda —, então lê-lo
 é barato.
 
-Nove workers, na ordem do pipeline:
+Dez workers, na ordem do pipeline:
 
 | # | Nome | Módulo | Unidade | Governança | Engine efetiva vem de |
 | --- | --- | --- | --- | --- | --- |
-| 1 | `transfer` | `worker_archive_transfer` | registro de staging | não | — |
-| 2 | `cleaning` | `worker_cleaning_regex` | documento | sim | — |
-| 3 | `ner` | `worker_ner` | documento | sim | assinatura |
-| 4 | `typology` | `worker_typology` | documento | sim | assinatura |
-| 5 | `thumbnail` | `worker_thumbnail` | documento | sim | — |
-| 6 | `conflict-judge` | `worker_resolve_tag_entity_conflict` | par tag × entidade | não | assinatura |
-| 7 | `macro-category` | `worker_macro_category` | tag | não | assinatura |
-| 8 | `quality-validator` | `worker_quality_validator` | documento | sim | regra `LLM_CHECK` ativa |
-| 9 | `embedding` | `worker_embedding` | documento | não | assinatura |
+| 1 | `ingestion` | `ingestion.worker` | origem | não | — |
+| 2 | `transfer` | `worker_archive_transfer` | registro de staging | não | — |
+| 3 | `cleaning` | `worker_cleaning_regex` | documento | sim | — |
+| 4 | `ner` | `worker_ner` | documento | sim | assinatura |
+| 5 | `typology` | `worker_typology` | documento | sim | assinatura |
+| 6 | `thumbnail` | `worker_thumbnail` | documento | sim | — |
+| 7 | `conflict-judge` | `worker_resolve_tag_entity_conflict` | par tag × entidade | não | assinatura |
+| 8 | `macro-category` | `worker_macro_category` | tag | não | assinatura |
+| 9 | `quality-validator` | `worker_quality_validator` | documento | sim | regra `LLM_CHECK` ativa |
+| 10 | `embedding` | `worker_embedding` | documento | não | assinatura |
 
 A ordem é a ordem em que as etapas liberam umas às outras, e é a ordem que a seção de pipeline do
 painel mostra:
 
 ```text
-transfer -> cleaning -> ner -> typology -> thumbnail -> conflict-judge -> macro-category -> quality-validator -> embedding
+ingestion -> transfer -> cleaning -> ner -> typology -> thumbnail -> conflict-judge -> macro-category -> quality-validator -> embedding
 ```
 
-As duas etapas **à frente** dessa tabela — ler a origem para o `raw_data` e estruturá-lo em
-`staging_documents` — não são workers deste catálogo, porque não carregam engine nem gravam carimbo
-de IA. São comandos de linha de comando próprios, descritos em
-[a leitura da origem e o transform](#a-leitura-da-origem-e-o-transform).
-
+- **`ingestion`** é a etapa à frente do Acervo: lista uma origem, lê as páginas de detalhe para o
+  `raw_data` e estrutura os registros novos em `staging_documents`. A unidade dela é a **origem**,
+  não o documento, e ela não tem engine; cada origem é uma linha com a sua própria fila, agenda e
+  configuração, descrita em [as origens da ingestão](#as-origens-da-ingestao). Os comandos de linha
+  de comando abaixo continuam existindo para uma execução avulsa, mas o painel é o caminho de
+  operação.
 - **`transfer`** copia o registro estruturado do staging para a descrição do Acervo, tendo como
   chave o hash do registro interpretado (`staging_content_hash`). É a única etapa que reescreve
   conteúdo: quando o hash muda, o `execution_log` gravado é zerado e os enriquecimentos de IA
@@ -61,7 +63,10 @@ de IA. São comandos de linha de comando próprios, descritos em
   que o bucket existe antes do primeiro documento — criando-o só quando
   `S3_AUTO_CREATE_BUCKET=true` — então um bucket ausente derruba a execução uma vez, com uma frase,
   em vez de carimbar a fila inteira com o `AccessDenied` enganoso do endpoint. O `--limit N` limita
-  os documentos de uma execução, que é o que torna barato um teste local.
+  os documentos de uma execução, que é o que torna barato um teste local. O worker só escreve o
+  objeto; a API o serve sob demanda em `GET /api/v1/documents/{description_id}/thumbnail` (ADR 0017).
+  O endpoint precisa continuar alcançável a partir do **processo da API** e as credenciais precisam
+  permitir `GetObject` — o navegador nunca fala com ele.
 - **`conflict-judge`** compara o vocabulário de tags com o de entidades e consulta o LLM local para
   decidir se o termo ambíguo é assunto ou nome próprio. Todo veredicto, automático ou enviado a uma
   pessoa, deixa uma linha em `archive_ai_review_queue`. Uma chamada que o motor não conseguiu fazer
@@ -142,6 +147,31 @@ medir isso antes de pagar.
 
 O contador do `transfer` é o mais pesado: valida a tabela de staging inteira pelo mesmo port que o
 transfer usa. É lido uma vez por carga do painel e não é consultado em laço.
+
+## O runner
+
+Desde a ADR 0014 os workers rodam no próprio processo; a API apenas enfileira. O runner reivindica as
+linhas `QUEUED` e as executa:
+
+```bash
+uv run python -m scrinalia.domains.archive.workers.runner_daemon \
+    --name gpu-01 --workers ner,typology,embedding
+```
+
+| Flag | Significado |
+| --- | --- |
+| `--name` | o nome humano no painel; o identificador é gerado (`name:<uuid curto>`) a menos que `--id` seja dado |
+| `--workers` | os workers que este runner aceita, separados por vírgula; o padrão é o catálogo inteiro |
+| `--concurrency` | quantas execuções ele executa de uma vez; 1 por padrão, porque os modelos são limitados por CPU/GPU |
+| `--heartbeat-seconds`, `--lease-seconds` | o lease que ele renova e quanto tempo uma reivindicação sobrevive sem ele; 15/60 por padrão, e o heartbeat precisa ser menor |
+| `--poll-seconds`, `--sweep-seconds` | de quanto em quanto procura trabalho e expira reivindicações; 2/30 por padrão |
+| `--once` | reivindica e executa no máximo uma execução, e sai |
+| `--drain-seconds` | espera até esse tempo pelas execuções em andamento antes de sair; o lease cobre o resto |
+
+O runner se registra em `archive_worker_runners`, renova a própria linha com o mesmo heartbeat e
+recusa um schema atrás do seu código. O painel o mostra — online/offline, o host, a versão, as
+capacidades — e marca **sem runner** os workers que nenhum runner online aceita; uma execução
+enfileirada para um deles espera. O banco é o único canal: a API nunca chama um runner.
 
 ## Executando um worker
 
@@ -237,36 +267,59 @@ overrides persistidos, a trava de concorrência e a conversão de `--option`, e 
 o `preset` que o bloco `__main__` do módulo fixa (para `ner`, `db_batch_size=100` e, no resto, os
 padrões da assinatura). Nada aparece no histórico de execuções, então nada avisa que ela aconteceu.
 
-### A leitura da origem e o transform
+### As origens da ingestão
 
-As duas etapas à frente do Acervo não estão no runner nem no painel, e os comandos delas são o
-caminho de operação dessas camadas, não um atalho de depuração:
+Uma origem é uma definição em código mais uma linha em `ingestion_origins` (ADR 0016). A definição —
+o adaptador e o `SourceSchema` que diz qual rótulo dela preenche qual coluna do staging — fica ao
+lado do adaptador; a linha é o ciclo de vida: habilitada/pausada, as URLs, a política de execução que
+uma execução agendada herda e o cron/fuso da agenda. A origem `csv` não tem configuração de adaptador:
+a entrada dela é o arquivo que o navegador lê, e o `SourceSchema` dela mapeia os cabeçalhos desse
+arquivo para as colunas do staging. Adicionar uma origem é um módulo, uma entrada no registro e uma
+linha; o transform de staging não aprende site nenhum.
+
+`/sistema/ingestao` é a tela. Cada cartão responde *qual fila é esta, o que ela lê, quando roda e o
+que aconteceu na última vez*: os números de pendentes/processados/falhas da própria origem, a última
+execução e a ativa, a agenda e a disponibilidade de runner. O operador pode **Enfileirar execução**,
+editar a configuração e salvar a agenda; um curador chega à tela pelo formulário manual e vê os
+mesmos cartões só para leitura. As rotas genéricas de worker recusam `ingestion`: uma execução dela
+precisa da origem, então as rotas da origem são o seletor (`/api/v1/ingestion/origins/...`).
+
+A etapa roda no **mesmo** ledger, runner, lease e cancelamento dos workers de IA. Uma execução tem
+`worker_name="ingestion"` e `origin_code` preenchido; o índice parcial único é
+`(worker_name, COALESCE(origin_code, ''))`, então os workers de archive mantêm uma vaga por worker
+enquanto cada origem tem a sua. O agendador lê as origens devidas e enfileira uma execução por
+origem; um período que chega com aquela origem já rodando é pulado, e uma ingestão agendada que
+falha é retentada pela política existente.
+
+Os comandos de linha de comando continuam para uma execução avulsa, e agora sempre nomeiam a origem:
 
 ```bash
 # Lista os identificadores da origem na fila, percorrendo no máximo dez páginas.
-uv run python -m scrinalia.domains.ingestion.worker discover --pages 10
+uv run python -m scrinalia.domains.ingestion.worker discover --origin pmc --pages 10
 
 # Lê a página de detalhe de no máximo cem dos identificadores que a fila guarda.
-uv run python -m scrinalia.domains.ingestion.worker scrape --limit 100
+uv run python -m scrinalia.domains.ingestion.worker scrape --origin pmc --limit 100
 
-# As duas fases num processo, que é o que um agendador rodaria.
-uv run python -m scrinalia.domains.ingestion.worker run --pages 10 --limit 100
+# As duas fases e o transform de staging num processo.
+uv run python -m scrinalia.domains.ingestion.worker run --origin pmc --pages 10 --limit 100
 
-# Estrutura no máximo cem registros brutos no staging.
+# Estrutura registros brutos no staging; sem --origin, cada registro resolve o próprio schema.
 uv run python -m scrinalia.domains.staging.worker --limit 100
 ```
 
-Os dois aceitam `--origin` para nomear a origem daquela execução; sem ele, o código é o que
-`ACERVO_SOURCE` nomeia, e continua não havendo padrão. O `scrape` também aceita `--audit-ttl-days N`
-para reler as descrições concluídas há mais de N dias, `--force-retry-fatal` para incluir as linhas
-marcadas como `FATAL_ERROR`, `--ignore-sliding-window` para descartar as janelas de descoberta e de
-TTL, e `--max-retries`, `--discovery-window-days` e `--scraped-ttl-days` para sobrepor a política
-daquela execução.
+`--origin` é **obrigatório** nos comandos de ingestão e continua não havendo padrão: o
+`ACERVO_SOURCE` foi removido. O adaptador de referência aceita `PUBLIC_SCRAPE_URL` e
+`PUBLIC_SCRAPE_DETAIL_URL` como fallback das URLs, que é o que mantém um `.env` existente
+funcionando; a configuração da origem vence quando tem valor. O `scrape` também aceita
+`--audit-ttl-days N` para reler as descrições concluídas há mais de N dias, `--force-retry-fatal` para
+incluir as linhas marcadas como `FATAL_ERROR`, `--ignore-sliding-window` para descartar as janelas de
+descoberta e de TTL, e `--max-retries`, `--discovery-window-days` e `--scraped-ttl-days` para
+sobrepor a política daquela execução.
 
 **Uma execução limitada retoma sozinha.** A fila é ordenada por `last_scraped_at`, com as nunca
 tentadas na frente, e todo desfecho — concluída, falha transitória, falha fatal — carimba esse
 campo, então o lote que acabou de rodar vai para trás dos que ainda não rodaram. O transform tem
-como chave o hash do payload bruto, então o que uma execução estruturou deixa de estar pendente.
+como chave o hash do registro interpretado, então o que uma execução estruturou deixa de estar pendente.
 `--limit 100` sobre uma fila de milhares pega os próximos cem na execução seguinte, e os dois
 comandos registram no log quanto ainda falta quando terminam. A única exceção é uma leitura cuja
 gravação sofre rollback: a linha mantém seu lugar e ocupa uma vaga em toda execução até que a
@@ -278,6 +331,64 @@ limitada não retoma sozinha. É para isso que existe `--after <description_id>`
 no log o id em que a janela terminou e o comando para continuar dali. Não use `--after` sem
 `--force`: sob a comparação de hash, pular à frente pularia registros pendentes em vez de registros
 já estruturados.
+
+### A entrada manual
+
+A origem `manual` é o formulário em `/sistema/ingestao/nova`, e ele **não** é uma aprovação. O envio grava
+o `raw_data` (com `created_by`), uma linha em `scraping_queue` marcada como `DONE` (o formulário é a
+descoberta) e o registro de staging; em seguida enfileira o mesmo worker `transfer` que a coleta usa.
+A descrição do Acervo nasce `PENDING_AI`, e as filas de IA a veem; o curador aprova no dossiê depois
+que a IA rodar. Se já houver uma transferência em andamento, o registro fica no staging e a resposta
+diz que ele entra na próxima. Um `description_id` duplicado é recusado antes da gravação; o formulário
+gera um id `manual-<uuid>` para que um reenvio seja o mesmo registro.
+
+O formulário tem tela própria, `/sistema/ingestao/nova`, alcançada pelo cartão **Entrada manual**:
+o registro é o registro ISAD(G) inteiro — trinta controles agrupados nas sete áreas da norma, com a
+identidade aberta e o resto recolhido — e um cartão desse tamanho dentro da tela de ingestão empurraria
+os cartões de origem para baixo. Os rótulos, os tipos de controle e a ordem vêm do mesmo catálogo que
+o dossiê edita (`apps/curator/src/lib/isad.ts`), então as duas telas não podem criar dois vocabulários
+para uma norma.
+
+Três comportamentos valem saber antes de digitar:
+
+- **A data é texto.** O arquivista digita o que o registro diz (`Década de 1980`, `1951-1953`) e o
+  perfil de idioma interpreta — a mesma gramática que a importação CSV usa. Um valor que o perfil não
+  consegue ler é recusado com uma frase, em vez de virar data vazia, e a confirmação repete a data que
+  o perfil leu, para que o que foi gravado fique visível.
+- **O nível e o idioma são seletores.** O nível vem do catálogo de níveis e o idioma de
+  `GET /api/v1/languages` (um catálogo declarado em código — um idioma não carrega regra que a
+  instituição edite). Um nível que exige pai e não tem nenhum **avisa e grava assim mesmo**: o registro
+  entra pendente e a aba Arranjo do dossiê faz o vínculo depois.
+- **O objeto digital está desabilitado.** O controle de upload aparece desabilitado, com a frase que
+  aponta para a #198: o acervo guarda a descrição, não o arquivo. A URL da imagem logo abaixo é o
+  caminho que funciona hoje — o worker de miniatura copia essa imagem para o storage.
+
+### A importação CSV
+
+A origem `csv` é o cartão **Importação CSV** em `/sistema/ingestao`, e é uma escrita do mesmo tipo da
+entrada manual: as linhas entram no staging e uma `transfer` é enfileirada, então a descrição do
+Acervo nasce `PENDING_AI` (#191, ADR 0019).
+
+O arquivo nunca chega ao servidor como arquivo. O navegador o interpreta (vírgula ou ponto e vírgula,
+campos entre aspas, CRLF, UTF-8 com fallback para Windows-1252), mapeia os cabeçalhos detectados para
+os rótulos declarados da origem e mostra uma prévia; só uma **lista limitada de linhas** é enviada como
+JSON para `POST /api/v1/ingestion/csv`. Não existe rota multipart nem storage de objetos neste caminho:
+uma instalação cujo bucket de miniaturas não está configurado importa um CSV do mesmo jeito.
+
+`GET /api/v1/ingestion/csv/spec` publica o mapa e os limites — o rótulo, o atributo de staging, o
+caráter obrigatório e o teto de cada coluna, além de `max_rows`, `max_bytes`, `max_row_bytes` e
+`max_field_chars`. Os valores vivem em `domains/ingestion/csv_import.py`, uma definição só; a rota
+recusa um pedido acima deles com **413** e uma frase.
+
+A API é a autoridade, não a tela: cada linha é validada com o mesmo `StagingDocumentDTO` e o mesmo
+`SourceSchema` que o transform de staging usa, e a resposta reporta cada linha como **aceita**,
+**duplicada** (o `description_id` já existe em `raw_data`, `scraping_queue` ou no Acervo) ou
+**inválida** (título ausente, data ilegível, campo desconhecido, valor acima do limite), com a linha do
+arquivo e o campo. Uma importação parcial é um desfecho normal, não um erro. As linhas aceitas são
+gravadas com `origin_code='csv'` e estruturadas numa execução só; se já houver uma transferência em
+andamento, a resposta diz que elas entram na próxima. Reimportar um arquivo sem a coluna
+`Identificador` cria registros novos — a coluna é opcional e a tela gera um `csv-<uuid>` quando ela
+falta.
 
 Nenhum dos dois comandos escreve em `archive_worker_runs` — o ledger é do runner — e nenhum dos
 dois aparece no painel de sistema, o que é uma mudança à parte.
@@ -360,6 +471,56 @@ descoberto depois da escrita.
 A CLI não tem rota de pré-visualização; `--limit N` numa execução é a outra forma de limitar o mesmo
 custo.
 
+### Comparar configurações numa amostra
+
+A prévia responde *quantos* a configuração leria. Ela não responde *se os rótulos estão certos*, e é
+essa a pergunta que produziu a #70: a tipologia rodou sobre 4.844 descrições com uma configuração que
+ninguém mediu, e rodar de novo é caro. Um **ensaio** responde sem escrever no acervo (ADR 0018).
+
+`POST /api/v1/system/workers/{worker_name}/trial` recebe o tamanho da amostra, de duas a quatro
+configurações (cada uma com a mesma forma `engine_name`/`preset`/`db_batch_size`/`options` de uma
+execução) e uma semente opcional, e enfileira **uma** linha no ledger com `trial=true`. O runner
+executa as configurações em sequência dentro dessa linha, sobre a mesma amostra, e grava o resultado
+no `trial_result` dela. Um ensaio:
+
+- **não escreve conteúdo arquivístico** — nem `typology_id`, nem carimbo, nem linha na fila de
+  revisão. O executor compartilha a composição do texto, o registro de engines e a regra de decisão
+  (`score > confidence_threshold`) do worker, mas nunca chama `execute`;
+- **ocupa a vaga do worker**, porque carrega o modelo e lê o acervo, e o painel o mostra como
+  `ensaio`; a "última execução" do painel é uma execução de produção, nunca um ensaio;
+- é cancelável como qualquer execução, e nunca é retentado.
+
+Duas populações são medidas, e são diferentes de propósito:
+
+- o **gabarito** é a decisão humana já registrada: a última linha de `archive_document_revisions` que
+  mudou `typology_id` (o dossiê, ou o arquivamento de uma recusa), e o nome atual do catálogo para o
+  qual ela aponta. `HUMAN_APPROVED` **não** é veredito — aprovar um registro não é certificar cada
+  rótulo dele. A concordância (a fração de vereditos que a configuração acertou, com o denominador
+  visível) e a cobertura (a fração que ela respondeu em vez de abster) são medidas aqui;
+- o **escopo de produção** é uma amostra aleatória semeada das descrições ai-writable que as
+  configurações leriam (a interseção dos predicados sem o carimbo). A distribuição, a abstenção, a
+  entropia e os segundos por documento são medidos aqui, porque o gabarito é um conjunto difícil e
+  não a mistura que a próxima execução vai pagar.
+
+O engine é construído uma vez por `(engine, preset, opções do engine)` e compartilhado, então uma
+configuração que só muda o limiar não paga o carregamento do modelo de novo. Uma instalação nova não
+tem veredito humano de tipologia e a tela diz isso em vez de imprimir uma concordância sobre um
+conjunto vazio. Uma tipologia aposentada do catálogo ativo é um erro garantido (o engine só responde
+nomes ativos) e o resultado a nomeia.
+
+A comparação produz a escolha; ela não vira a escolha. **Usar esta** envia o corpo `settings` da
+própria configuração — o que o ensaio mediu — para `PUT /api/v1/system/workers/{worker_name}/settings`,
+então o padrão continua vivendo numa linha só. **Rodar no acervo inteiro** então lê o pendente do
+corpo salvo (`queue/preview`, depois da escrita) e dispara a execução real com um request **vazio**,
+para que a precedência resolva a linha que acabou de ser salva: o número na tela é o número que a
+execução vai ler.
+
+`limit` e `engine_options` são recusados dentro de uma configuração de ensaio: o primeiro é um teto
+de uma execução e o segundo é um repasse cru ao construtor do engine, e nenhum dos dois é padrão
+persistido — a comparação tem de ser de algo que a tela consegue salvar. Hoje o ensaio existe para o
+worker de tipologia; a rota recusa os outros, e a tela de configuração só oferece o cartão onde o
+catálogo diz `trial`.
+
 ## O painel de operação
 
 O painel é a superfície `/api/v1/system/*` e os quatro cartões de `/configuracoes`, sob *Operação*, na
@@ -367,33 +528,51 @@ SPA: o menu não os carrega mais (issue #22).
 
 | Rota | Método | Permissão | O que faz |
 | --- | --- | --- | --- |
-| `/api/v1/system/workers` | `GET` | autenticado | os nove workers com configuração, números de fila e última execução/execução ativa, numa requisição só |
-| `/api/v1/system/workers/settings` | `GET` | autenticado | os padrões persistidos dos nove workers, sem os contadores de fila (issue #53) |
+| `/api/v1/system/workers` | `GET` | autenticado | os dez workers com configuração, números de fila, última execução/execução ativa e o registro de runners, numa requisição só |
+| `/api/v1/system/workers/settings` | `GET` | autenticado | os padrões persistidos dos workers de IA, sem os contadores de fila (issue #53) |
 | `/api/v1/system/workers/{worker_name}/queue/preview` | `POST` | autenticado | o pendente de uma configuração **proposta**, calculado sem escrever |
 | `/api/v1/system/workers/{worker_name}/runs` | `POST` | `OPERATE` | enfileira uma execução com overrides só para ela e responde `201` na hora |
+| `/api/v1/system/workers/{worker_name}/trial` | `POST` | `OPERATE` | enfileira um ensaio: duas ou mais configurações sobre uma amostra, sem escrever conteúdo arquivístico (ADR 0018) |
+| `/api/v1/system/workers/{worker_name}/schedule` | `GET` | autenticado | a agenda do worker, ou nulo quando ele não tem uma (ADR 0015) |
+| `/api/v1/system/workers/{worker_name}/schedule` | `PUT` | `OPERATE` | cria ou substitui a agenda: o cron de cinco campos, o fuso IANA, o request pinado e o estado |
+| `/api/v1/system/workers/{worker_name}/schedule` | `DELETE` | `OPERATE` | remove a agenda; as execuções que ela criou ficam no ledger |
 | `/api/v1/system/workers/{worker_name}/settings` | `PUT` | `OPERATE` | persiste o padrão de engine/preset/batch/options |
 | `/api/v1/system/workers/{worker_name}/settings` | `DELETE` | `OPERATE` | apaga o override para o worker voltar a seguir o código |
 | `/api/v1/system/workers/{worker_name}/settings/revisions` | `GET` | autenticado | quem mudou o quê, quando |
-| `/api/v1/system/runs` | `GET` | autenticado | o ledger de execuções, mais recente primeiro; filtros `worker`, `status`, `fingerprint`, `limit`, `offset` |
+| `/api/v1/system/runs` | `GET` | autenticado | o ledger de execuções, mais recente primeiro; filtros `worker`, `origin`, `status`, `fingerprint`, `trial`, `limit`, `offset` |
+| `/api/v1/system/runs/{run_id}` | `GET` | autenticado | uma execução, com o resultado do ensaio quando ela é uma comparação (ADR 0018) |
+| `/api/v1/system/runs/{run_id}/cancel` | `POST` | `OPERATE` | pede que uma execução pare: fecha uma na fila que nenhum runner reivindicou, registra o pedido numa em andamento (#72) |
 | `/api/v1/system/failures` | `GET` | autenticado | as causas raiz agrupadas; filtros `days` (padrão 30), `worker`, `limit` |
-| `/api/v1/system/health` | `GET` | `OPERATE` | banco, modelos do Ollama, storage de objetos e o processo |
+| `/api/v1/system/health` | `GET` | `OPERATE` | banco, modelos do Ollama, storage de objetos, as origens da ingestão e o processo |
+| `/api/v1/ingestion/origins` | `GET` | autenticado | cada origem com a própria fila, a última execução e a agenda (#44) |
+| `/api/v1/ingestion/origins/{code}` | `PATCH` | `OPERATE` | o ciclo de vida e a configuração do adaptador (URLs, espera) |
+| `/api/v1/ingestion/origins/{code}/schedule` | `PUT` | `OPERATE` | o cron e o fuso IANA da origem |
+| `/api/v1/ingestion/origins/{code}/schedule` | `DELETE` | `OPERATE` | remove a agenda da origem, mantendo a configuração |
+| `/api/v1/ingestion/origins/{code}/runs` | `POST` | `OPERATE` | enfileira uma execução de ingestão para a origem, com opções só desta execução |
+| `/api/v1/ingestion/manual` | `POST` | `CURATE` | grava um registro digitado, estrutura o staging e enfileira a transferência |
+| `/api/v1/ingestion/csv/spec` | `GET` | autenticado | o mapa do CSV, os tetos dos campos e os limites de linha/bytes (#191) |
+| `/api/v1/ingestion/csv` | `POST` | `CURATE` | importa uma lista limitada de linhas de CSV, estrutura as aceitas e enfileira uma transferência (#191) |
 
 Só o `ADMIN` carrega `OPERATE`; `CURATOR` e `VIEWER` leem os workers, o ledger e as falhas, mas não
-disparam execução nem mudam padrão.
+disparam execução nem mudam padrão. A entrada manual e a importação CSV são as escritas de ingestão
+que um curador possui (`CURATE`): digitar um registro ou importar uma planilha é curadoria, apontar
+uma origem para um site ou iniciar uma coleta é operação.
 
 A SPA espelha isso, como cartões de `/configuracoes` sob *Operação*:
 
 | Tela | Mostra |
 | --- | --- |
-| `/sistema/workers` | os nove workers: engine, preset e modelo, a fila, o que o carimbo de cada um nomeia (com produtor, sem produtor conhecido, sem registro) e um botão de execução; a configuração efetiva aqui é só leitura |
-| `/configuracoes/workers` | o padrão persistido de cada worker e suas revisões, com salvar e remover — a escrita que o painel carregava |
-| `/sistema/execucoes` | o ledger de execuções e as falhas dos últimos 30 dias agrupadas por causa raiz; clicar numa causa filtra o ledger para as ocorrências dela |
-| `/sistema/diagnostico` | banco, modelos do Ollama, storage das miniaturas e a configuração efetiva do processo |
+| `/sistema/workers` | os dez workers: engine, preset e modelo, a fila, o que o carimbo de cada um nomeia (com produtor, sem produtor conhecido, sem registro) e um botão **Enfileirar execução**; acima deles, os cartões dos runners (online, host, versão, concorrência, capacidades, último sinal) e um aviso quando nenhum está online. Um worker que nenhum runner online aceita aparece como **sem runner** — a linha ainda enfileira e espera. O selo e o fato **Agenda** mostram o cron, o fuso, a próxima execução e o último período pulado. A configuração efetiva aqui é só leitura. A linha `ingestion` é a exceção: não tem engine, não tem contadores agregados de pendentes/processados/falhas, e a execução dela pertence a uma origem, então ela leva a `/sistema/ingestao` em vez de um botão genérico — os números por origem ficam naquela tela |
+| `/configuracoes/workers` | o padrão persistido de cada worker e suas revisões, com salvar e remover, e a **Agenda** do worker (o cron, o fuso, o estado habilitado e o request pinado) — a escrita que o painel carregava. Um worker que o catálogo marca `trial` (hoje a tipologia) também carrega **Comparar configurações**: duas configurações, o tamanho da amostra, a tabela lado a lado (concordância com o denominador, cobertura, abstenção, a maior gaveta, entropia, segundos por documento, a fila e as horas projetadas) e **Usar esta**, que salva o corpo medido, e **Rodar no acervo inteiro**, que lê a fila do corpo salvo e dispara a execução real |
+| `/sistema/execucoes` | o ledger de execuções e as falhas dos últimos 30 dias agrupadas por causa raiz; clicar numa causa filtra o ledger para as ocorrências dela. Cada linha diz quem pediu (`painel`, `linha de comando` ou `agenda`), a tentativa (`tentativa 2/3`), a linha que ela retenta e, quando está na fila com `not_before`, quando começa. Uma linha de **ensaio** carrega o selo `ensaio` e leva ao cartão de comparação, para nunca ser confundida com uma execução de produção (ADR 0018). Uma linha ativa oferece **Cancelar execução…** com confirmação embutida, e um pedido de parada aparece como nota enquanto o worker termina o lote atual |
+| `/sistema/ingestao` | as origens, um cartão cada: a própria fila e a última execução, a configuração do adaptador, a agenda e **Enfileirar execução** (operador); o formulário **Entrada manual**, que grava um registro como `PENDING_AI` e enfileira a transferência; e o cartão **Importação CSV**, que interpreta o arquivo no navegador, mostra os cabeçalhos e o resultado por linha e envia só as linhas (curador). A tela é um cartão de *Operação*, mas declara `CURATE`, porque o formulário manual e a importação CSV são as escritas que um curador possui; os controles só de operador ficam escondidos para um curador |
+| `/sistema/diagnostico` | banco, modelos do Ollama, storage das miniaturas, as origens da ingestão (ativas/total, com link para `/sistema/ingestao`) e a configuração efetiva do processo |
 
-A tela só fica consultando enquanto algo está rodando, porque o contador do `transfer` faz uma
-chamada a `/system/workers` custar cerca de dois segundos no acervo real. A
-`/configuracoes/workers` lê `/system/workers/settings`, que resolve a mesma configuração e não conta
-fila nenhuma — a separação existe para que uma tela que não mostra números não pague por eles.
+A tela consulta a cada 5 s enquanto uma execução está rodando e a cada 15 s enquanto uma está na fila,
+porque o contador do `transfer` faz uma chamada a `/system/workers` custar cerca de dois segundos no
+acervo real; ociosa, ela não consulta. A `/configuracoes/workers` lê `/system/workers/settings`, que
+resolve a mesma configuração e não conta fila nenhuma — a separação existe para que uma tela que não
+mostra números não pague por eles.
 
 ### Saúde: três endpoints, três perguntas
 
@@ -403,7 +582,12 @@ Eles não são intercambiáveis, e juntá-los é o erro a evitar.
 | --- | --- | --- |
 | `GET /health/live` | o processo está vivo? | não toca em nada, sempre `200` enquanto o processo responde; fora do documento OpenAPI |
 | `GET /health/ready` | esta instância pode receber tráfego? | roda `SELECT 1`; `200`, ou `503` quando o banco não responde; também fora de `/api/v1` e fora do contrato |
-| `GET /api/v1/system/health` | qual peça está fora? | o painel humano: contagens do banco, os modelos do Ollama que os presets exigem e quais faltam, o bucket do storage e a configuração efetiva do processo — segredos como presença, nunca como valor |
+| `GET /api/v1/system/health` | qual peça está fora? | o painel humano: contagens do banco, os modelos do Ollama que os presets exigem e quais faltam, o bucket do storage, o resumo de `ingestion_origins` e a configuração efetiva do processo — segredos como presença, nunca como valor |
+
+O cartão de ingestão lê `ingestion_origins`, não `PUBLIC_SCRAPE_*`: desde a #44 a origem é uma linha,
+então uma instalação pode ter o `pmc` configurado com o `.env` vazio. O cartão do processo rotula a
+variável como **fallback** do adaptador de referência, e a fila, a agenda e os contadores por origem
+ficam em `/sistema/ingestao`.
 
 Uma sonda de liveness que consulta o banco reiniciaria a API sempre que o banco reiniciasse, e é por
 isso que `live` não toca em nada. A sonda de readiness tem engine própria, com timeout de conexão e
@@ -413,9 +597,11 @@ timeout de TCP do sistema operacional.
 ## O ledger de execuções
 
 `archive_worker_runs` tem uma linha por execução, tanto da CLI quanto do painel: o ledger é sobre o
-worker, não sobre o botão que o iniciou. Uma linha carrega `worker_name`, `status`, `trigger` (`CLI`
-ou `API`), `requested_by` (e `requested_by_user_id`), `engine_name`, `preset`, o `config` resolvido,
-as **`options` efetivas do worker**, `queued_at`, `started_at`, `finished_at`, `duration_ms`, `error`
+worker, não sobre o botão que o iniciou. Uma linha carrega `worker_name`, `status`, `trigger` (`CLI`,
+`API` ou `SCHEDULE`), `trial` (se a execução é uma comparação, ADR 0018), `requested_by` (e `requested_by_user_id`), `engine_name`, `preset`, o `request` validado
+(o que um runner reproduz), o `config` resolvido, as **`options` efetivas do worker**, `attempt`, `retry_of`, `not_before`, `queued_at`,
+`runner_id`, `started_at`, `heartbeat_at`, `lease_expires_at`, `cancel_requested_at`,
+`cancel_requested_by` (e `cancel_requested_by_user_id`), `finished_at`, `duration_ms`, `error`
 e o `error_fingerprint` gerado.
 
 O `config` responde "com qual modelo?" e as `options` respondem "sobre qual texto, com qual limiar?" —
@@ -425,10 +611,23 @@ colunas leu; uma linha enfileirada e ainda não iniciada, ou escrita antes de a 
 o default vazio e a tela do ledger diz "opções não registradas nesta execução". A identidade do
 produtor faz o hash dos mesmos valores no carimbo, então a linha é a metade legível desse hash.
 
-Os status são `QUEUED`, `RUNNING`, `SUCCESS`, `FAILED` e `INTERRUPTED`. A linha `QUEUED` é comitada
-pela **sessão própria do ledger antes** de a thread do executor receber o id; uma linha ainda dentro
-da transação da requisição ficaria invisível para essa thread e a execução ficaria em `QUEUED` para
-sempre.
+Um ensaio é a exceção que o schema torna explícita: ele não carrega um `engine_name`/`preset`/
+`config` único (as configurações estão no `request`, e os valores resolvidos delas estão em
+`trial_result.configs`), não escreve conteúdo arquivístico, e é a única linha que pode ter um
+`trial_result`. A "última execução" do painel filtra `trial = false`: um experimento não é o trabalho
+que o worker fez por último. Um ensaio ainda ocupa a vaga do worker e aparece como execução ativa
+enquanto roda, porque carrega o modelo e lê o acervo.
+
+Os status são `QUEUED`, `RUNNING`, `SUCCESS`, `FAILED`, `INTERRUPTED` e `CANCELLED`. A linha `QUEUED` é
+comitada pela **sessão própria do ledger antes de a requisição retornar**, para que um runner externo
+possa reivindicá-la; a reivindicação é uma instrução (`FOR UPDATE SKIP LOCKED`) que também grava
+`runner_id`, `started_at`, `heartbeat_at` e `lease_expires_at`. Uma linha `QUEUED` é o item de
+trabalho; a API apenas enfileira.
+
+Um cancelamento é um **pedido** antes de ser um status: `cancel_requested_at` (e `cancel_requested_by`,
+com o vínculo `_user_id`) é gravado enquanto a linha ainda está `QUEUED`/`RUNNING`, e só o limite do
+lote do worker o transforma em `CANCELLED`. [Cancelar uma execução](#cancelar-uma-execucao) é a
+história inteira.
 
 `uq_worker_run_active` é um **índice único parcial** sobre `(worker_name)` quando o status é `QUEUED`
 ou `RUNNING`. É ele, e não um lock de processo, a trava de concorrência: no máximo uma execução por
@@ -437,9 +636,10 @@ worker em andamento, entre processos e através de um reload. Um segundo envio v
 para o worker '…'"). A CLI chega ao mesmo erro, mas não tem tratamento para ele, então termina com o
 traceback em vez da frase.
 
-O executor do painel roda **um worker por vez** (`WORKER_RUNTIME_MAX_WORKERS`, padrão 1) porque os
-workers são limitados por CPU — dois modelos torch na mesma CPU se atrasam sem produzir mais. Ele
-**não é um agendador**: sem retry, sem cron, sem prioridade. Existe para uma pessoa apertar um botão.
+Um runner reivindica uma linha `QUEUED` e renova o lease enquanto roda; `--concurrency` decide quantas
+executa de uma vez, e os workers são limitados por CPU/GPU, então o padrão é um. Ele **não é um
+agendador**: sem retry, sem cron, sem prioridade. A fila é um slot por worker, então uma segunda
+execução espera no ledger ou responde `409`.
 
 ## Reprocessar um documento ou um lote
 
@@ -498,52 +698,107 @@ Não há **rota nem flag que limpe um carimbo** para os workers que não aceitam
 
 ## Execuções INTERRUPTED
 
-Uma execução deixada em `QUEUED` ou `RUNNING` por um processo que morreu é pior que uma errada: o
-índice único parcial bloquearia aquele worker para sempre. No boot, `api/lifespan.py` marca toda
-linha assim como `INTERRUPTED`, com `finished_at` e o texto de erro "O processo anterior terminou
-antes do fim desta execução."
+Uma execução fica `RUNNING` sob um lease. O runner o renova a cada `--heartbeat-seconds`; quando o
+lease vence — o runner morreu, ou o sinal parou — o próximo runner (ou a próxima CLI, que tem o mesmo
+lease) marca a linha como `INTERRUPTED`, com `finished_at` e o texto "O runner parou de enviar sinal
+antes do fim desta execução." O boot da API não repara nada, então vários processos da API são
+seguros. A varredura toca só as linhas vencidas: a reivindicação viva de um irmão nunca é fechada.
 
-Nada é retentado automaticamente. Depois de uma execução `INTERRUPTED`:
+Uma execução agendada `INTERRUPTED` é retentada pelo scheduler (veja [Agendamento e retentativas](#agendamento-e-retentativas)); uma manual ou da CLI não é. Para o caso manual, depois de uma execução `INTERRUPTED`:
 
 1. Leia `GET /api/v1/system/runs?status=INTERRUPTED` (ou o painel) e abra o erro da linha.
 2. Corrija a causa — um modelo do Ollama faltando, um bucket inalcançável, um banco que estava fora.
 3. Dispare o worker de novo. Os carimbos por unidade são o que torna isso seguro: a nova execução lê
    só o que a interrompida não terminou.
 
-A recuperação assume **um único processo da API**. Com `uvicorn --workers > 1`, o boot de um processo
-marcaria a execução viva de um irmão como interrompida, então escalar exige tirar o executor (e a
-recuperação) de dentro da API antes. O índice único parcial continua válido nos dois casos.
+A execução enfileirada sem runner online espera, e o painel diz isso; [Cancelar uma
+execução](#cancelar-uma-execucao) é a saída. A política de retry é a #43 e está em
+[Agendamento e retentativas](#agendamento-e-retentativas).
 
-## Agendamento
+## Cancelar uma execução
 
-Hoje não existe agendador. Na prática, isso significa que um cron externo — ou qualquer orquestrador
-que você já opere — tem de pendurar em uma das duas entradas:
+`POST /api/v1/system/runs/{run_id}/cancel` (`OPERATE`) para uma execução (#72). A rota responde dois
+desfechos, e a diferença é a que a máquina de estados do ledger desenha:
 
-```bash
-# No host, a partir da raiz do repositório.
-uv run python -m scrinalia.domains.archive.workers.runner embedding --by "cron"
+- uma linha `QUEUED` que **nenhum runner reivindicou** (`runner_id IS NULL`) nunca começou e nada está
+  escrevendo, então fecha `CANCELLED` na hora e libera o slot do worker;
+- uma linha **em andamento** só recebe o pedido: `cancel_requested_at` e `cancel_requested_by` são
+  gravados, o status continua `QUEUED`/`RUNNING`, e `uq_worker_run_active` segura o slot. O worker
+  consulta o pedido uma vez por lote, comita o lote que já começou, e o runner fecha a linha
+  `CANCELLED` — sem `error`, porque uma parada deliberada não é uma falha que a tela de falhas
+  agrupadas deva apresentar como causa raiz.
 
-# Ou pela API, que enfileira a execução e retorna na hora.
-curl -sS -X POST "http://localhost:8000/api/v1/system/workers/embedding/runs" \
-    -H "Content-Type: application/json" -H "Origin: http://localhost:8000" \
-    -b "scrinalia_session=<cookie>" \
-    -d '{"db_batch_size": 100}'
-```
+O pedido é idempotente: um segundo clique responde o mesmo desfecho e preserva o primeiro autor e o
+primeiro instante. Uma execução que já chegou a um estado terminal responde `409`, e um id
+desconhecido responde `404`. A SPA oferece a ação numa linha ativa de `/sistema/execucoes`, com a
+confirmação que as outras ações destrutivas usam; um pedido de parada aparece como nota enquanto a
+linha ainda está em execução.
 
-Dois avisos que o desenho deixa explícitos:
+O limite honesto é um lote (`db_batch_size`, 64 por padrão): o `ThreadPoolExecutor` não mata uma
+thread e uma passada do torch não pode ser interrompida, então `future.cancel()` só cobre o caso na
+fila. Uma linha `QUEUED` é cancelável na hora; uma `RUNNING` coopera, e o tempo que isso leva é a
+duração do lote em que ela está — minutos quando o validador de qualidade chama o LLM por documento.
 
-- **Uma execução pode durar mais que o intervalo do cron.** A rota responde `201` assim que a
-  execução entra na fila, então o cron não tem como saber se a anterior terminou. Agende num período
-  maior que uma execução, ou leia o ledger antes de disparar.
+`SIGINT`/`SIGTERM` dão à CLI o mesmo desfecho: o primeiro sinal grava o mesmo pedido (a metade do
+processo), o worker para no próximo limite de lote e a execução fecha `CANCELLED`; um segundo sinal
+força a saída. O daemon é deliberadamente diferente: ele para de reivindicar no `SIGTERM` e deixa as
+linhas em voo para o lease, então um runner que está sendo reiniciado reporta `INTERRUPTED` — um
+acidente — e não `CANCELLED` — uma decisão.
+
+Uma execução `CANCELLED` nunca é retentada. A checagem é uma função (`RunControl.checkpoint`) consultada
+uma vez por lote por todo worker que itera, e
+`testing/unit/archive/workers/test_worker_cancellation_gate.py` percorre o catálogo e falha quando um
+worker que itera deixa de consultá-la.
+
+## Agendamento e retentativas
+
+O scheduler é um processo próprio (ADR 0015):
+`python -m scrinalia.domains.archive.workers.scheduler`. Ele toma o `pg_try_advisory_lock` pela vida
+toda — uma segunda instância fica em standby — e bate a cada 30 s (`--tick-seconds`). Cada agenda devida
+é processada numa transação com `FOR UPDATE SKIP LOCKED`: se o worker já tem uma linha
+`QUEUED`/`RUNNING`, o período é pulado (`last_skipped_at` é gravado); senão a execução é enfileirada com
+`trigger=SCHEDULE` e `attempt=1`, e o `next_run_at` avança para a próxima ocorrência futura. Um
+scheduler que ficou fora por vários períodos cria **um** catch-up, não um replay.
+
+A agenda é uma linha por worker (`archive_worker_schedules`): um cron de cinco campos
+(`minuto hora dia-do-mês mês dia-da-semana`), um fuso IANA, o estado habilitado e o request pinado. Ela
+é escrita em `/configuracoes/workers` (a seção Agenda) e lida em `/sistema/workers`; `DEFAULT_TIMEZONE`
+é o fuso da instância e o padrão do formulário. Uma agenda pausada não guarda próxima execução;
+religá-la a recalcula do cron. O cron é avaliado no fuso da agenda, nunca no do servidor: o buraco do
+horário de verão roda no próximo instante válido, e a hora repetida no dia de recuo roda uma vez.
+
+As **origens** têm a agenda na própria linha (`ingestion_origins.cron`/`timezone`) e ela é escrita em
+`/sistema/ingestao`, não na tela de configuração dos workers. Uma origem devida enfileira uma execução
+`ingestion` com `origin_code`; a vaga é uma por origem (`uq_worker_run_active` inclui
+`COALESCE(origin_code, '')`), então a coleta de uma origem não espera atrás da de outra, enquanto os
+workers de archive mantêm uma vaga por worker. Um período que chega com aquela origem rodando é pulado
+e `last_skipped_at` é gravado; uma ingestão agendada que falha é retentada pela mesma política de um
+worker.
+
+Uma execução agendada que termina `FAILED` ou `INTERRUPTED` é retentada pelo scheduler como uma **nova
+linha do ledger**: `attempt = anterior + 1`, `retry_of` a linha falha, o mesmo request e um `not_before`
+`60 s x 2^(attempt-1)` depois, ±20% de jitter, teto de 30 minutos. Três tentativas no total; a terceira
+falha é final. Uma execução manual ou da CLI nunca é retentada. A linha do retry nasce na hora e espera
+no slot — o claim só pega uma linha cujo `not_before` passou — então uma execução manual do mesmo worker
+responde `409` até ela começar. Uma execução `CANCELLED` nunca é retentada: só as agendadas `FAILED` e
+`INTERRUPTED` são (ADR 0014, decisão 9).
+
+Dois avisos que sobrevivem ao scheduler:
+
+- **Uma agenda pode disparar com uma execução ativa.** O período é pulado, não enfileirado: a fila é um
+  slot por worker, e o painel mostra o último horário pulado. Um período perdido é um catch-up, nunca um
+  replay.
 - **A concorrência é recusada pelo banco, não por um lock.** O índice único parcial rejeita a segunda
   execução em andamento do mesmo worker; a API responde `409` e a CLI levanta a mesma recusa. Nada no
   processo serializa as chamadas, então a garantia vale entre processos, através de um reload e mesmo
   quando a CLI e o painel discordam sobre quem manda. Disparar um worker **diferente** é aceito
-  mesmo com outro rodando — ele entra na fila atrás dos demais — porque o índice limita a uma
-  execução por worker; `WORKER_RUNTIME_MAX_WORKERS` decide quantos o painel mesmo roda de uma vez.
+  mesmo com outro rodando — a linha fica na fila e um runner a reivindica quando tem folga — porque o
+  índice limita a uma execução por worker; o `--concurrency` do runner decide quantas ele executa de
+  uma vez.
 
 A rota da API é uma mutação, então também exige sessão de `ADMIN` autenticada e cabeçalho `Origin` de
-mesma origem. Um cron em host remoto é mais simples pela CLI.
+mesma origem. Um cron externo continua uma forma suportada de rodar trabalho pontual, pela CLI ou pela
+rota, mas não é mais a resposta embutida: a agenda é dona da próxima execução, do pulo e do catch-up.
 
 ## Lendo as falhas
 
@@ -657,7 +912,7 @@ Duas tabelas respondem a duas perguntas diferentes, e um número tirado da tabel
 `execution_log` diz **se um worker passou por uma unidade**: é o carimbo de onde a fila é construída.
 `archive_worker_runs` diz **o que rodou, quando, com que engine e preset, sobre quais opções, quanto
 demorou e como
-terminou** (`SUCCESS`, `FAILED`, `INTERRUPTED`). Uma contagem de carimbo vazia é um fato sobre a fila;
+terminou** (`SUCCESS`, `FAILED`, `INTERRUPTED`, `CANCELLED`). Uma contagem de carimbo vazia é um fato sobre a fila;
 a linha no ledger é o fato sobre a execução que explica a fila — uma etapa em zero e uma execução
 interrompida na subida são o mesmo evento visto de duas tabelas.
 
@@ -723,9 +978,24 @@ comportamento esperar, e para um limite já pago não ser lido como defeito.
 - **Ninguém é avisado.** A observabilidade é o painel, o ledger de execuções e os grupos de falha; um
   serviço externo de alerta está deliberadamente fora do sistema (ADR 0005). Uma causa raiz nova é
   encontrada por quem abre a tela, não por uma notificação.
-- **O executor assume um único processo da API.** A API roda um worker por vez
-  (`WORKER_RUNTIME_MAX_WORKERS`) e a recuperação no `api/lifespan.py` marca o que um processo morto
-  deixou para trás, o que só é correto com `uvicorn --workers 1` (veja *Execuções INTERRUPTED*, acima).
+- **O runner alcança o banco.** Um runner em outra máquina precisa de um caminho privado até o
+  PostgreSQL e de uma credencial; o `DB_*` da API pode ficar local (ADR 0014). A role de menor
+  privilégio opcional e o túnel estão no [guia de instalação](install.md#a-rede-e-a-credencial).
+- **O lease não é um fencing token.** Um runner que perdeu o lease ainda pode escrever o acervo até o
+  worker parar; os carimbos tornam a re-execução idempotente e a linha do ledger é cercada, mas uma
+  execução duplicada depois de um lease vencido é possível. Um fence rígido é trabalho futuro.
+- **A fila é um slot por worker.** Uma segunda execução de um worker com uma em andamento responde
+  `409`, e um agendamento precisa coalescer; backlog ou prioridade não é o que esta fila é.
+- **O retry é limitado e não classificado.** Uma falha agendada gasta até três tentativas, qualquer que
+  seja a causa: um modelo faltando custa três tentativas limitadas, porque um classificador errado na
+  outra direção ou desperdiça a GPU ou esconde uma falha real. O retry segura o slot do worker durante o
+  backoff.
+- **Um scheduler, um lock.** O advisory lock é liberado quando a conexão morre e um standby assume
+  dentro do intervalo de retentativa dele; ainda há uma janela de um tick sem scheduler.
+- **O cancelamento para no limite do lote.** Uma execução `QUEUED` que nenhum runner reivindicou fecha
+  na hora; uma `RUNNING` mantém o slot até terminar o lote atual, então parar uma execução do validador
+  de qualidade que chama o LLM por documento pode levar minutos. Um kill não é um cancelamento: a morte
+  do processo é `INTERRUPTED` quando o lease vence.
 - **O `path` do arranjo não é garantido pelo banco.** A coluna é materializada pelo serviço, então um
   `UPDATE` escrito à mão pode divergi-la da árvore; o diagnóstico `PATH_DIVERGENCE` é o que encontra.
   Não escreva `path` diretamente — passe pelas rotas que são donas da movimentação.

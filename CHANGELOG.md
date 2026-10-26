@@ -7,6 +7,137 @@ All notable changes to this project are documented here. The format is
 `1.0.0` was the first release; the newest one is at the top. Entries describe **behaviour**, not
 commits — the history is the detail.
 
+## [1.6.0] - 2026-10-26
+
+### Added
+
+- **The workers leave the API behind a runner and a lease** (issue #42, ADR 0014). The API no longer
+  executes anything: it writes the run into the ledger and answers, and a separate process —
+  `python -m scrinalia.domains.archive.workers.runner_daemon` — claims `QUEUED` rows, renews its lease
+  with a heartbeat and closes them. `archive_worker_runners` is the registry the panel reads: who is
+  online, the host, the version and the workers the runner accepts (`--workers`), so a worker no
+  online runner serves is marked **sem runner** instead of waiting silently. A runner connects with
+  its own credential (`RUNNER_DATABASE_URL`, `DB_SSLMODE`), which is how a GPU host reaches the queue
+  without the API's database identity, and it refuses to start against a schema behind its code;
+  `uv run python -m scrinalia.domains.archive.workers.runner` still runs one execution directly. The
+  lease is what makes an interrupted run honest: a claim whose heartbeat stops is swept to
+  `INTERRUPTED` with its `finished_at` and an error sentence, the sweep touches only expired rows, and
+  the per-unit stamps are what let the next run continue where that one stopped.
+
+- **A worker can carry an agenda, and a failure is retried as a new row** (issue #43, ADR 0015). A
+  five-field cron in an IANA zone lives in `archive_worker_schedules`, one row per worker, written on
+  `/configuracoes/workers` and read on `/sistema/workers`; the scheduler process
+  (`python -m scrinalia.domains.archive.workers.scheduler`) takes an advisory lock for its lifetime,
+  ticks every 30 seconds and enqueues a due schedule with `trigger=SCHEDULE` and `attempt=1`. A period
+  that arrives while the worker already has a run in flight is skipped (`last_skipped_at`), a
+  scheduler that was down for several periods creates **one** catch-up run, and the cron is evaluated
+  in the schedule's zone, so the spring-forward gap runs at the next valid instant and the repeated
+  fall-back time runs once. A scheduled run that ends `FAILED` or `INTERRUPTED` is retried as a new
+  ledger row — `attempt`, `retry_of`, `not_before` — with a `60 s x 2^(attempt-1)` delay (capped at 30
+  minutes, plus or minus 20% jitter) and three attempts in total; a manual or CLI run is never
+  retried, and a `CANCELLED` one is not either. The agenda is read and written through
+  `GET`/`PUT`/`DELETE /api/v1/system/workers/{worker_name}/schedule`, and the panel shows the agenda,
+  the attempt and the row a retry came from.
+
+- **A run can be stopped from the panel** (issue #72). `POST /api/v1/system/runs/{run_id}/cancel`
+  answers the two outcomes the state machine draws: a `QUEUED` row no runner has claimed closes
+  `CANCELLED` at once and frees the slot, while a row in flight records `cancel_requested_at` and
+  `cancel_requested_by`, and the worker consults the request once per batch, commits the batch it
+  already started and closes `CANCELLED` with no `error` — a deliberate stop is not a failure the
+  grouped-failures screen should present as a root cause. The request is idempotent and keeps its
+  first author and instant; a run already in a terminal state answers `409` and an unknown id `404`.
+  `SIGINT`/`SIGTERM` give the CLI the same ending, while the daemon stops claiming and leaves its
+  in-flight rows to the lease, so a restart reports `INTERRUPTED` — an accident — not `CANCELLED` — a
+  decision. The honest limit is one batch (`db_batch_size`, 64 by default): the cancellation is a
+  checkpoint, not a kill, and a forward pass already running cannot be interrupted mid-flight.
+
+- **A trial compares configurations on a sample before the collection runs** (issue #71, ADR 0018).
+  `POST /api/v1/system/workers/{worker_name}/trial` queues a run kind — `trial` in the ledger, its
+  result in `trial_result` (JSONB) — that executes two to four configurations over one sample and
+  writes no archival content; `GET /api/v1/system/runs/{run_id}` returns the comparison beside the
+  run. The sample is the collection's **gabarito** — the human verdict already recorded per axis (the
+  latest revision that changed the typology, the curated category, a `HUMAN` origin or a conflict
+  resolution), never `HUMAN_APPROVED` alone — plus a seeded sample of AI-writable descriptions, so a
+  trial measures the decision a person made and not the model's own output. The comparison card on
+  `/configuracoes/workers` shows the configurations side by side with the best agreement, and the
+  metric, the plan and the bench share one definition in `domains/archive/evaluation/metrics.py`.
+
+- **The origin is a first-class object** (issue #44, ADR 0016). The selector became a row:
+  `ingestion_origins` carries the label, the adapter, the schedule, the enabled state and the
+  configuration of each origin, the migration seeds `pmc` and `manual`, and `origin_code` travels as
+  provenance through the queue, the raw data, staging, the archive and the run ledger.
+  `/sistema/ingestao` is the screen: one card per origin with its own queue, its last run and its
+  agenda, the manual entry, and the **Abrir ingestão** link from the workers panel — the `ingestion`
+  worker is the first of the ten and the one whose row names the origins instead of an aggregate.
+  `ACERVO_SOURCE` is gone, `PUBLIC_SCRAPE_*` is the reference adapter's fallback, and the origin gives
+  the ingestion its own slot in the ledger (`uq_worker_run_active` includes the origin), so one
+  origin's crawl does not wait behind another's while the archive workers keep one slot per worker.
+
+- **The manual entry covers the whole ISAD(G) record on its own screen** (issue #192). The form moved
+  from a card to `/sistema/ingestao/nova`, typed in the norm's seven areas and asking the 31 fields of
+  `ManualIngestionRequest` instead of the essential nine: the date is **text** with the language
+  grammar, the level and the language are selects (a language the catalogue does not know is kept as
+  typed, with the `(fora do catálogo)` marker), and the digital object control is disabled until
+  #198. A submitted record is staged with the same `SourceSchema` and `StagingDocumentDTO` the
+  scraper's transform uses, and the transfer that follows is queued in the same request, so the
+  archive description is born `PENDING_AI` like any other. The CSV import's field set is this
+  contract's, pinned by a test so the file and the form cannot accept different vocabularies
+  (ADR 0019).
+
+- **A CSV is imported from the screen without object storage** (issue #191, ADR 0019). The
+  **Importação CSV** card at `/sistema/ingestao` parses the file in the browser, shows the detected
+  headers and a preview, and sends only a **bounded list of rows** to `POST
+  /api/v1/ingestion/csv`: no multipart, no bucket object, no temporary file, and an installation whose
+  thumbnail storage is unconfigured imports exactly the same. `GET /api/v1/ingestion/csv/spec`
+  publishes the `csv` origin's map — the file's header, its staging attribute, the required flag and
+  the per-field cap — together with the row/byte limits, which live once in
+  `domains/ingestion/csv_import.py` and are refused with a **413** and a sentence. The API
+  re-validates every row with the same `StagingDocumentDTO` and `SourceSchema` the staging transform
+  uses, and answers per row: **accepted**, **duplicated** (the `description_id` already exists in the
+  raw, the queue or the archive — never a 500 and never an overwrite) or **invalid** (missing title,
+  an unreadable date, an unknown field, a value over the limit), with the file's line and the field. A
+  partial import is normal; the accepted rows are written as `origin_code='csv'`, staged in one run
+  and followed by one `transfer`, so the archive description is born `PENDING_AI` like the manual
+  entry. The parser has its own `bun test` cases.
+
+- **The archive keeps the ISAD(G) record the transfer used to drop** (issue #199). The transfer
+  copied 14 of the 33 content fields the staging transform parses; the archive now stores the whole
+  record — the remaining text set plus `date_expression`, `parent_reference_code` and
+  `original_url` — and the migration backfilled 100 of the 101 descriptions of the development
+  collection (one has no staging row). The dossier presents the description tab in the norm's seven
+  areas, with every field editable and the two evidence fields shown but not edited, and a stored
+  `date_expression` keeps the spelling the source wrote beside the parsed date, so the text survives
+  the parse that normalises it.
+
+- **The description thumbnail reaches the browser through the API** (issue #102, ADR 0017). The
+  `thumbnail` worker had filled 97 of the 101 reference descriptions and no screen read the field:
+  the browser cannot resolve an `s3://` URI, and the storage endpoint is the API's private one. The
+  document read now derives `thumbnail_url`, and `GET /api/v1/documents/{description_id}/thumbnail`
+  serves the object through the authenticated API, answering `404` when the object is gone and `503`
+  when the bucket is unreachable. The dossier shows the image in its media card and the collection
+  list shows the 56 px miniature, both with the same honest placeholders — "sem imagem" for a
+  description with no source image, "indisponível" for an object that no longer exists — so the
+  screen still renders when the object is missing.
+
+### Changed
+
+- **The ingestion panel reports the origins, not an aggregate** (issue #49). The `ingestion` row in
+  `/sistema/workers` no longer publishes `processed`/`failed` record totals under an "origens" label;
+  the per-origin queue lives on `/sistema/ingestao`, and the row links there. The health card reads
+  `ingestion_origins` — active over total, each origin's label and a link — instead of the
+  environment flag, so it can no longer answer "not configured" while the origin row is configured,
+  and the process card labels `PUBLIC_SCRAPE_*` as the fallback it is.
+
+### Fixed
+
+- **One spelling per language, folded by the catalogue** (issue #203). The dossier compared
+  `language_name` against the catalogue as strings, so the development collection showed two
+  spellings of one language as unknown: `Português Brasil` in 78 descriptions and `Português/Brasil`
+  in 22. The transfer now folds a declared variant to the catalogued name through the aliases the
+  catalogue declares, while `staging_documents` keeps the declared text and a language the catalogue
+  has never heard of is kept as the source wrote it. The migration folded 100 rows in each table, and
+  the dossier's select now marks `(fora do catálogo)` only for a language outside the catalogue.
+
 ## [1.5.0] - 2026-10-25
 
 ### Added
@@ -1076,7 +1207,8 @@ commits — the history is the detail.
   reads the **runtime** export and not the development environment: an advisory in a tool that never
   reaches an installation no longer hides the ones that do.
 
-[Unreleased]: https://github.com/CassioDalla/Scrinalia/compare/v1.5.0...HEAD
+[Unreleased]: https://github.com/CassioDalla/Scrinalia/compare/v1.6.0...HEAD
+[1.6.0]: https://github.com/CassioDalla/Scrinalia/releases/tag/v1.6.0
 [1.5.0]: https://github.com/CassioDalla/Scrinalia/releases/tag/v1.5.0
 [1.4.0]: https://github.com/CassioDalla/Scrinalia/releases/tag/v1.4.0
 [1.3.0]: https://github.com/CassioDalla/Scrinalia/releases/tag/v1.3.0

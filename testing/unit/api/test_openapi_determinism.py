@@ -62,20 +62,22 @@ def _all_models() -> Iterator[type[BaseModel]]:
             yield subclass
 
 
-def _references_shared_type(annotation: object) -> bool:
-    """Whether the annotation is one of the shared types, directly or inside a union/list."""
-    if annotation in SHARED_COMPONENT_TYPES:
+def _references_component(annotation: object, components: set[str]) -> bool:
+    """Whether the annotation names a contract component, directly or inside a union/list."""
+    if isinstance(annotation, type) and annotation.__name__ in components:
         return True
-    return any(_references_shared_type(argument) for argument in typing.get_args(annotation))
+    return any(_references_component(argument, components) for argument in typing.get_args(annotation))
 
 
-def test_no_field_description_leaks_into_a_shared_type() -> None:
+def test_no_field_description_leaks_into_a_shared_component() -> None:
     """
-    A field of a **contract component** that references a shared enum must not carry a description.
+    A field of a **contract component** that references another component must not carry a description.
 
-    Adding one does not document the field: it becomes the enum's description in the contract, for
-    every consumer, and which field wins is decided by the hash seed. Document the type instead — the
-    enum's docstring reaches the contract and every field referencing it inherits it.
+    Adding one does not document the field: it becomes the referenced component's description in the
+    contract, for every consumer, and which field wins is decided by the hash seed. Document the type
+    instead — its docstring reaches the contract and every field referencing it inherits it. ADR 0015
+    found the same leak through a **model** component (``WorkerScheduleRequest.request`` over
+    ``WorkerRunRequest``), which is why the gate walks every component and not only the enums.
 
     Scoped to the models that are components on purpose. An internal DTO that never reaches the
     contract cannot leak into it, and forbidding a useful description on ``DocumentSearchQuery`` would
@@ -93,7 +95,7 @@ def test_no_field_description_leaks_into_a_shared_type() -> None:
         for name, field in model.model_fields.items():
             if not isinstance(field, FieldInfo) or field.description is None:
                 continue
-            if _references_shared_type(field.annotation):
+            if _references_component(field.annotation, components):
                 offenders.append(f"{model.__module__}.{model.__qualname__}.{name}")
 
     assert not offenders, (

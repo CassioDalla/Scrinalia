@@ -12,6 +12,7 @@ export const RUN_STATUS_LABEL: Record<WorkerRunStatus, string> = {
   SUCCESS: "Concluída",
   FAILED: "Falhou",
   INTERRUPTED: "Interrompida",
+  CANCELLED: "Cancelada",
 };
 
 export const RUN_STATUS_TONE: Record<
@@ -23,6 +24,9 @@ export const RUN_STATUS_TONE: Record<
   SUCCESS: "ok",
   FAILED: "danger",
   INTERRUPTED: "warn",
+  // A cancellation is a deliberate verdict, not an accident: neutral, where the interrupted run
+  // (the runner disappeared) keeps the warning tone. The label says which one it was.
+  CANCELLED: "neutral",
 };
 
 /**
@@ -36,13 +40,30 @@ export const FAILURE_SOURCE_LABEL: Record<FailureSource, string> = {
   API: "requisição",
 };
 
+/** Who asked for the run, as the ledger records it (ADR 0014/0015). */
+export const TRIGGER_LABEL: Record<WorkerRun["trigger"], string> = {
+  API: "painel",
+  CLI: "linha de comando",
+  SCHEDULE: "agenda",
+};
+
+/** The retry bound of ADR 0014/0015; the panel shows "tentativa 2/3". */
+export const MAX_ATTEMPTS = 3;
+
 /** True while the run has not reached a terminal state — what makes the screen poll. */
 export function isActiveRun(run?: WorkerRun | null): boolean {
   return run?.status === "QUEUED" || run?.status === "RUNNING";
 }
 
-export function hasActiveRun(workers: WorkerStatus[] | undefined): boolean {
-  return (workers ?? []).some((worker) => isActiveRun(worker.active_run));
+/**
+ * True while a stop was requested but not yet honoured.
+ *
+ * The row is still ``QUEUED``/``RUNNING`` and keeps its slot (ADR 0014 decision 9), so the screen
+ * says "cancelamento pedido", never "cancelada": the worker stops at the next batch boundary, and
+ * pretending it stopped now would be the same lie as hiding the button.
+ */
+export function isCancelRequested(run?: WorkerRun | null): boolean {
+  return isActiveRun(run) && Boolean(run?.cancel_requested_at);
 }
 
 /** Duration a person can read at a glance; milliseconds only matter for the instant runs. */
@@ -75,6 +96,7 @@ export function describeConfig(config: Record<string, unknown> | undefined): str
 
 /** What one unit of a queue is, so "12 pendentes" is never ambiguous. */
 export const UNIT_LABEL: Record<WorkerStatus["unit"], string> = {
+  origin: "origens",
   staging: "registros de staging",
   document: "descrições",
   tag: "tags",

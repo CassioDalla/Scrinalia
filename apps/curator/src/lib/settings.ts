@@ -1,6 +1,7 @@
 import {
   BookMarked,
   Cpu,
+  Download,
   FileType,
   HeartPulse,
   History,
@@ -69,6 +70,7 @@ export type SettingsScreenId = Extract<
   | "typologies"
   | "vocabulary"
   | "workers"
+  | "ingestion"
   | "workerSettings"
   | "runs"
   | "health"
@@ -101,6 +103,12 @@ export const SETTINGS_TABS: SettingsTab[] = [
     label: "Operação",
     cards: [
       { screen: "workers", icon: Cpu, permission: "OPERATE" },
+      /*
+        Ingestão is reachable by a curator because the manual form is a CURATE write; the origin's
+        configuration and agenda are OPERATE controls the screen hides for a curator. A card that
+        only the operator could open would hide the one action the archivist owns.
+      */
+      { screen: "ingestion", icon: Download, permission: "CURATE" },
       /*
         The configuration sits beside the panel it configures, and the two are separate cards
         because they answer different questions: the panel says what the machine is *doing* (queues,

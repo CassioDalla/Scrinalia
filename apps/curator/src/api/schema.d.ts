@@ -227,6 +227,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/documents/{description_id}/thumbnail": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** GetThumbnail */
+        get: operations["ApiV1DocumentsDescriptionIdThumbnailGetThumbnail"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/hierarchy/diagnostics": {
         parameters: {
             query?: never;
@@ -551,6 +568,144 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/ingestion/csv": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** ImportCsv */
+        post: operations["ApiV1IngestionCsvImportCsv"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ingestion/csv/spec": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** CsvImportSpec */
+        get: operations["ApiV1IngestionCsvSpecCsvImportSpec"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ingestion/manual": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** CreateManual */
+        post: operations["ApiV1IngestionManualCreateManual"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ingestion/origins": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** ListOrigins */
+        get: operations["ApiV1IngestionOriginsListOrigins"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ingestion/origins/{code}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** GetOrigin */
+        get: operations["ApiV1IngestionOriginsCodeGetOrigin"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** UpdateOrigin */
+        patch: operations["ApiV1IngestionOriginsCodeUpdateOrigin"];
+        trace?: never;
+    };
+    "/api/v1/ingestion/origins/{code}/runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** TriggerOrigin */
+        post: operations["ApiV1IngestionOriginsCodeRunsTriggerOrigin"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ingestion/origins/{code}/schedule": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** PutSchedule */
+        put: operations["ApiV1IngestionOriginsCodeSchedulePutSchedule"];
+        post?: never;
+        /** DeleteSchedule */
+        delete: operations["ApiV1IngestionOriginsCodeScheduleDeleteSchedule"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/languages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** ListLanguages */
+        get: operations["ApiV1LanguagesListLanguages"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/public/documents": {
         parameters: {
             query?: never;
@@ -826,6 +981,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/system/runs/{run_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** GetRun */
+        get: operations["ApiV1SystemRunsRunIdGetRun"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/system/runs/{run_id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** CancelRun */
+        post: operations["ApiV1SystemRunsRunIdCancelCancelRun"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/system/workers": {
         parameters: {
             query?: never;
@@ -894,6 +1083,25 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/system/workers/{worker_name}/schedule": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** GetSchedule */
+        get: operations["ApiV1SystemWorkersWorkerNameScheduleGetSchedule"];
+        /** PutSchedule */
+        put: operations["ApiV1SystemWorkersWorkerNameSchedulePutSchedule"];
+        post?: never;
+        /** DeleteSchedule */
+        delete: operations["ApiV1SystemWorkersWorkerNameScheduleDeleteSchedule"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/system/workers/{worker_name}/settings": {
         parameters: {
             query?: never;
@@ -923,6 +1131,23 @@ export interface paths {
         get: operations["ApiV1SystemWorkersWorkerNameSettingsRevisionsListSettingsRevisions"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/system/workers/{worker_name}/trial": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** TriggerTrial */
+        post: operations["ApiV1SystemWorkersWorkerNameTrialTriggerTrial"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2426,6 +2651,99 @@ export interface components {
             offset: number;
             total: number;
         };
+        /** CsvFieldDTO */
+        CsvFieldDTO: {
+            attribute: string;
+            help: string;
+            /**
+             * @default text
+             * @enum {string}
+             */
+            kind: "text" | "long_text" | "date" | "tags" | "url";
+            label: string;
+            max_length?: number | null;
+            /** @default false */
+            required: boolean;
+        };
+        /** CsvImportRequest */
+        CsvImportRequest: {
+            rows: components["schemas"]["CsvImportRow"][];
+        };
+        /** CsvImportResponse */
+        CsvImportResponse: {
+            code: components["schemas"]["RouteMessageCode"];
+            data: components["schemas"]["CsvImportResultDTO"];
+            message: string;
+        };
+        /** CsvImportResultDTO */
+        CsvImportResultDTO: {
+            accepted: number;
+            duplicated: number;
+            invalid: number;
+            origin_code: string;
+            received: number;
+            /**
+             * @description O estado inicial no archive: a importação não marca HUMAN_APPROVED.
+             * @default PENDING_AI
+             */
+            review_status: string;
+            rows?: components["schemas"]["CsvRowResultDTO"][];
+            /** @default false */
+            transfer_queued: boolean;
+            transfer_run_id?: number | null;
+        };
+        /** CsvImportRow */
+        CsvImportRow: {
+            /** @description Identificador único do registro. */
+            description_id: string;
+            /** @description As células da linha, com o rótulo do mapa como chave. */
+            fields?: {
+                [key: string]: string;
+            };
+            /**
+             * @description A linha do arquivo, para a tela.
+             * @default 0
+             */
+            line: number;
+        };
+        /** CsvImportSpecResponse */
+        CsvImportSpecResponse: {
+            fields?: components["schemas"]["CsvFieldDTO"][];
+            id: components["schemas"]["CsvFieldDTO"];
+            max_bytes: number;
+            max_field_chars: number;
+            max_row_bytes: number;
+            max_rows: number;
+            origin_code: string;
+        };
+        /**
+         * CsvRowIssueCode
+         * @description Why one row did not enter, as a stable identifier rather than a sentence.
+         *
+         *         The codes are additive and shared by the rows that produce the same outcome; the sentence
+         *         beside it is Portuguese and can be translated later without renaming the code.
+         * @enum {string}
+         */
+        CsvRowIssueCode: "MISSING_REQUIRED" | "UNKNOWN_FIELD" | "TOO_LONG" | "ROW_TOO_LARGE" | "INVALID_DATE" | "INVALID_VALUE" | "INVALID_IDENTIFIER" | "DUPLICATE_IN_BATCH" | "ALREADY_EXISTS" | "STAGING_FAILED";
+        /** CsvRowIssueDTO */
+        CsvRowIssueDTO: {
+            code: components["schemas"]["CsvRowIssueCode"];
+            field?: string | null;
+            message: string;
+        };
+        /** CsvRowResultDTO */
+        CsvRowResultDTO: {
+            description_id: string;
+            issues?: components["schemas"]["CsvRowIssueDTO"][];
+            line: number;
+            status: components["schemas"]["CsvRowStatus"];
+        };
+        /**
+         * CsvRowStatus
+         * @description The outcome of one row of the import, as the screen reports it.
+         * @enum {string}
+         */
+        CsvRowStatus: "ACCEPTED" | "DUPLICATED" | "INVALID";
         /** CurationInbox */
         CurationInbox: {
             /** Format: date-time */
@@ -2580,18 +2898,28 @@ export interface components {
         DocumentSummary: {
             /** @description ISAD(G) 4.1: conditions governing access; the diffusion gate. */
             access_conditions?: string | null;
+            accruals?: string | null;
             admin_archival_history?: string | null;
             admin_bio_history?: string | null;
             ancestors?: components["schemas"]["DocumentAncestorSummary"][];
             /** @description Codes written by the quality validator. */
             anomaly_reasons?: string[] | null;
+            appraisal_destruction?: string | null;
             archivist_notes?: string | null;
+            arrangement?: string | null;
             /** @default 0 */
             children_count: number;
+            conservation_notes?: string | null;
+            copies_location?: string | null;
+            date_expression?: string | null;
+            description_dates?: string | null;
             description_id: string;
+            dimension_support?: string | null;
             document_date?: string | null;
             entities?: components["schemas"]["DocumentEntitySummary"][];
             final_title?: string | null;
+            finding_aids?: string | null;
+            general_notes?: string | null;
             /** @default false */
             is_anomaly: boolean;
             /** @default false */
@@ -2601,19 +2929,36 @@ export interface components {
             level_id?: number | null;
             macro_categories?: components["schemas"]["DocumentMacroCategorySummary"][];
             original_title: string;
+            original_url?: string | null;
+            originals_location?: string | null;
             parent_id?: string | null;
+            parent_reference_code?: string | null;
             path?: string | null;
+            physical_characteristics?: string | null;
             producers?: string | null;
             provenance?: string | null;
+            publication_notes?: string | null;
             /** @description Full-text relevance score. */
             rank?: number | null;
             reference_code?: string | null;
+            related_units?: string | null;
+            reproduction_conditions?: string | null;
             review_status: components["schemas"]["ArchiveReviewStatus"];
+            rules_conventions?: string | null;
             scope_content?: string | null;
             storage_thumbnail_uri?: string | null;
             /** @description Title proposal; never stored, disappears once final_title is written. */
             suggested_final_title?: string | null;
             tags?: components["schemas"]["DocumentTagSummary"][];
+            /**
+             * @description Where the browser reads the miniature, or ``None`` when the source had no image to store.
+             *
+             *     Derived on the server from ``storage_thumbnail_uri`` and **never** assembled by the client:
+             *     the SPA binds this string to an ``<img>``, so it does not know the bucket and cannot drift
+             *     from the route. The bytes themselves come from the authenticated route, which answers 404
+             *     when the object is gone; the screen shows "imagem indisponível" instead of a broken image.
+             */
+            readonly thumbnail_url: string | null;
             typology?: string | null;
             typology_id?: number | null;
         };
@@ -2629,16 +2974,34 @@ export interface components {
         DocumentUpdateRequest: {
             /** @description ISAD(G) 4.1 — condições de acesso. Sem ele o acervo não tem como declarar que uma descrição é restrita, e a difusão não tem como respeitar a restrição. */
             access_conditions?: string | null;
+            /** @description ISAD(G) 3.3.3 — incorporações. */
+            accruals?: string | null;
             /** @description História arquivística. */
             admin_archival_history?: string | null;
             /** @description História administrativa/biografia. */
             admin_bio_history?: string | null;
+            /** @description ISAD(G) 3.3.2 — avaliação, eliminação e temporalidade. */
+            appraisal_destruction?: string | null;
             /** @description Notas do arquivista. */
             archivist_notes?: string | null;
+            /** @description ISAD(G) 3.3.4 — sistema de arranjo. */
+            arrangement?: string | null;
+            /** @description Nota da instituição sobre o estado físico. */
+            conservation_notes?: string | null;
+            /** @description ISAD(G) 3.5.2 — existência e localização das cópias. */
+            copies_location?: string | null;
+            /** @description ISAD(G) 3.7.3 — datas da descrição. */
+            description_dates?: string | null;
+            /** @description ISAD(G) 3.1.5 — dimensão e suporte. */
+            dimension_support?: string | null;
             /** @description Data do documento corrigida. */
             document_date?: string | null;
             /** @description Título final revisado pelo arquivista. */
             final_title?: string | null;
+            /** @description ISAD(G) 3.4.5 — instrumentos de pesquisa. */
+            finding_aids?: string | null;
+            /** @description ISAD(G) 3.6.1 — notas gerais. */
+            general_notes?: string | null;
             /** @description Decisão de difusão, ortogonal ao status de revisão. Publicar não bloqueia a IA de continuar melhorando o registro; aprovar, sim. */
             is_published?: boolean | null;
             /** @description Idioma. */
@@ -2647,14 +3010,26 @@ export interface components {
             level_id?: number | null;
             /** @description Título original corrigido. */
             original_title?: string | null;
+            /** @description ISAD(G) 3.5.1 — existência e localização dos originais. */
+            originals_location?: string | null;
+            /** @description ISAD(G) 3.4.4 — características físicas e requisitos técnicos. */
+            physical_characteristics?: string | null;
             /** @description Produtor(es). */
             producers?: string | null;
             /** @description Procedência. */
             provenance?: string | null;
+            /** @description ISAD(G) 3.5.4 — notas de publicação. */
+            publication_notes?: string | null;
             /** @description Código de referência. */
             reference_code?: string | null;
+            /** @description ISAD(G) 3.5.3 — unidades de descrição relacionadas. */
+            related_units?: string | null;
+            /** @description ISAD(G) 3.4.2 — condições de reprodução. */
+            reproduction_conditions?: string | null;
             /** @description Motivo da edição; fica no histórico. */
             review_note?: string | null;
+            /** @description ISAD(G) 3.7.2 — regras ou convenções. */
+            rules_conventions?: string | null;
             /** @description Âmbito e conteúdo revisado. */
             scope_content?: string | null;
             /** @description Tipologia documental: id no catálogo (GET /api/v1/typologies). É a forma diplomática do registro — ata, ofício, planta — que o classificador propõe e o arquivista pode corrigir. Um id fora do catálogo é recusado com 422. */
@@ -3005,7 +3380,6 @@ export interface components {
         };
         /** HierarchyNodeDetail */
         HierarchyNodeDetail: {
-            /** @description Root first. */
             ancestors?: components["schemas"]["HierarchyNodeSummary"][];
             children?: components["schemas"]["HierarchyNodeSummary"][];
             node: components["schemas"]["HierarchyNodeSummary"];
@@ -3154,6 +3528,127 @@ export interface components {
             /** @description Why a move or a creation is refused, so the screen can explain the refusal. */
             violations?: string[];
         };
+        /** IngestionHealthDTO */
+        IngestionHealthDTO: {
+            detail?: string | null;
+            enabled?: number | null;
+            ok: boolean;
+            origins?: components["schemas"]["IngestionOriginHealthDTO"][];
+            total?: number | null;
+        };
+        /** IngestionOptionDTO */
+        IngestionOptionDTO: {
+            default?: unknown;
+            help: string;
+            /**
+             * @default integer
+             * @enum {string}
+             */
+            kind: "boolean" | "integer" | "number" | "text";
+            label: string;
+            name: string;
+        };
+        /** IngestionOriginDTO */
+        IngestionOriginDTO: {
+            active_run_id?: number | null;
+            active_run_status?: components["schemas"]["WorkerRunStatus"] | null;
+            code: string;
+            config?: {
+                [key: string]: unknown;
+            };
+            config_fields?: components["schemas"]["OriginConfigFieldDTO"][];
+            description: string;
+            enabled: boolean;
+            failed?: number | null;
+            kind: string;
+            label: string;
+            last_run_at?: string | null;
+            last_run_error?: string | null;
+            last_run_id?: number | null;
+            last_run_status?: components["schemas"]["WorkerRunStatus"] | null;
+            option_fields?: components["schemas"]["IngestionOptionDTO"][];
+            options?: {
+                [key: string]: unknown;
+            };
+            /** @description O que a próxima execução desta origem leria. */
+            pending?: number | null;
+            pending_reason?: string | null;
+            processed?: number | null;
+            /**
+             * @description Se algum runner online aceita a etapa de ingestão; falso não impede enfileirar.
+             * @default false
+             */
+            runner_available: boolean;
+            schedule?: components["schemas"]["IngestionScheduleDTO"] | null;
+            updated_at?: string | null;
+            updated_by?: string | null;
+        };
+        /** IngestionOriginHealthDTO */
+        IngestionOriginHealthDTO: {
+            code: string;
+            enabled: boolean;
+            label: string;
+        };
+        /** IngestionOriginListResponse */
+        IngestionOriginListResponse: {
+            /** Format: date-time */
+            generated_at: string;
+            origins?: components["schemas"]["IngestionOriginDTO"][];
+        };
+        /** IngestionOriginUpdateRequest */
+        IngestionOriginUpdateRequest: {
+            /** @description A configuração do adapter, validada pelo modelo da origem (URLs, espera). */
+            config?: {
+                [key: string]: unknown;
+            };
+            enabled: boolean;
+            /** @description O padrão de execução agendada (páginas, janelas, retentativas). */
+            options?: {
+                [key: string]: unknown;
+            };
+        };
+        /** IngestionRunRequest */
+        IngestionRunRequest: {
+            /** @description Re-lê os DONE com mais de N dias. */
+            audit_ttl_days?: number | null;
+            /** @description Só registros descobertos nos últimos N dias. */
+            discovery_window_days?: number | null;
+            /**
+             * @description Inclui os registros marcados FATAL_ERROR.
+             * @default false
+             */
+            force_retry_fatal: boolean;
+            /**
+             * @description Ignora as janelas de descoberta e TTL.
+             * @default false
+             */
+            ignore_sliding_window: boolean;
+            /** @description Máximo de registros desta execução. */
+            limit?: number | null;
+            /** @description Falhas transitórias antes de FATAL. */
+            max_retries?: number | null;
+            /** @description Páginas da listagem; 0 não lista. */
+            pages?: number | null;
+            /** @description Só registros lidos há mais de N dias. */
+            scraped_ttl_days?: number | null;
+        };
+        /** IngestionScheduleDTO */
+        IngestionScheduleDTO: {
+            cron?: string | null;
+            last_enqueued_at?: string | null;
+            last_skipped_at?: string | null;
+            next_run_at?: string | null;
+            timezone?: string | null;
+            updated_at?: string | null;
+            updated_by?: string | null;
+        };
+        /** IngestionScheduleRequest */
+        IngestionScheduleRequest: {
+            /** @description Cinco campos: minuto, hora, dia, mês, semana. */
+            cron: string;
+            /** @description Zona IANA; o padrão é DEFAULT_TIMEZONE. */
+            timezone?: string | null;
+        };
         /** JudgedConflict */
         JudgedConflict: {
             /**
@@ -3199,6 +3694,11 @@ export interface components {
             tag_wins: number;
             total: number;
         };
+        /** LanguageDTO */
+        LanguageDTO: {
+            code: string;
+            name: string;
+        };
         /** LoginCommand */
         LoginCommand: {
             email: string;
@@ -3232,6 +3732,99 @@ export interface components {
             description?: string | null;
             is_active?: boolean | null;
             name?: string | null;
+        };
+        /** ManualIngestionRequest */
+        ManualIngestionRequest: {
+            /** @description Condições de acesso. */
+            access_conditions?: string | null;
+            /** @description Incorporações. */
+            accruals?: string | null;
+            /** @description História arquivística. */
+            admin_archival_history?: string | null;
+            /** @description História administrativa/biográfica. */
+            admin_bio_history?: string | null;
+            /** @description Avaliação e temporalidade. */
+            appraisal_destruction?: string | null;
+            /** @description Notas do arquivista. */
+            archivist_notes?: string | null;
+            /** @description Sistema de arranjo. */
+            arrangement?: string | null;
+            /** @description Notas de conservação. */
+            conservation_notes?: string | null;
+            /** @description Localização das cópias. */
+            copies_location?: string | null;
+            /** @description Identificador do registro. */
+            description_id?: string | null;
+            /** @description Dimensão e suporte. */
+            dimension_support?: string | null;
+            /** @description Data de produção como está na fonte: AAAA-MM-DD, década ou intervalo. */
+            document_date?: string | null;
+            /** @description Instrumentos de pesquisa. */
+            finding_aids?: string | null;
+            /** @description Notas gerais. */
+            general_notes?: string | null;
+            /** @description Pontos de acesso, separados por vírgula. */
+            indexing_points?: string | null;
+            /** @description Idioma. */
+            language_name?: string | null;
+            /** @description Nível de descrição. */
+            level?: string | null;
+            /** @description URL da página de onde o registro veio. */
+            original_url?: string | null;
+            /** @description Localização dos originais. */
+            originals_location?: string | null;
+            /** @description Código da unidade superior. */
+            parent_reference_code?: string | null;
+            /** @description Características físicas. */
+            physical_characteristics?: string | null;
+            /** @description Produtores. */
+            producers?: string | null;
+            /** @description Procedência. */
+            provenance?: string | null;
+            /** @description Notas de publicação. */
+            publication_notes?: string | null;
+            /** @description Código de referência. */
+            reference_code?: string | null;
+            /** @description Unidades de descrição relacionadas. */
+            related_units?: string | null;
+            /** @description Condições de reprodução. */
+            reproduction_conditions?: string | null;
+            /** @description Regras ou convenções. */
+            rules_conventions?: string | null;
+            /** @description Âmbito e conteúdo. */
+            scope_content?: string | null;
+            /** @description URL da imagem que o worker de miniatura baixa. */
+            thumb_down_link?: string | null;
+            /** @description Título da descrição. */
+            title: string;
+        };
+        /** ManualIngestionResponse */
+        ManualIngestionResponse: {
+            code: components["schemas"]["RouteMessageCode"];
+            data: components["schemas"]["ManualIngestionResultDTO"];
+            message: string;
+        };
+        /** ManualIngestionResultDTO */
+        ManualIngestionResultDTO: {
+            /** @description A data como o arquivista a escreveu, quando havia uma. */
+            date_expression?: string | null;
+            description_id: string;
+            /** @description A data que o perfil de idioma leu do texto, para a confirmação mostrar o que foi gravado. */
+            document_date?: string | null;
+            origin_code: string;
+            /**
+             * @description O estado inicial no archive: a ingestão manual não marca HUMAN_APPROVED.
+             * @default PENDING_AI
+             */
+            review_status: string;
+            staging_saved: boolean;
+            /**
+             * @description Falso quando uma transferência já estava em andamento e esta entra na próxima.
+             * @default false
+             */
+            transfer_queued: boolean;
+            /** @description A execução de transferência enfileirada; nula quando já havia uma ativa. */
+            transfer_run_id?: number | null;
         };
         /** MergeBatchApplied */
         MergeBatchApplied: {
@@ -3456,6 +4049,20 @@ export interface components {
             ok: boolean;
             required_models?: string[];
         };
+        /** OriginConfigFieldDTO */
+        OriginConfigFieldDTO: {
+            default?: unknown;
+            help: string;
+            /**
+             * @default text
+             * @enum {string}
+             */
+            kind: "text" | "number" | "boolean";
+            label: string;
+            name: string;
+            /** @default false */
+            required: boolean;
+        };
         /** OrphanEntityPurgeResponse */
         OrphanEntityPurgeResponse: {
             code: components["schemas"]["RouteMessageCode"];
@@ -3563,7 +4170,7 @@ export interface components {
          *         things and a translation catalogue needs to tell them apart.
          * @enum {string}
          */
-        RouteMessageCode: "CLEANING_RULE_CREATED" | "CLEANING_RULE_DEACTIVATED" | "CLEANING_RULE_ACTIVATED" | "TEXT_TEMPLATE_SUGGESTED" | "TEXT_TEMPLATE_CREATED" | "TEXT_TEMPLATE_UPDATED" | "TEXT_TEMPLATE_DELETED" | "DOCUMENT_DELETED" | "TAG_MERGE_PROPOSAL_DECIDED" | "TAG_MERGE_UNDONE" | "TAG_STOPWORDS_BANNED" | "TAG_STOPWORDS_REMOVED" | "TAG_STOPWORDS_MATCH_UPDATED" | "TAG_STOPWORD_PURGE_DONE" | "TAG_STOPWORD_PURGE_UNDONE" | "SUBJECT_EXCLUSIONS_ADDED" | "SUBJECT_EXCLUSIONS_BLOCKED" | "SUBJECT_EXCLUSIONS_PARTIAL" | "SUBJECT_EXCLUSIONS_REMOVED" | "MACRO_CLUSTERING_INSUFFICIENT_TEXTS" | "NER_EXCLUSIONS_ADDED" | "NER_EXCLUSIONS_REMOVED" | "NER_PURGE_DONE" | "NER_PURGE_UNDONE" | "ORPHAN_ENTITIES_PURGED" | "ENTITY_RECLASSIFIED" | "ENTITY_DELETED" | "ENTITY_RENAMED" | "ENTITY_MERGE_UNDONE" | "CONFLICT_RESOLVED" | "CONFLICT_BATCH_RESOLVED" | "SESSION_ENDED" | "PASSWORD_CHANGED" | "PASSWORD_CHANGE_REQUIRED" | "USER_PASSWORD_RESET" | "USER_SESSIONS_REVOKED" | "SESSION_REVOKED";
+        RouteMessageCode: "CLEANING_RULE_CREATED" | "CLEANING_RULE_DEACTIVATED" | "CLEANING_RULE_ACTIVATED" | "TEXT_TEMPLATE_SUGGESTED" | "TEXT_TEMPLATE_CREATED" | "TEXT_TEMPLATE_UPDATED" | "TEXT_TEMPLATE_DELETED" | "DOCUMENT_DELETED" | "MANUAL_INGESTION_QUEUED" | "MANUAL_INGESTION_STAGED" | "CSV_IMPORT_QUEUED" | "CSV_IMPORT_STAGED" | "CSV_IMPORT_REFUSED" | "WORKER_RUN_CANCELLED" | "WORKER_RUN_CANCEL_REQUESTED" | "TAG_MERGE_PROPOSAL_DECIDED" | "TAG_MERGE_UNDONE" | "TAG_STOPWORDS_BANNED" | "TAG_STOPWORDS_REMOVED" | "TAG_STOPWORDS_MATCH_UPDATED" | "TAG_STOPWORD_PURGE_DONE" | "TAG_STOPWORD_PURGE_UNDONE" | "SUBJECT_EXCLUSIONS_ADDED" | "SUBJECT_EXCLUSIONS_BLOCKED" | "SUBJECT_EXCLUSIONS_PARTIAL" | "SUBJECT_EXCLUSIONS_REMOVED" | "MACRO_CLUSTERING_INSUFFICIENT_TEXTS" | "NER_EXCLUSIONS_ADDED" | "NER_EXCLUSIONS_REMOVED" | "NER_PURGE_DONE" | "NER_PURGE_UNDONE" | "ORPHAN_ENTITIES_PURGED" | "ENTITY_RECLASSIFIED" | "ENTITY_DELETED" | "ENTITY_RENAMED" | "ENTITY_MERGE_UNDONE" | "CONFLICT_RESOLVED" | "CONFLICT_BATCH_RESOLVED" | "SESSION_ENDED" | "PASSWORD_CHANGED" | "PASSWORD_CHANGE_REQUIRED" | "USER_PASSWORD_RESET" | "USER_SESSIONS_REVOKED" | "SESSION_REVOKED";
         /** RouteResponse */
         RouteResponse: {
             code: components["schemas"]["RouteMessageCode"];
@@ -3856,6 +4463,7 @@ export interface components {
             database: components["schemas"]["DatabaseHealthDTO"];
             /** Format: date-time */
             generated_at: string;
+            ingestion: components["schemas"]["IngestionHealthDTO"];
             ollama: components["schemas"]["OllamaHealthDTO"];
             process: components["schemas"]["ProcessHealthDTO"];
             storage: components["schemas"]["StorageHealthDTO"];
@@ -3870,6 +4478,7 @@ export interface components {
         SystemWorkersResponse: {
             /** Format: date-time */
             generated_at: string;
+            runners?: components["schemas"]["WorkerRunnerDTO"][];
             workers?: components["schemas"]["WorkerStatusDTO"][];
         };
         /** TagCatalogResponse */
@@ -4214,8 +4823,23 @@ export interface components {
             pending_reason?: string | null;
             worker_name: string;
         };
+        /** WorkerRunCancelResponse */
+        WorkerRunCancelResponse: {
+            code: components["schemas"]["RouteMessageCode"];
+            data: components["schemas"]["WorkerRunDTO"];
+            message: string;
+        };
         /** WorkerRunDTO */
         WorkerRunDTO: {
+            /**
+             * @description Qual tentativa esta linha é: 1 numa execução pedida uma vez, N numa agendada (ADR 0015).
+             * @default 1
+             */
+            attempt: number;
+            /** @description Quando o operador pediu o cancelamento; nulo enquanto ninguém pediu. É um pedido, não um estado: a linha continua na fila ou em execução, e segura a vaga, até o worker honrá-lo no limite do lote. */
+            cancel_requested_at?: string | null;
+            /** @description Quem pediu o cancelamento; nulo quando o pedido veio de um sinal do processo, não do painel. */
+            cancel_requested_by?: string | null;
             /** @description Configuração resolvida (preset já mesclado com os overrides), para o registro não mudar de sentido quando um preset mudar no código. */
             config?: {
                 [key: string]: unknown;
@@ -4226,18 +4850,89 @@ export interface components {
             /** @description A causa raiz da falha, derivada da mensagem pelo PostgreSQL. Duas execuções com a mesma causa compartilham este valor. */
             error_fingerprint?: string | null;
             finished_at?: string | null;
+            /** @description O último sinal de vida do runner, no relógio do banco. */
+            heartbeat_at?: string | null;
+            /** @description Quando o claim vence se o runner parar de renovar. A próxima varredura do runner marca a execução como interrompida. */
+            lease_expires_at?: string | null;
+            /** @description O instante a partir do qual a linha pode ser reivindicada; nulo significa já (ADR 0015). */
+            not_before?: string | null;
             /** @description Opções efetivas do worker nesta execução (as colunas lidas, o limite de confiança), resolvidas quando a execução começou. Vazio numa linha antiga, ou numa que ainda não começou. */
             options?: {
                 [key: string]: unknown;
             };
+            /** @description A origem que esta execução de ingestão processou; nula num worker de archive, que atravessa o acervo inteiro e não tem uma única origem para nomear. */
+            origin_code?: string | null;
             preset?: string | null;
             /** Format: date-time */
             queued_at: string;
             /** @description Quem pediu a execução; nulo quando ela veio do host, sem --by. */
             requested_by?: string | null;
+            /** @description A execução que esta retenta; nula na primeira tentativa. */
+            retry_of?: number | null;
             run_id: number;
+            /** @description O runner que reivindicou a execução; nulo enquanto ninguém a pegou. */
+            runner_id?: string | null;
             started_at?: string | null;
             status: components["schemas"]["WorkerRunStatus"];
+            /**
+             * @description Verdadeiro num ensaio: uma comparação de configurações que lê a coleção e não escreve conteúdo arquivístico (ADR 0018). O painel o distingue de uma execução de produção.
+             * @default false
+             */
+            trial: boolean;
+            trigger: components["schemas"]["WorkerRunTrigger"];
+            worker_name: string;
+        };
+        /** WorkerRunDetailDTO */
+        WorkerRunDetailDTO: {
+            /**
+             * @description Qual tentativa esta linha é: 1 numa execução pedida uma vez, N numa agendada (ADR 0015).
+             * @default 1
+             */
+            attempt: number;
+            /** @description Quando o operador pediu o cancelamento; nulo enquanto ninguém pediu. É um pedido, não um estado: a linha continua na fila ou em execução, e segura a vaga, até o worker honrá-lo no limite do lote. */
+            cancel_requested_at?: string | null;
+            /** @description Quem pediu o cancelamento; nulo quando o pedido veio de um sinal do processo, não do painel. */
+            cancel_requested_by?: string | null;
+            /** @description Configuração resolvida (preset já mesclado com os overrides), para o registro não mudar de sentido quando um preset mudar no código. */
+            config?: {
+                [key: string]: unknown;
+            };
+            duration_ms?: number | null;
+            engine_name?: string | null;
+            error?: string | null;
+            /** @description A causa raiz da falha, derivada da mensagem pelo PostgreSQL. Duas execuções com a mesma causa compartilham este valor. */
+            error_fingerprint?: string | null;
+            finished_at?: string | null;
+            /** @description O último sinal de vida do runner, no relógio do banco. */
+            heartbeat_at?: string | null;
+            /** @description Quando o claim vence se o runner parar de renovar. A próxima varredura do runner marca a execução como interrompida. */
+            lease_expires_at?: string | null;
+            /** @description O instante a partir do qual a linha pode ser reivindicada; nulo significa já (ADR 0015). */
+            not_before?: string | null;
+            /** @description Opções efetivas do worker nesta execução (as colunas lidas, o limite de confiança), resolvidas quando a execução começou. Vazio numa linha antiga, ou numa que ainda não começou. */
+            options?: {
+                [key: string]: unknown;
+            };
+            /** @description A origem que esta execução de ingestão processou; nula num worker de archive, que atravessa o acervo inteiro e não tem uma única origem para nomear. */
+            origin_code?: string | null;
+            preset?: string | null;
+            /** Format: date-time */
+            queued_at: string;
+            /** @description Quem pediu a execução; nulo quando ela veio do host, sem --by. */
+            requested_by?: string | null;
+            /** @description A execução que esta retenta; nula na primeira tentativa. */
+            retry_of?: number | null;
+            run_id: number;
+            /** @description O runner que reivindicou a execução; nulo enquanto ninguém a pegou. */
+            runner_id?: string | null;
+            started_at?: string | null;
+            status: components["schemas"]["WorkerRunStatus"];
+            /**
+             * @description Verdadeiro num ensaio: uma comparação de configurações que lê a coleção e não escreve conteúdo arquivístico (ADR 0018). O painel o distingue de uma execução de produção.
+             * @default false
+             */
+            trial: boolean;
+            trial_result?: components["schemas"]["WorkerTrialResultDTO"] | null;
             trigger: components["schemas"]["WorkerRunTrigger"];
             worker_name: string;
         };
@@ -4270,15 +4965,64 @@ export interface components {
          *         single run at a time, so a submitted run may wait before it actually starts. ``INTERRUPTED`` is
          *         written by the next start-up for a row the previous process left behind — without it the row
          *         would stay ``RUNNING`` forever, and the partial unique index would block that worker for good.
+         *
+         *         ``CANCELLED`` is the operator's stop (ADR 0014 decision 9, #72). It is deliberately distinct
+         *         from ``INTERRUPTED``: a process death is an accident the sweep repairs, a cancellation is a
+         *         deliberate verdict on the execution. The request that precedes it is the nullable
+         *         ``cancel_requested_at`` column, not this status: a requested run stays ``QUEUED``/``RUNNING``
+         *         and keeps its slot until the worker honours the request at a batch boundary, or the API closes
+         *         it at once when no runner has claimed it.
          * @enum {string}
          */
-        WorkerRunStatus: "QUEUED" | "RUNNING" | "SUCCESS" | "FAILED" | "INTERRUPTED";
+        WorkerRunStatus: "QUEUED" | "RUNNING" | "SUCCESS" | "FAILED" | "INTERRUPTED" | "CANCELLED";
         /**
          * WorkerRunTrigger
-         * @description Who asked for the run: the command line or the curator's panel.
+         * @description Who asked for the run: the command line, the curator's panel or the schedule (ADR 0015).
          * @enum {string}
          */
-        WorkerRunTrigger: "CLI" | "API";
+        WorkerRunTrigger: "CLI" | "API" | "SCHEDULE";
+        /** WorkerRunnerDTO */
+        WorkerRunnerDTO: {
+            /** @description Os workers que este runner aceita. */
+            capabilities?: string[];
+            concurrency: number;
+            hostname: string;
+            /** Format: date-time */
+            last_heartbeat_at: string;
+            name: string;
+            /** @description Verdadeiro enquanto o último sinal está dentro de três intervalos declarados pelo runner. */
+            online: boolean;
+            runner_id: string;
+            /** Format: date-time */
+            started_at: string;
+            stopped_at?: string | null;
+            version?: string | null;
+        };
+        /** WorkerScheduleDTO */
+        WorkerScheduleDTO: {
+            cron: string;
+            enabled: boolean;
+            last_enqueued_at?: string | null;
+            /** @description O último período pulado porque o worker já tinha uma execução ativa. */
+            last_skipped_at?: string | null;
+            /** @description Nulo enquanto a agenda está pausada. */
+            next_run_at?: string | null;
+            request: components["schemas"]["WorkerRunRequest"];
+            timezone: string;
+            updated_at?: string | null;
+            updated_by?: string | null;
+            worker_name: string;
+        };
+        /** WorkerScheduleRequest */
+        WorkerScheduleRequest: {
+            /** @description Cinco campos: minuto, hora, dia do mês, mês e dia da semana. */
+            cron: string;
+            /** @default true */
+            enabled: boolean;
+            request?: components["schemas"]["WorkerRunRequest"];
+            /** @description Nome IANA da zona em que o cron é avaliado; o padrão é DEFAULT_TIMEZONE. */
+            timezone?: string | null;
+        };
         /** WorkerSettingsDTO */
         WorkerSettingsDTO: {
             available_engines?: components["schemas"]["WorkerEngineDTO"][];
@@ -4286,7 +5030,6 @@ export interface components {
                 [key: string]: unknown;
             };
             db_batch_size?: number | null;
-            /** @description As opções que este worker aceita, derivadas da assinatura do execute. */
             declared_options?: components["schemas"]["WorkerOptionDTO"][];
             engine_name?: string | null;
             /** @description As chaves que o eixo repassa ao construtor do engine (model, device, host, ...). É a dica do bloco avançado; os valores seguem os do próprio motor. */
@@ -4300,6 +5043,11 @@ export interface components {
             /** @default false */
             overridden: boolean;
             preset?: string | null;
+            /**
+             * @description Se este worker aceita um ensaio (ADR 0018). A lista é o catálogo: a tela só oferece a comparação para quem o runner sabe executar.
+             * @default false
+             */
+            trial_supported: boolean;
             updated_at?: string | null;
             updated_by?: string | null;
             worker_name: string;
@@ -4371,11 +5119,104 @@ export interface components {
             pending_reason?: string | null;
             /** @description Unidades que o worker já carimbou. */
             processed?: number | null;
+            /**
+             * @description Se algum runner online declara este worker; falso não impede enfileirar (ADR 0014).
+             * @default false
+             */
+            runner_available: boolean;
+            schedule?: components["schemas"]["WorkerScheduleDTO"] | null;
             settings: components["schemas"]["WorkerSettingsDTO"];
-            /** @description Os quatro números do **ledger** do worker — com produtor, valor legado, falha e ausência de registro — e não da fila: `pending` é o predicado da fila, e uma unidade com carimbo de falha ou de produtor antigo conta aqui sem estar pendente. Nulo quando o ledger do worker não é um carimbo. */
             stamp_breakdown?: components["schemas"]["WorkerStampBreakdownDTO"] | null;
             /** @enum {string} */
-            unit: "staging" | "document" | "tag" | "pair";
+            unit: "origin" | "staging" | "document" | "tag" | "pair";
+        };
+        /** WorkerTrialConfigDTO */
+        WorkerTrialConfigDTO: {
+            abstention_rate: number;
+            /** @description Acerto sobre o gabarito; nulo quando a coleção ainda não tem veredito. */
+            agreement?: number | null;
+            /** @description Vereditos em que a configuração deu um rótulo (não absteve). */
+            answered: number;
+            /** @description A configuração resolvida do engine. */
+            config?: {
+                [key: string]: unknown;
+            };
+            /** @description Fração do gabarito que a configuração respondeu. */
+            coverage: number;
+            db_batch_size?: number | null;
+            distribution?: {
+                [key: string]: number;
+            };
+            engine_name?: string | null;
+            /** @default 0 */
+            entropy_bits: number;
+            /**
+             * @description O balde mais frequente da distribuição.
+             * @default
+             */
+            largest_share: string;
+            /** @default 0 */
+            largest_share_value: number;
+            /**
+             * @description O custo de carregar o modelo, fora dos s/doc.
+             * @default 0
+             */
+            load_seconds: number;
+            misses?: components["schemas"]["WorkerTrialMissDTO"][];
+            options?: {
+                [key: string]: unknown;
+            };
+            /** @description Unidades que esta configuração poria na fila. */
+            pending?: number | null;
+            /** @description Por que a fila não foi contada. */
+            pending_reason?: string | null;
+            preset?: string | null;
+            /** @description Unidades que o ensaio classificou nesta configuração. */
+            processed: number;
+            /** @description A fila desta configuração no ritmo medido; nulo quando a fila não é mensurável. */
+            projected_hours?: number | null;
+            /** @default 0 */
+            seconds_per_document: number;
+            settings: components["schemas"]["WorkerSettingsRequest"];
+            /** @description Vereditos pontuados; o denominador da concordância. */
+            verdicts_scored: number;
+        };
+        /** WorkerTrialMissDTO */
+        WorkerTrialMissDTO: {
+            description_id: string;
+            expected: string;
+            predicted: string;
+            score?: number | null;
+        };
+        /** WorkerTrialRequest */
+        WorkerTrialRequest: {
+            configs: components["schemas"]["WorkerRunRequest"][];
+            /**
+             * @description Quantas descrições sortear para distribuição e custo; o gabarito é lido até o mesmo teto.
+             * @default 50
+             */
+            sample: number;
+            /** @description Semente da amostra; nula usa a do código. Fica registrada no resultado. */
+            seed?: string | null;
+        };
+        /** WorkerTrialResultDTO */
+        WorkerTrialResultDTO: {
+            configs?: components["schemas"]["WorkerTrialConfigDTO"][];
+            sample: components["schemas"]["WorkerTrialSampleDTO"];
+            unknown_verdicts?: string[];
+            worker_name: string;
+        };
+        /** WorkerTrialSampleDTO */
+        WorkerTrialSampleDTO: {
+            /** @description As descrições sorteadas. */
+            description_ids?: string[];
+            seed: string;
+            /** @description Quantas descrições a amostra aleatória pediu. */
+            size: number;
+            /** @description As descrições com veredito que o ensaio pontuou. */
+            verdict_ids?: string[];
+            /** @description Quantos vereditos existem na coleção; o ensaio lê até o teto. */
+            verdicts_available: number;
         };
     };
     responses: never;
@@ -4911,6 +5752,43 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DocumentSummary"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                        status_code: number;
+                    };
+                };
+            };
+        };
+    };
+    ApiV1DocumentsDescriptionIdThumbnailGetThumbnail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                description_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The stored miniature, read from the object storage on demand. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/jpeg": string;
                 };
             };
             /** @description Bad request syntax or unsupported method */
@@ -5651,6 +6529,341 @@ export interface operations {
             };
         };
     };
+    ApiV1IngestionCsvImportCsv: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CsvImportRequest"];
+            };
+        };
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CsvImportResponse"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                        status_code: number;
+                    };
+                };
+            };
+        };
+    };
+    ApiV1IngestionCsvSpecCsvImportSpec: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CsvImportSpecResponse"];
+                };
+            };
+        };
+    };
+    ApiV1IngestionManualCreateManual: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ManualIngestionRequest"];
+            };
+        };
+        responses: {
+            /** @description Document created, URL follows */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ManualIngestionResponse"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                        status_code: number;
+                    };
+                };
+            };
+        };
+    };
+    ApiV1IngestionOriginsListOrigins: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IngestionOriginListResponse"];
+                };
+            };
+        };
+    };
+    ApiV1IngestionOriginsCodeGetOrigin: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IngestionOriginDTO"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                        status_code: number;
+                    };
+                };
+            };
+        };
+    };
+    ApiV1IngestionOriginsCodeUpdateOrigin: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IngestionOriginUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IngestionOriginDTO"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                        status_code: number;
+                    };
+                };
+            };
+        };
+    };
+    ApiV1IngestionOriginsCodeRunsTriggerOrigin: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IngestionRunRequest"];
+            };
+        };
+        responses: {
+            /** @description Document created, URL follows */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkerRunDTO"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                        status_code: number;
+                    };
+                };
+            };
+        };
+    };
+    ApiV1IngestionOriginsCodeSchedulePutSchedule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IngestionScheduleRequest"];
+            };
+        };
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IngestionOriginDTO"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                        status_code: number;
+                    };
+                };
+            };
+        };
+    };
+    ApiV1IngestionOriginsCodeScheduleDeleteSchedule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IngestionOriginDTO"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                        status_code: number;
+                    };
+                };
+            };
+        };
+    };
+    ApiV1LanguagesListLanguages: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LanguageDTO"][];
+                };
+            };
+        };
+    };
     ApiV1PublicDocumentsListPublished: {
         parameters: {
             query?: {
@@ -6299,8 +7512,10 @@ export interface operations {
         parameters: {
             query?: {
                 worker?: string | null;
+                origin?: string | null;
                 status?: components["schemas"]["WorkerRunStatus"] | null;
                 fingerprint?: string | null;
+                trial?: boolean | null;
                 limit?: number;
                 offset?: number;
             };
@@ -6317,6 +7532,80 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["WorkerRunListResponse"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                        status_code: number;
+                    };
+                };
+            };
+        };
+    };
+    ApiV1SystemRunsRunIdGetRun: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkerRunDetailDTO"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                        status_code: number;
+                    };
+                };
+            };
+        };
+    };
+    ApiV1SystemRunsRunIdCancelCancelRun: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkerRunCancelResponse"];
                 };
             };
             /** @description Bad request syntax or unsupported method */
@@ -6458,6 +7747,119 @@ export interface operations {
             };
         };
     };
+    ApiV1SystemWorkersWorkerNameScheduleGetSchedule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                worker_name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkerScheduleDTO"] | null;
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                        status_code: number;
+                    };
+                };
+            };
+        };
+    };
+    ApiV1SystemWorkersWorkerNameSchedulePutSchedule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                worker_name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WorkerScheduleRequest"];
+            };
+        };
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkerScheduleDTO"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                        status_code: number;
+                    };
+                };
+            };
+        };
+    };
+    ApiV1SystemWorkersWorkerNameScheduleDeleteSchedule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                worker_name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                        status_code: number;
+                    };
+                };
+            };
+        };
+    };
     ApiV1SystemWorkersWorkerNameSettingsUpdateSettings: {
         parameters: {
             query?: never;
@@ -6557,6 +7959,47 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["WorkerSettingsRevisionListResponse"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                        status_code: number;
+                    };
+                };
+            };
+        };
+    };
+    ApiV1SystemWorkersWorkerNameTrialTriggerTrial: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                worker_name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WorkerTrialRequest"];
+            };
+        };
+        responses: {
+            /** @description Document created, URL follows */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkerRunDTO"];
                 };
             };
             /** @description Bad request syntax or unsupported method */

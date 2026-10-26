@@ -10,13 +10,20 @@ from datetime import UTC, datetime
 from litestar.testing import TestClient
 
 from scrinalia.domains.archive.exceptions import (
+    InvalidWorkerScheduleError,
     InvalidWorkerSettingsError,
     WorkerNotFoundError,
     WorkerRunAlreadyActiveError,
+    WorkerRunNotCancellableError,
+    WorkerRunNotFoundError,
+    WorkerScheduleNotFoundError,
 )
 from scrinalia.domains.archive.models.enums import WorkerRunStatus, WorkerRunTrigger
+from scrinalia.domains.archive.schemas.responses import RouteMessageCode
 from scrinalia.domains.archive.schemas.system_schema import (
     DatabaseHealthDTO,
+    IngestionHealthDTO,
+    IngestionOriginHealthDTO,
     OllamaHealthDTO,
     ProcessHealthDTO,
     StorageHealthDTO,
@@ -24,15 +31,25 @@ from scrinalia.domains.archive.schemas.system_schema import (
     SystemWorkerSettingsResponse,
     SystemWorkersResponse,
     WorkerQueuePreviewDTO,
+    WorkerRunCancelResponse,
+    WorkerRunDetailDTO,
     WorkerRunDTO,
     WorkerRunListResponse,
+    WorkerRunnerDTO,
+    WorkerRunRequest,
+    WorkerScheduleDTO,
     WorkerSettingsDTO,
     WorkerSettingsItemDTO,
+    WorkerSettingsRequest,
     WorkerSettingsRevisionListResponse,
     WorkerStatusDTO,
+    WorkerTrialConfigDTO,
+    WorkerTrialResultDTO,
+    WorkerTrialSampleDTO,
 )
 from scrinalia.domains.archive.services.worker_operations_service import WorkerOperationsService
 from scrinalia.domains.archive.services.worker_run_service import WorkerRunService
+from scrinalia.domains.archive.services.worker_schedule_service import WorkerScheduleService
 
 
 def _settings() -> WorkerSettingsDTO:
@@ -49,7 +66,7 @@ def _settings() -> WorkerSettingsDTO:
     )
 
 
-def _status() -> WorkerStatusDTO:
+def _status(*, runner_available: bool = False) -> WorkerStatusDTO:
     return WorkerStatusDTO(
         name="ner",
         label="Extração de entidades (NER)",
@@ -61,6 +78,22 @@ def _status() -> WorkerStatusDTO:
         pending=10,
         processed=0,
         failed=0,
+        runner_available=runner_available,
+    )
+
+
+def _runner() -> WorkerRunnerDTO:
+    now = datetime.now(UTC)
+    return WorkerRunnerDTO(
+        runner_id="gpu-01",
+        name="gpu",
+        hostname="gpu-01",
+        version="1.6.0",
+        capabilities=["ner"],
+        concurrency=1,
+        started_at=now,
+        last_heartbeat_at=now,
+        online=True,
     )
 
 
@@ -86,6 +119,22 @@ def test_the_panel_lists_every_worker(client: TestClient, mocker) -> None:
     assert body["workers"][0]["settings"]["config"]["model"] == "pt_core_news_lg"
     assert body["workers"][0]["pending"] == 10
     assert body["generated_at"]
+
+
+def test_the_panel_carries_the_runners_and_the_worker_availability(client: TestClient, mocker) -> None:
+    mock = mocker.patch.object(WorkerOperationsService, "list_workers")
+    mock.return_value = SystemWorkersResponse(
+        workers=[_status(runner_available=True)],
+        runners=[_runner()],
+        generated_at=datetime.now(UTC),
+    )
+
+    body = client.get("/api/v1/system/workers").json()
+
+    assert body["workers"][0]["runner_available"] is True
+    assert body["runners"][0]["runner_id"] == "gpu-01"
+    assert body["runners"][0]["capabilities"] == ["ner"]
+    assert body["runners"][0]["online"] is True
 
 
 def test_the_settings_read_carries_the_configuration_and_no_queue(client: TestClient, mocker) -> None:
@@ -193,6 +242,15 @@ def test_the_health_endpoint_answers_every_probe(client: TestClient, mocker) -> 
             database=DatabaseHealthDTO(ok=True, documents=10),
             ollama=OllamaHealthDTO(ok=True, host="http://localhost:11434", host_source="default"),
             storage=StorageHealthDTO(configured=False, ok=False),
+            ingestion=IngestionHealthDTO(
+                ok=True,
+                total=2,
+                enabled=2,
+                origins=[
+                    IngestionOriginHealthDTO(code="manual", label="Entrada manual", enabled=True),
+                    IngestionOriginHealthDTO(code="pmc", label="Acervo de referência (PMC)", enabled=True),
+                ],
+            ),
             process=ProcessHealthDTO(
                 log_level="INFO",
                 debug=False,
@@ -208,6 +266,8 @@ def test_the_health_endpoint_answers_every_probe(client: TestClient, mocker) -> 
     assert body["database"]["documents"] == 10
     assert body["ollama"]["host_source"] == "default"
     assert body["storage"]["configured"] is False
+    assert body["ingestion"]["enabled"] == 2
+    assert [origin["code"] for origin in body["ingestion"]["origins"]] == ["manual", "pmc"]
     assert body["process"]["secrets_present"] == {}
 
 
@@ -240,3 +300,226 @@ def test_an_unmeasurable_queue_previews_with_a_reason(client: TestClient, mocker
     assert response.status_code == 200
     assert response.json()["pending"] is None
     assert response.json()["pending_reason"]
+
+
+def _schedule() -> WorkerScheduleDTO:
+    return WorkerScheduleDTO(
+        worker_name="cleaning",
+        enabled=True,
+        cron="0 2 * * *",
+        timezone="UTC",
+        request=WorkerRunRequest(),
+        next_run_at=datetime.now(UTC),
+        updated_by="Admin",
+        updated_at=datetime.now(UTC),
+    )
+
+
+def test_the_schedule_round_trip_through_the_http_layer(client: TestClient, mocker) -> None:
+    mocker.patch.object(WorkerScheduleService, "get", return_value=_schedule())
+    upsert = mocker.patch.object(WorkerScheduleService, "upsert", return_value=_schedule())
+    delete = mocker.patch.object(WorkerScheduleService, "delete")
+
+    created = client.put(
+        "/api/v1/system/workers/cleaning/schedule",
+        json={"cron": "0 2 * * *", "timezone": "UTC"},
+    )
+    assert created.status_code == 200
+    assert created.json()["cron"] == "0 2 * * *"
+
+    body = client.get("/api/v1/system/workers/cleaning/schedule").json()
+    assert body["timezone"] == "UTC"
+    assert body["request"] == {
+        "engine_name": None,
+        "preset": None,
+        "db_batch_size": None,
+        "options": {},
+        "engine_options": {},
+    }
+
+    removed = client.delete("/api/v1/system/workers/cleaning/schedule")
+    assert removed.status_code == 200
+    upsert.assert_called_once()
+    delete.assert_called_once()
+
+
+def test_a_missing_schedule_reads_as_null(client: TestClient, mocker) -> None:
+    mocker.patch.object(WorkerScheduleService, "get", return_value=None)
+
+    response = client.get("/api/v1/system/workers/cleaning/schedule")
+
+    assert response.status_code == 200
+    assert response.json() is None
+
+
+def test_an_invalid_schedule_answers_unprocessable(client: TestClient, mocker) -> None:
+    mock = mocker.patch.object(WorkerScheduleService, "upsert")
+    mock.side_effect = InvalidWorkerScheduleError("Agenda inválida: o cron precisa de cinco campos.")
+
+    response = client.put(
+        "/api/v1/system/workers/cleaning/schedule",
+        json={"cron": "0 2 * *", "timezone": "UTC"},
+    )
+
+    assert response.status_code == 422
+    assert response.json()["error_code"] == "InvalidWorkerScheduleError"
+
+
+def test_deleting_a_missing_schedule_answers_not_found(client: TestClient, mocker) -> None:
+    mock = mocker.patch.object(WorkerScheduleService, "delete")
+    mock.side_effect = WorkerScheduleNotFoundError("O worker 'cleaning' não tem agenda.")
+
+    response = client.delete("/api/v1/system/workers/cleaning/schedule")
+    assert response.status_code == 404
+
+
+# --- Cancelling a run (#72) -------------------------------------------------------------------
+
+
+def _requested_run() -> WorkerRunDTO:
+    now = datetime.now(UTC)
+    return WorkerRunDTO(
+        run_id=1,
+        worker_name="ner",
+        status=WorkerRunStatus.RUNNING,
+        trigger=WorkerRunTrigger.API,
+        queued_at=now,
+        started_at=now,
+        cancel_requested_at=now,
+        cancel_requested_by="ana",
+    )
+
+
+def test_the_cancel_answers_the_row_and_the_outcome_code(client: TestClient, mocker) -> None:
+    """The two outcomes are codes, not sentences the screen would have to parse."""
+    mock = mocker.patch.object(WorkerRunService, "cancel")
+    mock.return_value = WorkerRunCancelResponse(
+        code=RouteMessageCode.WORKER_RUN_CANCEL_REQUESTED,
+        message="Cancelamento pedido: a execução para no fim do lote atual.",
+        data=_requested_run(),
+    )
+
+    response = client.post("/api/v1/system/runs/1/cancel")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["code"] == "WORKER_RUN_CANCEL_REQUESTED"
+    assert body["data"]["status"] == "RUNNING"
+    assert body["data"]["cancel_requested_by"] == "ana"
+    assert mock.call_args.args[0] == 1
+
+
+def test_cancelling_a_finished_run_answers_conflict(client: TestClient, mocker) -> None:
+    mock = mocker.patch.object(WorkerRunService, "cancel")
+    mock.side_effect = WorkerRunNotCancellableError("A execução 1 já terminou (SUCCESS); não há o que cancelar.")
+
+    response = client.post("/api/v1/system/runs/1/cancel")
+
+    assert response.status_code == 409
+    assert response.json()["error_code"] == "WorkerRunNotCancellableError"
+
+
+def test_cancelling_an_unknown_run_answers_not_found(client: TestClient, mocker) -> None:
+    mock = mocker.patch.object(WorkerRunService, "cancel")
+    mock.side_effect = WorkerRunNotFoundError("Execução 999 não existe no ledger.")
+
+    assert client.post("/api/v1/system/runs/999/cancel").status_code == 404
+
+
+def _trial_config() -> WorkerTrialConfigDTO:
+    return WorkerTrialConfigDTO(
+        engine_name="deberta_typology",
+        preset="cpu_local",
+        options={"confidence_threshold": 0.4},
+        settings=WorkerSettingsRequest(engine_name="deberta_typology", preset="cpu_local"),
+        processed=10,
+        verdicts_scored=4,
+        answered=3,
+        agreement=0.75,
+        coverage=0.75,
+        abstention_rate=0.2,
+        distribution={"Fotografia": 6, "Planta": 2, "(abstained)": 2},
+        largest_share="Fotografia",
+        largest_share_value=0.6,
+        entropy_bits=1.2,
+        seconds_per_document=2.2,
+    )
+
+
+def test_a_trial_is_queued_and_answered_with_the_row(client: TestClient, mocker) -> None:
+    """The route answers the ``QUEUED`` row, like a run; the comparison itself happens in the runner."""
+    mock = mocker.patch.object(WorkerRunService, "trigger_trial")
+    mock.return_value = WorkerRunDTO(
+        run_id=7,
+        worker_name="typology",
+        status=WorkerRunStatus.QUEUED,
+        trigger=WorkerRunTrigger.API,
+        trial=True,
+        queued_at=datetime.now(UTC),
+    )
+
+    response = client.post(
+        "/api/v1/system/workers/typology/trial",
+        json={
+            "sample": 10,
+            "configs": [
+                {"engine_name": "deberta_typology", "preset": "cpu_local", "options": {"confidence_threshold": 0.4}},
+                {"engine_name": "deberta_typology", "preset": "cpu_local", "options": {"confidence_threshold": 0.8}},
+            ],
+        },
+    )
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["trial"] is True
+    assert body["run_id"] == 7
+    assert len(mock.call_args.args[1].configs) == 2
+
+
+def test_a_trial_for_a_worker_without_one_answers_unprocessable(client: TestClient, mocker) -> None:
+    mock = mocker.patch.object(WorkerRunService, "trigger_trial")
+    mock.side_effect = InvalidWorkerSettingsError(
+        "O worker 'ner' não aceita ensaio: ele não tem uma comparação registrada."
+    )
+
+    response = client.post(
+        "/api/v1/system/workers/ner/trial",
+        json={
+            "sample": 10,
+            "configs": [{"engine_name": "spacy_ner"}, {"engine_name": "spacy_ner"}],
+        },
+    )
+
+    assert response.status_code == 422
+    assert response.json()["error_code"] == "InvalidWorkerSettingsError"
+
+
+def test_one_run_detail_carries_the_trial_result(client: TestClient, mocker) -> None:
+    mock = mocker.patch.object(WorkerRunService, "get_run")
+    mock.return_value = WorkerRunDetailDTO(
+        run_id=7,
+        worker_name="typology",
+        status=WorkerRunStatus.SUCCESS,
+        trigger=WorkerRunTrigger.API,
+        trial=True,
+        queued_at=datetime.now(UTC),
+        trial_result=WorkerTrialResultDTO(
+            worker_name="typology",
+            sample=WorkerTrialSampleDTO(
+                seed="test-seed",
+                size=10,
+                description_ids=["doc-1", "doc-2"],
+                verdict_ids=["doc-3"],
+                verdicts_available=1,
+            ),
+            configs=[_trial_config()],
+        ),
+    )
+
+    response = client.get("/api/v1/system/runs/7")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["trial"] is True
+    assert body["trial_result"]["configs"][0]["agreement"] == 0.75
+    assert body["trial_result"]["sample"]["seed"] == "test-seed"

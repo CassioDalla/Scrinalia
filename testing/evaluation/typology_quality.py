@@ -54,10 +54,9 @@ import argparse
 import hashlib
 import inspect
 import json
-import math
 import time
 from collections import Counter
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
@@ -75,6 +74,23 @@ from scrinalia.domains.archive.engines.classification.registry import (
     PresetName,
     get_engine,
 )
+from scrinalia.domains.archive.evaluation.metrics import (
+    ABSTAINED,
+    NONE_CLASS,
+    Prediction,
+    Scored,
+    Truth,
+    abstention_rate,
+    agreement,
+    confusion,
+    distribution,
+    entropy_bits,
+    largest_share,
+    link_decision,
+    macro_f1,
+    per_class,
+)
+from scrinalia.domains.archive.evaluation.text import read_composed_text as read_input_text
 from scrinalia.domains.archive.models import ArchiveDocument, ArchiveTypology
 from scrinalia.domains.archive.repository import TypologyRepository
 from scrinalia.domains.archive.repository.text_quality_repo import (
@@ -99,11 +115,6 @@ SHEET_FILENAME = "typology_pairs.sheet.md"
 #: picker sorts every stratum by ``md5(semente:description_id)``, never by insertion order, so a
 #: re-run after the collection grew proposes the same rows for the rows that already existed.
 DEFAULT_SEED = "scrinalia-typology-v1"
-
-#: The class of "this description has no typology at all". It is not a typology and the catalogue
-#: does not name it: it is the bucket that turns "the model abstained" into a measured false
-#: positive instead of an invisible one.
-NONE_CLASS = "NENHUMA"
 
 #: How many rows one stratum contributes by default, and how many the NENHUMA bucket contributes.
 DEFAULT_PER_FORM = 40
@@ -612,180 +623,14 @@ def print_sheet(payload: dict[str, Any], out: Path) -> None:
 
 
 # =============================================================================
-# Metrics — pure functions, no session and no model
+# Metrics — imported from the package, so the bench and the panel share them
 # =============================================================================
 #
-# This is the part a unit test can hold: the arithmetic that turns a list of (truth, prediction)
-# into a number. The model and the database are exercised elsewhere, so a defect in the metrics
-# cannot hide behind "it needs a GPU".
-
-#: The bucket a prediction falls into when the classifier refuses to answer. It is not a typology:
-#: it is the outcome the confidence floor produces, and it belongs in the distribution because a
-#: model that abstains on everything must not look like a model with a clean spread.
-ABSTAINED = "(abstained)"
-
-
-@dataclass(frozen=True)
-class Truth:
-    """What the curator said about one row: one label, several acceptable ones, or none at all."""
-
-    labels: frozenset[str] | None
-
-    @property
-    def is_none(self) -> bool:
-        """``None`` is the NENHUMA class: no typology applies, so abstaining is the right answer."""
-        return self.labels is None
-
-
-@dataclass(frozen=True)
-class Prediction:
-    """What the classifier answered, and with how much confidence."""
-
-    label: str | None
-    score: float | None = None
-
-
-@dataclass(frozen=True)
-class Scored:
-    """One labelled row after the classifier answered it."""
-
-    description_id: str
-    truth: Truth
-    prediction: Prediction
-
-    @property
-    def key(self) -> str:
-        """The predicted bucket, with the abstention named instead of dropped."""
-        return self.prediction.label or ABSTAINED
-
-    @property
-    def truth_key(self) -> str:
-        """The gabarito as one cell of the confusion matrix; a list of acceptable names is joined."""
-        if self.truth.is_none:
-            return NONE_CLASS
-        return " | ".join(sorted(self.truth.labels or ()))
-
-    @property
-    def correct(self) -> bool:
-        """
-        Agreement with the gabarito.
-
-        A row the curator marked NENHUMA is right exactly when the classifier abstained, and a row
-        with a list of acceptable names is right when the answer is any of them. Both rules exist
-        because the catalogue mixes support and species; without them the bench would score a
-        legitimate answer as an error.
-        """
-        if self.truth.is_none:
-            return self.prediction.label is None
-        return self.prediction.label in (self.truth.labels or frozenset())
-
-
-@dataclass
-class ClassMetrics:
-    """Precision, recall and F1 of one typology, over the rows the curator labelled."""
-
-    label: str
-    support: int = 0
-    true_positives: int = 0
-    false_positives: int = 0
-    false_negatives: int = 0
-    min_positives: int = MIN_POSITIVES
-
-    @property
-    def measured(self) -> bool:
-        return self.support >= self.min_positives
-
-    @property
-    def precision(self) -> float:
-        denominator = self.true_positives + self.false_positives
-        return self.true_positives / denominator if denominator else 0.0
-
-    @property
-    def recall(self) -> float:
-        return self.true_positives / self.support if self.support else 0.0
-
-    @property
-    def f1(self) -> float:
-        precision, recall = self.precision, self.recall
-        return 2 * precision * recall / (precision + recall) if precision + recall else 0.0
-
-
-def agreement(rows: Sequence[Scored]) -> float:
-    """Share of the scored rows the classifier got right."""
-    return sum(1 for row in rows if row.correct) / len(rows) if rows else 0.0
-
-
-def distribution(rows: Sequence[Scored]) -> Counter[str]:
-    """How many rows each predicted bucket took — the collapse, as a number."""
-    return Counter(row.key for row in rows)
-
-
-def confusion(rows: Sequence[Scored]) -> Counter[tuple[str, str]]:
-    """``(gabarito, predito)`` counts, so a systematic confusion is visible and not only its total."""
-    return Counter((row.truth_key, row.key) for row in rows)
-
-
-def entropy_bits(counts: Counter[str]) -> float:
-    """
-    Shannon entropy of the predicted buckets, in bits.
-
-    Over the buckets **including** the abstention, because abstaining is an outcome and a model that
-    abstains on everything should not look concentrated. ``largest_share`` is the same symptom
-    without the logarithm.
-    """
-    total = sum(counts.values())
-    if total <= 0:
-        return 0.0
-    # ``max(0.0, ...)`` is not decoration: one bucket gives ``-0.0``, and "-0.00 bits" in a report
-    # reads like a bug in the metric rather than a perfectly concentrated answer.
-    return max(0.0, -sum((count / total) * math.log2(count / total) for count in counts.values() if count > 0))
-
-
-def largest_share(counts: Counter[str]) -> tuple[str, float]:
-    """The biggest predicted bucket and its share: the one number that denounces a collapse."""
-    total = sum(counts.values())
-    if not counts or total <= 0:
-        return ("", 0.0)
-    label, count = counts.most_common(1)[0]
-    return (label, count / total)
-
-
-def abstention_rate(rows: Sequence[Scored]) -> float:
-    """Share of the scored rows the classifier refused to label."""
-    return sum(1 for row in rows if row.prediction.label is None) / len(rows) if rows else 0.0
-
-
-def per_class(
-    rows: Sequence[Scored], labels: Sequence[str], min_positives: int = MIN_POSITIVES
-) -> dict[str, ClassMetrics]:
-    """
-    Precision, recall and F1 per typology, with the any-of truth treated as multi-label.
-
-    A row whose gabarito is ``["Mapa / Croqui Urbanístico", "Planta Arquitetônica"]`` and whose answer
-    is Planta gives Planta a true positive and Mapa a false negative: both readings are true at once,
-    and collapsing them into one column would hide which of the two the model can find.
-    """
-    metrics = {label: ClassMetrics(label=label, min_positives=min_positives) for label in labels}
-    for row in rows:
-        truth = row.truth.labels or frozenset()
-        predicted = row.prediction.label
-        for label in truth:
-            if label not in metrics:
-                continue  # the curator named a typology the active catalogue no longer has
-            metrics[label].support += 1
-            if predicted == label:
-                metrics[label].true_positives += 1
-            else:
-                metrics[label].false_negatives += 1
-        if predicted is not None and predicted in metrics and predicted not in truth:
-            metrics[predicted].false_positives += 1
-    return metrics
-
-
-def macro_f1(metrics: dict[str, ClassMetrics]) -> float:
-    """Mean F1 over the **measured** classes only: an unmeasured class is absent, not zero."""
-    measured = [metric.f1 for metric in metrics.values() if metric.measured]
-    return sum(measured) / len(measured) if measured else 0.0
+# The arithmetic that turns (truth, prediction) into a number used to live here. The panel's
+# trial (#71) shows the same numbers for an institution's own collection, and a second copy of
+# ``agreement`` or of the ``score > threshold`` rule would let the two drift (ADR 0018). It now
+# lives in ``scrinalia.domains.archive.evaluation.metrics``; this script imports it, and the
+# tests still import the names from here — the bench's public face is unchanged.
 
 
 # =============================================================================
@@ -963,25 +808,6 @@ def unknown_truth_labels(rows: Sequence[LabelledRow], catalogue: Sequence[str]) 
 # =============================================================================
 
 
-def read_input_text(db: Session, description_ids: Sequence[str], columns: Sequence[str]) -> dict[str, str]:
-    """
-    The text the worker reads, for these ids and columns.
-
-    Composed by ``composed_text_sql`` — the expression ``worker_typology.execute`` builds — with the
-    worker's own scope (``NER``) and separator (``". "``). The pinning test runs the worker with a
-    fake engine and compares what it handed to the model with what this function returns for the same
-    document: a bench that composed the text itself would measure a text the worker never sees.
-    """
-    if not description_ids:
-        return {}
-    rules = TextQualityRepository(db).get_active_rules("NER")
-    text_expression = composed_text_sql(columns, rules, separator=". ")
-    stmt = select(ArchiveDocument.description_id, text_expression).where(
-        ArchiveDocument.description_id.in_(list(description_ids))
-    )
-    return {description_id: " ".join((text or "").split()) for description_id, text in db.execute(stmt).all()}
-
-
 def score_stored(db: Session, rows: Sequence[LabelledRow]) -> list[Scored]:
     """
     Scores the typology the last run already wrote, without loading a model.
@@ -1005,26 +831,6 @@ def score_stored(db: Session, rows: Sequence[LabelledRow]) -> list[Scored]:
         )
         for row in rows
     ]
-
-
-def link_decision(result: dict, threshold: float, lookup: Mapping[str, str] | None = None) -> Prediction:
-    """
-    The worker's decision about one answer, in one place.
-
-    ``worker_typology.execute`` links a typology only when ``score > confidence_threshold`` —
-    strictly — and leaves ``typology_id`` NULL otherwise. Both the scorer and the collection sample
-    read the rule from here, because a second copy of the comparison is a second abstention rate, and
-    the one the report prints would stop being the one the worker produces (principle IV).
-
-    ``lookup`` translates the label the model echoed back into the catalogue name, which is what a
-    label format requires: the engine answers with the label it was handed, and the gabarito is
-    written in catalogue names. Without it every row of a formatted run scores as a miss. The worker
-    makes the same translation with the same shape of dictionary (``{label: id}``).
-    """
-    echoed = result["labels"][0]
-    label = lookup.get(echoed, echoed) if lookup is not None else echoed
-    score = float(result["scores"][0])
-    return Prediction(label=label if score > threshold else None, score=score)
 
 
 def score_live(

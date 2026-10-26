@@ -52,6 +52,23 @@ class RouteMessageCode(enum.StrEnum):
     # --- The description itself ---
     DOCUMENT_DELETED = "DOCUMENT_DELETED"
 
+    # --- The operations panel (the run ledger) ---
+    #: The ingestion origin received the record, staged it and queued the transfer run.
+    MANUAL_INGESTION_QUEUED = "MANUAL_INGESTION_QUEUED"
+    #: The record was staged, but a transfer was already in flight; it enters the next one.
+    MANUAL_INGESTION_STAGED = "MANUAL_INGESTION_STAGED"
+    #: At least one CSV row was written and staged, and the transfer was enqueued.
+    CSV_IMPORT_QUEUED = "CSV_IMPORT_QUEUED"
+    #: At least one CSV row was staged, but a transfer was already in flight.
+    CSV_IMPORT_STAGED = "CSV_IMPORT_STAGED"
+    #: No CSV row entered: every one was duplicated or invalid, and the report says which.
+    CSV_IMPORT_REFUSED = "CSV_IMPORT_REFUSED"
+    #: The run was still queued with no runner: it never started, so it closed at once.
+    WORKER_RUN_CANCELLED = "WORKER_RUN_CANCELLED"
+    #: The run is in flight: the request was recorded and the worker stops at the next batch
+    #: boundary. The row stays ``QUEUED``/``RUNNING`` and keeps its slot until then.
+    WORKER_RUN_CANCEL_REQUESTED = "WORKER_RUN_CANCEL_REQUESTED"
+
     # --- The subject axis (tags and drawers) ---
     TAG_MERGE_PROPOSAL_DECIDED = "TAG_MERGE_PROPOSAL_DECIDED"
     TAG_MERGE_UNDONE = "TAG_MERGE_UNDONE"

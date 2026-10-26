@@ -10,17 +10,17 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 from datetime import UTC, datetime
-from inspect import signature
-from typing import Any
 
 from sqlalchemy.orm import Session
 
 from scrinalia.core.author import Author
 from scrinalia.core.logger import logger
-from scrinalia.domains.archive.exceptions import WorkerNotFoundError
+from scrinalia.domains.archive.exceptions import InvalidWorkerSettingsError, WorkerNotFoundError
 from scrinalia.domains.archive.models.operations import WorkerSetting
 from scrinalia.domains.archive.repository.tag_repo import TagRepository
 from scrinalia.domains.archive.repository.worker_run_repo import WorkerRunRepository
+from scrinalia.domains.archive.repository.worker_runner_repo import WorkerRunnerRepository
+from scrinalia.domains.archive.repository.worker_schedule_repo import WorkerScheduleRepository
 from scrinalia.domains.archive.repository.worker_settings_repo import WorkerSettingsRepository
 from scrinalia.domains.archive.repository.worker_stamp_repo import StampBreakdown, WorkerStampRepository
 from scrinalia.domains.archive.schemas.system_schema import (
@@ -37,6 +37,7 @@ from scrinalia.domains.archive.schemas.system_schema import (
     WorkerStampBreakdownDTO,
     WorkerStatusDTO,
 )
+from scrinalia.domains.archive.services.worker_schedule_service import to_schedule_dto
 from scrinalia.domains.archive.workers.catalogue import (
     WORKER_CATALOGUE,
     WorkerSpec,
@@ -45,10 +46,10 @@ from scrinalia.domains.archive.workers.catalogue import (
     count_processed,
     describe_axis_engines,
     engine_option_names,
-    worker_module,
 )
 from scrinalia.domains.archive.workers.configuration import (
     ResolvedWorkerConfig,
+    counter_options,
     declared_options,
     resolve_configuration,
     validate_engine_choice,
@@ -63,12 +64,16 @@ class WorkerOperationsService:
         self.db = db
         self.settings = WorkerSettingsRepository(db)
         self.runs = WorkerRunRepository(db)
+        self.runner_registry = WorkerRunnerRepository(db)
 
     # --- reads -----------------------------------------------------------------------------------
 
     def list_workers(self) -> SystemWorkersResponse:
         last_runs = self.runs.last_by_worker()
         active_runs = self.runs.active_by_worker()
+        runners = self.runner_registry.list_for_panel()
+        online = [runner for runner in runners if runner.online]
+        schedules = {schedule.worker_name: schedule for schedule in WorkerScheduleRepository(self.db).list_all()}
 
         workers = []
         for order, spec, setting, resolved in self._resolved_workers():
@@ -94,9 +99,12 @@ class WorkerOperationsService:
                     stamp_breakdown=self._breakdown_dto(breakdown),
                     last_run=last_runs.get(spec.name),
                     active_run=active_runs.get(spec.name),
+                    schedule=(to_schedule_dto(schedules[spec.name]) if spec.name in schedules else None),
+                    # The API only enqueues; this is the panel's answer to "will anyone pick it up?".
+                    runner_available=any(spec.name in runner.capabilities for runner in online),
                 )
             )
-        return SystemWorkersResponse(workers=workers, generated_at=datetime.now(UTC))
+        return SystemWorkersResponse(workers=workers, runners=runners, generated_at=datetime.now(UTC))
 
     def list_settings(self) -> SystemWorkerSettingsResponse:
         """
@@ -115,6 +123,9 @@ class WorkerOperationsService:
                 settings=self._settings_dto(spec, setting, resolved),
             )
             for order, spec, setting, resolved in self._resolved_workers()
+            # The ingestion stage has no engine and its options live on the origin row; a settings
+            # card here would be a second place to configure the same crawl (ADR 0016).
+            if not spec.origin_axis
         ]
         return SystemWorkerSettingsResponse(workers=workers, generated_at=datetime.now(UTC))
 
@@ -212,6 +223,10 @@ class WorkerOperationsService:
         spec = WORKER_CATALOGUE.get(worker_name)
         if spec is None:
             raise WorkerNotFoundError(f"Worker '{worker_name}' não existe. Opções: {sorted(WORKER_CATALOGUE)}.")
+        if spec.origin_axis:
+            raise InvalidWorkerSettingsError(
+                "A ingestão não tem engine nem padrão de worker: a configuração dela é a da origem."
+            )
         return spec
 
     def _settings_dto(
@@ -227,6 +242,7 @@ class WorkerOperationsService:
             updated_by=setting.updated_by if setting is not None else None,
             updated_at=setting.updated_at if setting is not None else None,
             engine_source=spec.engine_source,
+            trial_supported=spec.trial,
             config=resolved.config,
             available_engines=self._available_engines(spec),
             declared_options=self._declared_options(spec),
@@ -258,38 +274,12 @@ class WorkerOperationsService:
         present = [note for note in notes if note]
         return " ".join(present) if present else None
 
-    def _counter_options(self, spec: WorkerSpec, resolved: ResolvedWorkerConfig) -> dict[str, Any]:
-        """
-        Only what the counter declares: the options, plus the engine and the preset it reads.
-
-        The counter is a reader, not the worker: handing it ``columns_to_extract`` is useful,
-        handing it a parameter it does not read (or a runner dataclass) is not. The filter is by the
-        counter's own signature, so a new counter cannot be broken by an unrelated option.
-
-        The engine and the preset travel **resolved** — the same pair the run would use — because the
-        queue is keyed on the producer identity: a counter that fell back to its signature defaults
-        would show the number for a model the next run is not going to use, which is the lying panel
-        the shared predicate exists to prevent. ``quality-validator`` declares neither: its engine
-        lives in the active ``LLM_CHECK`` rule and its counter reads it there.
-        """
-        counter_name = spec.counter or spec.processed_counter
-        if counter_name is None:
-            return {}
-        parameters = signature(getattr(worker_module(spec.module), counter_name)).parameters
-        resolved_engine = {
-            key: value
-            for key, value in {"engine_name": resolved.engine_name, "preset": resolved.preset}.items()
-            if value
-        }
-        candidates = {**resolved.forwarded_options, **resolved_engine}
-        return {key: value for key, value in candidates.items() if key in parameters}
-
     def _pending(self, spec: WorkerSpec, resolved: ResolvedWorkerConfig) -> tuple[int | None, str | None]:
         """The pending number and, when there is none, the reason a person can read."""
         if spec.counter is None:
             return None, spec.unmeasurable_reason
         try:
-            return count_pending(spec, self.db, **self._counter_options(spec, resolved)), None
+            return count_pending(spec, self.db, **counter_options(spec, resolved)), None
         except Exception as exc:
             logger.error(f"⚠️ Não foi possível contar a fila de '{spec.name}': {exc}")
             return None, "A contagem falhou; veja o log do servidor."
@@ -328,7 +318,7 @@ class WorkerOperationsService:
         if spec.processed_counter is None:
             return None
         try:
-            return count_processed(spec, self.db, **self._counter_options(spec, resolved))
+            return count_processed(spec, self.db, **counter_options(spec, resolved))
         except Exception as exc:
             logger.error(f"⚠️ Não foi possível contar o processado de '{spec.name}': {exc}")
             return None
@@ -339,7 +329,7 @@ class WorkerOperationsService:
         if spec.failed_counter is None:
             return None
         try:
-            return count_failed(spec, self.db, **self._counter_options(spec, resolved))
+            return count_failed(spec, self.db, **counter_options(spec, resolved))
         except Exception as exc:
             logger.error(f"⚠️ Não foi possível contar as falhas de '{spec.name}': {exc}")
             return None

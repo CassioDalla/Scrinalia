@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/Input";
 import { Notice } from "@/components/ui/Notice";
 import { PageBody } from "@/components/layout/PageBody";
 import { formatCount, formatDateTime } from "@/lib/format";
+import { ISAD_FIELDS } from "@/lib/isad";
 import { asNumber, asString } from "@/lib/search";
 
 const routeApi = getRouteApi("/acervo/excluidas");
@@ -26,19 +27,15 @@ const routeApi = getRouteApi("/acervo/excluidas");
 const SNAPSHOT_FIELD_ORDER = [
   "original_title",
   "final_title",
-  "document_date",
-  "reference_code",
+  // The record in the dossier's own order, read from the one catalogue that names it — a second
+  // hand-kept list here would fall behind the next field the archive gains.
+  ...ISAD_FIELDS.map((field) => field.name),
+  "date_expression",
+  "original_url",
+  "parent_reference_code",
   "level_id",
   "parent_id",
   "path",
-  "producers",
-  "scope_content",
-  "provenance",
-  "admin_bio_history",
-  "admin_archival_history",
-  "language_name",
-  "access_conditions",
-  "archivist_notes",
   "summary",
   "review_status",
   "is_published",

@@ -23,6 +23,9 @@ class RawRecord(BaseModel):
     """
 
     description_id: str
+    #: The origin that wrote the payload. The transform resolves the origin's ``SourceSchema`` from
+    #: it, so a run that reads several origins cannot apply one site's labels to another's record.
+    origin_code: str | None = None
     content_hash: str
     payload: dict[str, Any]
     raw_title: str | None = None
@@ -52,11 +55,18 @@ class StagingDocumentDTO(BaseModel):
     """
 
     description_id: str
+    #: Provenance of the record, carried from ``raw_data``. It is not part of the archival key:
+    #: ``description_id`` is global, and an adapter that can collide namespaces its own ids.
+    origin_code: str | None = None
     raw_content_hash: str
 
     # --- First-Class Columns ---
     title: str
     document_date: date | None = None
+    #: The date as the source spelled it, beside the parsed value. The parser approximates an
+    #: expression ("Década de 1980" becomes January 1st of the decade) and the spelling is the only
+    #: evidence of that approximation, so the archive keeps it. ``None`` for a placeholder.
+    date_expression: str | None = None
     original_url: str | None = None
     attachment_link: str | None = None
     thumb_down_link: str | None = None
@@ -194,6 +204,7 @@ class StagingDocumentDTO(BaseModel):
 
         staging_data: dict[str, Any] = {
             "description_id": data.get("description_id"),
+            "origin_code": data.get("origin_code"),
             "raw_content_hash": data.get("content_hash"),
             "title": _title_or_placeholder(data.get("raw_title") or payload.get(schema.title_key)),
             "original_url": payload.get(schema.url_key),
@@ -206,6 +217,7 @@ class StagingDocumentDTO(BaseModel):
             parsed_date = parse_document_date(raw_date)
             if parsed_date:
                 staging_data["document_date"] = parsed_date
+                staging_data["date_expression"] = _date_expression(raw_date)
 
         # The keys the adapter itself wrote are consumed, not "unknown": leaving the title or the
         # page URL in ``raw_metadata`` would duplicate every record's own identity.
@@ -244,4 +256,18 @@ def _title_or_placeholder(raw: Any) -> str:
     cleaned = re.sub(r"\s+", " ", str(raw)).strip()
     if not cleaned or cleaned.lower() in language.false_null_values:
         return language.untitled_title
+    return cleaned
+
+
+def _date_expression(raw: Any) -> str | None:
+    """
+    The date as the source spelled it, or ``None`` when the spelling is only a placeholder.
+
+    ``"00/00/0000"`` is the source's way of saying "no date"; keeping it as an expression would
+    fill the archive with a value that looks like one. Everything else is the record's own words
+    and is kept, because the parsed column cannot say that the year was approximate.
+    """
+    cleaned = re.sub(r"\s+", " ", str(raw)).strip()
+    if not cleaned or cleaned.lower() in get_language().empty_date_values:
+        return None
     return cleaned

@@ -56,18 +56,30 @@ uv run python -c "from scrinalia.core.base import Base; import scrinalia.domains
 
 | Tabela | Para que serve | Colunas principais |
 | --- | --- | --- |
-| `scraping_queue` | Uma linha por identificador descoberto na origem, com seu estado de extração e contagem de tentativas. | `description_id` (chave de negócio, única), `scrape_status` (`ScrapeStatus`), `discovered_at`, `last_scraped_at`, `retry_count`, `last_error_message` |
-| `raw_data` | O payload exato devolvido pelo adaptador, sem tipagem nem limpeza. | `description_id` (único), `content_hash`, `raw_title`, `payload` (JSONB) |
+| `ingestion_origins` | O ciclo de vida, a configuração e a agenda de uma origem: o que o operador edita sem deploy. | `code` (chave primária), `enabled`, `config` (JSONB: URLs e espera; a origem `csv` não tem), `options` (JSONB: a política de execução), `cron`, `timezone`, `next_run_at`, `last_enqueued_at`, `last_skipped_at`, `updated_by`, `updated_by_user_id` |
+| `scraping_queue` | Uma linha por identificador descoberto na origem, com seu estado de extração e contagem de tentativas. | `description_id` (chave de negócio, única), `origin_code`, `scrape_status` (`ScrapeStatus`), `discovered_at`, `last_scraped_at`, `retry_count`, `last_error_message` |
+| `raw_data` | O payload exato devolvido pelo adaptador, sem tipagem nem limpeza. | `description_id` (único), `origin_code`, `content_hash`, `raw_title`, `payload` (JSONB), `created_by`, `created_by_user_id` |
 
 `scrape_status` distingue uma falha transitória (`NETWORK_ERROR`, com nova tentativa) de uma
 permanente (`NOT_FOUND`, `FATAL_ERROR`). `raw_data.payload` é a evidência do que a origem realmente
-enviou; nada a jusante o lê diretamente.
+enviou; nada a jusante o lê diretamente. `raw_data.created_by` é preenchido pelas origens de
+formulário (`manual`, `csv`): uma pessoa digitou ou enviou o registro, enquanto um scraper não tem
+autor — o autor é a origem.
+
+**A origem é proveniência, não identidade.** O `origin_code` está em cada camada e no ledger de
+execuções, mas o `description_id` continua sendo a chave de negócio global; um adaptador que pudesse
+colidir prefixa os próprios ids (`manual-<uuid>`). A **definição** da origem — o adaptador e o
+`SourceSchema` que diz qual rótulo preenche qual coluna do staging — fica ao lado do adaptador, em
+código; a linha acima é o ciclo de vida, e uma linha cujo código saiu do registro continua legível mas
+não roda (ADR 0016). O transform de staging resolve o schema **por registro**, então uma execução pode
+ler várias origens; a origem é deliberadamente excluída de `StagingRecord.parsed_content_hash()`, ou
+toda linha pareceria mudada uma vez por uma coluna que nenhum worker de IA escreve.
 
 ### Staging — o registro parseado
 
 | Tabela | Para que serve | Colunas principais |
 | --- | --- | --- |
-| `staging_documents` | A descrição higienizada e tipada antes de qualquer IA tocar nela: a fonte única de verdade higienizada. | `description_id` (chave primária), `raw_content_hash`, `title`, `document_date`, `reference_code`, `parent_reference_code`, `hierarchy_path`, `level`, as colunas de texto ISAD(G), `raw_metadata` (JSONB), `created_at`, `updated_at` |
+| `staging_documents` | A descrição higienizada e tipada antes de qualquer IA tocar nela: a fonte única de verdade higienizada. | `description_id` (chave primária), `origin_code`, `raw_content_hash`, `title`, `document_date`, `date_expression`, `original_url`, `reference_code`, `parent_reference_code`, `hierarchy_path`, `level`, as colunas de texto ISAD(G), `raw_metadata` (JSONB), `created_at`, `updated_at` |
 
 `parent_reference_code` é opcional de propósito: uma origem que entrega um filho antes do pai deixa a
 descrição órfã e *marcada* em vez de derrubar o lote. `raw_metadata` guarda as chaves que não foram
@@ -79,7 +91,29 @@ mapeadas para uma coluna.
 
 | Tabela | Para que serve | Colunas principais |
 | --- | --- | --- |
-| `archive_documents` | A descrição final, limpa e enriquecida, servida aos usuários e enriquecida pelos workers de IA. | `description_id` (chave primária), `original_title`, `final_title`, `document_date`, `summary`, `staging_content_hash`, `reference_code`, `level_id`, `typology_id`, `parent_id`, `path`, `review_status`, `is_anomaly`, `anomaly_reasons`, `is_published`, `execution_log` (JSONB), `embedding` (`vector(384)`), `search_vector` (gerada), timestamps |
+| `archive_documents` | A descrição final, limpa e enriquecida, servida aos usuários e enriquecida pelos workers de IA. | `description_id` (chave primária), `origin_code`, `original_title`, `final_title`, `document_date`, `date_expression`, `original_url`, `summary`, `staging_content_hash`, `reference_code`, `level_id`, `typology_id`, `parent_id`, `parent_reference_code`, `path`, as colunas de texto ISAD(G), `review_status`, `is_anomaly`, `anomaly_reasons`, `is_published`, `execution_log` (JSONB), `embedding` (`vector(384)`), `search_vector` (gerada), timestamps |
+
+As **colunas de texto ISAD(G)** são o registro inteiro, não um subconjunto: `dimension_support`,
+`producers`, `admin_bio_history`, `admin_archival_history`, `provenance`, `scope_content`,
+`appraisal_destruction`, `accruals`, `arrangement`, `access_conditions`, `reproduction_conditions`,
+`language_name`, `physical_characteristics`, `finding_aids`, `originals_location`, `copies_location`,
+`related_units`, `publication_notes`, `conservation_notes`, `general_notes`, `archivist_notes`,
+`rules_conventions` e `description_dates`. O transform de staging sempre as interpretou; a
+transferência copiava um subconjunto até o acervo ganhar o resto, e é por isso que o dossiê agora
+mostra e edita a ficha por área.
+
+`parent_reference_code` é o pai que a origem **declarou**, guardado mesmo quando o vínculo ainda não
+pode ser resolvido: a transferência marca o filho como pendente, e o código vivia só dentro do valor
+do carimbo `hierarchy_parent_v1`. `date_expression` e `original_url` são evidência, não descrição
+editável: como a fonte escreveu a data, e a página de onde o registro foi lido.
+
+`language_name` guarda a grafia do **catálogo**. As origens não concordam sobre como escrever um
+idioma — a coleção de referência declarava `Português Brasil` em 78 descrições e `Português/Brasil` em
+22 —, então a transferência resolve o texto declarado contra `domain/language_catalog.py` (sem acento,
+caixa ou pontuação, com as variantes declaradas como apelidos) e grava o nome canônico. Um idioma que
+o catálogo não conhece é mantido exatamente como a fonte escreveu: o catálogo nunca troca a palavra de
+uma fonte por um palpite, e é para isso que existe a marcação `(fora do catálogo)` do dossiê.
+`staging_documents.language_name` guarda o texto declarado, como o texto do nível.
 
 Três propriedades desta tabela sustentam o modelo:
 
@@ -193,17 +227,24 @@ são um estado da tag.
 | --- | --- | --- |
 | `archive_worker_settings` | A configuração padrão persistida de um worker. | `worker_name` (chave primária), `engine_name`, `preset`, `db_batch_size`, `options` (JSONB), `updated_by`, `updated_at` |
 | `archive_worker_settings_revisions` | Trilha de auditoria das escritas de configuração, uma linha por escrita. | `id`, `worker_name`, `before` (JSONB), `after` (JSONB), `changed_by`, `changed_by_user_id`, `changed_at` |
-| `archive_worker_runs` | Uma linha por execução de worker, tanto pela CLI quanto pelo painel. | `id`, `worker_name`, `status` (`WorkerRunStatus`), `trigger` (`WorkerRunTrigger`), `requested_by`, `requested_by_user_id`, `engine_name`, `preset`, `config` (JSONB), `options` (JSONB), `queued_at`, `started_at`, `finished_at`, `duration_ms`, `error`, `error_fingerprint` (gerada) |
+| `archive_worker_runs` | Uma linha por execução de worker, tanto pela CLI quanto pelo painel; desde a ADR 0014 uma linha `QUEUED` é também o item de fila que um runner reivindica. Uma execução de ingestão nomeia a origem que processou em `origin_code`; a de um worker de archive a deixa nula. Um **ensaio** (`trial = true`, ADR 0018) é uma comparação de configurações que não escreve conteúdo arquivístico e carrega as medições em `trial_result`; ele ocupa a vaga do worker como qualquer execução, mas a "última execução" do painel o ignora. | `id`, `worker_name`, `origin_code`, `status` (`WorkerRunStatus`), `trigger` (`WorkerRunTrigger`), `trial`, `requested_by`, `requested_by_user_id`, `engine_name`, `preset`, `request` (JSONB, a requisição validada), `config` (JSONB), `options` (JSONB), `trial_result` (JSONB), `attempt`, `retry_of`, `not_before`, `queued_at`, `runner_id`, `started_at`, `heartbeat_at`, `lease_expires_at`, `cancel_requested_at`, `cancel_requested_by`, `cancel_requested_by_user_id`, `finished_at`, `duration_ms`, `error`, `error_fingerprint` (gerada) |
+| `archive_worker_schedules` | A agenda de um worker: um cron de cinco campos num fuso explícito, o request pinado que ela roda e a próxima execução. | `worker_name` (chave primária), `enabled`, `cron`, `timezone`, `request` (JSONB, a requisição validada), `next_run_at`, `last_enqueued_at`, `last_skipped_at`, `updated_by`, `updated_by_user_id`, `created_at`, `updated_at` |
+| `archive_worker_runners` | O registro dos runners vivos: quem está conectado, quais workers aceita e quando deu o último sinal. | `runner_id` (chave primária), `name`, `hostname`, `version`, `capabilities` (array de texto), `concurrency`, `heartbeat_seconds`, `started_at`, `last_heartbeat_at`, `stopped_at` |
 | `archive_api_errors` | As falhas HTTP inesperadas da própria API. | `id`, `occurred_at`, `request_id`, `method`, `path`, `status_code`, `message`, `error_fingerprint` (gerada) |
 
 `archive_worker_settings` é uma linha **parcial** de propósito: um campo deixado `NULL` continua
 seguindo o código, então a precedência é `argumento explícito > esta linha > o default da assinatura`.
 `archive_worker_runs` guarda a configuração **resolvida** — `config` da engine, `options` do próprio
 worker, resolvidas quando a execução começa — então a linha mantém o sentido quando um
-preset muda no código. Deliberadamente não há chave estrangeira de nenhuma das duas para uma tabela
-de workers: workers são código, não linhas. `archive_api_errors` registra apenas falhas
-*inesperadas* — um 404, um 409 e um 422 são respostas que a API deve a um cliente, e registrá-las
-enterra os defeitos de verdade.
+preset muda no código. Desde a ADR 0014 o ledger de execuções é também a fila: uma linha `QUEUED`
+carrega a `request` validada, para um runner reproduzir a execução sem o processo que a aceitou, e o
+claim grava `runner_id`, `started_at`, `heartbeat_at` e `lease_expires_at` com o relógio do
+PostgreSQL. O runner renova o lease; um claim cujo lease vence é marcado `INTERRUPTED` pelo próximo
+runner, nunca pelo boot da API. `archive_worker_runners` é o registro que o painel lê para responder
+se um runner está vivo e se ele pode rodar determinado worker. Deliberadamente não há chave
+estrangeira de nenhuma das duas para uma tabela de workers: workers são código, não linhas.
+`archive_api_errors` registra apenas falhas *inesperadas* — um 404, um 409 e um 422 são respostas que
+a API deve a um cliente, e registrá-las enterra os defeitos de verdade.
 
 ### Identity — a instalação, não o acervo
 

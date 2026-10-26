@@ -39,6 +39,7 @@ from scrinalia.domains.archive.worker_stamp import (
     identity_stamp_conditions,
     producer_fingerprint,
 )
+from scrinalia.domains.archive.workers.cancellation import RunControl, checkpoint
 from scrinalia.domains.archive.workers.catalogue import DEFAULT_LLM_CHECK_ENGINE
 from scrinalia.domains.archive.workers.run_budget import RunBudget
 
@@ -297,6 +298,7 @@ def execute(
     limit: int | None = None,
     repeat_threshold: int = DEFAULT_REPEAT_THRESHOLD,
     llm_confidence: float = DEFAULT_LLM_CONFIDENCE,
+    run_control: RunControl | None = None,
     **engine_kwargs: Any,
 ) -> None:
     """
@@ -397,6 +399,7 @@ def execute(
     uow = UnitOfWork(db)
 
     while True:
+        checkpoint(run_control)
         try:
             stmt = (
                 select(

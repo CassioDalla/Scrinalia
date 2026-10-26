@@ -1565,6 +1565,283 @@
         "title": "CrossDomainConflictPage",
         "type": "object"
       },
+      "CsvFieldDTO": {
+        "properties": {
+          "attribute": {
+            "type": "string"
+          },
+          "help": {
+            "type": "string"
+          },
+          "kind": {
+            "default": "text",
+            "enum": [
+              "text",
+              "long_text",
+              "date",
+              "tags",
+              "url"
+            ],
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "max_length": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "required": {
+            "default": false,
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "attribute",
+          "help",
+          "label"
+        ],
+        "title": "CsvFieldDTO",
+        "type": "object"
+      },
+      "CsvImportRequest": {
+        "properties": {
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/CsvImportRow"
+            },
+            "minItems": 1,
+            "type": "array"
+          }
+        },
+        "required": [
+          "rows"
+        ],
+        "title": "CsvImportRequest",
+        "type": "object"
+      },
+      "CsvImportResponse": {
+        "properties": {
+          "code": {
+            "$ref": "#/components/schemas/RouteMessageCode"
+          },
+          "data": {
+            "$ref": "#/components/schemas/CsvImportResultDTO"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "data",
+          "message"
+        ],
+        "title": "CsvImportResponse",
+        "type": "object"
+      },
+      "CsvImportResultDTO": {
+        "properties": {
+          "accepted": {
+            "type": "integer"
+          },
+          "duplicated": {
+            "type": "integer"
+          },
+          "invalid": {
+            "type": "integer"
+          },
+          "origin_code": {
+            "type": "string"
+          },
+          "received": {
+            "type": "integer"
+          },
+          "review_status": {
+            "default": "PENDING_AI",
+            "description": "O estado inicial no archive: a importação não marca HUMAN_APPROVED.",
+            "type": "string"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/CsvRowResultDTO"
+            },
+            "type": "array"
+          },
+          "transfer_queued": {
+            "default": false,
+            "type": "boolean"
+          },
+          "transfer_run_id": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "accepted",
+          "duplicated",
+          "invalid",
+          "origin_code",
+          "received"
+        ],
+        "title": "CsvImportResultDTO",
+        "type": "object"
+      },
+      "CsvImportRow": {
+        "properties": {
+          "description_id": {
+            "description": "Identificador único do registro.",
+            "type": "string"
+          },
+          "fields": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "As células da linha, com o rótulo do mapa como chave.",
+            "type": "object"
+          },
+          "line": {
+            "default": 0,
+            "description": "A linha do arquivo, para a tela.",
+            "minimum": 0.0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "description_id"
+        ],
+        "title": "CsvImportRow",
+        "type": "object"
+      },
+      "CsvImportSpecResponse": {
+        "properties": {
+          "fields": {
+            "items": {
+              "$ref": "#/components/schemas/CsvFieldDTO"
+            },
+            "type": "array"
+          },
+          "id": {
+            "$ref": "#/components/schemas/CsvFieldDTO"
+          },
+          "max_bytes": {
+            "type": "integer"
+          },
+          "max_field_chars": {
+            "type": "integer"
+          },
+          "max_row_bytes": {
+            "type": "integer"
+          },
+          "max_rows": {
+            "type": "integer"
+          },
+          "origin_code": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "max_bytes",
+          "max_field_chars",
+          "max_row_bytes",
+          "max_rows",
+          "origin_code"
+        ],
+        "title": "CsvImportSpecResponse",
+        "type": "object"
+      },
+      "CsvRowIssueCode": {
+        "description": "\n    Why one row did not enter, as a stable identifier rather than a sentence.\n\n    The codes are additive and shared by the rows that produce the same outcome; the sentence\n    beside it is Portuguese and can be translated later without renaming the code.\n    ",
+        "enum": [
+          "MISSING_REQUIRED",
+          "UNKNOWN_FIELD",
+          "TOO_LONG",
+          "ROW_TOO_LARGE",
+          "INVALID_DATE",
+          "INVALID_VALUE",
+          "INVALID_IDENTIFIER",
+          "DUPLICATE_IN_BATCH",
+          "ALREADY_EXISTS",
+          "STAGING_FAILED"
+        ],
+        "title": "CsvRowIssueCode",
+        "type": "string"
+      },
+      "CsvRowIssueDTO": {
+        "properties": {
+          "code": {
+            "$ref": "#/components/schemas/CsvRowIssueCode"
+          },
+          "field": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "message"
+        ],
+        "title": "CsvRowIssueDTO",
+        "type": "object"
+      },
+      "CsvRowResultDTO": {
+        "properties": {
+          "description_id": {
+            "type": "string"
+          },
+          "issues": {
+            "items": {
+              "$ref": "#/components/schemas/CsvRowIssueDTO"
+            },
+            "type": "array"
+          },
+          "line": {
+            "type": "integer"
+          },
+          "status": {
+            "$ref": "#/components/schemas/CsvRowStatus"
+          }
+        },
+        "required": [
+          "description_id",
+          "line",
+          "status"
+        ],
+        "title": "CsvRowResultDTO",
+        "type": "object"
+      },
+      "CsvRowStatus": {
+        "description": "The outcome of one row of the import, as the screen reports it.",
+        "enum": [
+          "ACCEPTED",
+          "DUPLICATED",
+          "INVALID"
+        ],
+        "title": "CsvRowStatus",
+        "type": "string"
+      },
       "CurationInbox": {
         "properties": {
           "generated_at": {
@@ -2180,6 +2457,16 @@
               }
             ]
           },
+          "accruals": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "admin_archival_history": {
             "oneOf": [
               {
@@ -2220,7 +2507,27 @@
               }
             ]
           },
+          "appraisal_destruction": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "archivist_notes": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "arrangement": {
             "oneOf": [
               {
                 "type": "string"
@@ -2234,8 +2541,58 @@
             "default": 0,
             "type": "integer"
           },
+          "conservation_notes": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "copies_location": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "date_expression": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "description_dates": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "description_id": {
             "type": "string"
+          },
+          "dimension_support": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "document_date": {
             "oneOf": [
@@ -2255,6 +2612,26 @@
             "type": "array"
           },
           "final_title": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "finding_aids": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "general_notes": {
             "oneOf": [
               {
                 "type": "string"
@@ -2311,6 +2688,26 @@
           "original_title": {
             "type": "string"
           },
+          "original_url": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "originals_location": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "parent_id": {
             "oneOf": [
               {
@@ -2321,7 +2718,27 @@
               }
             ]
           },
+          "parent_reference_code": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "path": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "physical_characteristics": {
             "oneOf": [
               {
                 "type": "string"
@@ -2342,6 +2759,16 @@
             ]
           },
           "provenance": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "publication_notes": {
             "oneOf": [
               {
                 "type": "string"
@@ -2372,8 +2799,38 @@
               }
             ]
           },
+          "related_units": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reproduction_conditions": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "review_status": {
             "$ref": "#/components/schemas/ArchiveReviewStatus"
+          },
+          "rules_conventions": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "scope_content": {
             "oneOf": [
@@ -2412,6 +2869,18 @@
             },
             "type": "array"
           },
+          "thumbnail_url": {
+            "description": "Where the browser reads the miniature, or ``None`` when the source had no image to store.\n\nDerived on the server from ``storage_thumbnail_uri`` and **never** assembled by the client:\nthe SPA binds this string to an ``<img>``, so it does not know the bucket and cannot drift\nfrom the route. The bytes themselves come from the authenticated route, which answers 404\nwhen the object is gone; the screen shows \"imagem indisponível\" instead of a broken image.",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "readOnly": true
+          },
           "typology": {
             "oneOf": [
               {
@@ -2436,7 +2905,8 @@
         "required": [
           "description_id",
           "original_title",
-          "review_status"
+          "review_status",
+          "thumbnail_url"
         ],
         "title": "DocumentSummary",
         "type": "object"
@@ -2500,6 +2970,17 @@
               }
             ]
           },
+          "accruals": {
+            "description": "ISAD(G) 3.3.3 — incorporações.",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "admin_archival_history": {
             "description": "História arquivística.",
             "oneOf": [
@@ -2522,8 +3003,74 @@
               }
             ]
           },
+          "appraisal_destruction": {
+            "description": "ISAD(G) 3.3.2 — avaliação, eliminação e temporalidade.",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "archivist_notes": {
             "description": "Notas do arquivista.",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "arrangement": {
+            "description": "ISAD(G) 3.3.4 — sistema de arranjo.",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "conservation_notes": {
+            "description": "Nota da instituição sobre o estado físico.",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "copies_location": {
+            "description": "ISAD(G) 3.5.2 — existência e localização das cópias.",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "description_dates": {
+            "description": "ISAD(G) 3.7.3 — datas da descrição.",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "dimension_support": {
+            "description": "ISAD(G) 3.1.5 — dimensão e suporte.",
             "oneOf": [
               {
                 "type": "string"
@@ -2547,6 +3094,28 @@
           },
           "final_title": {
             "description": "Título final revisado pelo arquivista.",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "finding_aids": {
+            "description": "ISAD(G) 3.4.5 — instrumentos de pesquisa.",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "general_notes": {
+            "description": "ISAD(G) 3.6.1 — notas gerais.",
             "oneOf": [
               {
                 "type": "string"
@@ -2600,6 +3169,28 @@
               }
             ]
           },
+          "originals_location": {
+            "description": "ISAD(G) 3.5.1 — existência e localização dos originais.",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "physical_characteristics": {
+            "description": "ISAD(G) 3.4.4 — características físicas e requisitos técnicos.",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "producers": {
             "description": "Produtor(es).",
             "oneOf": [
@@ -2622,6 +3213,17 @@
               }
             ]
           },
+          "publication_notes": {
+            "description": "ISAD(G) 3.5.4 — notas de publicação.",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "reference_code": {
             "description": "Código de referência.",
             "oneOf": [
@@ -2633,8 +3235,41 @@
               }
             ]
           },
+          "related_units": {
+            "description": "ISAD(G) 3.5.3 — unidades de descrição relacionadas.",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reproduction_conditions": {
+            "description": "ISAD(G) 3.4.2 — condições de reprodução.",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "review_note": {
             "description": "Motivo da edição; fica no histórico.",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "rules_conventions": {
+            "description": "ISAD(G) 3.7.2 — regras ou convenções.",
             "oneOf": [
               {
                 "type": "string"
@@ -3997,7 +4632,6 @@
       "HierarchyNodeDetail": {
         "properties": {
           "ancestors": {
-            "description": "Root first.",
             "items": {
               "$ref": "#/components/schemas/HierarchyNodeSummary"
             },
@@ -4652,6 +5286,527 @@
         "title": "HierarchyVocabulary",
         "type": "object"
       },
+      "IngestionHealthDTO": {
+        "properties": {
+          "detail": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "enabled": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "ok": {
+            "type": "boolean"
+          },
+          "origins": {
+            "items": {
+              "$ref": "#/components/schemas/IngestionOriginHealthDTO"
+            },
+            "type": "array"
+          },
+          "total": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "ok"
+        ],
+        "title": "IngestionHealthDTO",
+        "type": "object"
+      },
+      "IngestionOptionDTO": {
+        "properties": {
+          "default": {},
+          "help": {
+            "type": "string"
+          },
+          "kind": {
+            "default": "integer",
+            "enum": [
+              "boolean",
+              "integer",
+              "number",
+              "text"
+            ],
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "help",
+          "label",
+          "name"
+        ],
+        "title": "IngestionOptionDTO",
+        "type": "object"
+      },
+      "IngestionOriginDTO": {
+        "properties": {
+          "active_run_id": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "active_run_status": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/WorkerRunStatus"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "code": {
+            "type": "string"
+          },
+          "config": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "config_fields": {
+            "items": {
+              "$ref": "#/components/schemas/OriginConfigFieldDTO"
+            },
+            "type": "array"
+          },
+          "description": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "failed": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "kind": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "last_run_at": {
+            "oneOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "last_run_error": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "last_run_id": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "last_run_status": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/WorkerRunStatus"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "option_fields": {
+            "items": {
+              "$ref": "#/components/schemas/IngestionOptionDTO"
+            },
+            "type": "array"
+          },
+          "options": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "pending": {
+            "description": "O que a próxima execução desta origem leria.",
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "pending_reason": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "processed": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "runner_available": {
+            "default": false,
+            "description": "Se algum runner online aceita a etapa de ingestão; falso não impede enfileirar.",
+            "type": "boolean"
+          },
+          "schedule": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/IngestionScheduleDTO"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "updated_at": {
+            "oneOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "updated_by": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "code",
+          "description",
+          "enabled",
+          "kind",
+          "label"
+        ],
+        "title": "IngestionOriginDTO",
+        "type": "object"
+      },
+      "IngestionOriginHealthDTO": {
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "label": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "enabled",
+          "label"
+        ],
+        "title": "IngestionOriginHealthDTO",
+        "type": "object"
+      },
+      "IngestionOriginListResponse": {
+        "properties": {
+          "generated_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "origins": {
+            "items": {
+              "$ref": "#/components/schemas/IngestionOriginDTO"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "generated_at"
+        ],
+        "title": "IngestionOriginListResponse",
+        "type": "object"
+      },
+      "IngestionOriginUpdateRequest": {
+        "properties": {
+          "config": {
+            "additionalProperties": {},
+            "description": "A configuração do adapter, validada pelo modelo da origem (URLs, espera).",
+            "type": "object"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "options": {
+            "additionalProperties": {},
+            "description": "O padrão de execução agendada (páginas, janelas, retentativas).",
+            "type": "object"
+          }
+        },
+        "required": [
+          "enabled"
+        ],
+        "title": "IngestionOriginUpdateRequest",
+        "type": "object"
+      },
+      "IngestionRunRequest": {
+        "properties": {
+          "audit_ttl_days": {
+            "description": "Re-lê os DONE com mais de N dias.",
+            "minimum": 1,
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "discovery_window_days": {
+            "description": "Só registros descobertos nos últimos N dias.",
+            "minimum": 1,
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "force_retry_fatal": {
+            "default": false,
+            "description": "Inclui os registros marcados FATAL_ERROR.",
+            "type": "boolean"
+          },
+          "ignore_sliding_window": {
+            "default": false,
+            "description": "Ignora as janelas de descoberta e TTL.",
+            "type": "boolean"
+          },
+          "limit": {
+            "description": "Máximo de registros desta execução.",
+            "minimum": 1,
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "max_retries": {
+            "description": "Falhas transitórias antes de FATAL.",
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "pages": {
+            "description": "Páginas da listagem; 0 não lista.",
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "scraped_ttl_days": {
+            "description": "Só registros lidos há mais de N dias.",
+            "minimum": 1,
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [],
+        "title": "IngestionRunRequest",
+        "type": "object"
+      },
+      "IngestionScheduleDTO": {
+        "properties": {
+          "cron": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "last_enqueued_at": {
+            "oneOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "last_skipped_at": {
+            "oneOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "next_run_at": {
+            "oneOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "timezone": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "updated_at": {
+            "oneOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "updated_by": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [],
+        "title": "IngestionScheduleDTO",
+        "type": "object"
+      },
+      "IngestionScheduleRequest": {
+        "properties": {
+          "cron": {
+            "description": "Cinco campos: minuto, hora, dia, mês, semana.",
+            "maxLength": 120,
+            "minLength": 1,
+            "type": "string"
+          },
+          "timezone": {
+            "description": "Zona IANA; o padrão é DEFAULT_TIMEZONE.",
+            "maxLength": 64,
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "cron"
+        ],
+        "title": "IngestionScheduleRequest",
+        "type": "object"
+      },
       "JudgedConflict": {
         "properties": {
           "applicable": {
@@ -4791,6 +5946,22 @@
           "total"
         ],
         "title": "JudgedConflictPage",
+        "type": "object"
+      },
+      "LanguageDTO": {
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "name"
+        ],
+        "title": "LanguageDTO",
         "type": "object"
       },
       "LoginCommand": {
@@ -4960,6 +6131,465 @@
         },
         "required": [],
         "title": "MacroCategoryUpdateRequest",
+        "type": "object"
+      },
+      "ManualIngestionRequest": {
+        "properties": {
+          "access_conditions": {
+            "description": "Condições de acesso.",
+            "maxLength": 20000,
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "accruals": {
+            "description": "Incorporações.",
+            "maxLength": 20000,
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "admin_archival_history": {
+            "description": "História arquivística.",
+            "maxLength": 20000,
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "admin_bio_history": {
+            "description": "História administrativa/biográfica.",
+            "maxLength": 20000,
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "appraisal_destruction": {
+            "description": "Avaliação e temporalidade.",
+            "maxLength": 20000,
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "archivist_notes": {
+            "description": "Notas do arquivista.",
+            "maxLength": 20000,
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "arrangement": {
+            "description": "Sistema de arranjo.",
+            "maxLength": 20000,
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "conservation_notes": {
+            "description": "Notas de conservação.",
+            "maxLength": 20000,
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "copies_location": {
+            "description": "Localização das cópias.",
+            "maxLength": 20000,
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "description_id": {
+            "description": "Identificador do registro.",
+            "maxLength": 50,
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "dimension_support": {
+            "description": "Dimensão e suporte.",
+            "maxLength": 20000,
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "document_date": {
+            "description": "Data de produção como está na fonte: AAAA-MM-DD, década ou intervalo.",
+            "maxLength": 20000,
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "finding_aids": {
+            "description": "Instrumentos de pesquisa.",
+            "maxLength": 20000,
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "general_notes": {
+            "description": "Notas gerais.",
+            "maxLength": 20000,
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "indexing_points": {
+            "description": "Pontos de acesso, separados por vírgula.",
+            "maxLength": 20000,
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "language_name": {
+            "description": "Idioma.",
+            "maxLength": 20000,
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "level": {
+            "description": "Nível de descrição.",
+            "maxLength": 200,
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "original_url": {
+            "description": "URL da página de onde o registro veio.",
+            "maxLength": 20000,
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "originals_location": {
+            "description": "Localização dos originais.",
+            "maxLength": 20000,
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "parent_reference_code": {
+            "description": "Código da unidade superior.",
+            "maxLength": 500,
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "physical_characteristics": {
+            "description": "Características físicas.",
+            "maxLength": 20000,
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "producers": {
+            "description": "Produtores.",
+            "maxLength": 20000,
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "provenance": {
+            "description": "Procedência.",
+            "maxLength": 20000,
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "publication_notes": {
+            "description": "Notas de publicação.",
+            "maxLength": 20000,
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reference_code": {
+            "description": "Código de referência.",
+            "maxLength": 500,
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "related_units": {
+            "description": "Unidades de descrição relacionadas.",
+            "maxLength": 20000,
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reproduction_conditions": {
+            "description": "Condições de reprodução.",
+            "maxLength": 20000,
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "rules_conventions": {
+            "description": "Regras ou convenções.",
+            "maxLength": 20000,
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "scope_content": {
+            "description": "Âmbito e conteúdo.",
+            "maxLength": 20000,
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "thumb_down_link": {
+            "description": "URL da imagem que o worker de miniatura baixa.",
+            "maxLength": 20000,
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "title": {
+            "description": "Título da descrição.",
+            "maxLength": 500,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "title"
+        ],
+        "title": "ManualIngestionRequest",
+        "type": "object"
+      },
+      "ManualIngestionResponse": {
+        "properties": {
+          "code": {
+            "$ref": "#/components/schemas/RouteMessageCode"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ManualIngestionResultDTO"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "data",
+          "message"
+        ],
+        "title": "ManualIngestionResponse",
+        "type": "object"
+      },
+      "ManualIngestionResultDTO": {
+        "properties": {
+          "date_expression": {
+            "description": "A data como o arquivista a escreveu, quando havia uma.",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "description_id": {
+            "type": "string"
+          },
+          "document_date": {
+            "description": "A data que o perfil de idioma leu do texto, para a confirmação mostrar o que foi gravado.",
+            "oneOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "origin_code": {
+            "type": "string"
+          },
+          "review_status": {
+            "default": "PENDING_AI",
+            "description": "O estado inicial no archive: a ingestão manual não marca HUMAN_APPROVED.",
+            "type": "string"
+          },
+          "staging_saved": {
+            "type": "boolean"
+          },
+          "transfer_queued": {
+            "default": false,
+            "description": "Falso quando uma transferência já estava em andamento e esta entra na próxima.",
+            "type": "boolean"
+          },
+          "transfer_run_id": {
+            "description": "A execução de transferência enfileirada; nula quando já havia uma ativa.",
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "description_id",
+          "origin_code",
+          "staging_saved"
+        ],
+        "title": "ManualIngestionResultDTO",
         "type": "object"
       },
       "MergeBatchApplied": {
@@ -5785,6 +7415,40 @@
         "title": "OllamaHealthDTO",
         "type": "object"
       },
+      "OriginConfigFieldDTO": {
+        "properties": {
+          "default": {},
+          "help": {
+            "type": "string"
+          },
+          "kind": {
+            "default": "text",
+            "enum": [
+              "text",
+              "number",
+              "boolean"
+            ],
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "required": {
+            "default": false,
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "help",
+          "label",
+          "name"
+        ],
+        "title": "OriginConfigFieldDTO",
+        "type": "object"
+      },
       "OrphanEntityPurgeResponse": {
         "properties": {
           "code": {
@@ -6193,6 +7857,13 @@
           "TEXT_TEMPLATE_UPDATED",
           "TEXT_TEMPLATE_DELETED",
           "DOCUMENT_DELETED",
+          "MANUAL_INGESTION_QUEUED",
+          "MANUAL_INGESTION_STAGED",
+          "CSV_IMPORT_QUEUED",
+          "CSV_IMPORT_STAGED",
+          "CSV_IMPORT_REFUSED",
+          "WORKER_RUN_CANCELLED",
+          "WORKER_RUN_CANCEL_REQUESTED",
           "TAG_MERGE_PROPOSAL_DECIDED",
           "TAG_MERGE_UNDONE",
           "TAG_STOPWORDS_BANNED",
@@ -7135,6 +8806,9 @@
             "format": "date-time",
             "type": "string"
           },
+          "ingestion": {
+            "$ref": "#/components/schemas/IngestionHealthDTO"
+          },
           "ollama": {
             "$ref": "#/components/schemas/OllamaHealthDTO"
           },
@@ -7148,6 +8822,7 @@
         "required": [
           "database",
           "generated_at",
+          "ingestion",
           "ollama",
           "process",
           "storage"
@@ -7179,6 +8854,12 @@
           "generated_at": {
             "format": "date-time",
             "type": "string"
+          },
+          "runners": {
+            "items": {
+              "$ref": "#/components/schemas/WorkerRunnerDTO"
+            },
+            "type": "array"
           },
           "workers": {
             "items": {
@@ -8460,8 +10141,57 @@
         "title": "WorkerQueuePreviewDTO",
         "type": "object"
       },
+      "WorkerRunCancelResponse": {
+        "properties": {
+          "code": {
+            "$ref": "#/components/schemas/RouteMessageCode"
+          },
+          "data": {
+            "$ref": "#/components/schemas/WorkerRunDTO"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "data",
+          "message"
+        ],
+        "title": "WorkerRunCancelResponse",
+        "type": "object"
+      },
       "WorkerRunDTO": {
         "properties": {
+          "attempt": {
+            "default": 1,
+            "description": "Qual tentativa esta linha é: 1 numa execução pedida uma vez, N numa agendada (ADR 0015).",
+            "minimum": 1.0,
+            "type": "integer"
+          },
+          "cancel_requested_at": {
+            "description": "Quando o operador pediu o cancelamento; nulo enquanto ninguém pediu. É um pedido, não um estado: a linha continua na fila ou em execução, e segura a vaga, até o worker honrá-lo no limite do lote.",
+            "oneOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "cancel_requested_by": {
+            "description": "Quem pediu o cancelamento; nulo quando o pedido veio de um sinal do processo, não do painel.",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "config": {
             "additionalProperties": {},
             "description": "Configuração resolvida (preset já mesclado com os overrides), para o registro não mudar de sentido quando um preset mudar no código.",
@@ -8519,10 +10249,57 @@
               }
             ]
           },
+          "heartbeat_at": {
+            "description": "O último sinal de vida do runner, no relógio do banco.",
+            "oneOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "lease_expires_at": {
+            "description": "Quando o claim vence se o runner parar de renovar. A próxima varredura do runner marca a execução como interrompida.",
+            "oneOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "not_before": {
+            "description": "O instante a partir do qual a linha pode ser reivindicada; nulo significa já (ADR 0015).",
+            "oneOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "options": {
             "additionalProperties": {},
             "description": "Opções efetivas do worker nesta execução (as colunas lidas, o limite de confiança), resolvidas quando a execução começou. Vazio numa linha antiga, ou numa que ainda não começou.",
             "type": "object"
+          },
+          "origin_code": {
+            "description": "A origem que esta execução de ingestão processou; nula num worker de archive, que atravessa o acervo inteiro e não tem uma única origem para nomear.",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "preset": {
             "oneOf": [
@@ -8549,8 +10326,30 @@
               }
             ]
           },
+          "retry_of": {
+            "description": "A execução que esta retenta; nula na primeira tentativa.",
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "run_id": {
             "type": "integer"
+          },
+          "runner_id": {
+            "description": "O runner que reivindicou a execução; nulo enquanto ninguém a pegou.",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "started_at": {
             "oneOf": [
@@ -8565,6 +10364,11 @@
           },
           "status": {
             "$ref": "#/components/schemas/WorkerRunStatus"
+          },
+          "trial": {
+            "default": false,
+            "description": "Verdadeiro num ensaio: uma comparação de configurações que lê a coleção e não escreve conteúdo arquivístico (ADR 0018). O painel o distingue de uma execução de produção.",
+            "type": "boolean"
           },
           "trigger": {
             "$ref": "#/components/schemas/WorkerRunTrigger"
@@ -8581,6 +10385,242 @@
           "worker_name"
         ],
         "title": "WorkerRunDTO",
+        "type": "object"
+      },
+      "WorkerRunDetailDTO": {
+        "properties": {
+          "attempt": {
+            "default": 1,
+            "description": "Qual tentativa esta linha é: 1 numa execução pedida uma vez, N numa agendada (ADR 0015).",
+            "minimum": 1.0,
+            "type": "integer"
+          },
+          "cancel_requested_at": {
+            "description": "Quando o operador pediu o cancelamento; nulo enquanto ninguém pediu. É um pedido, não um estado: a linha continua na fila ou em execução, e segura a vaga, até o worker honrá-lo no limite do lote.",
+            "oneOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "cancel_requested_by": {
+            "description": "Quem pediu o cancelamento; nulo quando o pedido veio de um sinal do processo, não do painel.",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "config": {
+            "additionalProperties": {},
+            "description": "Configuração resolvida (preset já mesclado com os overrides), para o registro não mudar de sentido quando um preset mudar no código.",
+            "type": "object"
+          },
+          "duration_ms": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "engine_name": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "error": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "error_fingerprint": {
+            "description": "A causa raiz da falha, derivada da mensagem pelo PostgreSQL. Duas execuções com a mesma causa compartilham este valor.",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "finished_at": {
+            "oneOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "heartbeat_at": {
+            "description": "O último sinal de vida do runner, no relógio do banco.",
+            "oneOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "lease_expires_at": {
+            "description": "Quando o claim vence se o runner parar de renovar. A próxima varredura do runner marca a execução como interrompida.",
+            "oneOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "not_before": {
+            "description": "O instante a partir do qual a linha pode ser reivindicada; nulo significa já (ADR 0015).",
+            "oneOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "options": {
+            "additionalProperties": {},
+            "description": "Opções efetivas do worker nesta execução (as colunas lidas, o limite de confiança), resolvidas quando a execução começou. Vazio numa linha antiga, ou numa que ainda não começou.",
+            "type": "object"
+          },
+          "origin_code": {
+            "description": "A origem que esta execução de ingestão processou; nula num worker de archive, que atravessa o acervo inteiro e não tem uma única origem para nomear.",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "preset": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "queued_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "requested_by": {
+            "description": "Quem pediu a execução; nulo quando ela veio do host, sem --by.",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "retry_of": {
+            "description": "A execução que esta retenta; nula na primeira tentativa.",
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "run_id": {
+            "type": "integer"
+          },
+          "runner_id": {
+            "description": "O runner que reivindicou a execução; nulo enquanto ninguém a pegou.",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "started_at": {
+            "oneOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "$ref": "#/components/schemas/WorkerRunStatus"
+          },
+          "trial": {
+            "default": false,
+            "description": "Verdadeiro num ensaio: uma comparação de configurações que lê a coleção e não escreve conteúdo arquivístico (ADR 0018). O painel o distingue de uma execução de produção.",
+            "type": "boolean"
+          },
+          "trial_result": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/WorkerTrialResultDTO"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "trigger": {
+            "$ref": "#/components/schemas/WorkerRunTrigger"
+          },
+          "worker_name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "queued_at",
+          "run_id",
+          "status",
+          "trigger",
+          "worker_name"
+        ],
+        "title": "WorkerRunDetailDTO",
         "type": "object"
       },
       "WorkerRunListResponse": {
@@ -8662,25 +10702,213 @@
         "type": "object"
       },
       "WorkerRunStatus": {
-        "description": "\n    Lifecycle of one execution of an AI worker.\n\n    ``QUEUED`` exists so the ledger does not lie about the start time: the executor accepts a\n    single run at a time, so a submitted run may wait before it actually starts. ``INTERRUPTED`` is\n    written by the next start-up for a row the previous process left behind — without it the row\n    would stay ``RUNNING`` forever, and the partial unique index would block that worker for good.\n    ",
+        "description": "\n    Lifecycle of one execution of an AI worker.\n\n    ``QUEUED`` exists so the ledger does not lie about the start time: the executor accepts a\n    single run at a time, so a submitted run may wait before it actually starts. ``INTERRUPTED`` is\n    written by the next start-up for a row the previous process left behind — without it the row\n    would stay ``RUNNING`` forever, and the partial unique index would block that worker for good.\n\n    ``CANCELLED`` is the operator's stop (ADR 0014 decision 9, #72). It is deliberately distinct\n    from ``INTERRUPTED``: a process death is an accident the sweep repairs, a cancellation is a\n    deliberate verdict on the execution. The request that precedes it is the nullable\n    ``cancel_requested_at`` column, not this status: a requested run stays ``QUEUED``/``RUNNING``\n    and keeps its slot until the worker honours the request at a batch boundary, or the API closes\n    it at once when no runner has claimed it.\n    ",
         "enum": [
           "QUEUED",
           "RUNNING",
           "SUCCESS",
           "FAILED",
-          "INTERRUPTED"
+          "INTERRUPTED",
+          "CANCELLED"
         ],
         "title": "WorkerRunStatus",
         "type": "string"
       },
       "WorkerRunTrigger": {
-        "description": "Who asked for the run: the command line or the curator's panel.",
+        "description": "Who asked for the run: the command line, the curator's panel or the schedule (ADR 0015).",
         "enum": [
           "CLI",
-          "API"
+          "API",
+          "SCHEDULE"
         ],
         "title": "WorkerRunTrigger",
         "type": "string"
+      },
+      "WorkerRunnerDTO": {
+        "properties": {
+          "capabilities": {
+            "description": "Os workers que este runner aceita.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "concurrency": {
+            "minimum": 1.0,
+            "type": "integer"
+          },
+          "hostname": {
+            "type": "string"
+          },
+          "last_heartbeat_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "online": {
+            "description": "Verdadeiro enquanto o último sinal está dentro de três intervalos declarados pelo runner.",
+            "type": "boolean"
+          },
+          "runner_id": {
+            "type": "string"
+          },
+          "started_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "stopped_at": {
+            "oneOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "version": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "concurrency",
+          "hostname",
+          "last_heartbeat_at",
+          "name",
+          "online",
+          "runner_id",
+          "started_at"
+        ],
+        "title": "WorkerRunnerDTO",
+        "type": "object"
+      },
+      "WorkerScheduleDTO": {
+        "properties": {
+          "cron": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "last_enqueued_at": {
+            "oneOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "last_skipped_at": {
+            "description": "O último período pulado porque o worker já tinha uma execução ativa.",
+            "oneOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "next_run_at": {
+            "description": "Nulo enquanto a agenda está pausada.",
+            "oneOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "request": {
+            "$ref": "#/components/schemas/WorkerRunRequest"
+          },
+          "timezone": {
+            "type": "string"
+          },
+          "updated_at": {
+            "oneOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "updated_by": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "worker_name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "cron",
+          "enabled",
+          "request",
+          "timezone",
+          "worker_name"
+        ],
+        "title": "WorkerScheduleDTO",
+        "type": "object"
+      },
+      "WorkerScheduleRequest": {
+        "properties": {
+          "cron": {
+            "description": "Cinco campos: minuto, hora, dia do mês, mês e dia da semana.",
+            "maxLength": 120,
+            "minLength": 1,
+            "type": "string"
+          },
+          "enabled": {
+            "default": true,
+            "type": "boolean"
+          },
+          "request": {
+            "$ref": "#/components/schemas/WorkerRunRequest"
+          },
+          "timezone": {
+            "description": "Nome IANA da zona em que o cron é avaliado; o padrão é DEFAULT_TIMEZONE.",
+            "maxLength": 64,
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "cron"
+        ],
+        "title": "WorkerScheduleRequest",
+        "type": "object"
       },
       "WorkerSettingsDTO": {
         "properties": {
@@ -8705,7 +10933,6 @@
             ]
           },
           "declared_options": {
-            "description": "As opções que este worker aceita, derivadas da assinatura do execute.",
             "items": {
               "$ref": "#/components/schemas/WorkerOptionDTO"
             },
@@ -8763,6 +10990,11 @@
                 "type": "null"
               }
             ]
+          },
+          "trial_supported": {
+            "default": false,
+            "description": "Se este worker aceita um ensaio (ADR 0018). A lista é o catálogo: a tela só oferece a comparação para quem o runner sabe executar.",
+            "type": "boolean"
           },
           "updated_at": {
             "oneOf": [
@@ -9057,11 +11289,25 @@
               }
             ]
           },
+          "runner_available": {
+            "default": false,
+            "description": "Se algum runner online declara este worker; falso não impede enfileirar (ADR 0014).",
+            "type": "boolean"
+          },
+          "schedule": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/WorkerScheduleDTO"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "settings": {
             "$ref": "#/components/schemas/WorkerSettingsDTO"
           },
           "stamp_breakdown": {
-            "description": "Os quatro números do **ledger** do worker — com produtor, valor legado, falha e ausência de registro — e não da fila: `pending` é o predicado da fila, e uma unidade com carimbo de falha ou de produtor antigo conta aqui sem estar pendente. Nulo quando o ledger do worker não é um carimbo.",
             "oneOf": [
               {
                 "$ref": "#/components/schemas/WorkerStampBreakdownDTO"
@@ -9073,6 +11319,7 @@
           },
           "unit": {
             "enum": [
+              "origin",
               "staging",
               "document",
               "tag",
@@ -9092,12 +11339,310 @@
         ],
         "title": "WorkerStatusDTO",
         "type": "object"
+      },
+      "WorkerTrialConfigDTO": {
+        "properties": {
+          "abstention_rate": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "type": "number"
+          },
+          "agreement": {
+            "description": "Acerto sobre o gabarito; nulo quando a coleção ainda não tem veredito.",
+            "maximum": 1,
+            "oneOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "answered": {
+            "description": "Vereditos em que a configuração deu um rótulo (não absteve).",
+            "minimum": 0.0,
+            "type": "integer"
+          },
+          "config": {
+            "additionalProperties": {},
+            "description": "A configuração resolvida do engine.",
+            "type": "object"
+          },
+          "coverage": {
+            "description": "Fração do gabarito que a configuração respondeu.",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "type": "number"
+          },
+          "db_batch_size": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "distribution": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object"
+          },
+          "engine_name": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "entropy_bits": {
+            "default": 0.0,
+            "minimum": 0.0,
+            "type": "number"
+          },
+          "largest_share": {
+            "default": "",
+            "description": "O balde mais frequente da distribuição.",
+            "type": "string"
+          },
+          "largest_share_value": {
+            "default": 0.0,
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "type": "number"
+          },
+          "load_seconds": {
+            "default": 0.0,
+            "description": "O custo de carregar o modelo, fora dos s/doc.",
+            "minimum": 0.0,
+            "type": "number"
+          },
+          "misses": {
+            "items": {
+              "$ref": "#/components/schemas/WorkerTrialMissDTO"
+            },
+            "type": "array"
+          },
+          "options": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "pending": {
+            "description": "Unidades que esta configuração poria na fila.",
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "pending_reason": {
+            "description": "Por que a fila não foi contada.",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "preset": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "processed": {
+            "description": "Unidades que o ensaio classificou nesta configuração.",
+            "minimum": 0.0,
+            "type": "integer"
+          },
+          "projected_hours": {
+            "description": "A fila desta configuração no ritmo medido; nulo quando a fila não é mensurável.",
+            "oneOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "seconds_per_document": {
+            "default": 0.0,
+            "minimum": 0.0,
+            "type": "number"
+          },
+          "settings": {
+            "$ref": "#/components/schemas/WorkerSettingsRequest"
+          },
+          "verdicts_scored": {
+            "description": "Vereditos pontuados; o denominador da concordância.",
+            "minimum": 0.0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "abstention_rate",
+          "answered",
+          "coverage",
+          "processed",
+          "settings",
+          "verdicts_scored"
+        ],
+        "title": "WorkerTrialConfigDTO",
+        "type": "object"
+      },
+      "WorkerTrialMissDTO": {
+        "properties": {
+          "description_id": {
+            "type": "string"
+          },
+          "expected": {
+            "type": "string"
+          },
+          "predicted": {
+            "type": "string"
+          },
+          "score": {
+            "oneOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "description_id",
+          "expected",
+          "predicted"
+        ],
+        "title": "WorkerTrialMissDTO",
+        "type": "object"
+      },
+      "WorkerTrialRequest": {
+        "properties": {
+          "configs": {
+            "items": {
+              "$ref": "#/components/schemas/WorkerRunRequest"
+            },
+            "maxItems": 4,
+            "minItems": 2,
+            "type": "array"
+          },
+          "sample": {
+            "default": 50,
+            "description": "Quantas descrições sortear para distribuição e custo; o gabarito é lido até o mesmo teto.",
+            "maximum": 500.0,
+            "minimum": 5.0,
+            "type": "integer"
+          },
+          "seed": {
+            "description": "Semente da amostra; nula usa a do código. Fica registrada no resultado.",
+            "maxLength": 64,
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "configs"
+        ],
+        "title": "WorkerTrialRequest",
+        "type": "object"
+      },
+      "WorkerTrialResultDTO": {
+        "properties": {
+          "configs": {
+            "items": {
+              "$ref": "#/components/schemas/WorkerTrialConfigDTO"
+            },
+            "type": "array"
+          },
+          "sample": {
+            "$ref": "#/components/schemas/WorkerTrialSampleDTO"
+          },
+          "unknown_verdicts": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "worker_name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "sample",
+          "worker_name"
+        ],
+        "title": "WorkerTrialResultDTO",
+        "type": "object"
+      },
+      "WorkerTrialSampleDTO": {
+        "properties": {
+          "description_ids": {
+            "description": "As descrições sorteadas.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "seed": {
+            "type": "string"
+          },
+          "size": {
+            "description": "Quantas descrições a amostra aleatória pediu.",
+            "minimum": 0.0,
+            "type": "integer"
+          },
+          "verdict_ids": {
+            "description": "As descrições com veredito que o ensaio pontuou.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "verdicts_available": {
+            "description": "Quantos vereditos existem na coleção; o ensaio lê até o teto.",
+            "minimum": 0.0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "seed",
+          "size",
+          "verdicts_available"
+        ],
+        "title": "WorkerTrialSampleDTO",
+        "type": "object"
       }
     }
   },
   "info": {
     "title": "Scrinalia API",
-    "version": "1.5.0"
+    "version": "1.6.0"
   },
   "openapi": "3.1.0",
   "paths": {
@@ -10411,6 +12956,77 @@
           }
         },
         "summary": "UnlinkTag",
+        "tags": [
+          "Documents"
+        ]
+      }
+    },
+    "/api/v1/documents/{description_id}/thumbnail": {
+      "get": {
+        "deprecated": false,
+        "operationId": "ApiV1DocumentsDescriptionIdThumbnailGetThumbnail",
+        "parameters": [
+          {
+            "deprecated": false,
+            "in": "path",
+            "name": "description_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "image/jpeg": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "The stored miniature, read from the object storage on demand."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "GetThumbnail",
         "tags": [
           "Documents"
         ]
@@ -11909,6 +14525,606 @@
         ]
       }
     },
+    "/api/v1/ingestion/csv": {
+      "post": {
+        "deprecated": false,
+        "operationId": "ApiV1IngestionCsvImportCsv",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CsvImportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CsvImportResponse"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "ImportCsv",
+        "tags": [
+          "Ingestion"
+        ]
+      }
+    },
+    "/api/v1/ingestion/csv/spec": {
+      "get": {
+        "deprecated": false,
+        "operationId": "ApiV1IngestionCsvSpecCsvImportSpec",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CsvImportSpecResponse"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          }
+        },
+        "summary": "CsvImportSpec",
+        "tags": [
+          "Ingestion"
+        ]
+      }
+    },
+    "/api/v1/ingestion/manual": {
+      "post": {
+        "deprecated": false,
+        "operationId": "ApiV1IngestionManualCreateManual",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ManualIngestionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManualIngestionResponse"
+                }
+              }
+            },
+            "description": "Document created, URL follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "CreateManual",
+        "tags": [
+          "Ingestion"
+        ]
+      }
+    },
+    "/api/v1/ingestion/origins": {
+      "get": {
+        "deprecated": false,
+        "operationId": "ApiV1IngestionOriginsListOrigins",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IngestionOriginListResponse"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          }
+        },
+        "summary": "ListOrigins",
+        "tags": [
+          "Ingestion"
+        ]
+      }
+    },
+    "/api/v1/ingestion/origins/{code}": {
+      "get": {
+        "deprecated": false,
+        "operationId": "ApiV1IngestionOriginsCodeGetOrigin",
+        "parameters": [
+          {
+            "deprecated": false,
+            "in": "path",
+            "name": "code",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IngestionOriginDTO"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "GetOrigin",
+        "tags": [
+          "Ingestion"
+        ]
+      },
+      "patch": {
+        "deprecated": false,
+        "operationId": "ApiV1IngestionOriginsCodeUpdateOrigin",
+        "parameters": [
+          {
+            "deprecated": false,
+            "in": "path",
+            "name": "code",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IngestionOriginUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IngestionOriginDTO"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "UpdateOrigin",
+        "tags": [
+          "Ingestion"
+        ]
+      }
+    },
+    "/api/v1/ingestion/origins/{code}/runs": {
+      "post": {
+        "deprecated": false,
+        "operationId": "ApiV1IngestionOriginsCodeRunsTriggerOrigin",
+        "parameters": [
+          {
+            "deprecated": false,
+            "in": "path",
+            "name": "code",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IngestionRunRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkerRunDTO"
+                }
+              }
+            },
+            "description": "Document created, URL follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "TriggerOrigin",
+        "tags": [
+          "Ingestion"
+        ]
+      }
+    },
+    "/api/v1/ingestion/origins/{code}/schedule": {
+      "delete": {
+        "deprecated": false,
+        "operationId": "ApiV1IngestionOriginsCodeScheduleDeleteSchedule",
+        "parameters": [
+          {
+            "deprecated": false,
+            "in": "path",
+            "name": "code",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IngestionOriginDTO"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "DeleteSchedule",
+        "tags": [
+          "Ingestion"
+        ]
+      },
+      "put": {
+        "deprecated": false,
+        "operationId": "ApiV1IngestionOriginsCodeSchedulePutSchedule",
+        "parameters": [
+          {
+            "deprecated": false,
+            "in": "path",
+            "name": "code",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IngestionScheduleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IngestionOriginDTO"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "PutSchedule",
+        "tags": [
+          "Ingestion"
+        ]
+      }
+    },
+    "/api/v1/languages": {
+      "get": {
+        "deprecated": false,
+        "operationId": "ApiV1LanguagesListLanguages",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/LanguageDTO"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          }
+        },
+        "summary": "ListLanguages",
+        "tags": [
+          "Languages"
+        ]
+      }
+    },
     "/api/v1/public/documents": {
       "get": {
         "deprecated": false,
@@ -13328,6 +16544,24 @@
             "allowReserved": false,
             "deprecated": false,
             "in": "query",
+            "name": "origin",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
             "name": "status",
             "required": false,
             "schema": {
@@ -13352,6 +16586,24 @@
               "oneOf": [
                 {
                   "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "trial",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "type": "boolean"
                 },
                 {
                   "type": "null"
@@ -13436,6 +16688,150 @@
           }
         },
         "summary": "ListRuns",
+        "tags": [
+          "System"
+        ]
+      }
+    },
+    "/api/v1/system/runs/{run_id}": {
+      "get": {
+        "deprecated": false,
+        "operationId": "ApiV1SystemRunsRunIdGetRun",
+        "parameters": [
+          {
+            "deprecated": false,
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkerRunDetailDTO"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "GetRun",
+        "tags": [
+          "System"
+        ]
+      }
+    },
+    "/api/v1/system/runs/{run_id}/cancel": {
+      "post": {
+        "deprecated": false,
+        "operationId": "ApiV1SystemRunsRunIdCancelCancelRun",
+        "parameters": [
+          {
+            "deprecated": false,
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkerRunCancelResponse"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "CancelRun",
         "tags": [
           "System"
         ]
@@ -13646,6 +17042,228 @@
           }
         },
         "summary": "TriggerRun",
+        "tags": [
+          "System"
+        ]
+      }
+    },
+    "/api/v1/system/workers/{worker_name}/schedule": {
+      "delete": {
+        "deprecated": false,
+        "operationId": "ApiV1SystemWorkersWorkerNameScheduleDeleteSchedule",
+        "parameters": [
+          {
+            "deprecated": false,
+            "in": "path",
+            "name": "worker_name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "DeleteSchedule",
+        "tags": [
+          "System"
+        ]
+      },
+      "get": {
+        "deprecated": false,
+        "operationId": "ApiV1SystemWorkersWorkerNameScheduleGetSchedule",
+        "parameters": [
+          {
+            "deprecated": false,
+            "in": "path",
+            "name": "worker_name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/WorkerScheduleDTO"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "GetSchedule",
+        "tags": [
+          "System"
+        ]
+      },
+      "put": {
+        "deprecated": false,
+        "operationId": "ApiV1SystemWorkersWorkerNameSchedulePutSchedule",
+        "parameters": [
+          {
+            "deprecated": false,
+            "in": "path",
+            "name": "worker_name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkerScheduleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkerScheduleDTO"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "PutSchedule",
         "tags": [
           "System"
         ]
@@ -13894,6 +17512,88 @@
           }
         },
         "summary": "ListSettingsRevisions",
+        "tags": [
+          "System"
+        ]
+      }
+    },
+    "/api/v1/system/workers/{worker_name}/trial": {
+      "post": {
+        "deprecated": false,
+        "operationId": "ApiV1SystemWorkersWorkerNameTrialTriggerTrial",
+        "parameters": [
+          {
+            "deprecated": false,
+            "in": "path",
+            "name": "worker_name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkerTrialRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkerRunDTO"
+                }
+              }
+            },
+            "description": "Document created, URL follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "TriggerTrial",
         "tags": [
           "System"
         ]

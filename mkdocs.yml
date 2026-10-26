@@ -128,4 +128,10 @@ nav:
       - 0011 First-run setup without an open door: adr/0011-first-run-setup-without-an-open-door.md
       - 0012 The documentation site is published by CI: adr/0012-the-documentation-site-is-published-by-ci.md
       - 0013 The tag axis is the subject axis: adr/0013-the-tag-axis-is-the-subject-axis.md
+      - 0014 The workers leave the API: adr/0014-the-workers-leave-the-api.md
+      - 0015 Schedules and retries: adr/0015-schedules-and-retries.md
+      - 0016 The origin is a first-class object: adr/0016-the-origin-is-a-first-class-object.md
+      - 0017 The thumbnail reaches the browser through the API: adr/0017-the-thumbnail-reaches-the-browser-through-the-api.md
+      - 0018 A trial is a ledger row, and the gabarito is the human decision already recorded: adr/0018-trials-and-the-human-gabarito.md
+      - 0019 The CSV import is parsed in the browser: adr/0019-the-csv-import-is-parsed-in-the-browser.md
   - Documentation log: log.md

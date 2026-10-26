@@ -11,8 +11,17 @@ class StagingRecord(BaseModel):
     """Read model of a structured staging document, decoupled from the staging ORM."""
 
     description_id: str
+    #: Provenance of the record, carried to the archive. It is **not** part of the CDC key: the origin
+    #: is where the record came from, not what the parser read, and folding it into the hash would
+    #: re-transfer the whole collection once for a column that no AI worker writes.
+    origin_code: str | None = None
     title: str
     document_date: date | None = None
+    #: The date as the source spelled it. Part of the parsed record on purpose: a parser that starts
+    #: understanding an expression it used to drop is a change the archive has to see.
+    date_expression: str | None = None
+    #: Where the record was read from. The origin's page, not the digital object.
+    original_url: str | None = None
     raw_content_hash: str
     thumb_down_link: str | None = None
     indexing_points: str | None = None
@@ -23,13 +32,29 @@ class StagingRecord(BaseModel):
     parent_reference_code: str | None = None
     hierarchy_path: str | None = None
     level: str | None = None
+    # --- ISAD(G), the rest of the record ---
+    dimension_support: str | None = None
     producers: str | None = None
     admin_bio_history: str | None = None
     admin_archival_history: str | None = None
     provenance: str | None = None
     scope_content: str | None = None
+    appraisal_destruction: str | None = None
+    accruals: str | None = None
+    arrangement: str | None = None
+    reproduction_conditions: str | None = None
     language_name: str | None = None
+    physical_characteristics: str | None = None
+    finding_aids: str | None = None
+    originals_location: str | None = None
+    copies_location: str | None = None
+    related_units: str | None = None
+    publication_notes: str | None = None
+    conservation_notes: str | None = None
+    general_notes: str | None = None
     archivist_notes: str | None = None
+    rules_conventions: str | None = None
+    description_dates: str | None = None
     #: ISAD(G) 4.1. It was parsed into staging from the beginning and had no counterpart here, so
     #: the transfer never carried it and the archive lost it. Declaring it changes
     #: ``parsed_content_hash`` for every row, which is the *intended* effect of the CDC contract:
@@ -46,7 +71,7 @@ class StagingRecord(BaseModel):
         source byte-identical, so the archive would keep the old value forever. Hashing the
         parsed record makes the transfer notice it, exactly like a real source change.
         """
-        return str(ContentHash.of(self.model_dump(mode="json")))
+        return str(ContentHash.of(self.model_dump(mode="json", exclude={"origin_code"})))
 
 
 class StagingRecordSource(Protocol):

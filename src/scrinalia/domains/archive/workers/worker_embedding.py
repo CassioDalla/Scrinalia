@@ -19,6 +19,7 @@ from scrinalia.domains.archive.repository.text_quality_repo import (
     embedding_text_sql,
 )
 from scrinalia.domains.archive.worker_stamp import EMBEDDING, producer_fingerprint
+from scrinalia.domains.archive.workers.cancellation import RunControl, checkpoint
 from scrinalia.domains.archive.workers.run_budget import RunBudget
 
 
@@ -84,6 +85,7 @@ def execute(
     db_batch_size: int = 64,
     force: bool = False,
     limit: int | None = None,
+    run_control: RunControl | None = None,
     **engine_kwargs,
 ) -> None:
     """
@@ -175,6 +177,7 @@ def execute(
     last_id = ""
 
     while True:
+        checkpoint(run_control)
         try:
             query = (
                 select(ArchiveDocument, text_expression.label("effective_text"), stamp_expression.label("stamp"))
