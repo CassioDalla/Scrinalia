@@ -10,7 +10,7 @@ import pytest
 
 from scrinalia.core.config import settings
 from scrinalia.domains.ingestion.adapters.csv import CSV_SOURCE_SCHEMA
-from scrinalia.domains.ingestion.adapters.manual import MANUAL_SOURCE_SCHEMA
+from scrinalia.domains.ingestion.adapters.manual import MANUAL_FIELDS, MANUAL_SOURCE_SCHEMA
 from scrinalia.domains.ingestion.adapters.pmc_scraper import PMC_SOURCE_SCHEMA
 from scrinalia.domains.ingestion.csv_import import CSV_FIELD_MAP, CSV_FIELDS, CSV_TITLE_LABEL
 from scrinalia.domains.ingestion.exceptions import InvalidOriginConfigError, OriginNotFoundError
@@ -108,6 +108,41 @@ def test_the_csv_vocabulary_is_the_manual_contract() -> None:
     manual = set(ManualIngestionRequest.model_fields) - {"description_id"}
     assert attributes == manual
     assert len({field.label for field in CSV_FIELDS}) == len(CSV_FIELDS)
+
+
+def test_every_manual_field_reaches_the_payload() -> None:
+    """
+    The tuple the service iterates and the model the route validates name the same fields.
+
+    ``_manual_payload`` walks ``MANUAL_FIELDS`` and reads each attribute off the request, so a field
+    added to the model and forgotten there is dropped **in silence** — the route answers 201, the
+    staging record is written, and the value never leaves the request. The three the service handles
+    itself (the identity, the title and the date) are the exception, and they are named here.
+    """
+    described = set(MANUAL_FIELDS) | {"title", "document_date"}
+    manual = set(ManualIngestionRequest.model_fields) - {"description_id"}
+
+    assert described == manual, f"o modelo tem {sorted(manual - described)}; a lista tem {sorted(described - manual)}"
+
+
+def test_the_manual_date_is_read_by_the_language_grammar() -> None:
+    """
+    One grammar for both entrances: what the CSV accepts, the form accepts.
+
+    ``Década de 1980`` is a legitimate date — the parser turns it into January 1st of the decade and
+    the archive keeps the spelling — while "banana" is a sentence the archivist can act on, not a
+    silent ``None`` in staging.
+    """
+    from pydantic import ValidationError
+
+    fuzzy = ManualIngestionRequest(title="Ofício", document_date="  Década de 1980  ")
+    assert fuzzy.document_date == "Década de 1980"
+
+    placeholder = ManualIngestionRequest(title="Ofício", document_date="00/00/0000")
+    assert placeholder.document_date is None
+
+    with pytest.raises(ValidationError):
+        ManualIngestionRequest(title="Ofício", document_date="banana")
 
 
 def test_the_csv_field_caps_are_the_manual_ones() -> None:

@@ -393,13 +393,30 @@ imagem" is a normal state, and a stored URI whose object is gone shows "Imagem i
 a broken-image glyph. The collection list shows the same miniature at 56 px, which is how a
 photograph is recognised without opening the dossier.
 
-The decision is the record itself: any ISAD(G) field, the level, the typology, `access_conditions`
-and `is_published`, with a note on why. The write is `PATCH /api/v1/documents/{description_id}`
-(`CURATE`). It records the before and after of what changed in `archive_document_revisions`, writes
-the author from the session, and sets `HUMAN_APPROVED` — which takes the description out of the AI's
-queue. Reversible: another edit records a new revision; the history is append-only and the earlier
-value is visible in the `Histórico` tab. Publishing and withdrawing use the same command and are
-equally reversible.
+The decision is the record itself, grouped in the norm's own areas — **3.1 Identidade**, **3.2
+Contexto**, **3.3 Conteúdo e estrutura**, **3.4 Acesso e uso**, **3.5 Materiais relacionados**, **3.6
+Notas** and **3.7 Controle da descrição** — plus the level, the typology and the diffusion flag, with
+a note on why. The whole ISAD(G) record is editable: the archive stores every field the staging
+transform parsed, not the subset the transfer used to copy. The write is `PATCH
+/api/v1/documents/{description_id}` (`CURATE`). It records the before and after of what changed in
+`archive_document_revisions`, writes the author from the session, and sets `HUMAN_APPROVED` — which
+takes the description out of the AI's queue. Reversible: another edit records a new revision; the
+history is append-only and the earlier value is visible in the `Histórico` tab. Publishing and
+withdrawing use the same command and are equally reversible.
+
+Two values are shown and not edited, because they are evidence rather than description:
+`date_expression` (the date as the source spelled it — `Década de 1980` beside the parsed
+`1980-01-01`, which is what the parser could make of it) and `original_url` (the page the record was
+read from). The level and the typology are selects over their catalogues; `language_name` is a select
+over `GET /api/v1/languages`, a catalogue declared in code because a language carries no rule an
+institution edits — and it **keeps a value the catalogue does not know**, marked as such, so opening
+the dossier never erases what the origin declared. The declared parent is shown in 3.1 even while it
+is pending (`BR PRPMC — aguardando`), because the origin is allowed to deliver the child before the
+parent; the link itself is made in the `Arranjo` tab.
+
+The **Objeto digital** card is rendered with its control **disabled**: the archive keeps the
+description and not the file, and the digital object is #198. The sentence that says so is defined
+once (`apps/curator/src/lib/copy.ts`) and the manual entry form shows the same one.
 
 #### Assuntos
 
@@ -1019,7 +1036,8 @@ and it is therefore a `CURATE` card.
 
 | Screen | Decision | Reversible? |
 | --- | --- | --- |
-| Ingestão — `/sistema/ingestao` | which origin to read, its URLs and its agenda (operator); and typing one record or importing a CSV (curator) | the configuration and the agenda are reversible; a manual record or an imported row enters the pipeline and is approved (or rejected) in the dossier |
+| Ingestão — `/sistema/ingestao` | which origin to read, its URLs and its agenda (operator); and importing a CSV (curator) | the configuration and the agenda are reversible; an imported row enters the pipeline and is approved (or rejected) in the dossier |
+| Nova descrição — `/sistema/ingestao/nova` | typing one description, field by field (curator) | the record enters the pipeline as `PENDING_AI`; it is approved (or rejected) in the dossier, and only there |
 | Workers de IA — `/sistema/workers` | whether to run a worker now | yes (the run's own configuration); a run's effects follow what it wrote |
 | Execuções — `/sistema/execucoes` | whether to stop an active run (the ledger and the grouped failures are read-only) | no undo: a cancelled run stays cancelled; a new run is a new ledger row |
 | Saúde do sistema — `/sistema/diagnostico` | none (database, models, storage, process) | yes (read only) |
@@ -1034,8 +1052,11 @@ listing and detail URLs, the politeness delay), save a five-field cron in an IAN
 origin is already running is skipped, not queued. The generic worker routes refuse `ingestion` — a
 run of it needs the origin, and the origin routes are the selector.
 
-The **curator** sees the same cards read-only, the **Entrada manual** form and the **Importação CSV**
-card. The manual form is the `manual` origin: the submit writes the typed record as the origin's raw
+The **curator** sees the same cards read-only, the **Entrada manual** card and the **Importação CSV**
+card. The manual card opens `/sistema/ingestao/nova`, a screen of its own, where the description is
+typed in full: thirty controls in the norm's seven areas, the level and the language as selects, the
+date as text with the language grammar, and the digital object control disabled until #198. The manual
+origin is the `manual` origin: the submit writes the typed record as the origin's raw
 payload, stages it through the same transform and enqueues the same `transfer` worker. The archive
 description is born `PENDING_AI`; the AI queues see it, and the approval is the dossier's
 `PATCH /documents/{id}` after the AI runs. Typing a record is **not** an approval, and a duplicate

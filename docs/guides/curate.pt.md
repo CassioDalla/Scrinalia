@@ -368,13 +368,30 @@ têm imagem de origem, então "Sem imagem" é um estado normal, e uma URI guarda
 mostra "Imagem indisponível" — nunca o ícone de imagem quebrada. A lista do acervo mostra a mesma
 miniatura a 56 px, que é como se reconhece uma fotografia sem abrir o dossiê.
 
-A decisão é o próprio registro: qualquer campo ISAD(G), o nível, a tipologia, `access_conditions` e
-`is_published`, com uma nota do porquê. A escrita é `PATCH /api/v1/documents/{description_id}`
-(`CURATE`). Ela registra o antes e o depois do que mudou em `archive_document_revisions`, grava a
-autoria a partir da sessão e define `HUMAN_APPROVED` — o que tira a descrição da fila da IA.
-Reversível: outra edição registra uma nova revisão; o histórico é só de acréscimo e o valor anterior
-fica visível na aba `Histórico`. Publicar e retirar usam o mesmo comando e são igualmente
-reversíveis.
+A decisão é o próprio registro, agrupado nas áreas da norma — **3.1 Identidade**, **3.2 Contexto**,
+**3.3 Conteúdo e estrutura**, **3.4 Acesso e uso**, **3.5 Materiais relacionados**, **3.6 Notas** e
+**3.7 Controle da descrição** — mais o nível, a tipologia e o selo de difusão, com uma nota do porquê.
+O registro ISAD(G) inteiro é editável: o acervo guarda todo campo que o transform de staging
+interpretou, não o subconjunto que a transferência copiava. A escrita é `PATCH
+/api/v1/documents/{description_id}` (`CURATE`). Ela registra o antes e o depois do que mudou em
+`archive_document_revisions`, grava a autoria a partir da sessão e define `HUMAN_APPROVED` — o que tira
+a descrição da fila da IA. Reversível: outra edição registra uma nova revisão; o histórico é só de
+acréscimo e o valor anterior fica visível na aba `Histórico`. Publicar e retirar usam o mesmo comando e
+são igualmente reversíveis.
+
+Dois valores são exibidos e não editados, porque são evidência e não descrição: `date_expression` (a
+data como a fonte escreveu — `Década de 1980` ao lado do `1980-01-01` interpretado, que é o que o
+parser conseguiu dela) e `original_url` (a página de onde o registro foi lido). O nível e a tipologia
+são seletores sobre os seus catálogos; `language_name` é um seletor sobre `GET /api/v1/languages`, um
+catálogo declarado em código porque um idioma não carrega regra que a instituição edite — e ele
+**mantém um valor que o catálogo não conhece**, marcado como tal, para que abrir o dossiê nunca apague
+o que a origem declarou. O pai declarado aparece em 3.1 mesmo enquanto está pendente (`BR PRPMC —
+aguardando`), porque a origem pode entregar o filho antes do pai; o vínculo em si se faz na aba
+`Arranjo`.
+
+O cartão **Objeto digital** aparece com o controle **desabilitado**: o acervo guarda a descrição, não
+o arquivo, e o objeto digital é a #198. A frase que diz isso é definida uma vez
+(`apps/curator/src/lib/copy.ts`) e o formulário de entrada manual mostra a mesma.
 
 #### Assuntos
 
@@ -993,7 +1010,8 @@ e a importação CSV são escritas do curador (#44, #191) — e por isso é um c
 
 | Tela | Decisão | Reversível? |
 | --- | --- | --- |
-| Ingestão — `/sistema/ingestao` | qual origem ler, as URLs e a agenda (operador); e digitar um registro ou importar um CSV (curador) | a configuração e a agenda são reversíveis; um registro manual ou uma linha importada entra no pipeline e é aprovado (ou rejeitado) no dossiê |
+| Ingestão — `/sistema/ingestao` | qual origem ler, as URLs e a agenda (operador); e importar um CSV (curador) | a configuração e a agenda são reversíveis; uma linha importada entra no pipeline e é aprovada (ou rejeitada) no dossiê |
+| Nova descrição — `/sistema/ingestao/nova` | digitar uma descrição, campo a campo (curador) | o registro entra no pipeline como `PENDING_AI`; a aprovação (ou rejeição) acontece no dossiê, e só ali |
 | Workers de IA — `/sistema/workers` | se roda um worker agora | sim (a configuração da própria execução); os efeitos de uma execução seguem o que ela escreveu |
 | Execuções — `/sistema/execucoes` | se para uma execução ativa (o ledger e as falhas agrupadas são só leitura) | sem desfazer: uma execução cancelada continua cancelada; uma nova execução é uma nova linha no ledger |
 | Saúde do sistema — `/sistema/diagnostico` | nenhuma (banco, modelos, storage, processo) | sim (só leitura) |
@@ -1008,12 +1026,15 @@ execução**. A execução é o mesmo ledger dos workers de IA; um período que 
 rodando é pulado, não enfileirado. As rotas genéricas de worker recusam `ingestion` — uma execução
 dela precisa da origem, e as rotas da origem são o seletor.
 
-O **curador** vê os mesmos cartões só para leitura, o formulário **Entrada manual** e o cartão
-**Importação CSV**. O formulário é a origem `manual`: o envio grava o registro digitado como payload
-bruto da origem, estrutura-o pelo mesmo transform e enfileira o mesmo worker `transfer`. A descrição do
-Acervo nasce `PENDING_AI`; as filas de IA a veem, e a aprovação é o `PATCH /documents/{id}` do dossiê
-depois que a IA rodar. Digitar um registro **não** é uma aprovação, e um `description_id` duplicado é
-recusado antes da gravação.
+O **curador** vê os mesmos cartões só para leitura, o cartão **Entrada manual** e o cartão
+**Importação CSV**. O cartão manual abre `/sistema/ingestao/nova`, uma tela própria, onde a descrição
+é digitada inteira: trinta controles nas sete áreas da norma, o nível e o idioma como seletores, a data
+como texto com a gramática do idioma, e o controle do objeto digital desabilitado até a #198. O
+formulário é a origem `manual`: o envio grava o registro digitado como payload bruto da origem,
+estrutura-o pelo mesmo transform e enfileira o mesmo worker `transfer`. A descrição do Acervo nasce
+`PENDING_AI`; as filas de IA a veem, e a aprovação é o `PATCH /documents/{id}` do dossiê depois que a
+IA rodar. Digitar um registro **não** é uma aprovação, e um `description_id` duplicado é recusado antes
+da gravação.
 
 O cartão de CSV é a origem `csv` (#191, ADR 0019). O arquivo é interpretado **no navegador**: o cartão
 mostra os cabeçalhos detectados, uma prévia e as conferências locais, e envia só as linhas como JSON —

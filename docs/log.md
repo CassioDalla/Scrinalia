@@ -2401,3 +2401,92 @@ with short or full shas, and part of a `## <date> — <title>` entry.
   `bun test`, and the button only creates the Blob. The HTTP 413 path is a controller test with the
   service mocked, not a real oversized request. The install guide's `no-change` is a judgement from
   the diff, not from a page render.
+
+## 2026-10-26 — the archive keeps the ISAD(G) record (#199)
+
+- **Range:** `6ff7c7d..08b3ccb`
+- **Pages:**
+  - `guides/data-model.md` / `data-model.pt.md` — **updated**: `staging_documents` gains
+    `date_expression` and the archive gains the full ISAD(G) text set plus `parent_reference_code`,
+    `date_expression` and `original_url`; the paragraph explains why the spelling travels beside the
+    parsed date and why the declared parent is a column now.
+  - `guides/curate.md` / `curate.pt.md` — **updated**: the description tab grouped in the norm's
+    seven areas, the whole record editable, the two evidence fields shown and not edited, the
+    language select that keeps a value the catalogue does not know, the pending parent, and the
+    digital object card with the disabled control pointing at #198.
+  - `guides/operate.md` / `operate.pt.md` — **no-change**: the round changed the archive and the
+    dossier, not the ingestion screen; the manual form still ships nine fields, and the sentence that
+    says the rest is #192 is still true.
+  - `guides/install.md` — **no-change**: no setting moved; the language catalogue is code, not a new
+    environment variable.
+  - `adr/` — **no-change**: no decision here is architectural enough for an ADR. The columns are
+    additive, and the language catalogue becoming a table is the facet issue's decision; the module
+    docstring and the issue record the reasoning.
+- **Why the round exists.** #192 expands the manual form, and the archive could not store what the
+  form would ask: the transfer copied 14 of the 33 content fields the staging transform parses. The
+  round closes the store first, so the form grows against a table that exists, and so the dossier can
+  finally show the record it claims to own.
+- **What the round measured.** Full suite **2238 passed, 1 skipped** (the test database on 5434,
+  `postgresql+psycopg2`; 5433 is held by another process); `ruff check` and `ruff format --check`
+  green; `basedpyright` **0 errors**; the contract regenerated with the repository's `openapi.json` +
+  `codegen` path, and the SPA's `tsc`, ESLint and Vite build green; `mkdocs build --strict` green and
+  the documentation coverage gate **29 passed**; `alembic upgrade head` applied `e3084fbf75ba` and
+  `alembic check` reports no new operations. The backfill was measured on the dev database
+  (`scrinalia_zeroed`): **101** archive rows against **100** staging rows, so the migration filled
+  **100** descriptions and left **1** empty (no staging row), and `date_expression` is **0** by design,
+  because the staging column did not exist when those rows were parsed. Rendered with the headless
+  shell over CDP at 1280×1600 against the Vite dev server and the API: `.render/199-dossier-top.png`
+  is 3.1 (level, typology, reference code, date, dimension and support, the parent named from the
+  branch) and 3.2 with the source link; `.render/199-dossier-mid.png` is 3.3 and 3.4, where the
+  language select shows **"Português Brasil (fora do catálogo)"** — the scraped spelling, kept
+  instead of erased; `.render/199-dossier-bottom.png` is 3.5 to 3.7, the diffusion flag, the disabled
+  **Objeto digital** control with the one sentence, and the save bar. The temporary render account and
+  its session were deleted after the round, and the browser profile and driver are gone.
+- **Not verified, and said so.** The transfer was **not run** over the collection, so the CDC re-read
+  and the AI re-queue that follow the hash change were not observed: the round-trip is the integration
+  test that stages a record with every field and asserts every column. No field was **saved** through
+  the dossier in the browser; the write path is the same `PATCH` covered by the curation test, and
+  what the render proves is that the controls exist, are bound to the stored values and render in the
+  right area. The language select was seen with an unknown value only; the known-value options come
+  from the same `GET /api/v1/languages` list the route test pins.
+
+## 2026-10-26 — the manual entry covers the whole record (#192)
+
+- **Range:** `08b3ccb..33217f7`
+- **Pages:**
+  - `guides/operate.md` / `operate.pt.md` — **updated**: the manual entry has a screen of its own at
+    `/sistema/ingestao/nova`, typed in the norm's areas; the three behaviours worth knowing (the date
+    is text with the language grammar, the level and the language are selects, the digital object
+    control is disabled until #198) replace the paragraph that said the form shipped the essential
+    fields.
+  - `guides/curate.md` / `curate.pt.md` — **updated**: the screens table gains the new row, and the
+    ingestion section says the card opens the form instead of embedding it.
+  - `guides/data-model.md` / `data-model.pt.md` — **no-change**: the round writes the same columns
+    the archive gained in #199; nothing new in the schema.
+  - `guides/install.md` — **no-change**: no setting moved, and the language catalogue is code, not a
+    variable.
+  - `adr/` — **no-change**: this is the form catching up with a contract that already existed.
+- **Why the round exists.** #199 made the archive store the whole ISAD(G) record; the form was the
+  last surface that still spoke a subset, and the CSV import had to grow with it or the file and the
+  form would accept different vocabularies (ADR 0019 pins the equality).
+- **What the round measured.** Full suite **2244 passed, 1 skipped** against the test database on
+  5434; `ruff check` and `ruff format --check` green; `basedpyright` **0 errors**; the contract
+  regenerated (31 fields in `ManualIngestionRequest`, `attachment_link` gone, the result carrying the
+  parsed date); the SPA's `tsc`, ESLint and Vite build green; `mkdocs build --strict` green and the
+  documentation coverage gate **29 passed**, including the new screen. Rendered with the headless
+  shell over CDP at 1280×1600 against the Vite dev server and the API:
+  `.render/192-form-top.png` is the identity area open — title, level, parent, reference code, the
+  **text** date with its placeholder and help, dimension and support — with the six other areas
+  collapsed, the disabled **Objeto digital** control and the submit disabled while the title is
+  empty; `.render/192-form-area.png` is 3.4 expanded with the language select and the help under each
+  control; `.render/192-ingestion.png` is the ingestion screen with the **Entrada manual** card
+  reduced to the explanation and the **Nova descrição** button, the CSV card and the origin cards
+  below. The temporary render account and its sessions were deleted, and the browser profile and
+  driver are gone.
+- **Not verified, and said so.** Nothing was **submitted** through the browser: the write path is the
+  integration test that stages a record with every field and asserts every column, and what the
+  render proves is that the controls exist, are bound and sit in the right area. The
+  `requires_parent` warning was not triggered (no rung that requires a parent was selected in the
+  render); it is a conditional in the same screen. The CSV card was rendered but not re-imported with
+  the wider template: the map and the caps are the same catalogue the spec publishes, covered by
+  `test_csv_import.py` and by the equality pin.

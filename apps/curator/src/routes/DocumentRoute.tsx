@@ -17,6 +17,7 @@ import {
   updateDocument,
 } from "@/api/client";
 import { queries } from "@/api/queries";
+import { IsadFieldControl } from "@/components/description/IsadFieldControl";
 import { DocumentThumbnail } from "@/components/description/Thumbnail";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Badge } from "@/components/ui/Badge";
@@ -24,13 +25,14 @@ import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { EmptyState, ErrorState, Spinner } from "@/components/ui/Feedback";
 import { Field } from "@/components/ui/Field";
-import { Input, Select, Textarea } from "@/components/ui/Input";
+import { Input, Select } from "@/components/ui/Input";
 import { Notice } from "@/components/ui/Notice";
 import { Tabs } from "@/components/ui/Tabs";
 import { Typeahead } from "@/components/ui/Typeahead";
-import { ACTION } from "@/lib/copy";
+import { ACTION, DIGITAL_OBJECT } from "@/lib/copy";
 import { ENTITY_ORIGIN_HINT, ENTITY_ORIGIN_LABEL, ENTITY_ORIGIN_TONE } from "@/lib/entities";
 import { formatCount, formatDate, formatDateTime, REVIEW_STATUS_LABEL, REVIEW_STATUS_TONE } from "@/lib/format";
+import { fieldsOfArea, ISAD_AREAS } from "@/lib/isad";
 
 const routeApi = getRouteApi("/acervo/$descriptionId");
 
@@ -122,24 +124,6 @@ export function DocumentRoute() {
 // TAB: DESCRIÇÃO
 // ==========================================
 
-const ISAD_FIELDS: { name: keyof DocumentUpdateRequest; label: string; long?: boolean; date?: boolean }[] = [
-  { name: "original_title", label: "Título original" },
-  { name: "final_title", label: "Título final (decisão do arquivista)" },
-  // A real date control: the field used to render the pt-BR display string ("1 de jan. de 1994") in
-  // a box labelled AAAA-MM-DD, so editing it even once would send that text to a route that parses a
-  // date. The ISO value is what the contract stores, so it is what the input holds.
-  { name: "document_date", label: "Data do documento", date: true },
-  { name: "reference_code", label: "Código de referência" },
-  { name: "producers", label: "Produtor(es)" },
-  { name: "scope_content", label: "Âmbito e conteúdo", long: true },
-  { name: "provenance", label: "Procedência", long: true },
-  { name: "admin_bio_history", label: "História administrativa / biografia", long: true },
-  { name: "admin_archival_history", label: "História arquivística", long: true },
-  { name: "language_name", label: "Idioma" },
-  { name: "archivist_notes", label: "Notas do arquivista", long: true },
-  { name: "access_conditions", label: "Condições de acesso (ISAD(G) 4.1)", long: true },
-];
-
 function DescriptionTab({ document }: { document: DocumentSummary }) {
   const queryClient = useQueryClient();
   const [draft, setDraft] = useState<Record<string, string>>({});
@@ -150,11 +134,19 @@ function DescriptionTab({ document }: { document: DocumentSummary }) {
 
   const levelOptions = useQuery(queries.levels());
   const typologyOptions = useQuery(queries.typologies());
+  const languageOptions = useQuery(queries.languages());
 
   const save = useMutation({
     mutationFn: () => {
+      // An empty string is not a value the archive stores: it is the archivist deleting what was
+      // there, and sending it to a field typed as a date was a 422. Every cleared control travels
+      // as ``null``, which is how the contract says "nada".
+      const edited: Record<string, string | null> = {};
+      for (const [name, value] of Object.entries(draft)) {
+        edited[name] = value === "" ? null : value;
+      }
       const body: DocumentUpdateRequest = {
-        ...(draft as DocumentUpdateRequest),
+        ...(edited as DocumentUpdateRequest),
         level_id: levels ?? null,
         typology_id: typology ?? null,
         is_published: published,
@@ -175,6 +167,10 @@ function DescriptionTab({ document }: { document: DocumentSummary }) {
     const current = document[name as keyof DocumentSummary];
     if (current === null || current === undefined) return "";
     return String(current);
+  };
+
+  const setField = (name: string, value: string) => {
+    setDraft((previous) => ({ ...previous, [name]: value }));
   };
 
   return (
@@ -219,64 +215,101 @@ function DescriptionTab({ document }: { document: DocumentSummary }) {
         </Card>
       ) : null}
 
+      {/*
+        The record in the norm's own areas: the archivist learned ISAD(G) as 3.1 to 3.7, and a flat
+        list of thirty controls in alphabetical order is a list nobody can check against a ficha.
+      */}
+      {ISAD_AREAS.map((area) => (
+        <Card key={area.id}>
+          <CardHeader className="text-sm font-semibold">{area.title}</CardHeader>
+          <CardBody className="grid gap-3 sm:grid-cols-2">
+            <p className="text-xs text-(--color-muted) sm:col-span-2">{area.hint}</p>
+
+            {area.id === "identity" ? (
+              <>
+                <Field label="Título original" hint="O título que a origem declarou.">
+                  <Input value={valueOf("original_title")} onChange={(event) => setField("original_title", event.target.value)} />
+                </Field>
+                <Field label="Título final (decisão do arquivista)" hint="Vazio enquanto o arquivista não decidir.">
+                  <Input value={valueOf("final_title")} onChange={(event) => setField("final_title", event.target.value)} />
+                </Field>
+                <Field label="Nível de descrição">
+                  <Select
+                    value={levels ?? ""}
+                    onChange={(event) => setLevels(event.target.value ? Number(event.target.value) : undefined)}
+                  >
+                    <option value="">— não classificado —</option>
+                    {levelOptions.data?.map((level) => (
+                      <option key={level.level_id} value={level.level_id}>
+                        {level.name} ({formatCount(level.document_count)})
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+                {/*
+                  The typology sits next to the level because it is the other closed catalogue a
+                  description is classified against — and the archivist is the one who can overrule
+                  the classifier. Only the active ones are offered: a retired typology is out of the
+                  classifier's candidate set, so it must be out of the editor's too.
+                */}
+                <Field label="Tipologia documental">
+                  <Select
+                    value={typology ?? ""}
+                    onChange={(event) => setTypology(event.target.value ? Number(event.target.value) : undefined)}
+                  >
+                    <option value="">— não classificada —</option>
+                    {typologyOptions.data?.map((option) => (
+                      <option key={option.typology_id} value={option.typology_id}>
+                        {option.name} ({formatCount(option.document_count)})
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+              </>
+            ) : null}
+
+            {fieldsOfArea(area.id).map((field) => (
+              <IsadFieldControl
+                key={field.name}
+                field={field}
+                value={valueOf(field.name)}
+                languages={languageOptions.data ?? []}
+                onChange={(value) => setField(field.name, value)}
+                dateAs="iso"
+                hint={
+                  field.name === "document_date" && document.date_expression
+                    ? `Como está escrito na fonte: “${document.date_expression}”.`
+                    : undefined
+                }
+              />
+            ))}
+
+            {area.id === "identity" ? <ParentReference document={document} /> : null}
+
+            {area.id === "context" && document.original_url ? (
+              <div className="grid gap-1 text-xs sm:col-span-2">
+                <span className="text-(--color-muted)">Fonte</span>
+                <a
+                  className="truncate text-sm underline"
+                  href={document.original_url}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  {document.original_url}
+                </a>
+                <span className="text-(--color-muted)">
+                  A página de onde este registro foi lido. Não é o objeto digital, que ainda não é armazenado.
+                </span>
+              </div>
+            ) : null}
+          </CardBody>
+        </Card>
+      ))}
+
       <Card>
-        <CardHeader className="text-sm font-semibold">ISAD(G)</CardHeader>
-        <CardBody className="grid gap-3 sm:grid-cols-2">
-          {ISAD_FIELDS.map((field) => (
-            <label key={String(field.name)} className={field.long ? "sm:col-span-2" : ""}>
-              <span className="mb-1 block text-xs font-medium text-(--color-muted)">{field.label}</span>
-              {field.long ? (
-                <Textarea
-                  rows={3}
-                  value={valueOf(field.name)}
-                  onChange={(event) => setDraft((previous) => ({ ...previous, [field.name]: event.target.value }))}
-                />
-              ) : (
-                <Input
-                  type={field.date ? "date" : "text"}
-                  value={valueOf(field.name)}
-                  onChange={(event) => setDraft((previous) => ({ ...previous, [field.name]: event.target.value }))}
-                />
-              )}
-            </label>
-          ))}
-
-          <label>
-            <span className="mb-1 block text-xs font-medium text-(--color-muted)">Nível de descrição</span>
-            <Select value={levels ?? ""} onChange={(event) => setLevels(event.target.value ? Number(event.target.value) : undefined)}>
-              <option value="">— não classificado —</option>
-              {levelOptions.data?.map((level) => (
-                <option key={level.level_id} value={level.level_id}>
-                  {level.name} ({formatCount(level.document_count)})
-                </option>
-              ))}
-            </Select>
-          </label>
-
-          {/*
-            The typology sits next to the level because it is the other closed catalogue a
-            description is classified against — and the archivist is the one who can overrule the
-            classifier. Only the active ones are offered: a retired typology is out of the
-            classifier's candidate set, so it must be out of the editor's too.
-          */}
-          <label>
-            <span className="mb-1 block text-xs font-medium text-(--color-muted)">
-              Tipologia documental
-            </span>
-            <Select
-              value={typology ?? ""}
-              onChange={(event) => setTypology(event.target.value ? Number(event.target.value) : undefined)}
-            >
-              <option value="">— não classificada —</option>
-              {typologyOptions.data?.map((option) => (
-                <option key={option.typology_id} value={option.typology_id}>
-                  {option.name} ({formatCount(option.document_count)})
-                </option>
-              ))}
-            </Select>
-          </label>
-
-          <label className="flex items-center gap-2 pt-5">
+        <CardHeader className="text-sm font-semibold">Difusão</CardHeader>
+        <CardBody>
+          <label className="flex items-center gap-2">
             <input type="checkbox" checked={published} onChange={(event) => setPublished(event.target.checked)} />
             <span className="text-sm">
               Publicar na difusão
@@ -288,16 +321,30 @@ function DescriptionTab({ document }: { document: DocumentSummary }) {
         </CardBody>
       </Card>
 
+      {/*
+        The control is disabled on purpose, and the sentence that explains it is one definition
+        (``copy.ts``) shared with the manual entry form: #198 owns the digital object, and until it
+        lands the archive keeps the description and not the file.
+      */}
+      <Card>
+        <CardHeader className="text-sm font-semibold">{DIGITAL_OBJECT.label}</CardHeader>
+        <CardBody className="grid gap-2">
+          <input
+            type="file"
+            disabled
+            aria-label={DIGITAL_OBJECT.label}
+            title={DIGITAL_OBJECT.disabled}
+            className="text-sm text-(--color-muted)"
+          />
+          <p className="text-xs text-(--color-muted)">{DIGITAL_OBJECT.hint}</p>
+        </CardBody>
+      </Card>
+
       <Card>
         <CardBody className="grid gap-3 sm:grid-cols-2">
-          <label>
-            <span className="mb-1 block text-xs font-medium text-(--color-muted)">Quem revisou</span>
-            
-          </label>
-          <label>
-            <span className="mb-1 block text-xs font-medium text-(--color-muted)">Motivo da edição</span>
+          <Field label="Motivo da edição">
             <Input value={note} onChange={(event) => setNote(event.target.value)} />
-          </label>
+          </Field>
           <div className="sm:col-span-2">
             <Button variant="primary" disabled={save.isPending} onClick={() => save.mutate()}>
               {save.isPending ? "Salvando…" : "Salvar e marcar como revisado"}
@@ -314,6 +361,42 @@ function DescriptionTab({ document }: { document: DocumentSummary }) {
           ) : null}
         </CardBody>
       </Card>
+    </div>
+  );
+}
+
+/**
+ * Where the description sits, and what the origin declared when that is not resolvable yet.
+ *
+ * The pending parent is not an error: the origin is allowed to deliver the child first, and the
+ * transfer marks it while the code waits. The link itself is made in the arrangement tab.
+ */
+function ParentReference({ document }: { document: DocumentSummary }) {
+  // The parent is the last rung of the branch the read view already carries, so the line can name
+  // it even when the origin declared no code. A raw ``description_id`` is the last resort: it is
+  // what the archive knows when the arrangement has a parent the reader cannot resolve.
+  const branch = (document.ancestors ?? []).at(-1);
+  const parentLabel = branch?.title ?? document.parent_reference_code ?? "unidade superior";
+
+  return (
+    <div className="grid gap-1 text-xs sm:col-span-2">
+      <span className="text-(--color-muted)">Unidade superior</span>
+      {document.parent_id ? (
+        <Link
+          to="/acervo/$descriptionId"
+          params={{ descriptionId: document.parent_id }}
+          className="text-sm underline"
+        >
+          {parentLabel}
+        </Link>
+      ) : document.parent_reference_code ? (
+        <span className="text-sm">
+          {document.parent_reference_code} — declarada pela origem, aguardando a descrição do pai. O vínculo se
+          faz na aba Arranjo.
+        </span>
+      ) : (
+        <span className="text-sm text-(--color-muted)">não declarada. O vínculo se faz na aba Arranjo.</span>
+      )}
     </div>
   );
 }

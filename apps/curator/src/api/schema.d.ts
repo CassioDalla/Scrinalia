@@ -689,6 +689,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/languages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** ListLanguages */
+        get: operations["ApiV1LanguagesListLanguages"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/public/documents": {
         parameters: {
             query?: never;
@@ -2881,18 +2898,28 @@ export interface components {
         DocumentSummary: {
             /** @description ISAD(G) 4.1: conditions governing access; the diffusion gate. */
             access_conditions?: string | null;
+            accruals?: string | null;
             admin_archival_history?: string | null;
             admin_bio_history?: string | null;
             ancestors?: components["schemas"]["DocumentAncestorSummary"][];
             /** @description Codes written by the quality validator. */
             anomaly_reasons?: string[] | null;
+            appraisal_destruction?: string | null;
             archivist_notes?: string | null;
+            arrangement?: string | null;
             /** @default 0 */
             children_count: number;
+            conservation_notes?: string | null;
+            copies_location?: string | null;
+            date_expression?: string | null;
+            description_dates?: string | null;
             description_id: string;
+            dimension_support?: string | null;
             document_date?: string | null;
             entities?: components["schemas"]["DocumentEntitySummary"][];
             final_title?: string | null;
+            finding_aids?: string | null;
+            general_notes?: string | null;
             /** @default false */
             is_anomaly: boolean;
             /** @default false */
@@ -2902,14 +2929,22 @@ export interface components {
             level_id?: number | null;
             macro_categories?: components["schemas"]["DocumentMacroCategorySummary"][];
             original_title: string;
+            original_url?: string | null;
+            originals_location?: string | null;
             parent_id?: string | null;
+            parent_reference_code?: string | null;
             path?: string | null;
+            physical_characteristics?: string | null;
             producers?: string | null;
             provenance?: string | null;
+            publication_notes?: string | null;
             /** @description Full-text relevance score. */
             rank?: number | null;
             reference_code?: string | null;
+            related_units?: string | null;
+            reproduction_conditions?: string | null;
             review_status: components["schemas"]["ArchiveReviewStatus"];
+            rules_conventions?: string | null;
             scope_content?: string | null;
             storage_thumbnail_uri?: string | null;
             /** @description Title proposal; never stored, disappears once final_title is written. */
@@ -2939,16 +2974,34 @@ export interface components {
         DocumentUpdateRequest: {
             /** @description ISAD(G) 4.1 — condições de acesso. Sem ele o acervo não tem como declarar que uma descrição é restrita, e a difusão não tem como respeitar a restrição. */
             access_conditions?: string | null;
+            /** @description ISAD(G) 3.3.3 — incorporações. */
+            accruals?: string | null;
             /** @description História arquivística. */
             admin_archival_history?: string | null;
             /** @description História administrativa/biografia. */
             admin_bio_history?: string | null;
+            /** @description ISAD(G) 3.3.2 — avaliação, eliminação e temporalidade. */
+            appraisal_destruction?: string | null;
             /** @description Notas do arquivista. */
             archivist_notes?: string | null;
+            /** @description ISAD(G) 3.3.4 — sistema de arranjo. */
+            arrangement?: string | null;
+            /** @description Nota da instituição sobre o estado físico. */
+            conservation_notes?: string | null;
+            /** @description ISAD(G) 3.5.2 — existência e localização das cópias. */
+            copies_location?: string | null;
+            /** @description ISAD(G) 3.7.3 — datas da descrição. */
+            description_dates?: string | null;
+            /** @description ISAD(G) 3.1.5 — dimensão e suporte. */
+            dimension_support?: string | null;
             /** @description Data do documento corrigida. */
             document_date?: string | null;
             /** @description Título final revisado pelo arquivista. */
             final_title?: string | null;
+            /** @description ISAD(G) 3.4.5 — instrumentos de pesquisa. */
+            finding_aids?: string | null;
+            /** @description ISAD(G) 3.6.1 — notas gerais. */
+            general_notes?: string | null;
             /** @description Decisão de difusão, ortogonal ao status de revisão. Publicar não bloqueia a IA de continuar melhorando o registro; aprovar, sim. */
             is_published?: boolean | null;
             /** @description Idioma. */
@@ -2957,14 +3010,26 @@ export interface components {
             level_id?: number | null;
             /** @description Título original corrigido. */
             original_title?: string | null;
+            /** @description ISAD(G) 3.5.1 — existência e localização dos originais. */
+            originals_location?: string | null;
+            /** @description ISAD(G) 3.4.4 — características físicas e requisitos técnicos. */
+            physical_characteristics?: string | null;
             /** @description Produtor(es). */
             producers?: string | null;
             /** @description Procedência. */
             provenance?: string | null;
+            /** @description ISAD(G) 3.5.4 — notas de publicação. */
+            publication_notes?: string | null;
             /** @description Código de referência. */
             reference_code?: string | null;
+            /** @description ISAD(G) 3.5.3 — unidades de descrição relacionadas. */
+            related_units?: string | null;
+            /** @description ISAD(G) 3.4.2 — condições de reprodução. */
+            reproduction_conditions?: string | null;
             /** @description Motivo da edição; fica no histórico. */
             review_note?: string | null;
+            /** @description ISAD(G) 3.7.2 — regras ou convenções. */
+            rules_conventions?: string | null;
             /** @description Âmbito e conteúdo revisado. */
             scope_content?: string | null;
             /** @description Tipologia documental: id no catálogo (GET /api/v1/typologies). É a forma diplomática do registro — ata, ofício, planta — que o classificador propõe e o arquivista pode corrigir. Um id fora do catálogo é recusado com 422. */
@@ -3629,6 +3694,11 @@ export interface components {
             tag_wins: number;
             total: number;
         };
+        /** LanguageDTO */
+        LanguageDTO: {
+            code: string;
+            name: string;
+        };
         /** LoginCommand */
         LoginCommand: {
             email: string;
@@ -3667,33 +3737,63 @@ export interface components {
         ManualIngestionRequest: {
             /** @description Condições de acesso. */
             access_conditions?: string | null;
+            /** @description Incorporações. */
+            accruals?: string | null;
             /** @description História arquivística. */
             admin_archival_history?: string | null;
             /** @description História administrativa/biográfica. */
             admin_bio_history?: string | null;
-            /** @description Link do anexo, quando houver. */
-            attachment_link?: string | null;
+            /** @description Avaliação e temporalidade. */
+            appraisal_destruction?: string | null;
+            /** @description Notas do arquivista. */
+            archivist_notes?: string | null;
+            /** @description Sistema de arranjo. */
+            arrangement?: string | null;
+            /** @description Notas de conservação. */
+            conservation_notes?: string | null;
+            /** @description Localização das cópias. */
+            copies_location?: string | null;
             /** @description Identificador do registro. */
             description_id?: string | null;
-            /** @description Data de produção, quando conhecida. */
+            /** @description Dimensão e suporte. */
+            dimension_support?: string | null;
+            /** @description Data de produção como está na fonte: AAAA-MM-DD, década ou intervalo. */
             document_date?: string | null;
+            /** @description Instrumentos de pesquisa. */
+            finding_aids?: string | null;
+            /** @description Notas gerais. */
+            general_notes?: string | null;
             /** @description Pontos de acesso, separados por vírgula. */
             indexing_points?: string | null;
+            /** @description Idioma. */
+            language_name?: string | null;
             /** @description Nível de descrição. */
             level?: string | null;
-            /** @description URL do registro original, quando houver. */
+            /** @description URL da página de onde o registro veio. */
             original_url?: string | null;
+            /** @description Localização dos originais. */
+            originals_location?: string | null;
             /** @description Código da unidade superior. */
             parent_reference_code?: string | null;
+            /** @description Características físicas. */
+            physical_characteristics?: string | null;
             /** @description Produtores. */
             producers?: string | null;
             /** @description Procedência. */
             provenance?: string | null;
+            /** @description Notas de publicação. */
+            publication_notes?: string | null;
             /** @description Código de referência. */
             reference_code?: string | null;
+            /** @description Unidades de descrição relacionadas. */
+            related_units?: string | null;
+            /** @description Condições de reprodução. */
+            reproduction_conditions?: string | null;
+            /** @description Regras ou convenções. */
+            rules_conventions?: string | null;
             /** @description Âmbito e conteúdo. */
             scope_content?: string | null;
-            /** @description Link da imagem, quando houver. */
+            /** @description URL da imagem que o worker de miniatura baixa. */
             thumb_down_link?: string | null;
             /** @description Título da descrição. */
             title: string;
@@ -3706,7 +3806,11 @@ export interface components {
         };
         /** ManualIngestionResultDTO */
         ManualIngestionResultDTO: {
+            /** @description A data como o arquivista a escreveu, quando havia uma. */
+            date_expression?: string | null;
             description_id: string;
+            /** @description A data que o perfil de idioma leu do texto, para a confirmação mostrar o que foi gravado. */
+            document_date?: string | null;
             origin_code: string;
             /**
              * @description O estado inicial no archive: a ingestão manual não marca HUMAN_APPROVED.
@@ -6736,6 +6840,26 @@ export interface operations {
                         } | unknown[];
                         status_code: number;
                     };
+                };
+            };
+        };
+    };
+    ApiV1LanguagesListLanguages: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LanguageDTO"][];
                 };
             };
         };

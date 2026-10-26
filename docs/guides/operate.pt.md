@@ -334,7 +334,7 @@ já estruturados.
 
 ### A entrada manual
 
-A origem `manual` é o formulário em `/sistema/ingestao`, e ele **não** é uma aprovação. O envio grava
+A origem `manual` é o formulário em `/sistema/ingestao/nova`, e ele **não** é uma aprovação. O envio grava
 o `raw_data` (com `created_by`), uma linha em `scraping_queue` marcada como `DONE` (o formulário é a
 descoberta) e o registro de staging; em seguida enfileira o mesmo worker `transfer` que a coleta usa.
 A descrição do Acervo nasce `PENDING_AI`, e as filas de IA a veem; o curador aprova no dossiê depois
@@ -342,9 +342,26 @@ que a IA rodar. Se já houver uma transferência em andamento, o registro fica n
 diz que ele entra na próxima. Um `description_id` duplicado é recusado antes da gravação; o formulário
 gera um id `manual-<uuid>` para que um reenvio seja o mesmo registro.
 
-O formulário traz os campos essenciais do ISAD(G) (título, código de referência, nível, data, âmbito
-e conteúdo, produtores, história administrativa/biográfica, condições de acesso e pontos de acesso).
-O resto do contrato de staging é #192.
+O formulário tem tela própria, `/sistema/ingestao/nova`, alcançada pelo cartão **Entrada manual**:
+o registro é o registro ISAD(G) inteiro — trinta controles agrupados nas sete áreas da norma, com a
+identidade aberta e o resto recolhido — e um cartão desse tamanho dentro da tela de ingestão empurraria
+os cartões de origem para baixo. Os rótulos, os tipos de controle e a ordem vêm do mesmo catálogo que
+o dossiê edita (`apps/curator/src/lib/isad.ts`), então as duas telas não podem criar dois vocabulários
+para uma norma.
+
+Três comportamentos valem saber antes de digitar:
+
+- **A data é texto.** O arquivista digita o que o registro diz (`Década de 1980`, `1951-1953`) e o
+  perfil de idioma interpreta — a mesma gramática que a importação CSV usa. Um valor que o perfil não
+  consegue ler é recusado com uma frase, em vez de virar data vazia, e a confirmação repete a data que
+  o perfil leu, para que o que foi gravado fique visível.
+- **O nível e o idioma são seletores.** O nível vem do catálogo de níveis e o idioma de
+  `GET /api/v1/languages` (um catálogo declarado em código — um idioma não carrega regra que a
+  instituição edite). Um nível que exige pai e não tem nenhum **avisa e grava assim mesmo**: o registro
+  entra pendente e a aba Arranjo do dossiê faz o vínculo depois.
+- **O objeto digital está desabilitado.** O controle de upload aparece desabilitado, com a frase que
+  aponta para a #198: o acervo guarda a descrição, não o arquivo. A URL da imagem logo abaixo é o
+  caminho que funciona hoje — o worker de miniatura copia essa imagem para o storage.
 
 ### A importação CSV
 

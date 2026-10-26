@@ -90,6 +90,8 @@ export type DocumentDeletion = components["schemas"]["DocumentDeletionDTO"];
 export type DocumentDeletionList = components["schemas"]["DocumentDeletionListResponse"];
 export type DocumentDeletionResponse = components["schemas"]["DocumentDeletionResponse"];
 export type DescriptionLevel = components["schemas"]["DescriptionLevelDTO"];
+/** A language a description may declare: the name the archive stores and its ISO code. */
+export type Language = components["schemas"]["LanguageDTO"];
 export type ArchiveReviewStatus = components["schemas"]["ArchiveReviewStatus"];
 export type DocumentUpdateRequest = components["schemas"]["DocumentUpdateRequest"];
 
@@ -516,6 +518,17 @@ export async function updateDocument(
       body,
     }),
   );
+}
+
+/**
+ * The languages a description may declare.
+ *
+ * The catalogue is declared in the API's code, not in a table: a language carries no rule an
+ * institution edits, so the screen reads it and offers the names it publishes. The dossier keeps a
+ * value the catalogue does not know — a source that says "Port." is quoted, not corrected.
+ */
+export async function fetchLanguages(): Promise<Language[]> {
+  return unwrap<Language[]>(await client.GET("/api/v1/languages"));
 }
 
 export async function fetchLevels(): Promise<DescriptionLevel[]> {

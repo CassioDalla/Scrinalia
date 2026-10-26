@@ -13,6 +13,7 @@ import { DocumentRoute } from "@/routes/DocumentRoute";
 import { EntitiesRoute, validateEntitiesSearch } from "@/routes/EntitiesRoute";
 import { InboxRoute } from "@/routes/InboxRoute";
 import { IngestionRoute } from "@/routes/IngestionRoute";
+import { ManualEntryRoute } from "@/routes/ManualEntryRoute";
 import { LevelsRoute } from "@/routes/LevelsRoute";
 import { NerExclusionsRoute } from "@/routes/NerExclusionsRoute";
 import { NotFoundRoute } from "@/routes/NotFoundRoute";
@@ -220,6 +221,14 @@ const ingestionRoute = createRoute({
   component: IngestionRoute,
 });
 
+// The manual form has a screen of its own: the record is the whole ISAD(G) record, and a card with
+// thirty controls inside the ingestion screen would push the origin cards down by a screen.
+const manualEntryRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/sistema/ingestao/nova",
+  component: ManualEntryRoute,
+});
+
 const systemRunsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/sistema/execucoes",
@@ -299,6 +308,7 @@ export const router = createRouter({
     anomaliesRoute,
     systemWorkersRoute,
     ingestionRoute,
+    manualEntryRoute,
     systemRunsRoute,
     systemHealthRoute,
     settingsRoute,

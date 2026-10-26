@@ -399,9 +399,25 @@ dossier after the AI runs. If a transfer is already in flight, the record stays 
 response says it enters the next one. A duplicate `description_id` is refused before the write; the
 form generates a `manual-<uuid>` id so a retried submit is the same record.
 
-The form ships the essential ISAD(G) fields (title, reference code, level, date, scope and content,
-producers, administrative/biographical history, access conditions and access points). The rest of the
-staging contract is #192.
+The form lives on its own screen, `/sistema/ingestao/nova`, reached from the **Entrada manual** card:
+the record is the whole ISAD(G) record — thirty controls grouped in the norm's seven areas, identity
+open and the rest collapsed — and a card that size inside the ingestion screen would push the origin
+cards down by a screen. The labels, kinds and order come from the same catalogue the dossier edits
+(`apps/curator/src/lib/isad.ts`), so the two screens cannot grow two vocabularies for one norm.
+
+Three behaviours are worth knowing before typing:
+
+- **The date is text.** The archivist types what the record says (`Década de 1980`, `1951-1953`) and
+  the language profile parses it — the same grammar the CSV import uses. A value the profile cannot
+  read is refused with a sentence instead of becoming an empty date, and the confirmation repeats the
+  date the profile read, so what was stored is visible.
+- **The level and the language are selects.** The level comes from the level catalogue and the
+  language from `GET /api/v1/languages` (a catalogue declared in code — a language carries no rule an
+  institution edits). A rung that requires a parent and has none **warns and still submits**: the
+  record enters pending and the dossier's arrangement tab links it later.
+- **The digital object is disabled.** The upload control is rendered disabled, with the sentence
+  that points at #198: the archive keeps the description and not the file. The image URL below it is
+  the one path that works today — the thumbnail worker copies that image into the storage.
 
 ### The CSV import
 

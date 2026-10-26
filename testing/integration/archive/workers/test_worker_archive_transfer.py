@@ -271,3 +271,84 @@ def test_a_payload_that_says_nothing_leaves_the_curated_arrangement_alone(db_ses
     assert again.original_title == "Item corrigido"  # the source change did arrive
     assert again.parent_id == "raiz"  # the curated placement did not move
     assert again.path == "raiz.colocado"
+
+
+def test_the_transfer_carries_the_whole_isad_record(db_session, use_test_db):
+    """
+    Every field the staging layer parsed reaches the archive, with the source's own values.
+
+    The transfer used to build the archive DTO from a subset of ``StagingRecord``, so 18 of the 33
+    content fields died on the way in — the source URL of every scraped record among them. This is
+    the pin that a field added to the port cannot be dropped in silence again.
+    """
+    from datetime import date
+
+    doc = StagingDocument(
+        description_id="doc_isad",
+        title="Ofício do Prefeito",
+        raw_content_hash="hash_isad",
+        document_date=date(1980, 1, 1),
+        date_expression="Década de 1980",
+        original_url="https://arquivo.example/registro/42",
+        reference_code="BR PRPMC 001",
+        parent_reference_code="BR PRPMC",
+        level="Dossiê",
+        dimension_support="2 folhas",
+        producers="Prefeitura Municipal",
+        admin_bio_history="Criada em 1912.",
+        admin_archival_history="Transferida ao arquivo em 1998.",
+        provenance="Doação da família",
+        scope_content="Nomeação de servidor.",
+        appraisal_destruction="Guarda permanente.",
+        accruals="Sem incorporações previstas.",
+        arrangement="Ordenado por data.",
+        access_conditions="Aberto à consulta.",
+        reproduction_conditions="Reprodução permitida com citação.",
+        language_name="Português",
+        physical_characteristics="Papel; tinta ferrogálica.",
+        finding_aids="Índice onomástico da série.",
+        originals_location="Arquivo Central, caixa 12.",
+        copies_location="Microfilme 3.",
+        related_units="BR PRPMC 002",
+        publication_notes="Publicado no Diário Oficial de 1929.",
+        conservation_notes="Bordas rasgadas no canto superior.",
+        general_notes="Ver também o processo irmão.",
+        archivist_notes="Descrição revisada em 2026.",
+        rules_conventions="ISAD(G) e NOBRADE.",
+        description_dates="2026-10-26",
+    )
+    db_session.add(doc)
+    db_session.commit()
+
+    worker_archive_transfer.execute(db_session)
+
+    db_session.expire_all()
+    archived = db_session.get(ArchiveDocument, "doc_isad")
+    assert archived is not None
+
+    carried = (
+        "date_expression",
+        "original_url",
+        "dimension_support",
+        "appraisal_destruction",
+        "accruals",
+        "arrangement",
+        "reproduction_conditions",
+        "physical_characteristics",
+        "finding_aids",
+        "originals_location",
+        "copies_location",
+        "related_units",
+        "publication_notes",
+        "conservation_notes",
+        "general_notes",
+        "rules_conventions",
+        "description_dates",
+    )
+    for field in carried:
+        assert getattr(archived, field) == getattr(doc, field), f"{field} não chegou ao acervo"
+
+    # The declared parent is kept even when it has not arrived: the code used to live only inside
+    # the ``hierarchy_parent_v1`` stamp, so the dossier could not say what it was waiting for.
+    assert archived.parent_reference_code == "BR PRPMC"
+    assert archived.parent_id is None

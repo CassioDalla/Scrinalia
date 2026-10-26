@@ -44,8 +44,11 @@ def test_the_spec_publishes_the_one_catalogue_and_its_bounds() -> None:
 
 
 def test_the_field_limit_falls_back_to_the_general_cap() -> None:
-    assert field_limit(CSV_FIELDS[0]) == 500
-    assert field_limit(CSV_FIELDS[5]) == MAX_CSV_FIELD_CHARS
+    # By attribute, not by position: the list grows and a positional index silently becomes another
+    # column's cap.
+    by_attribute = {field.attribute: field for field in CSV_FIELDS}
+    assert field_limit(by_attribute["title"]) == 500
+    assert field_limit(by_attribute["scope_content"]) == MAX_CSV_FIELD_CHARS
 
 
 def test_payload_drops_empty_cells_and_keeps_the_rest() -> None:

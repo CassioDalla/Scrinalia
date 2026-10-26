@@ -123,3 +123,21 @@ export const ACTION = {
   /** Re-runs a read-only probe. */
   recheck: { label: "Verificar de novo", pending: "Verificando…" },
 } as const satisfies Record<string, Action>;
+
+/**
+ * The one sentence the two screens say about the file a description does not have yet.
+ *
+ * The control is rendered **disabled** in the dossier and in the manual entry form, and the reason
+ * is the same in both: the archive keeps the description and not the file, and the file is issue
+ * #198 — where the object, its type, its size, who uploaded it and the rule that decides whether
+ * this archive keeps the bytes or points at the system that does all have to be decided together.
+ *
+ * It exists as a disabled control instead of an absent one for one reason: the form used to offer
+ * ``attachment_link``, a text box nobody reads, and an archivist who pastes a link into it believes
+ * the document was attached. A control that says "not yet" is the honest version of that box.
+ */
+export const DIGITAL_OBJECT = {
+  label: "Objeto digital",
+  hint: "Anexos (imagem, PDF, áudio) ainda não são enviados: o objeto digital é a issue #198. O registro guarda a descrição, não o arquivo.",
+  disabled: "Indisponível por enquanto",
+} as const;

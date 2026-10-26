@@ -79,7 +79,7 @@ toda linha pareceria mudada uma vez por uma coluna que nenhum worker de IA escre
 
 | Tabela | Para que serve | Colunas principais |
 | --- | --- | --- |
-| `staging_documents` | A descrição higienizada e tipada antes de qualquer IA tocar nela: a fonte única de verdade higienizada. | `description_id` (chave primária), `origin_code`, `raw_content_hash`, `title`, `document_date`, `reference_code`, `parent_reference_code`, `hierarchy_path`, `level`, as colunas de texto ISAD(G), `raw_metadata` (JSONB), `created_at`, `updated_at` |
+| `staging_documents` | A descrição higienizada e tipada antes de qualquer IA tocar nela: a fonte única de verdade higienizada. | `description_id` (chave primária), `origin_code`, `raw_content_hash`, `title`, `document_date`, `date_expression`, `original_url`, `reference_code`, `parent_reference_code`, `hierarchy_path`, `level`, as colunas de texto ISAD(G), `raw_metadata` (JSONB), `created_at`, `updated_at` |
 
 `parent_reference_code` é opcional de propósito: uma origem que entrega um filho antes do pai deixa a
 descrição órfã e *marcada* em vez de derrubar o lote. `raw_metadata` guarda as chaves que não foram
@@ -91,7 +91,21 @@ mapeadas para uma coluna.
 
 | Tabela | Para que serve | Colunas principais |
 | --- | --- | --- |
-| `archive_documents` | A descrição final, limpa e enriquecida, servida aos usuários e enriquecida pelos workers de IA. | `description_id` (chave primária), `origin_code`, `original_title`, `final_title`, `document_date`, `summary`, `staging_content_hash`, `reference_code`, `level_id`, `typology_id`, `parent_id`, `path`, `review_status`, `is_anomaly`, `anomaly_reasons`, `is_published`, `execution_log` (JSONB), `embedding` (`vector(384)`), `search_vector` (gerada), timestamps |
+| `archive_documents` | A descrição final, limpa e enriquecida, servida aos usuários e enriquecida pelos workers de IA. | `description_id` (chave primária), `origin_code`, `original_title`, `final_title`, `document_date`, `date_expression`, `original_url`, `summary`, `staging_content_hash`, `reference_code`, `level_id`, `typology_id`, `parent_id`, `parent_reference_code`, `path`, as colunas de texto ISAD(G), `review_status`, `is_anomaly`, `anomaly_reasons`, `is_published`, `execution_log` (JSONB), `embedding` (`vector(384)`), `search_vector` (gerada), timestamps |
+
+As **colunas de texto ISAD(G)** são o registro inteiro, não um subconjunto: `dimension_support`,
+`producers`, `admin_bio_history`, `admin_archival_history`, `provenance`, `scope_content`,
+`appraisal_destruction`, `accruals`, `arrangement`, `access_conditions`, `reproduction_conditions`,
+`language_name`, `physical_characteristics`, `finding_aids`, `originals_location`, `copies_location`,
+`related_units`, `publication_notes`, `conservation_notes`, `general_notes`, `archivist_notes`,
+`rules_conventions` e `description_dates`. O transform de staging sempre as interpretou; a
+transferência copiava um subconjunto até o acervo ganhar o resto, e é por isso que o dossiê agora
+mostra e edita a ficha por área.
+
+`parent_reference_code` é o pai que a origem **declarou**, guardado mesmo quando o vínculo ainda não
+pode ser resolvido: a transferência marca o filho como pendente, e o código vivia só dentro do valor
+do carimbo `hierarchy_parent_v1`. `date_expression` e `original_url` são evidência, não descrição
+editável: como a fonte escreveu a data, e a página de onde o registro foi lido.
 
 Três propriedades desta tabela sustentam o modelo:
 

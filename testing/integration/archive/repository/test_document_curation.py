@@ -65,6 +65,65 @@ def test_update_review_can_fix_any_isad_g_field(db_session, generate_archive_doc
     assert summary.document_date == date(1954, 3, 15)
 
 
+def test_update_review_edits_the_rest_of_the_isad_record(db_session, generate_archive_doc) -> None:
+    """
+    The fields the archive gained with the ISAD(G) record are editable through the same command.
+
+    There is no new code path here — the repository dumps what the command carries and sets what
+    changed — so what this pins is that the command and the read view declare every column, and that
+    the audit trail names them like the older fields.
+    """
+    generate_archive_doc(description_id="edit-isad", original_title="Título")
+
+    written = {
+        "dimension_support": "2 folhas",
+        "appraisal_destruction": "Guarda permanente.",
+        "accruals": "Sem incorporações previstas.",
+        "arrangement": "Ordenado por data.",
+        "reproduction_conditions": "Reprodução com citação.",
+        "physical_characteristics": "Papel e tinta ferrogálica.",
+        "finding_aids": "Índice onomástico.",
+        "originals_location": "Arquivo Central, caixa 12.",
+        "copies_location": "Microfilme 3.",
+        "related_units": "BR PRPMC 002",
+        "publication_notes": "Diário Oficial de 1929.",
+        "conservation_notes": "Bordas rasgadas.",
+        "general_notes": "Ver o processo irmão.",
+        "rules_conventions": "ISAD(G) e NOBRADE.",
+        "description_dates": "2026-10-26",
+    }
+
+    summary = DocumentRepository(db_session).update_review(
+        DocumentReviewCommand(
+            description_id="edit-isad",
+            dimension_support=written["dimension_support"],
+            appraisal_destruction=written["appraisal_destruction"],
+            accruals=written["accruals"],
+            arrangement=written["arrangement"],
+            reproduction_conditions=written["reproduction_conditions"],
+            physical_characteristics=written["physical_characteristics"],
+            finding_aids=written["finding_aids"],
+            originals_location=written["originals_location"],
+            copies_location=written["copies_location"],
+            related_units=written["related_units"],
+            publication_notes=written["publication_notes"],
+            conservation_notes=written["conservation_notes"],
+            general_notes=written["general_notes"],
+            rules_conventions=written["rules_conventions"],
+            description_dates=written["description_dates"],
+            changed_by=Author(name="ana"),
+        )
+    )
+
+    assert summary is not None
+    for field, value in written.items():
+        assert getattr(summary, field) == value, f"{field} não voltou na leitura"
+
+    revisions = DocumentRepository(db_session).list_revisions("edit-isad")
+    assert len(revisions) == 1
+    assert set(revisions[0].changes) == set(written)
+
+
 def test_update_review_records_only_what_changed(db_session, generate_archive_doc) -> None:
     generate_archive_doc(description_id="edit-2", original_title="Título antigo", scope_content="Escopo")
 
