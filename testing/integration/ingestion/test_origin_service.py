@@ -32,6 +32,7 @@ from scrinalia.domains.ingestion.models import IngestionOrigin, RawData, ScrapeS
 from scrinalia.domains.ingestion.schemas import (
     CsvImportRequest,
     CsvImportRow,
+    IngestionOriginUpdateRequest,
     IngestionRunRequest,
     ManualIngestionRequest,
 )
@@ -54,6 +55,73 @@ def origins(db_session):
     db_session.add(IngestionOrigin(code="manual", enabled=True, config={}, options={}))
     db_session.add(IngestionOrigin(code="csv", enabled=True, config={}, options={}))
     db_session.flush()
+
+
+# ==========================================
+# THE PAGE'S READ: SOURCES AND ENTRIES (#206)
+# ==========================================
+
+
+def test_the_read_separates_the_sources_from_the_entry_paths(db_session, origins) -> None:
+    """A row makes an origin configured; the definition says whether it is a source or an entry."""
+    page = IngestionOriginService(db_session).list_origins()
+
+    assert [origin.code for origin in page.origins] == ["pmc", "manual", "csv"]
+    assert {origin.code: origin.configurable for origin in page.origins} == {
+        "pmc": True,
+        "manual": False,
+        "csv": False,
+    }
+    assert page.available == []
+
+
+def test_a_fresh_install_offers_the_source_and_keeps_the_entries_readable(db_session) -> None:
+    """The seeded entries are not sources: the page is empty and the picker offers the source."""
+    db_session.add(IngestionOrigin(code="manual", enabled=True, config={}, options={}))
+    db_session.add(IngestionOrigin(code="csv", enabled=True, config={}, options={}))
+    db_session.flush()
+
+    page = IngestionOriginService(db_session).list_origins()
+
+    assert [origin.code for origin in page.origins] == ["manual", "csv"]
+    assert all(origin.configurable is False for origin in page.origins)
+    assert [origin.code for origin in page.available] == ["pmc"]
+    assert page.available[0].label == "Acervo de referência (PMC)"
+
+
+def test_adding_the_available_source_activates_it(db_session) -> None:
+    """The picker's write is the existing upsert: it creates the row enabled and records the author."""
+    service = IngestionOriginService(db_session)
+    assert [origin.code for origin in service.list_origins().available] == ["pmc"]
+
+    added = service.update_origin(
+        "pmc",
+        IngestionOriginUpdateRequest(enabled=True, config={}, options={}),
+        author=AUTHOR,
+    )
+
+    assert added.code == "pmc"
+    assert added.enabled is True
+    assert added.configurable is True
+    page = service.list_origins()
+    assert [origin.code for origin in page.origins] == ["pmc"]
+    assert page.available == []
+    row = db_session.get(IngestionOrigin, "pmc")
+    assert row is not None and row.enabled is True and row.updated_by == AUTHOR.name
+
+
+def test_a_paused_source_keeps_its_card(db_session, origins) -> None:
+    """Pausing is the lifecycle, not a deletion: the row stays and the page still lists it."""
+    pmc = db_session.get(IngestionOrigin, "pmc")
+    assert pmc is not None
+    pmc.enabled = False
+    db_session.flush()
+
+    page = IngestionOriginService(db_session).list_origins()
+    by_code = {origin.code: origin for origin in page.origins}
+
+    assert by_code["pmc"].enabled is False
+    assert by_code["pmc"].configurable is True
 
 
 def test_the_queue_is_read_one_origin_at_a_time(db_session, origins) -> None:

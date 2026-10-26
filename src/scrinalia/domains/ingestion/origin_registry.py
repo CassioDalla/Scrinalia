@@ -92,6 +92,11 @@ class OriginSummary:
     kind: OriginKind
     config_model: type[BaseModel]
     config_fields: tuple[OriginConfigField, ...] = ()
+    #: Whether the origin is a **source** the operator configures and adds (#206), as opposed to an
+    #: input path (the manual form and the CSV import). The page splits on it: the sources have the
+    #: lifecycle, the agenda and the run; the entries are shown read-only with their own link. It is
+    #: also what the health probe counts, so its number means the same thing as the page's.
+    configurable: bool = True
 
 
 #: The origins the package ships. Insertion order is the order the screen shows; the manual origin
@@ -138,6 +143,7 @@ ORIGINS: Mapping[str, OriginSummary] = {
         ),
         kind=OriginKind.MANUAL,
         config_model=ManualOriginConfig,
+        configurable=False,
     ),
     "csv": OriginSummary(
         code="csv",
@@ -148,6 +154,7 @@ ORIGINS: Mapping[str, OriginSummary] = {
         ),
         kind=OriginKind.CSV,
         config_model=CsvOriginConfig,
+        configurable=False,
     ),
 }
 

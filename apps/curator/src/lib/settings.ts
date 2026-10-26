@@ -70,7 +70,7 @@ export type SettingsScreenId = Extract<
   | "typologies"
   | "vocabulary"
   | "workers"
-  | "ingestion"
+  | "origins"
   | "workerSettings"
   | "runs"
   | "health"
@@ -104,12 +104,12 @@ export const SETTINGS_TABS: SettingsTab[] = [
     cards: [
       { screen: "workers", icon: Cpu, permission: "OPERATE" },
       /*
-        Ingestão stays reachable by a curator after the entry paths moved to the Acervo (#205): the
-        screen is now the origins' status, which a curator reads, and the configuration, the agenda
-        and the run are OPERATE controls it hides. The final permission of the origins page — and
-        whether it needs a read-only mode — is #206's decision, not this card's.
+        Origens is the operator's page (#206): adding a source, editing its configuration, saving its
+        agenda, pausing it and enqueuing a run are all OPERATE. The read routes stay AUTHENTICATED,
+        so a direct URL still shows the page read-only for a curator; the card, however, is the
+        operator's door, and the entries live in the Acervo at /acervo/nova.
       */
-      { screen: "ingestion", icon: Download, permission: "CURATE" },
+      { screen: "origins", icon: Download, permission: "OPERATE" },
       /*
         The configuration sits beside the panel it configures, and the two are separate cards
         because they answer different questions: the panel says what the machine is *doing* (queues,

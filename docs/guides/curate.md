@@ -1060,32 +1060,35 @@ the human review of the record, in the dossier.
 
 The machine, not the collection. Everything here belongs to whoever operates the installation, and
 all four screens are reached from `/configuracoes`, under *Operação*: the menu kept what the
-archivist consults while cataloguing, and this is not it. The ingestion screen is the one exception
-to the "operator only" rule — a curator reads the origins' status there — and it is therefore a
-`CURATE` card; the two ways into the collection live in the Acervo (`/acervo/nova`).
+archivist consults while cataloguing, and this is not it. The two ways into the collection live in
+the Acervo (`/acervo/nova`), and the origins page is the operator's; the read routes stay
+authenticated, so a curator who follows a direct URL still sees it read-only.
 
 | Screen | Decision | Reversible? |
 | --- | --- | --- |
-| Ingestão — `/sistema/ingestao` | which origin to read, its URLs and its agenda (operator); the curator reads the queues and the last run | the configuration and the agenda are reversible; the screen writes no description |
+| Origens — `/sistema/ingestao` | which source to add, its URLs and agenda, whether it is active, and whether to enqueue a run (operator) | the configuration, the agenda and the pause are reversible; the screen writes no description |
 | Workers de IA — `/sistema/workers` | whether to run a worker now | yes (the run's own configuration); a run's effects follow what it wrote |
 | Execuções — `/sistema/execucoes` | whether to stop an active run (the ledger and the grouped failures are read-only) | no undo: a cancelled run stays cancelled; a new run is a new ledger row |
 | Saúde do sistema — `/sistema/diagnostico` | none (database, models, storage, process) | yes (read only) |
 
-### Ingestão — `/sistema/ingestao`
+### Origens — `/sistema/ingestao`
 
-The stage in front of the archive, origin by origin (ADR 0016). Each card is one origin: its own
-queue (what the next execution would read), processed and failed numbers, the last and the active
-run, and the agenda. The **operator** can edit the adapter configuration (the reference scraper's
-listing and detail URLs, the politeness delay), save a five-field cron in an IANA zone and
-**Enfileirar execução**. The run is the same ledger the AI workers use; a period that fires while the
-origin is already running is skipped, not queued. The generic worker routes refuse `ingestion` — a
-run of it needs the origin, and the origin routes are the selector.
+The stage in front of the archive, source by source (ADR 0016). **Origens** lists the configured
+sources: each card has the queue the next execution would read, the processed/failed numbers, the
+last and active run, the agenda and the effective configuration. The **operator** adds a definition
+from the picker, edits the adapter configuration (the reference scraper's listing and detail URLs,
+the politeness delay), saves a five-field cron in an IANA zone, **Desativa/Ativa** and
+**Enfileira execução**. Pausing keeps the row, the agenda and the runs; only the run is refused. A
+fresh install starts with no source configured and shows **Nenhuma origem configurada**; the add
+flow activates the chosen definition. The run is the same ledger the AI workers use; a period that
+fires while the source is already running is skipped, not queued.
 
-The **curator** sees the same cards read-only: the queues, the last run and the agenda are the
-status of the stage, and the operator-only controls are hidden. The two writes that used to live
-here — the typed record and the CSV import — are `/acervo/nova`, in the Acervo (#205); their
-behaviour is described under *Nova descrição*. The final permission of this page, and whether it
-needs a read-only mode of its own, is the origins issue (#206).
+**Entradas** shows the manual and CSV rows read-only, with their status and a link to the Acervo:
+they are the entry paths, not sources, and the two writes that used to live here are described under
+*Nova descrição* (#205). The card is an `OPERATE` one; the read routes stay authenticated, so a
+curator who follows a direct URL sees the page read-only with the controls hidden. The generic
+worker routes refuse `ingestion` — a run of it needs the origin, and the origin routes are the
+selector.
 
 ### Workers de IA — `/sistema/workers`
 

@@ -84,6 +84,9 @@ class IngestionOriginDTO(RequestModel):
     numbers of that origin, never a collection-wide total. ``last_run``/``active_run`` are flattened
     so this contract does not have to import the run DTO, and the full ledger stays on
     ``/system/runs?origin=...``.
+
+    ``configurable`` is the definition's property, not the row's: a source has the lifecycle, the
+    agenda and the run, while the manual/CSV entries are shown read-only with their own link (#206).
     """
 
     code: str
@@ -91,6 +94,9 @@ class IngestionOriginDTO(RequestModel):
     description: str
     kind: str
     enabled: bool
+    configurable: bool = Field(
+        description="Fonte configurável (operador) ou entrada manual/CSV (só leitura, com link para /acervo/nova)."
+    )
     config: dict[str, Any] = Field(default_factory=dict)
     config_fields: list[OriginConfigFieldDTO] = Field(default_factory=list)
     options: dict[str, Any] = Field(default_factory=dict)
@@ -114,8 +120,23 @@ class IngestionOriginDTO(RequestModel):
     updated_at: datetime | None = None
 
 
+class OriginAvailableDTO(RequestModel):
+    """A source the package ships and this installation has not configured yet (#206).
+
+    It is the picker's row: the definition's name, its sentence and its kind, without a lifecycle.
+    Only ``configurable`` definitions are available; the manual and CSV entries are never offered.
+    """
+
+    code: str
+    label: str
+    description: str
+    kind: str
+
+
 class IngestionOriginListResponse(RequestModel):
     origins: list[IngestionOriginDTO] = Field(default_factory=list)
+    #: The configurable definitions without a row: what "Adicionar origem" offers.
+    available: list[OriginAvailableDTO] = Field(default_factory=list)
     generated_at: datetime
 
 

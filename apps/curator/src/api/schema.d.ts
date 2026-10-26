@@ -3557,6 +3557,8 @@ export interface components {
                 [key: string]: unknown;
             };
             config_fields?: components["schemas"]["OriginConfigFieldDTO"][];
+            /** @description Fonte configurável (operador) ou entrada manual/CSV (só leitura, com link para /acervo/nova). */
+            configurable: boolean;
             description: string;
             enabled: boolean;
             failed?: number | null;
@@ -3591,6 +3593,7 @@ export interface components {
         };
         /** IngestionOriginListResponse */
         IngestionOriginListResponse: {
+            available?: components["schemas"]["OriginAvailableDTO"][];
             /** Format: date-time */
             generated_at: string;
             origins?: components["schemas"]["IngestionOriginDTO"][];
@@ -4048,6 +4051,13 @@ export interface components {
             missing_models?: string[];
             ok: boolean;
             required_models?: string[];
+        };
+        /** OriginAvailableDTO */
+        OriginAvailableDTO: {
+            code: string;
+            description: string;
+            kind: string;
+            label: string;
         };
         /** OriginConfigFieldDTO */
         OriginConfigFieldDTO: {
