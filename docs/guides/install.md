@@ -278,7 +278,7 @@ it.**
 uv run uvicorn main:app --host 0.0.0.0 --port 8000 --workers 1
 ```
 
-After the migration, the `pmc` origin already exists in `ingestion_origins` (the URLs above are seeded into it when present) and the `manual` origin is enabled. `/sistema/ingestao` is where the installation configures both.
+After the migration, the `pmc` origin already exists in `ingestion_origins` (the URLs above are seeded into it when present) and the `manual` origin is enabled. `/sistema/ingestao` is where the installation configures the origins; a description is typed or imported at `/acervo/nova`.
 
 The API is then at `http://localhost:8000/`, the UI at the same address and the OpenAPI document at
 `/schema/swagger`. `--reload` belongs to development (`bun run api:dev`), not to an installation.

@@ -21,7 +21,7 @@ from scrinalia.domains.ingestion.schemas import ManualIngestionRequest
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 ISAD = REPO_ROOT / "apps" / "curator" / "src" / "lib" / "isad.ts"
-FORM = REPO_ROOT / "apps" / "curator" / "src" / "routes" / "ManualEntryRoute.tsx"
+FORM = REPO_ROOT / "apps" / "curator" / "src" / "routes" / "NewDescriptionRoute.tsx"
 
 #: One catalogue entry's ``name``, from its line to the closing brace of the object.
 ENTRY = re.compile(r"(?ms)^  \{\n(.*?)^  \},$")
