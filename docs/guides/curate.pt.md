@@ -383,9 +383,11 @@ Dois valores são exibidos e não editados, porque são evidência e não descri
 data como a fonte escreveu — `Década de 1980` ao lado do `1980-01-01` interpretado, que é o que o
 parser conseguiu dela) e `original_url` (a página de onde o registro foi lido). O nível e a tipologia
 são seletores sobre os seus catálogos; `language_name` é um seletor sobre `GET /api/v1/languages`, um
-catálogo declarado em código porque um idioma não carrega regra que a instituição edite — e ele
-**mantém um valor que o catálogo não conhece**, marcado como tal, para que abrir o dossiê nunca apague
-o que a origem declarou. O pai declarado aparece em 3.1 mesmo enquanto está pendente (`BR PRPMC —
+catálogo declarado em código porque um idioma não carrega regra que a instituição edite. O valor
+guardado é o nome do catálogo: uma variante declarada (`Português/Brasil`, `Português Brasil`) é
+dobrada na transferência, então a coleção inteira lê uma grafia — e o seletor **mantém um valor que o
+catálogo não conhece**, marcado como tal, para que abrir o dossiê nunca apague um idioma que o
+catálogo nunca viu. O pai declarado aparece em 3.1 mesmo enquanto está pendente (`BR PRPMC —
 aguardando`), porque a origem pode entregar o filho antes do pai; o vínculo em si se faz na aba
 `Arranjo`.
 

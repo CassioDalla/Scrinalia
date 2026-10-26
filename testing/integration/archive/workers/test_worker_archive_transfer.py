@@ -352,3 +352,35 @@ def test_the_transfer_carries_the_whole_isad_record(db_session, use_test_db):
     # the ``hierarchy_parent_v1`` stamp, so the dossier could not say what it was waiting for.
     assert archived.parent_reference_code == "BR PRPMC"
     assert archived.parent_id is None
+
+
+def test_the_transfer_folds_the_language_to_the_catalogues_name(db_session, use_test_db):
+    """
+    One language, one spelling (#203): the archive gets the catalogue's name, staging keeps the text.
+
+    The fold happens here and not in the transform for the same reason the level is resolved here:
+    staging is the parsed source (it keeps what the origin declared), and the archive is the record
+    that a screen reads. A language the catalogue does not know is kept as declared — the catalogue
+    never replaces a source's word with a guess.
+    """
+    db_session.add_all(
+        [
+            StagingDocument(
+                description_id="lang-known", title="A", raw_content_hash="hl1", language_name="Português/Brasil"
+            ),
+            StagingDocument(
+                description_id="lang-unknown", title="B", raw_content_hash="hl2", language_name="Linguagem Inventada"
+            ),
+        ]
+    )
+    db_session.commit()
+
+    worker_archive_transfer.execute(db_session)
+
+    db_session.expire_all()
+    known = db_session.get(ArchiveDocument, "lang-known")
+    unknown = db_session.get(ArchiveDocument, "lang-unknown")
+    assert known is not None and known.language_name == "Português"
+    assert unknown is not None and unknown.language_name == "Linguagem Inventada"
+    # The staging row is the evidence of what the origin declared, like the level text.
+    assert db_session.get(StagingDocument, "lang-known").language_name == "Português/Brasil"
