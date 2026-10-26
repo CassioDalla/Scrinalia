@@ -3,7 +3,6 @@ import { Link } from "@tanstack/react-router";
 import { useState } from "react";
 
 import {
-  createManualIngestion,
   deleteIngestionSchedule,
   fetchCurrentUser,
   importCsv,
@@ -24,7 +23,7 @@ import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { Disclosure } from "@/components/ui/Disclosure";
 import { ErrorState, Skeleton } from "@/components/ui/Feedback";
 import { Field } from "@/components/ui/Field";
-import { Input, Select, Textarea } from "@/components/ui/Input";
+import { Input, Select } from "@/components/ui/Input";
 import { Notice } from "@/components/ui/Notice";
 import { CsvParseError, decodeCsv, detectDelimiter, parseCsv, type CsvDelimiter } from "@/lib/csv";
 import { buildTemplate, mapCsv, toRequestBody, type CsvMapping } from "@/lib/csvImport";
@@ -105,41 +104,6 @@ export function IngestionRoute() {
 }
 
 function ManualEntryCard() {
-  const queryClient = useQueryClient();
-  const [descriptionId, setDescriptionId] = useState(() => `manual-${crypto.randomUUID()}`);
-  const [title, setTitle] = useState("");
-  const [referenceCode, setReferenceCode] = useState("");
-  const [level, setLevel] = useState("");
-  const [documentDate, setDocumentDate] = useState("");
-  const [scopeContent, setScopeContent] = useState("");
-  const [producers, setProducers] = useState("");
-  const [bioHistory, setBioHistory] = useState("");
-  const [accessConditions, setAccessConditions] = useState("");
-  const [indexingPoints, setIndexingPoints] = useState("");
-
-  const submit = useMutation({
-    mutationFn: () =>
-      createManualIngestion({
-        description_id: descriptionId,
-        title: title.trim(),
-        reference_code: emptyToNull(referenceCode),
-        level: emptyToNull(level),
-        document_date: emptyToNull(documentDate),
-        scope_content: emptyToNull(scopeContent),
-        producers: emptyToNull(producers),
-        admin_bio_history: emptyToNull(bioHistory),
-        access_conditions: emptyToNull(accessConditions),
-        indexing_points: emptyToNull(indexingPoints),
-      }),
-    onSuccess: () => {
-      // The origin's pending count and the ledger both moved: the record is staged and a transfer
-      // may have been queued.
-      void queryClient.invalidateQueries({ queryKey: ["ingestion", "origins"] });
-      void queryClient.invalidateQueries({ queryKey: ["system", "runs"] });
-      setDescriptionId(`manual-${crypto.randomUUID()}`);
-    },
-  });
-
   return (
     <Card>
       <CardHeader className="flex flex-wrap items-center justify-between gap-2 text-sm font-semibold">
@@ -147,72 +111,15 @@ function ManualEntryCard() {
         <Badge tone="accent">PENDING_AI</Badge>
       </CardHeader>
       <CardBody className="grid gap-3">
-        <p className="text-xs text-(--color-muted)">
-          A descrição digitada aqui <strong>não é uma aprovação</strong>. Ela entra no mesmo staging e na
-          mesma fila de IA das demais origens; depois da IA, o dossiê é o lugar de revisar e aprovar.
+        <p className="text-sm text-(--color-muted)">
+          Uma descrição digitada do zero, campo a campo. Ela <strong>não é uma aprovação</strong>: entra
+          no mesmo staging e na mesma fila de IA das demais origens, e depois da IA o dossiê é o lugar
+          de revisar e aprovar.
         </p>
-
-        <div className="grid gap-3 sm:grid-cols-2">
-          <Field label="Título">
-            <Input value={title} onChange={(event) => setTitle(event.target.value)} maxLength={500} />
-          </Field>
-          <Field label="Código de referência">
-            <Input value={referenceCode} onChange={(event) => setReferenceCode(event.target.value)} />
-          </Field>
-          <Field label="Nível de descrição">
-            <Input value={level} onChange={(event) => setLevel(event.target.value)} placeholder="Ex.: Série" />
-          </Field>
-          <Field label="Data de produção">
-            <Input type="date" value={documentDate} onChange={(event) => setDocumentDate(event.target.value)} />
-          </Field>
-          <Field label="Produtores">
-            <Input value={producers} onChange={(event) => setProducers(event.target.value)} />
-          </Field>
-          <Field label="Condições de acesso">
-            <Input value={accessConditions} onChange={(event) => setAccessConditions(event.target.value)} />
-          </Field>
-        </div>
-
-        <Field label="Âmbito e conteúdo">
-          <Textarea value={scopeContent} onChange={(event) => setScopeContent(event.target.value)} rows={3} />
-        </Field>
-        <Field label="História administrativa / biográfica">
-          <Textarea value={bioHistory} onChange={(event) => setBioHistory(event.target.value)} rows={2} />
-        </Field>
-        <Field label="Pontos de acesso">
-          <Input
-            value={indexingPoints}
-            onChange={(event) => setIndexingPoints(event.target.value)}
-            placeholder="separados por vírgula"
-          />
-        </Field>
-
-        {submit.data ? (
-          <Notice tone="ok" as="div" className="grid gap-1">
-            <p className="font-medium">{routeMessage(submit.data)}</p>
-            <p className="font-mono text-xs">{submit.data.data.description_id}</p>
-            <p>
-              O registro aparece no acervo quando a transferência rodar. Até lá, ele está no staging e o
-              dossiê ainda pode responder “não encontrado”.
-            </p>
-            <Link to="/acervo/$descriptionId" params={{ descriptionId: submit.data.data.description_id }}>
-              Abrir o dossiê
-            </Link>
-          </Notice>
-        ) : null}
-        {submit.error ? <ErrorState error={submit.error} /> : null}
-
-        <div className="flex flex-wrap items-center gap-2">
-          <Button
-            variant="primary"
-            disabled={title.trim().length === 0 || submit.isPending}
-            onClick={() => submit.mutate()}
-          >
-            {submit.isPending ? "Gravando…" : "Gravar e enviar para a fila"}
-          </Button>
-          <span className="text-xs text-(--color-muted)">
-            id do formulário: <span className="font-mono">{descriptionId}</span>
-          </span>
+        <div>
+          <Link to="/sistema/ingestao/nova">
+            <Button variant="primary">Nova descrição</Button>
+          </Link>
         </div>
       </CardBody>
     </Card>
@@ -833,11 +740,6 @@ function Fact({ label, children }: { label: string; children: React.ReactNode })
       <div className="mt-1">{children}</div>
     </div>
   );
-}
-
-function emptyToNull(value: string): string | null {
-  const trimmed = value.trim();
-  return trimmed.length > 0 ? trimmed : null;
 }
 
 function initialConfig(fields: OriginConfigField[], values: Record<string, unknown>): Record<string, string | number | boolean> {

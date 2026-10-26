@@ -106,9 +106,12 @@ CSV_ID_FIELD = CsvField(
     max_length=50,
 )
 
-#: Every field the CSV accepts, in the template's order. It is the manual contract's field set
-#: (``ManualIngestionRequest``), so the two entrances into staging cannot drift: a test pins the
-#: set, and #192 expands both when the form reaches the rest of ``StagingDocumentDTO``.
+#: Every field the CSV accepts, in the template's order: the ISAD(G) areas, then the two extras
+#: (the access points, which become tags, and the image the thumbnail worker copies).
+#:
+#: The set is the manual contract's (``ManualIngestionRequest``) minus the identity column, and a
+#: test pins the equality — a field added to the form without a column here would make the file
+#: unable to carry it, and a column here without a field would be refused by the API.
 CSV_FIELDS: tuple[CsvField, ...] = (
     CsvField(
         label="Título",
@@ -134,6 +137,13 @@ CSV_FIELDS: tuple[CsvField, ...] = (
         attribute="document_date",
         help="Data de produção, quando conhecida. A gramática do perfil de idioma é aplicada.",
         kind="date",
+        max_length=MAX_CSV_FIELD_CHARS,
+    ),
+    CsvField(
+        label="Dimensão e suporte",
+        attribute="dimension_support",
+        help="Quanto é e em que material: 2 folhas; 1 fotografia em papel.",
+        max_length=MAX_CSV_FIELD_CHARS,
     ),
     CsvField(
         label="Código da unidade superior",
@@ -142,61 +152,165 @@ CSV_FIELDS: tuple[CsvField, ...] = (
         max_length=500,
     ),
     CsvField(
-        label="Âmbito e conteúdo",
-        attribute="scope_content",
-        help="Âmbito e conteúdo da descrição.",
-        kind="long_text",
-    ),
-    CsvField(
         label="Produtores",
         attribute="producers",
         help="Nome do produtor ou dos produtores.",
+        max_length=MAX_CSV_FIELD_CHARS,
     ),
     CsvField(
         label="História administrativa / biográfica",
         attribute="admin_bio_history",
         help="História administrativa ou biográfica do produtor.",
         kind="long_text",
+        max_length=MAX_CSV_FIELD_CHARS,
     ),
     CsvField(
         label="História arquivística",
         attribute="admin_archival_history",
         help="História arquivística da unidade de descrição.",
         kind="long_text",
+        max_length=MAX_CSV_FIELD_CHARS,
     ),
     CsvField(
         label="Procedência",
         attribute="provenance",
         help="Procedência da unidade de descrição.",
+        kind="long_text",
+        max_length=MAX_CSV_FIELD_CHARS,
+    ),
+    CsvField(
+        label="URL do original",
+        attribute="original_url",
+        help="URL da página de onde o registro foi lido.",
+        kind="url",
+        max_length=MAX_CSV_FIELD_CHARS,
+    ),
+    CsvField(
+        label="Âmbito e conteúdo",
+        attribute="scope_content",
+        help="Âmbito e conteúdo da descrição.",
+        kind="long_text",
+        max_length=MAX_CSV_FIELD_CHARS,
+    ),
+    CsvField(
+        label="Avaliação e temporalidade",
+        attribute="appraisal_destruction",
+        help="Prazo de guarda e decisão de eliminação, quando houver.",
+        kind="long_text",
+        max_length=MAX_CSV_FIELD_CHARS,
+    ),
+    CsvField(
+        label="Incorporações",
+        attribute="accruals",
+        help="Se ainda se esperam acréscimos ao conjunto.",
+        max_length=MAX_CSV_FIELD_CHARS,
+    ),
+    CsvField(
+        label="Sistema de arranjo",
+        attribute="arrangement",
+        help="Como o conjunto está organizado internamente.",
+        kind="long_text",
+        max_length=MAX_CSV_FIELD_CHARS,
     ),
     CsvField(
         label="Condições de acesso",
         attribute="access_conditions",
         help="Condições de acesso ou acesso público.",
+        kind="long_text",
+        max_length=MAX_CSV_FIELD_CHARS,
+    ),
+    CsvField(
+        label="Condições de reprodução",
+        attribute="reproduction_conditions",
+        help="O que é preciso para copiar ou publicar o documento.",
+        kind="long_text",
+        max_length=MAX_CSV_FIELD_CHARS,
+    ),
+    CsvField(
+        label="Idioma",
+        attribute="language_name",
+        help="Idioma predominante do documento.",
+        max_length=MAX_CSV_FIELD_CHARS,
+    ),
+    CsvField(
+        label="Características físicas",
+        attribute="physical_characteristics",
+        help="Estado material e requisitos técnicos para a consulta.",
+        kind="long_text",
+        max_length=MAX_CSV_FIELD_CHARS,
+    ),
+    CsvField(
+        label="Instrumentos de pesquisa",
+        attribute="finding_aids",
+        help="Índices, inventários ou listagens que descrevem este conjunto.",
+        kind="long_text",
+        max_length=MAX_CSV_FIELD_CHARS,
+    ),
+    CsvField(
+        label="Localização dos originais",
+        attribute="originals_location",
+        help="Onde está o original, quando esta descrição descreve uma cópia.",
+        max_length=MAX_CSV_FIELD_CHARS,
+    ),
+    CsvField(
+        label="Localização das cópias",
+        attribute="copies_location",
+        help="Onde estão as cópias: microfilme, digital, outro acervo.",
+        max_length=MAX_CSV_FIELD_CHARS,
+    ),
+    CsvField(
+        label="Unidades de descrição relacionadas",
+        attribute="related_units",
+        help="Códigos ou títulos de outras descrições relacionadas com esta.",
+        max_length=MAX_CSV_FIELD_CHARS,
+    ),
+    CsvField(
+        label="Notas de publicação",
+        attribute="publication_notes",
+        help="Onde este documento já foi publicado ou citado.",
+        kind="long_text",
+        max_length=MAX_CSV_FIELD_CHARS,
+    ),
+    CsvField(
+        label="Notas gerais",
+        attribute="general_notes",
+        help="O que não cabe em nenhum outro campo.",
+        kind="long_text",
+        max_length=MAX_CSV_FIELD_CHARS,
+    ),
+    CsvField(
+        label="Notas de conservação",
+        attribute="conservation_notes",
+        help="Estado de conservação e o que já foi feito ou precisa ser feito.",
+        kind="long_text",
+        max_length=MAX_CSV_FIELD_CHARS,
+    ),
+    CsvField(
+        label="Notas do arquivista",
+        attribute="archivist_notes",
+        help="Observações técnicas de quem descreveu.",
+        kind="long_text",
+        max_length=MAX_CSV_FIELD_CHARS,
+    ),
+    CsvField(
+        label="Regras ou convenções",
+        attribute="rules_conventions",
+        help="As normas seguidas na descrição: ISAD(G), NOBRADE, normas internas.",
+        max_length=MAX_CSV_FIELD_CHARS,
     ),
     CsvField(
         label="Pontos de acesso",
         attribute="indexing_points",
-        help="Pontos de acesso, separados por vírgula.",
+        help="Pontos de acesso, separados por vírgula. Viram tags no acervo.",
         kind="tags",
-    ),
-    CsvField(
-        label="URL do original",
-        attribute="original_url",
-        help="URL do registro original, quando houver.",
-        kind="url",
-    ),
-    CsvField(
-        label="Link do anexo",
-        attribute="attachment_link",
-        help="Link do anexo, quando houver.",
-        kind="url",
+        max_length=MAX_CSV_FIELD_CHARS,
     ),
     CsvField(
         label="Link da imagem",
         attribute="thumb_down_link",
-        help="Link da imagem, quando houver.",
+        help="URL da imagem que o worker de miniatura baixa.",
         kind="url",
+        max_length=MAX_CSV_FIELD_CHARS,
     ),
 )
 
@@ -204,9 +318,10 @@ CSV_FIELDS: tuple[CsvField, ...] = (
 CSV_LABELS: frozenset[str] = frozenset(field.label for field in CSV_FIELDS)
 
 #: The title's label is the schema's ``title_key``; it is not in the field map, or the transform
-#: would append the title to itself.
-CSV_TITLE_LABEL = CSV_FIELDS[0].label
-CSV_DATE_LABEL = CSV_FIELDS[3].label
+#: would append the title to itself. Found by attribute, not by position: the list grows, and a
+#: positional constant silently becomes another column's label.
+CSV_TITLE_LABEL = next(field.label for field in CSV_FIELDS if field.attribute == "title")
+CSV_DATE_LABEL = next(field.label for field in CSV_FIELDS if field.attribute == "document_date")
 
 #: Label -> staging attribute, for the fields the generic map consumes. The title and the date are
 #: consumed through the schema's own keys, exactly like the manual origin.

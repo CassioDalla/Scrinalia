@@ -15,8 +15,9 @@ from __future__ import annotations
 from datetime import date, datetime
 from typing import Any, Literal
 
-from pydantic import Field
+from pydantic import Field, field_validator
 
+from scrinalia.core.language import get_language
 from scrinalia.core.schemas import RequestModel
 from scrinalia.domains.archive.models.enums import WorkerRunStatus
 from scrinalia.domains.archive.schemas.responses import RouteResponse
@@ -32,6 +33,7 @@ from scrinalia.domains.ingestion.csv_import import (
     CsvRowIssueCode,
     CsvRowStatus,
 )
+from scrinalia.domains.staging.dates import parse_document_date
 
 #: The control a configuration field needs on the screen.
 ConfigFieldKind = Literal["text", "number", "boolean"]
@@ -218,32 +220,115 @@ INGESTION_OPTION_FIELDS: tuple[IngestionOptionDTO, ...] = (
 
 class ManualIngestionRequest(RequestModel):
     """
-    One record typed by an archivist.
+    One record typed by an archivist: the whole ISAD(G) record the archive stores.
 
     It is the **manual origin's payload**, not an approval: the record goes through the same staging,
-    the same transfer and the same AI queues as a scraped one. The essential ISAD(G) fields are here;
-    the rest of ``StagingDocumentDTO`` is a follow-up issue, and a new field is a line here plus a
-    line in the manual schema.
+    the same transfer and the same AI queues as a scraped one. ``title`` is the only required field —
+    an archivist may not know the date or the producer yet, and a description is allowed to be
+    incomplete while it is being made.
+
+    ``document_date`` is **text**, not a ``date``: the archivist types what the record says
+    (``Década de 1980``, ``1951-1953``) and the language profile parses it, which is exactly what the
+    CSV import already does. A value the profile cannot read is refused here with a sentence, instead
+    of becoming ``None`` in the staging transform. The two entrances then share one grammar.
+
+    ``description_dates`` is deliberately absent: the archive knows when the description was made and
+    the revision ledger records every edit, so asking for it invites a contradiction. ``attachment_link``
+    is absent too — nothing reads it, and the digital object is #198.
     """
 
     #: The client generates it (``manual-<uuid>``) so a retried submit is the same record. Omitted,
     #: the API generates one; a duplicate answers 409.
     description_id: str | None = Field(default=None, max_length=50, description="Identificador do registro.")
     title: str = Field(min_length=1, max_length=500, description="Título da descrição.")
+    document_date: str | None = Field(
+        default=None,
+        max_length=MAX_CSV_FIELD_CHARS,
+        description="Data de produção como está na fonte: AAAA-MM-DD, década ou intervalo.",
+    )
     reference_code: str | None = Field(default=None, max_length=500, description="Código de referência.")
     level: str | None = Field(default=None, max_length=200, description="Nível de descrição.")
     parent_reference_code: str | None = Field(default=None, max_length=500, description="Código da unidade superior.")
-    document_date: date | None = Field(default=None, description="Data de produção, quando conhecida.")
-    scope_content: str | None = Field(default=None, description="Âmbito e conteúdo.")
-    producers: str | None = Field(default=None, description="Produtores.")
-    admin_bio_history: str | None = Field(default=None, description="História administrativa/biográfica.")
-    admin_archival_history: str | None = Field(default=None, description="História arquivística.")
-    provenance: str | None = Field(default=None, description="Procedência.")
-    access_conditions: str | None = Field(default=None, description="Condições de acesso.")
-    indexing_points: str | None = Field(default=None, description="Pontos de acesso, separados por vírgula.")
-    original_url: str | None = Field(default=None, description="URL do registro original, quando houver.")
-    attachment_link: str | None = Field(default=None, description="Link do anexo, quando houver.")
-    thumb_down_link: str | None = Field(default=None, description="Link da imagem, quando houver.")
+    dimension_support: str | None = Field(
+        default=None, max_length=MAX_CSV_FIELD_CHARS, description="Dimensão e suporte."
+    )
+    producers: str | None = Field(default=None, max_length=MAX_CSV_FIELD_CHARS, description="Produtores.")
+    admin_bio_history: str | None = Field(
+        default=None, max_length=MAX_CSV_FIELD_CHARS, description="História administrativa/biográfica."
+    )
+    admin_archival_history: str | None = Field(
+        default=None, max_length=MAX_CSV_FIELD_CHARS, description="História arquivística."
+    )
+    provenance: str | None = Field(default=None, max_length=MAX_CSV_FIELD_CHARS, description="Procedência.")
+    scope_content: str | None = Field(default=None, max_length=MAX_CSV_FIELD_CHARS, description="Âmbito e conteúdo.")
+    appraisal_destruction: str | None = Field(
+        default=None, max_length=MAX_CSV_FIELD_CHARS, description="Avaliação e temporalidade."
+    )
+    accruals: str | None = Field(default=None, max_length=MAX_CSV_FIELD_CHARS, description="Incorporações.")
+    arrangement: str | None = Field(default=None, max_length=MAX_CSV_FIELD_CHARS, description="Sistema de arranjo.")
+    access_conditions: str | None = Field(
+        default=None, max_length=MAX_CSV_FIELD_CHARS, description="Condições de acesso."
+    )
+    reproduction_conditions: str | None = Field(
+        default=None, max_length=MAX_CSV_FIELD_CHARS, description="Condições de reprodução."
+    )
+    language_name: str | None = Field(default=None, max_length=MAX_CSV_FIELD_CHARS, description="Idioma.")
+    physical_characteristics: str | None = Field(
+        default=None, max_length=MAX_CSV_FIELD_CHARS, description="Características físicas."
+    )
+    finding_aids: str | None = Field(
+        default=None, max_length=MAX_CSV_FIELD_CHARS, description="Instrumentos de pesquisa."
+    )
+    originals_location: str | None = Field(
+        default=None, max_length=MAX_CSV_FIELD_CHARS, description="Localização dos originais."
+    )
+    copies_location: str | None = Field(
+        default=None, max_length=MAX_CSV_FIELD_CHARS, description="Localização das cópias."
+    )
+    related_units: str | None = Field(
+        default=None, max_length=MAX_CSV_FIELD_CHARS, description="Unidades de descrição relacionadas."
+    )
+    publication_notes: str | None = Field(
+        default=None, max_length=MAX_CSV_FIELD_CHARS, description="Notas de publicação."
+    )
+    conservation_notes: str | None = Field(
+        default=None, max_length=MAX_CSV_FIELD_CHARS, description="Notas de conservação."
+    )
+    general_notes: str | None = Field(default=None, max_length=MAX_CSV_FIELD_CHARS, description="Notas gerais.")
+    archivist_notes: str | None = Field(
+        default=None, max_length=MAX_CSV_FIELD_CHARS, description="Notas do arquivista."
+    )
+    rules_conventions: str | None = Field(
+        default=None, max_length=MAX_CSV_FIELD_CHARS, description="Regras ou convenções."
+    )
+    indexing_points: str | None = Field(
+        default=None, max_length=MAX_CSV_FIELD_CHARS, description="Pontos de acesso, separados por vírgula."
+    )
+    original_url: str | None = Field(
+        default=None, max_length=MAX_CSV_FIELD_CHARS, description="URL da página de onde o registro veio."
+    )
+    thumb_down_link: str | None = Field(
+        default=None, max_length=MAX_CSV_FIELD_CHARS, description="URL da imagem que o worker de miniatura baixa."
+    )
+
+    @field_validator("document_date")
+    @classmethod
+    def _the_language_has_to_read_the_date(cls, value: str | None) -> str | None:
+        """
+        A date the profile cannot read is a sentence, not a silent ``None``.
+
+        The staging transform is deliberately forgiving (an unreadable date becomes ``None``) because
+        a scraped record must not be lost over its date. A person typing a record is the opposite
+        case: they can fix it now, and the CSV import already refuses the row for the same reason.
+        """
+        if value is None:
+            return None
+        text = " ".join(value.split())
+        if not text or text.lower() in get_language().empty_date_values:
+            return None
+        if parse_document_date(text) is None:
+            raise ValueError(f"A data '{text[:40]}' não foi reconhecida. Use AAAA-MM-DD, uma década ou um intervalo.")
+        return text
 
 
 class ManualIngestionResultDTO(RequestModel):
@@ -261,6 +346,13 @@ class ManualIngestionResultDTO(RequestModel):
     review_status: str = Field(
         default="PENDING_AI",
         description="O estado inicial no archive: a ingestão manual não marca HUMAN_APPROVED.",
+    )
+    document_date: date | None = Field(
+        default=None,
+        description="A data que o perfil de idioma leu do texto, para a confirmação mostrar o que foi gravado.",
+    )
+    date_expression: str | None = Field(
+        default=None, description="A data como o arquivista a escreveu, quando havia uma."
     )
 
 

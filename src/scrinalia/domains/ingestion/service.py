@@ -83,6 +83,7 @@ from scrinalia.domains.ingestion.schemas import (
     ManualIngestionResultDTO,
     OriginConfigFieldDTO,
 )
+from scrinalia.domains.staging.dates import parse_document_date
 from scrinalia.domains.staging.models import StagingDocument
 from scrinalia.domains.staging.worker import run_staging_pipeline
 
@@ -388,6 +389,8 @@ class IngestionOriginService:
                     origin_code="manual",
                     staging_saved=True,
                     transfer_queued=False,
+                    document_date=parse_document_date(request.document_date),
+                    date_expression=request.document_date,
                 ),
             )
 
@@ -403,15 +406,24 @@ class IngestionOriginService:
                 staging_saved=True,
                 transfer_run_id=run.run_id,
                 transfer_queued=True,
+                document_date=parse_document_date(request.document_date),
+                date_expression=request.document_date,
             ),
         )
 
     @staticmethod
     def _manual_payload(request: ManualIngestionRequest) -> dict[str, Any]:
-        """The manual origin's payload: the form fields, with the date in its interchange spelling."""
+        """
+        The manual origin's payload: the form fields, with the date exactly as the archivist wrote it.
+
+        The date is **not** converted to ISO here: the staging transform parses it with the language
+        profile and keeps the spelling in ``date_expression``, which is the whole point of accepting
+        ``Década de 1980`` from a person. Converting it here would parse the same value twice and
+        lose the expression.
+        """
         payload: dict[str, Any] = {"title": request.title}
-        if request.document_date is not None:
-            payload["document_date"] = request.document_date.isoformat()
+        if request.document_date:
+            payload["document_date"] = request.document_date
         for field in MANUAL_FIELDS:
             value = getattr(request, field, None)
             if value is not None and value != "":

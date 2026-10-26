@@ -6137,6 +6137,19 @@
         "properties": {
           "access_conditions": {
             "description": "Condições de acesso.",
+            "maxLength": 20000,
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "accruals": {
+            "description": "Incorporações.",
+            "maxLength": 20000,
             "oneOf": [
               {
                 "type": "string"
@@ -6148,6 +6161,7 @@
           },
           "admin_archival_history": {
             "description": "História arquivística.",
+            "maxLength": 20000,
             "oneOf": [
               {
                 "type": "string"
@@ -6159,6 +6173,7 @@
           },
           "admin_bio_history": {
             "description": "História administrativa/biográfica.",
+            "maxLength": 20000,
             "oneOf": [
               {
                 "type": "string"
@@ -6168,8 +6183,57 @@
               }
             ]
           },
-          "attachment_link": {
-            "description": "Link do anexo, quando houver.",
+          "appraisal_destruction": {
+            "description": "Avaliação e temporalidade.",
+            "maxLength": 20000,
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "archivist_notes": {
+            "description": "Notas do arquivista.",
+            "maxLength": 20000,
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "arrangement": {
+            "description": "Sistema de arranjo.",
+            "maxLength": 20000,
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "conservation_notes": {
+            "description": "Notas de conservação.",
+            "maxLength": 20000,
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "copies_location": {
+            "description": "Localização das cópias.",
+            "maxLength": 20000,
             "oneOf": [
               {
                 "type": "string"
@@ -6191,11 +6255,47 @@
               }
             ]
           },
-          "document_date": {
-            "description": "Data de produção, quando conhecida.",
+          "dimension_support": {
+            "description": "Dimensão e suporte.",
+            "maxLength": 20000,
             "oneOf": [
               {
-                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "document_date": {
+            "description": "Data de produção como está na fonte: AAAA-MM-DD, década ou intervalo.",
+            "maxLength": 20000,
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "finding_aids": {
+            "description": "Instrumentos de pesquisa.",
+            "maxLength": 20000,
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "general_notes": {
+            "description": "Notas gerais.",
+            "maxLength": 20000,
+            "oneOf": [
+              {
                 "type": "string"
               },
               {
@@ -6205,6 +6305,19 @@
           },
           "indexing_points": {
             "description": "Pontos de acesso, separados por vírgula.",
+            "maxLength": 20000,
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "language_name": {
+            "description": "Idioma.",
+            "maxLength": 20000,
             "oneOf": [
               {
                 "type": "string"
@@ -6227,7 +6340,20 @@
             ]
           },
           "original_url": {
-            "description": "URL do registro original, quando houver.",
+            "description": "URL da página de onde o registro veio.",
+            "maxLength": 20000,
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "originals_location": {
+            "description": "Localização dos originais.",
+            "maxLength": 20000,
             "oneOf": [
               {
                 "type": "string"
@@ -6249,8 +6375,21 @@
               }
             ]
           },
+          "physical_characteristics": {
+            "description": "Características físicas.",
+            "maxLength": 20000,
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "producers": {
             "description": "Produtores.",
+            "maxLength": 20000,
             "oneOf": [
               {
                 "type": "string"
@@ -6262,6 +6401,19 @@
           },
           "provenance": {
             "description": "Procedência.",
+            "maxLength": 20000,
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "publication_notes": {
+            "description": "Notas de publicação.",
+            "maxLength": 20000,
             "oneOf": [
               {
                 "type": "string"
@@ -6283,8 +6435,45 @@
               }
             ]
           },
+          "related_units": {
+            "description": "Unidades de descrição relacionadas.",
+            "maxLength": 20000,
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reproduction_conditions": {
+            "description": "Condições de reprodução.",
+            "maxLength": 20000,
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "rules_conventions": {
+            "description": "Regras ou convenções.",
+            "maxLength": 20000,
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "scope_content": {
             "description": "Âmbito e conteúdo.",
+            "maxLength": 20000,
             "oneOf": [
               {
                 "type": "string"
@@ -6295,7 +6484,8 @@
             ]
           },
           "thumb_down_link": {
-            "description": "Link da imagem, quando houver.",
+            "description": "URL da imagem que o worker de miniatura baixa.",
+            "maxLength": 20000,
             "oneOf": [
               {
                 "type": "string"
@@ -6340,8 +6530,31 @@
       },
       "ManualIngestionResultDTO": {
         "properties": {
+          "date_expression": {
+            "description": "A data como o arquivista a escreveu, quando havia uma.",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "description_id": {
             "type": "string"
+          },
+          "document_date": {
+            "description": "A data que o perfil de idioma leu do texto, para a confirmação mostrar o que foi gravado.",
+            "oneOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "origin_code": {
             "type": "string"

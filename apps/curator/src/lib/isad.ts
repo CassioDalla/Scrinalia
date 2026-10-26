@@ -75,6 +75,14 @@ export type IsadField = {
   control: IsadControl;
   /** One line the form shows under the control: what to type, not what the field is. */
   help: string;
+  /**
+   * ``false`` when the manual entry form does not ask it.
+   *
+   * The dossier edits the description control area, but a record being born has no "date of the
+   * description" to declare — the archive knows when it was made. Marking the omission here is what
+   * keeps "every field has a control" a gate instead of a list of exceptions inside the test.
+   */
+  manualEntry?: boolean;
 };
 
 export const ISAD_FIELDS: readonly IsadField[] = [
@@ -252,6 +260,8 @@ export const ISAD_FIELDS: readonly IsadField[] = [
     area: "control",
     control: "text",
     help: "Quando a descrição foi feita ou revisada, quando a fonte declara isso.",
+    // Not asked at creation: the record is being described now, and the archive knows when.
+    manualEntry: false,
   },
 ];
 

@@ -3737,33 +3737,63 @@ export interface components {
         ManualIngestionRequest: {
             /** @description Condições de acesso. */
             access_conditions?: string | null;
+            /** @description Incorporações. */
+            accruals?: string | null;
             /** @description História arquivística. */
             admin_archival_history?: string | null;
             /** @description História administrativa/biográfica. */
             admin_bio_history?: string | null;
-            /** @description Link do anexo, quando houver. */
-            attachment_link?: string | null;
+            /** @description Avaliação e temporalidade. */
+            appraisal_destruction?: string | null;
+            /** @description Notas do arquivista. */
+            archivist_notes?: string | null;
+            /** @description Sistema de arranjo. */
+            arrangement?: string | null;
+            /** @description Notas de conservação. */
+            conservation_notes?: string | null;
+            /** @description Localização das cópias. */
+            copies_location?: string | null;
             /** @description Identificador do registro. */
             description_id?: string | null;
-            /** @description Data de produção, quando conhecida. */
+            /** @description Dimensão e suporte. */
+            dimension_support?: string | null;
+            /** @description Data de produção como está na fonte: AAAA-MM-DD, década ou intervalo. */
             document_date?: string | null;
+            /** @description Instrumentos de pesquisa. */
+            finding_aids?: string | null;
+            /** @description Notas gerais. */
+            general_notes?: string | null;
             /** @description Pontos de acesso, separados por vírgula. */
             indexing_points?: string | null;
+            /** @description Idioma. */
+            language_name?: string | null;
             /** @description Nível de descrição. */
             level?: string | null;
-            /** @description URL do registro original, quando houver. */
+            /** @description URL da página de onde o registro veio. */
             original_url?: string | null;
+            /** @description Localização dos originais. */
+            originals_location?: string | null;
             /** @description Código da unidade superior. */
             parent_reference_code?: string | null;
+            /** @description Características físicas. */
+            physical_characteristics?: string | null;
             /** @description Produtores. */
             producers?: string | null;
             /** @description Procedência. */
             provenance?: string | null;
+            /** @description Notas de publicação. */
+            publication_notes?: string | null;
             /** @description Código de referência. */
             reference_code?: string | null;
+            /** @description Unidades de descrição relacionadas. */
+            related_units?: string | null;
+            /** @description Condições de reprodução. */
+            reproduction_conditions?: string | null;
+            /** @description Regras ou convenções. */
+            rules_conventions?: string | null;
             /** @description Âmbito e conteúdo. */
             scope_content?: string | null;
-            /** @description Link da imagem, quando houver. */
+            /** @description URL da imagem que o worker de miniatura baixa. */
             thumb_down_link?: string | null;
             /** @description Título da descrição. */
             title: string;
@@ -3776,7 +3806,11 @@ export interface components {
         };
         /** ManualIngestionResultDTO */
         ManualIngestionResultDTO: {
+            /** @description A data como o arquivista a escreveu, quando havia uma. */
+            date_expression?: string | null;
             description_id: string;
+            /** @description A data que o perfil de idioma leu do texto, para a confirmação mostrar o que foi gravado. */
+            document_date?: string | null;
             origin_code: string;
             /**
              * @description O estado inicial no archive: a ingestão manual não marca HUMAN_APPROVED.

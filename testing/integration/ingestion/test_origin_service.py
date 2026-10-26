@@ -7,7 +7,7 @@ partial unique index keeps one slot per origin.
 """
 
 from contextlib import contextmanager
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from sqlalchemy import select
@@ -111,7 +111,8 @@ def test_manual_ingestion_stages_the_record_and_queues_the_transfer(db_session, 
             description_id="manual-test-1",
             title="Ofício do Prefeito",
             reference_code="BR PR MAN 001",
-            document_date=date(1929, 7, 5),
+            # What the archivist types: the language profile reads it, and the spelling is kept.
+            document_date="05/07/1929",
             scope_content="Um ofício sobre a cidade.",
             indexing_points="ofício, prefeitura",
         ),
@@ -135,6 +136,9 @@ def test_manual_ingestion_stages_the_record_and_queues_the_transfer(db_session, 
     assert staged.title == "Ofício do Prefeito"
     assert staged.reference_code == "BR PR MAN 001"
     assert str(staged.document_date) == "1929-07-05"
+    assert staged.date_expression == "05/07/1929"
+    assert str(response.data.document_date) == "1929-07-05"
+    assert response.data.date_expression == "05/07/1929"
 
     queue = db_session.scalar(select(ScrapingQueue).where(ScrapingQueue.description_id == "manual-test-1"))
     assert queue is not None and queue.scrape_status is ScrapeStatus.DONE
@@ -387,3 +391,91 @@ def test_a_transfer_already_in_flight_says_the_rows_enter_the_next_one(db_sessio
     assert response.data.transfer_queued is False
     assert response.data.accepted == 1
     assert db_session.get(StagingDocument, "csv-1") is not None
+
+
+def test_a_manual_record_carries_every_isad_field_into_staging(db_session, origins) -> None:
+    """
+    The form's whole vocabulary reaches staging, one column per field (#192).
+
+    The service iterates ``MANUAL_FIELDS``, and the pin in ``test_sources.py`` keeps that tuple equal
+    to the request model; what this test adds is the other half: every field the model accepts is a
+    column the staging transform fills, so the archive can receive it on the transfer.
+    """
+    values = {
+        "reference_code": "BR PRPMC 001",
+        "level": "Dossiê",
+        "parent_reference_code": "BR PRPMC",
+        "dimension_support": "2 folhas",
+        "producers": "Prefeitura Municipal",
+        "admin_bio_history": "Criada em 1912.",
+        "admin_archival_history": "Transferida ao arquivo em 1998.",
+        "provenance": "Doação da família",
+        "scope_content": "Nomeação de servidor.",
+        "appraisal_destruction": "Guarda permanente.",
+        "accruals": "Sem incorporações previstas.",
+        "arrangement": "Ordenado por data.",
+        "access_conditions": "Aberto à consulta.",
+        "reproduction_conditions": "Reprodução permitida com citação.",
+        "language_name": "Português",
+        "physical_characteristics": "Papel; tinta ferrogálica.",
+        "finding_aids": "Índice onomástico da série.",
+        "originals_location": "Arquivo Central, caixa 12.",
+        "copies_location": "Microfilme 3.",
+        "related_units": "BR PRPMC 002",
+        "publication_notes": "Diário Oficial de 1929.",
+        "conservation_notes": "Bordas rasgadas.",
+        "general_notes": "Ver o processo irmão.",
+        "archivist_notes": "Descrição revisada em 2026.",
+        "rules_conventions": "ISAD(G) e NOBRADE.",
+        "indexing_points": "urbanismo, obras",
+        "original_url": "https://arquivo.example/registro/42",
+        "thumb_down_link": "https://arquivo.example/42.jpg",
+    }
+    request = ManualIngestionRequest.model_validate(
+        {
+            "description_id": "manual-full",
+            "title": "Ofício completo",
+            "document_date": "1951-1953",
+            **values,
+        }
+    )
+
+    service = IngestionOriginService(
+        db_session, ledger=WorkerRunLedger(session_factory=lambda: _shared_session(db_session))
+    )
+    service.create_manual(request, author=AUTHOR)
+
+    staged = db_session.get(StagingDocument, "manual-full")
+    assert staged is not None
+    assert staged.title == "Ofício completo"
+    # The interval became a real date at the precision the source has, and the spelling stayed.
+    assert str(staged.document_date) == "1951-01-01"
+    assert staged.date_expression == "1951-1953"
+
+    for name, value in values.items():
+        assert getattr(staged, name) == value, f"{name} não chegou ao staging"
+
+
+def test_the_manual_payload_carries_the_date_as_it_was_typed(db_session, origins) -> None:
+    """
+    The date is stored as text and parsed once, by the staging transform.
+
+    Converting it to ISO in the service would parse the same value twice and throw the spelling
+    away — and the spelling is what the archive shows for an approximate date.
+    """
+    service = IngestionOriginService(
+        db_session, ledger=WorkerRunLedger(session_factory=lambda: _shared_session(db_session))
+    )
+    service.create_manual(
+        ManualIngestionRequest(description_id="manual-date", title="Foto", document_date="Década de 1980"),
+        author=AUTHOR,
+    )
+
+    raw = db_session.scalar(select(RawData).where(RawData.description_id == "manual-date"))
+    assert raw is not None
+    assert raw.payload["document_date"] == "Década de 1980"
+
+    staged = db_session.get(StagingDocument, "manual-date")
+    assert staged is not None
+    assert str(staged.document_date) == "1980-01-01"
+    assert staged.date_expression == "Década de 1980"

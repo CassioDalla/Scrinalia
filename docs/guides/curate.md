@@ -1036,7 +1036,8 @@ and it is therefore a `CURATE` card.
 
 | Screen | Decision | Reversible? |
 | --- | --- | --- |
-| Ingestão — `/sistema/ingestao` | which origin to read, its URLs and its agenda (operator); and typing one record or importing a CSV (curator) | the configuration and the agenda are reversible; a manual record or an imported row enters the pipeline and is approved (or rejected) in the dossier |
+| Ingestão — `/sistema/ingestao` | which origin to read, its URLs and its agenda (operator); and importing a CSV (curator) | the configuration and the agenda are reversible; an imported row enters the pipeline and is approved (or rejected) in the dossier |
+| Nova descrição — `/sistema/ingestao/nova` | typing one description, field by field (curator) | the record enters the pipeline as `PENDING_AI`; it is approved (or rejected) in the dossier, and only there |
 | Workers de IA — `/sistema/workers` | whether to run a worker now | yes (the run's own configuration); a run's effects follow what it wrote |
 | Execuções — `/sistema/execucoes` | whether to stop an active run (the ledger and the grouped failures are read-only) | no undo: a cancelled run stays cancelled; a new run is a new ledger row |
 | Saúde do sistema — `/sistema/diagnostico` | none (database, models, storage, process) | yes (read only) |
@@ -1051,8 +1052,11 @@ listing and detail URLs, the politeness delay), save a five-field cron in an IAN
 origin is already running is skipped, not queued. The generic worker routes refuse `ingestion` — a
 run of it needs the origin, and the origin routes are the selector.
 
-The **curator** sees the same cards read-only, the **Entrada manual** form and the **Importação CSV**
-card. The manual form is the `manual` origin: the submit writes the typed record as the origin's raw
+The **curator** sees the same cards read-only, the **Entrada manual** card and the **Importação CSV**
+card. The manual card opens `/sistema/ingestao/nova`, a screen of its own, where the description is
+typed in full: thirty controls in the norm's seven areas, the level and the language as selects, the
+date as text with the language grammar, and the digital object control disabled until #198. The manual
+origin is the `manual` origin: the submit writes the typed record as the origin's raw
 payload, stages it through the same transform and enqueues the same `transfer` worker. The archive
 description is born `PENDING_AI`; the AI queues see it, and the approval is the dossier's
 `PATCH /documents/{id}` after the AI runs. Typing a record is **not** an approval, and a duplicate

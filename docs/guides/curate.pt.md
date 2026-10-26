@@ -1010,7 +1010,8 @@ e a importação CSV são escritas do curador (#44, #191) — e por isso é um c
 
 | Tela | Decisão | Reversível? |
 | --- | --- | --- |
-| Ingestão — `/sistema/ingestao` | qual origem ler, as URLs e a agenda (operador); e digitar um registro ou importar um CSV (curador) | a configuração e a agenda são reversíveis; um registro manual ou uma linha importada entra no pipeline e é aprovado (ou rejeitado) no dossiê |
+| Ingestão — `/sistema/ingestao` | qual origem ler, as URLs e a agenda (operador); e importar um CSV (curador) | a configuração e a agenda são reversíveis; uma linha importada entra no pipeline e é aprovada (ou rejeitada) no dossiê |
+| Nova descrição — `/sistema/ingestao/nova` | digitar uma descrição, campo a campo (curador) | o registro entra no pipeline como `PENDING_AI`; a aprovação (ou rejeição) acontece no dossiê, e só ali |
 | Workers de IA — `/sistema/workers` | se roda um worker agora | sim (a configuração da própria execução); os efeitos de uma execução seguem o que ela escreveu |
 | Execuções — `/sistema/execucoes` | se para uma execução ativa (o ledger e as falhas agrupadas são só leitura) | sem desfazer: uma execução cancelada continua cancelada; uma nova execução é uma nova linha no ledger |
 | Saúde do sistema — `/sistema/diagnostico` | nenhuma (banco, modelos, storage, processo) | sim (só leitura) |
@@ -1025,12 +1026,15 @@ execução**. A execução é o mesmo ledger dos workers de IA; um período que 
 rodando é pulado, não enfileirado. As rotas genéricas de worker recusam `ingestion` — uma execução
 dela precisa da origem, e as rotas da origem são o seletor.
 
-O **curador** vê os mesmos cartões só para leitura, o formulário **Entrada manual** e o cartão
-**Importação CSV**. O formulário é a origem `manual`: o envio grava o registro digitado como payload
-bruto da origem, estrutura-o pelo mesmo transform e enfileira o mesmo worker `transfer`. A descrição do
-Acervo nasce `PENDING_AI`; as filas de IA a veem, e a aprovação é o `PATCH /documents/{id}` do dossiê
-depois que a IA rodar. Digitar um registro **não** é uma aprovação, e um `description_id` duplicado é
-recusado antes da gravação.
+O **curador** vê os mesmos cartões só para leitura, o cartão **Entrada manual** e o cartão
+**Importação CSV**. O cartão manual abre `/sistema/ingestao/nova`, uma tela própria, onde a descrição
+é digitada inteira: trinta controles nas sete áreas da norma, o nível e o idioma como seletores, a data
+como texto com a gramática do idioma, e o controle do objeto digital desabilitado até a #198. O
+formulário é a origem `manual`: o envio grava o registro digitado como payload bruto da origem,
+estrutura-o pelo mesmo transform e enfileira o mesmo worker `transfer`. A descrição do Acervo nasce
+`PENDING_AI`; as filas de IA a veem, e a aprovação é o `PATCH /documents/{id}` do dossiê depois que a
+IA rodar. Digitar um registro **não** é uma aprovação, e um `description_id` duplicado é recusado antes
+da gravação.
 
 O cartão de CSV é a origem `csv` (#191, ADR 0019). O arquivo é interpretado **no navegador**: o cartão
 mostra os cabeçalhos detectados, uma prévia e as conferências locais, e envia só as linhas como JSON —

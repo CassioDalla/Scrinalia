@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { getRouteApi, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 
-import type { DocumentDeletion, DocumentSummary, DocumentUpdateRequest, Language } from "@/api/client";
+import type { DocumentDeletion, DocumentSummary, DocumentUpdateRequest } from "@/api/client";
 import {
   curateTag,
   deleteDocument,
@@ -17,6 +17,7 @@ import {
   updateDocument,
 } from "@/api/client";
 import { queries } from "@/api/queries";
+import { IsadFieldControl } from "@/components/description/IsadFieldControl";
 import { DocumentThumbnail } from "@/components/description/Thumbnail";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Badge } from "@/components/ui/Badge";
@@ -24,14 +25,14 @@ import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { EmptyState, ErrorState, Spinner } from "@/components/ui/Feedback";
 import { Field } from "@/components/ui/Field";
-import { Input, Select, Textarea } from "@/components/ui/Input";
+import { Input, Select } from "@/components/ui/Input";
 import { Notice } from "@/components/ui/Notice";
 import { Tabs } from "@/components/ui/Tabs";
 import { Typeahead } from "@/components/ui/Typeahead";
 import { ACTION, DIGITAL_OBJECT } from "@/lib/copy";
 import { ENTITY_ORIGIN_HINT, ENTITY_ORIGIN_LABEL, ENTITY_ORIGIN_TONE } from "@/lib/entities";
 import { formatCount, formatDate, formatDateTime, REVIEW_STATUS_LABEL, REVIEW_STATUS_TONE } from "@/lib/format";
-import { fieldsOfArea, ISAD_AREAS, type IsadField } from "@/lib/isad";
+import { fieldsOfArea, ISAD_AREAS } from "@/lib/isad";
 
 const routeApi = getRouteApi("/acervo/$descriptionId");
 
@@ -274,6 +275,7 @@ function DescriptionTab({ document }: { document: DocumentSummary }) {
                 value={valueOf(field.name)}
                 languages={languageOptions.data ?? []}
                 onChange={(value) => setField(field.name, value)}
+                dateAs="iso"
                 hint={
                   field.name === "document_date" && document.date_expression
                     ? `Como está escrito na fonte: “${document.date_expression}”.`
@@ -360,72 +362,6 @@ function DescriptionTab({ document }: { document: DocumentSummary }) {
         </CardBody>
       </Card>
     </div>
-  );
-}
-
-/**
- * One ISAD(G) control, rendered from the catalogue instead of from a list of labels here.
- */
-function IsadFieldControl({
-  field,
-  value,
-  languages,
-  onChange,
-  hint,
-}: {
-  field: IsadField;
-  value: string;
-  languages: readonly Language[];
-  onChange: (value: string) => void;
-  hint?: string;
-}) {
-  const wide = field.control === "long_text" ? "sm:col-span-2" : "";
-
-  return (
-    <Field label={field.label} hint={hint} className={wide}>
-      {field.control === "long_text" ? (
-        <Textarea rows={3} value={value} onChange={(event) => onChange(event.target.value)} />
-      ) : field.control === "language" ? (
-        <LanguageSelect value={value} languages={languages} onChange={onChange} />
-      ) : (
-        <Input
-          type={field.control === "date" ? "date" : "text"}
-          value={value}
-          onChange={(event) => onChange(event.target.value)}
-        />
-      )}
-    </Field>
-  );
-}
-
-/**
- * The language select, which keeps a value the catalogue does not know.
- *
- * A source declares "Português", "port." or a language the list does not carry; a bare ``select``
- * would render empty and the save would erase what the origin said. The current value travels as an
- * option of its own, marked, until the archivist replaces it.
- */
-function LanguageSelect({
-  value,
-  languages,
-  onChange,
-}: {
-  value: string;
-  languages: readonly Language[];
-  onChange: (value: string) => void;
-}) {
-  const known = value === "" || languages.some((language) => language.name === value);
-
-  return (
-    <Select value={value} onChange={(event) => onChange(event.target.value)}>
-      <option value="">— não informado —</option>
-      {known ? null : <option value={value}>{value} (fora do catálogo)</option>}
-      {languages.map((language) => (
-        <option key={language.code} value={language.name}>
-          {language.name}
-        </option>
-      ))}
-    </Select>
   );
 }
 

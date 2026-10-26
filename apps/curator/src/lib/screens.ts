@@ -46,6 +46,7 @@ export type ScreenId =
   | "vocabulary"
   | "workers"
   | "ingestion"
+  | "manualEntry"
   | "workerSettings"
   | "runs"
   | "health"
@@ -191,6 +192,13 @@ export const SCREENS: Record<ScreenId, Screen> = {
     hint: "Origens, filas e entrada manual",
     description:
       "Cada origem com a sua fila, a sua agenda e a sua configuração; e a entrada manual, que entra na mesma fila de IA.",
+  },
+  manualEntry: {
+    path: "/sistema/ingestao/nova",
+    label: "Nova descrição",
+    hint: "Entrada manual, campo a campo",
+    description:
+      "Uma descrição digitada do zero, área por área: o registro inteiro entra no mesmo staging e na mesma fila de IA das demais origens, e nasce pendente de revisão.",
   },
   workerSettings: {
     path: "/configuracoes/workers",

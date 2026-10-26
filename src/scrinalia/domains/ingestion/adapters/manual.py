@@ -12,13 +12,19 @@ property of this form, not a shortcut the transform takes.
 
 from scrinalia.domains.ingestion.ports import SourceSchema
 
-#: Every field the manual form may send. It is also the vocabulary the manual service validates the
-#: body against; a new form field is a line here and a line in the request model.
+#: Every field the manual form may send, in the order the dossier shows the record.
+#:
+#: It is the request model's field set minus the three the service handles itself — ``title`` and
+#: ``document_date`` (consumed through the schema's own keys) and ``description_id`` (the record's
+#: identity, outside the payload). A test pins the equality, because ``_manual_payload`` iterates
+#: this tuple: a field added to the model and forgotten here would be dropped in silence.
+#:
+#: ``hierarchy_path`` is absent: the arrangement is the parent's code, and the path is the archive's
+#: to derive. ``attachment_link`` is absent: nothing reads it until the digital object exists (#198).
 MANUAL_FIELDS: tuple[str, ...] = (
     "reference_code",
     "level",
     "parent_reference_code",
-    "hierarchy_path",
     "dimension_support",
     "producers",
     "admin_bio_history",
@@ -41,10 +47,8 @@ MANUAL_FIELDS: tuple[str, ...] = (
     "general_notes",
     "archivist_notes",
     "rules_conventions",
-    "description_dates",
     "indexing_points",
     "original_url",
-    "attachment_link",
     "thumb_down_link",
 )
 
@@ -52,8 +56,9 @@ MANUAL_SOURCE_SCHEMA = SourceSchema(
     code="manual",
     field_map={field: field for field in MANUAL_FIELDS},
     title_key="title",
-    # The manual adapter does not write a source URL or an attachment under the scraper's private
-    # keys: the form's ``original_url`` and ``attachment_link`` are ordinary mapped fields above.
+    # The manual adapter does not write a source URL under the scraper's private key: the form's
+    # ``original_url`` is an ordinary mapped field above. The attachment key is unused — the manual
+    # origin has nothing to attach until the digital object exists (#198).
     url_key="_manual_url",
     attachment_key="_manual_attachment",
     date_keys=("document_date",),
