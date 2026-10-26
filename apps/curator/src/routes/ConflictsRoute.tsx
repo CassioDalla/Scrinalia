@@ -23,6 +23,7 @@ import { EmptyState, ErrorState, Spinner } from "@/components/ui/Feedback";
 import { Field } from "@/components/ui/Field";
 import { Input } from "@/components/ui/Input";
 import { Notice } from "@/components/ui/Notice";
+import { Tabs } from "@/components/ui/Tabs";
 import { PageBody } from "@/components/layout/PageBody";
 import { ACTION } from "@/lib/copy";
 import { CONFLICT_WINNER_HINT, CONFLICT_WINNER_LABEL, CONFLICT_WINNER_TONE, ENTITY_TYPE_HINT, ENTITY_TYPE_LABEL } from "@/lib/entities";
@@ -255,6 +256,18 @@ export function ConflictsRoute() {
         }
       />
 
+      {/* The three reads are tabs, not filters: they are different questions about different data. */}
+      <div className="px-6 pt-4">
+        <Tabs
+          items={VIEWS.map(({ key, label, hint }) => ({ id: key, label, hint }))}
+          active={view}
+          onChange={(id) => {
+            const next = VIEWS.find((item) => item.key === id)?.key;
+            goTo({ ver: next === "pendentes" ? undefined : next });
+          }}
+        />
+      </div>
+
       <PageBody>
         <Disclosure
           toggleLabel="Onde cada veredito é gravado"
@@ -274,21 +287,6 @@ export function ConflictsRoute() {
             transferido e qual bloqueio foi plantado, e é isso que torna o desfazer exato.
           </p>
         </Disclosure>
-
-        {/* The three reads are tabs, not filters: they are different questions about different data. */}
-        <div className="flex flex-wrap gap-2">
-          {VIEWS.map((item) => (
-            <Button
-              key={item.key}
-              size="sm"
-              variant={view === item.key ? "primary" : "secondary"}
-              title={item.hint}
-              onClick={() => goTo({ ver: item.key === "pendentes" ? undefined : item.key })}
-            >
-              {item.label}
-            </Button>
-          ))}
-        </div>
 
         {view === "pendentes" ? (
           <>
