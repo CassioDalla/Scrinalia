@@ -2490,3 +2490,38 @@ with short or full shas, and part of a `## <date> — <title>` entry.
   render); it is a conditional in the same screen. The CSV card was rendered but not re-imported with
   the wider template: the map and the caps are the same catalogue the spec publishes, covered by
   `test_csv_import.py` and by the equality pin.
+
+## 2026-10-26 — one spelling per language (#203)
+
+- **Range:** `e9f0062..8660c6f`
+- **Pages:**
+  - `guides/data-model.md` / `data-model.pt.md` — **updated**: `language_name` holds the catalogue's
+    spelling, the fold happens at the transfer with the variants declared as aliases, and a language
+    the catalogue does not know is kept as the source wrote it; `staging_documents` keeps the
+    declared text.
+  - `guides/curate.md` / `curate.pt.md` — **updated**: the dossier's select reads the catalogued name
+    (a variant is folded before it arrives), and the `(fora do catálogo)` marker is now only for a
+    language the catalogue has never heard of.
+  - `guides/operate.md` / `operate.pt.md` — **no-change**: the manual form already sent a catalogue
+    name; the fold is about values arriving from the origins and from the past.
+  - `adr/` — **no-change**: it is the catalogue #199 created, given the normalisation every closed
+    catalogue in this codebase has.
+- **Why the round exists.** The render that closed #199 measured the collection: `Português Brasil`
+  in 78 descriptions and `Português/Brasil` in 22, both shown as unknown because the dossier compares
+  strings and the catalogue says `Português`. Keeping the source's text is the right default; two
+  spellings of one language in a closed list is not.
+- **What the round measured.** Full suite **2270 passed, 1 skipped** against the test database on
+  5434; `ruff check` and `ruff format --check` green; `basedpyright` **0 errors**; `mkdocs build
+  --strict` green and the documentation coverage gate **29 passed**; `alembic upgrade head` applied
+  `6c46426b048a` and `alembic check` reports no new operations. On the dev database the migration
+  folded **100** rows in `staging_documents` and **100** in `archive_documents` (the collection has
+  101 descriptions, one of them with no language), and the two spellings became one:
+  `Português 100`, `NULL 1`. Rendered with the headless shell over CDP at 1280×1600 against the Vite
+  dev server and the API: `.render/203-language.png` is the dossier's 3.4 area with the **Idioma**
+  select reading `Português` — the same record that showed `Português Brasil (fora do catálogo)`
+  before the fold. The temporary render account and its sessions were deleted, and the browser
+  profile and driver are gone.
+- **Not verified, and said so.** The fold was not exercised through a **new scrape**: the transfer
+  path is covered by the integration test that stages `Português/Brasil` and asserts the archive's
+  `Português` while staging keeps the declared text. The downgrade is a documented no-op and was not
+  run, because it cannot restore the spelling — the fold is lossy by design.
