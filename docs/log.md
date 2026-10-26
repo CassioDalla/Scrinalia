@@ -2401,3 +2401,51 @@ with short or full shas, and part of a `## <date> — <title>` entry.
   `bun test`, and the button only creates the Blob. The HTTP 413 path is a controller test with the
   service mocked, not a real oversized request. The install guide's `no-change` is a judgement from
   the diff, not from a page render.
+
+## 2026-10-26 — the archive keeps the ISAD(G) record (#199)
+
+- **Range:** `6ff7c7d..08b3ccb`
+- **Pages:**
+  - `guides/data-model.md` / `data-model.pt.md` — **updated**: `staging_documents` gains
+    `date_expression` and the archive gains the full ISAD(G) text set plus `parent_reference_code`,
+    `date_expression` and `original_url`; the paragraph explains why the spelling travels beside the
+    parsed date and why the declared parent is a column now.
+  - `guides/curate.md` / `curate.pt.md` — **updated**: the description tab grouped in the norm's
+    seven areas, the whole record editable, the two evidence fields shown and not edited, the
+    language select that keeps a value the catalogue does not know, the pending parent, and the
+    digital object card with the disabled control pointing at #198.
+  - `guides/operate.md` / `operate.pt.md` — **no-change**: the round changed the archive and the
+    dossier, not the ingestion screen; the manual form still ships nine fields, and the sentence that
+    says the rest is #192 is still true.
+  - `guides/install.md` — **no-change**: no setting moved; the language catalogue is code, not a new
+    environment variable.
+  - `adr/` — **no-change**: no decision here is architectural enough for an ADR. The columns are
+    additive, and the language catalogue becoming a table is the facet issue's decision; the module
+    docstring and the issue record the reasoning.
+- **Why the round exists.** #192 expands the manual form, and the archive could not store what the
+  form would ask: the transfer copied 14 of the 33 content fields the staging transform parses. The
+  round closes the store first, so the form grows against a table that exists, and so the dossier can
+  finally show the record it claims to own.
+- **What the round measured.** Full suite **2238 passed, 1 skipped** (the test database on 5434,
+  `postgresql+psycopg2`; 5433 is held by another process); `ruff check` and `ruff format --check`
+  green; `basedpyright` **0 errors**; the contract regenerated with the repository's `openapi.json` +
+  `codegen` path, and the SPA's `tsc`, ESLint and Vite build green; `mkdocs build --strict` green and
+  the documentation coverage gate **29 passed**; `alembic upgrade head` applied `e3084fbf75ba` and
+  `alembic check` reports no new operations. The backfill was measured on the dev database
+  (`scrinalia_zeroed`): **101** archive rows against **100** staging rows, so the migration filled
+  **100** descriptions and left **1** empty (no staging row), and `date_expression` is **0** by design,
+  because the staging column did not exist when those rows were parsed. Rendered with the headless
+  shell over CDP at 1280×1600 against the Vite dev server and the API: `.render/199-dossier-top.png`
+  is 3.1 (level, typology, reference code, date, dimension and support, the parent named from the
+  branch) and 3.2 with the source link; `.render/199-dossier-mid.png` is 3.3 and 3.4, where the
+  language select shows **"Português Brasil (fora do catálogo)"** — the scraped spelling, kept
+  instead of erased; `.render/199-dossier-bottom.png` is 3.5 to 3.7, the diffusion flag, the disabled
+  **Objeto digital** control with the one sentence, and the save bar. The temporary render account and
+  its session were deleted after the round, and the browser profile and driver are gone.
+- **Not verified, and said so.** The transfer was **not run** over the collection, so the CDC re-read
+  and the AI re-queue that follow the hash change were not observed: the round-trip is the integration
+  test that stages a record with every field and asserts every column. No field was **saved** through
+  the dossier in the browser; the write path is the same `PATCH` covered by the curation test, and
+  what the render proves is that the controls exist, are bound to the stored values and render in the
+  right area. The language select was seen with an unknown value only; the known-value options come
+  from the same `GET /api/v1/languages` list the route test pins.
