@@ -2525,3 +2525,47 @@ with short or full shas, and part of a `## <date> — <title>` entry.
   path is covered by the integration test that stages `Português/Brasil` and asserts the archive's
   `Português` while staging keeps the declared text. The downgrade is a documented no-op and was not
   run, because it cannot restore the spelling — the fold is lossy by design.
+
+## 2026-10-26 — the entry screen moves to the Acervo (#205)
+
+- **Range:** `8660c6f..35d11cb`
+- **Pages:**
+  - `guides/curate.md` / `curate.pt.md` — **updated**: *Nova descrição* is `/acervo/nova`, the first
+    entry of the *Acervo* menu, with a section of its own: the **Digitar** and **Importar CSV** tabs
+    (the mode travels in `?modo=csv`), the destination said once, and the redirect from
+    `/sistema/ingestao/nova`. The *Ingestão* section loses the two cards and says the curator reads
+    the origins read-only.
+  - `guides/operate.md` / `operate.pt.md` — **updated**: the manual entry is the **Digitar** tab and
+    the CSV is the **Importar CSV** tab, both at `/acervo/nova`; `/sistema/ingestao` is origins only,
+    and its `CURATE` card now buys the status read, not a curator write.
+  - `guides/install.md` / `install.pt.md` — **updated**: after the migration `/sistema/ingestao`
+    configures the origins and `/acervo/nova` is where a description is typed or imported.
+  - `guides/data-model.md` / `data-model.pt.md` — **no-change**: no table or column moved; the
+    staging and transfer paths are the same.
+  - `adr/` — **no-change**: the API and the pipeline are untouched. This is where a screen lives, not
+    an architecture decision.
+- **Freshness.** Before the round the hook named `guides/curate.md` (the conflict tabs, #220) and
+  `guides/install.md` (the 1.6.0 version bump). Both were read; the conflict screen was already
+  described as tabs, the version is not a fact the install guide stores, and the updates above are
+  what closes the range.
+- **Why the round exists.** #205 moved the two input paths of the collection out of the ingestion
+  configuration page: "Nova descrição" was the last step of Configurações -> Operação -> Ingestão,
+  and the CSV import lived as a second card on a page about origins. The screen creates the object
+  the Acervo lists, so it now lives there, with the two input shapes as tabs.
+- **What the round measured.** Full suite **2270 passed, 1 skipped** against the test database on
+  5434 (`postgresql+psycopg2`; 5433 is held by another process and its `test_user` refused the
+  password); `ruff check` and `ruff format` green and `basedpyright` **0 errors** through the commit
+  hook; `bun run --cwd apps/curator typecheck`, `lint` and `build` green; `bun test` **20 pass**;
+  `testing/unit/curator` and `testing/unit/docs` **32 passed**; `mkdocs build --strict` green; no
+  API change and no contract regeneration. Rendered with the headless shell over CDP at 1280×1600
+  against the Vite dev server and the API: `.render/205-digitar.png` is `/acervo/nova` with the menu
+  entry and the form; `.render/205-csv.png` is `?modo=csv`; `.render/205-csv-preview.png` is a sample
+  CSV mapped header by header with one invalid row before any submit; `.render/205-ingestao.png` is
+  the origins page with no entry cards. The CDP probe switched tabs to `/acervo/nova?modo=csv`, kept
+  a typed draft across the round trip, and landed `/sistema/ingestao/nova` on `/acervo/nova`. The
+  temporary session row was deleted and the driver and profile removed.
+- **Not verified, and said so.** Nothing was **submitted** through either tab: the manual and CSV
+  writes are the integration tests, and the render proves the screen, the tabs, the mapping preview
+  and the redirect. The permission hiding was not exercised with a curator or viewer account — the
+  render used the administrator — so the mirror is `permissions.ts` and the API guard; the final
+  permission of the origins page, and whether it needs a read-only mode, is #206's decision.
