@@ -324,7 +324,7 @@ function TrialRunPanel({ run }: { run: WorkerRunDetail }) {
       {isActiveRun(run) ? (
         <span>
           o resultado aparece quando o runner terminar; acompanhe em{" "}
-          <Link to="/sistema/execucoes" className="underline">
+          <Link to="/sistema/workers" search={{ aba: "execucoes" }} className="underline">
             Execuções
           </Link>
           .

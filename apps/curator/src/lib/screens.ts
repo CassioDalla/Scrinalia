@@ -48,7 +48,6 @@ export type ScreenId =
   | "origins"
   | "newDescription"
   | "workerSettings"
-  | "runs"
   | "health"
   | "settings"
   | "users"
@@ -182,9 +181,10 @@ export const SCREENS: Record<ScreenId, Screen> = {
   },
   workers: {
     path: "/sistema/workers",
-    label: "Workers de IA",
-    hint: "Presets, filas e execução",
-    description: "O que roda, com qual preset e modelo, o que está na fila e o que já rodou.",
+    label: "Workers e execuções",
+    hint: "O que roda e o que rodou",
+    description:
+      "O painel do que o worker está fazendo — preset, modelo, fila, última e execução ativa — e o ledger do que já rodou, na aba ao lado.",
   },
   origins: {
     path: "/sistema/ingestao",
@@ -206,12 +206,6 @@ export const SCREENS: Record<ScreenId, Screen> = {
     hint: "Engine, preset e o histórico",
     description:
       "O padrão persistido de cada worker — engine, preset, lote e opções — e quem alterou o quê, execução após execução.",
-  },
-  runs: {
-    path: "/sistema/execucoes",
-    label: "Execuções",
-    hint: "O ledger do que rodou",
-    description: "Toda execução entra aqui — pela linha de comando ou pelo painel.",
   },
   health: {
     path: "/sistema/diagnostico",

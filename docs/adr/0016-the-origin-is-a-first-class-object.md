@@ -123,7 +123,7 @@ Positive:
 - The panel can answer "which origin is this queue", and the ledger can attribute an ingestion run
   to the source it processed.
 - The ingestion has a lease, a schedule, a retry and a cancellation for free; an operator sees it in
-  the same `/sistema/execucoes` screen as the AI workers.
+  the same execution ledger as the AI workers (`/sistema/workers`, the *Execuções* tab).
 - A manual record follows the same path as a scraped one and is visible to the AI queues, with the
   author on the raw row.
 

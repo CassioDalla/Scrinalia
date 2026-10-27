@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { getRouteApi, Link, useNavigate } from "@tanstack/react-router";
+import { Link } from "@tanstack/react-router";
 
 import {
   cancelWorkerRun,
@@ -9,14 +9,12 @@ import {
   type WorkerRunStatus,
 } from "@/api/client";
 import { queries, FAILURES_PAGE_SIZE, RUNS_PAGE_SIZE } from "@/api/queries";
-import { PageHeader } from "@/components/layout/PageHeader";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { EmptyState, ErrorState, Skeleton } from "@/components/ui/Feedback";
 import { Select } from "@/components/ui/Input";
 import { Notice } from "@/components/ui/Notice";
-import { PageBody } from "@/components/layout/PageBody";
 import { formatCount, formatDateTime } from "@/lib/format";
 import { cn } from "@/lib/cn";
 import { routeMessage } from "@/lib/messages";
@@ -34,8 +32,6 @@ import {
   TRIGGER_LABEL,
 } from "@/lib/system";
 
-const routeApi = getRouteApi("/sistema/execucoes");
-
 /** The closed vocabulary of the run lifecycle, read from the contract's enum. */
 const RUN_STATUSES: readonly WorkerRunStatus[] = [
   "QUEUED",
@@ -46,21 +42,31 @@ const RUN_STATUSES: readonly WorkerRunStatus[] = [
   "CANCELLED",
 ];
 
+/**
+ * The ledger's part of the merged screen's search (#207).
+ *
+ * The filters live in the URL because "look at this failed run" is a link somebody sends. `run` is
+ * the exact row the panel's last-run link points at: it highlights one entry without narrowing the
+ * list, so the archivist still sees what ran around it.
+ */
 export type SystemRunsSearch = {
   worker?: string;
   origin?: string;
   status?: WorkerRunStatus;
   fingerprint?: string;
+  run?: number;
   offset?: number;
 };
 
 export function validateSystemRunsSearch(search: Record<string, unknown>): SystemRunsSearch {
   const offset = asNumber(search.offset);
+  const run = asNumber(search.run);
   return {
     worker: asString(search.worker),
     origin: asString(search.origin),
     status: asEnum(search.status, RUN_STATUSES),
     fingerprint: asString(search.fingerprint),
+    run: run !== undefined && run > 0 ? run : undefined,
     offset: offset !== undefined && offset > 0 ? offset : undefined,
   };
 }
@@ -69,16 +75,21 @@ export function validateSystemRunsSearch(search: Record<string, unknown>): Syste
  * The execution ledger: what ran, with which configuration, and how it ended.
  *
  * The row keeps the **resolved** configuration the run used, so reading it later still means
- * something after a preset changed in the code. The filters are in the URL, like the collection's,
- * because "look at this failed run" is a link somebody sends.
+ * something after a preset changed in the code. The grouped failures sit on top because they answer
+ * the question the ledger cannot: forty rows saying the same sentence are one cause, and the ledger
+ * alone makes them look like forty problems.
  *
- * The grouped failures sit on top because they answer the question the ledger cannot: forty rows
- * saying the same sentence are one cause, and the ledger alone makes them look like forty problems.
+ * It is a tab of `/sistema/workers` since #207, not a screen of its own: the panel enqueues and this
+ * answers what happened, and the two are one question asked twice. Only the active tab is mounted,
+ * so this query runs only while the ledger is the tab the operator is looking at.
  */
-export function SystemRunsRoute() {
-  const search = routeApi.useSearch();
-  const navigate = useNavigate();
-
+export function RunsLedger({
+  search,
+  patch,
+}: {
+  search: SystemRunsSearch;
+  patch: (changes: Partial<SystemRunsSearch>) => void;
+}) {
   const offset = search.offset ?? 0;
   const page = useQuery({
     ...queries.systemRuns(search.worker, search.status, offset, search.fingerprint, search.origin),
@@ -104,26 +115,17 @@ export function SystemRunsRoute() {
     refetchInterval: false,
   });
 
-  const patch = (changes: Partial<SystemRunsSearch>) =>
-    navigate({ to: "/sistema/execucoes", search: { ...search, ...changes, offset: changes.offset } });
-
   const labelOf = (name: string) => (catalogue.data?.workers ?? []).find((worker) => worker.name === name)?.label ?? name;
   const total = page.data?.total ?? 0;
   const items = page.data?.items ?? [];
 
   return (
     <>
-      <PageHeader
-        screen="runs"
-        pending={page.isPending}
-        status={page.data ? `${formatCount(total)} execução(ões) registrada(s)` : undefined}
-      />
-
-      <PageBody>
-        <p className="text-xs text-(--color-muted)">
-          Toda execução entra aqui — pela linha de comando ou pelo painel. O registro guarda a configuração já
-          resolvida (preset e modelo), então ele continua legível depois que um preset mudar no código.
-        </p>
+      <p className="text-xs text-(--color-muted)">
+        {page.data ? `${formatCount(total)} execução(ões) registrada(s). ` : ""}
+        Toda execução entra aqui — pela linha de comando ou pelo painel. O registro guarda a configuração já
+        resolvida (preset e modelo), então ele continua legível depois que um preset mudar no código.
+      </p>
 
         <FailuresPanel
           groups={failures.data?.items ?? []}
@@ -221,7 +223,12 @@ export function SystemRunsRoute() {
         <ul className="grid gap-2">
           {items.map((run) => (
             <li key={run.run_id}>
-              <Card>
+              {/*
+                The row the panel's last-run link points at (#207): the search key `run` highlights it
+                instead of filtering the list, so the archivist still sees what ran around it. The ring
+                is the only difference; nothing about the row is hidden or reordered.
+              */}
+              <Card className={search.run === run.run_id ? "ring-(--color-accent)/60" : undefined}>
                 <CardBody className="grid gap-1">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="flex min-w-0 flex-wrap items-center gap-2">
@@ -311,7 +318,7 @@ export function SystemRunsRoute() {
                 size="sm"
                 variant="secondary"
                 disabled={offset === 0}
-                onClick={() => navigate({ to: "/sistema/execucoes", search: { ...search, offset: Math.max(0, offset - RUNS_PAGE_SIZE) } })}
+                onClick={() => patch({ offset: Math.max(0, offset - RUNS_PAGE_SIZE) })}
               >
                 anteriores
               </Button>
@@ -319,14 +326,13 @@ export function SystemRunsRoute() {
                 size="sm"
                 variant="secondary"
                 disabled={offset + RUNS_PAGE_SIZE >= total}
-                onClick={() => navigate({ to: "/sistema/execucoes", search: { ...search, offset: offset + RUNS_PAGE_SIZE } })}
+                onClick={() => patch({ offset: offset + RUNS_PAGE_SIZE })}
               >
                 próximas
               </Button>
             </div>
           </div>
         ) : null}
-      </PageBody>
     </>
   );
 }

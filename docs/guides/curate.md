@@ -4,6 +4,7 @@ sources:
   - apps/curator/src/components/layout/AppShell.tsx
   - apps/curator/src/components/layout/PageHeader.tsx
   - apps/curator/src/components/description/**
+  - apps/curator/src/components/workers/**
   - apps/curator/src/components/layout/LoginForm.tsx
   - apps/curator/src/components/layout/PasswordChangeForm.tsx
   - apps/curator/src/routes/**
@@ -1059,7 +1060,7 @@ the human review of the record, in the dossier.
 ## Sistema
 
 The machine, not the collection. Everything here belongs to whoever operates the installation, and
-all four screens are reached from `/configuracoes`, under *Operação*: the menu kept what the
+all three screens are reached from `/configuracoes`, under *Operação*: the menu kept what the
 archivist consults while cataloguing, and this is not it. The two ways into the collection live in
 the Acervo (`/acervo/nova`), and the origins page is the operator's; the read routes stay
 authenticated, so a curator who follows a direct URL still sees it read-only.
@@ -1067,8 +1068,7 @@ authenticated, so a curator who follows a direct URL still sees it read-only.
 | Screen | Decision | Reversible? |
 | --- | --- | --- |
 | Origens — `/sistema/ingestao` | which source to add, its URLs and agenda, whether it is active, and whether to enqueue a run (operator) | the configuration, the agenda and the pause are reversible; the screen writes no description |
-| Workers de IA — `/sistema/workers` | whether to run a worker now | yes (the run's own configuration); a run's effects follow what it wrote |
-| Execuções — `/sistema/execucoes` | whether to stop an active run (the ledger and the grouped failures are read-only) | no undo: a cancelled run stays cancelled; a new run is a new ledger row |
+| Workers e execuções — `/sistema/workers` | whether to run a worker now (**Painel**); whether to stop an active run (**Execuções**) | yes for the run's own configuration; a run's effects follow what it wrote. No undo for a cancelled run: it stays cancelled, and a new run is a new ledger row |
 | Saúde do sistema — `/sistema/diagnostico` | none (database, models, storage, process) | yes (read only) |
 
 ### Origens — `/sistema/ingestao`
@@ -1090,7 +1090,13 @@ curator who follows a direct URL sees the page read-only with the controls hidde
 worker routes refuse `ingestion` — a run of it needs the origin, and the origin routes are the
 selector.
 
-### Workers de IA — `/sistema/workers`
+### Workers e execuções — `/sistema/workers`
+
+One screen with two tabs in the URL (#207), and it answers the run-check loop that used to need two
+screens: the **Painel** tab enqueues and shows the queue, and the **Execuções** tab is the ledger of
+what ran. The last run of a worker is a link to the ledger filtered by that worker, with the exact
+row highlighted; the old `/sistema/execucoes` path redirects there with the filters preserved. Only
+the active tab is mounted, so only its read is polled.
 
 The catalogue of the ten workers, in pipeline order, with the effective engine, preset and config on
 the collapsed row — "with which model is this running?" is the question the screen exists to answer,
@@ -1126,11 +1132,12 @@ and only `worker_embedding` rewrites a *description*: it re-embeds a changed tex
 document, the documented exception. The other three work on units that are not descriptions (a
 staging record, a pair, a tag).
 
-### Execuções — `/sistema/execucoes`
+### Execuções — the ledger tab
 
-The run ledger, read-only except for the stop: one row per execution, from the command line and from
-the panel, carrying the **resolved** configuration the run used (so it stays readable after a preset
-changes in code),
+Since #207 the ledger is the **Execuções** tab of `/sistema/workers`, and `/sistema/execucoes`
+redirects to it with the search preserved. It is read-only except for the stop: one row per
+execution, from the command line and from the panel, carrying the **resolved** configuration the run
+used (so it stays readable after a preset changes in code),
 the **effective worker options** (the columns it read, the floor, the cap — resolved when the run
 started, so "which columns did run #N read?" has an answer), the duration, the outcome and who
 asked. A row older than the options column says "opções não registradas nesta execução". Above it, the failures of the last 30 days grouped by root
@@ -1171,7 +1178,7 @@ what changed is how it is found. Three tabs, in the order of the permission ladd
 | Tab | Cards |
 | --- | --- |
 | Arranjo e catálogos | Plano de arranjo (`CURATE`), Níveis de descrição, Tipologias and Vocabulário do acervo (`CATALOGUE`) |
-| Operação | Workers de IA, Configuração dos Workers, Execuções and Saúde do sistema (`OPERATE`) |
+| Operação | Workers e execuções, Configuração dos Workers and Saúde do sistema (`OPERATE`) |
 | Acesso | Usuários (`ADMIN`) |
 
 The tab is in the URL (`?aba=`), so "the worker cards" can be sent to somebody. A tab the account
