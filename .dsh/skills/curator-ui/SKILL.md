@@ -25,6 +25,29 @@ whenToUse: "When changing anything under apps/curator."
 - **A query shape is derived from the route, never typed out.** `params: NonNullable<paths["<route>"]["get"]["parameters"]["query"]>`, or a named alias doing exactly that. A hand-written filter object is a second definition of what the API accepts, and it fails in the direction nothing catches: measured, an unknown query parameter is *ignored* and the route answers 200 with the whole set — `?is_anomaly=true` filters 28 of 101, `?is_anomalyy=true` and `?non_sense=42` both answer 101 — so a mirror that lost a key, or a contract that renamed one, leaves the screen filtering by nothing while its chip says it filtered, with `tsc`, ESLint, the build and the suite green. It happened: `DocumentSearch` had lost `is_anomaly` and survived only because `CollectionRoute.toRequest` spreads a wider type into it. `testing/unit/curator/test_api_query_shapes.py` fails on the next one. The generated type already spells an omitted filter `campo?: T | null`, so the derivation needs no mapping and no `Exclude`.
 - **A request body is derived from the model the route declares, never typed out.** `body: MergeBatchRequest`, where the alias is `components["schemas"]["MergeBatchRequest"]`; a deliberate narrowing is a `Pick`/`Omit`/`Required` **over that model**, with the screen or the route that justifies it named beside it. This is the mirror image of the query failure: measured, pydantic refuses a **required** field that is renamed or missing (the route answers 400) and *ignores* an **optional** one and an unknown one (200) — `EntityMergePreviewRequest` with `new_name` renamed to `new_nam` validates, and the merge simply does not rename — so a hand-written body loses the optional half without a trace. The silence is not even uniform: ten of the thirteen request models keep pydantic's `extra="ignore"` and three forbid it, so the client must not learn the list by copying it (#177). `testing/unit/curator/test_api_body_shapes.py` fails on the next literal **and** on the next narrowing that is not in its table, and the narrowing still derives, so a rename in the contract is a compile error.
 
+## Um hint, e só um
+
+- **`components/ui/Hint.tsx` é a única explicação discreta.** O gatilho padrão é um `<button>` só
+  com ícone `Info`, nomeado por `label`; quando o gatilho já é um controle — uma aba —, passa-se
+  `asChild` e o próprio botão vira o gatilho. O painel é `role="tooltip"` com `aria-describedby`, o
+  texto fica no DOM (`sr-only` fechado), abre no hover e no foco, alterna no clique/toque, fecha no
+  Escape e no ponteiro fora. O comportamento está pinado em
+  `apps/curator/tests/hint.test.tsx`; o DOM dos testes vem de `happy-dom` + Testing Library,
+  registrado no `apps/curator/bunfig.toml`.
+- **Hint é secundário, nunca a única descrição.** Instrução para preencher um campo, ação
+  destrutiva e regra de governança continuam visíveis: `Field.hint` embaixo do controle, `Notice` ou
+  `Disclosure` quando é um parágrafo. Tooltip não carrega link, botão nem campo — quando o texto
+  precisa disso, o componente é `Disclosure`, não `Hint`.
+- **`Field.info` é o slot ao lado do rótulo, fora do `<label>`.** Um `<button>` dentro de `<label>`
+  é HTML inválido e contamina o nome acessível do input; o `Field` renderiza o `info` como irmão do
+  label. Não criar um `hintMode` que esconda o `hint` visível.
+- **O `title` nativo se aposenta como explicação a cada uso migrado.** Ele sobrevive onde o texto
+  não é a única forma de saber — truncamento, valor completo de uma célula, o nome de um ícone — e
+  não é o padrão "discreto" da interface.
+- **O painel é posicionado com `absolute`, sem portal.** Um ancestral com `overflow: auto/hidden`
+  recorta o tooltip: os usos atuais não têm esse ancestral. Se um lugar precisar de colisão real,
+  isso é uma decisão sobre Floating UI, não um `z-index` maior.
+
 ## Editing copy: click the element, land on the line
 
 - **Alt+right-click** an element on a screen opened through `bun run curator:dev` and the plugin

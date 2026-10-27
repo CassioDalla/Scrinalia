@@ -21,6 +21,7 @@ import { Card, CardBody } from "@/components/ui/Card";
 import { Disclosure } from "@/components/ui/Disclosure";
 import { EmptyState, ErrorState, Spinner } from "@/components/ui/Feedback";
 import { Field } from "@/components/ui/Field";
+import { Hint } from "@/components/ui/Hint";
 import { Input } from "@/components/ui/Input";
 import { Notice } from "@/components/ui/Notice";
 import { Tabs } from "@/components/ui/Tabs";
@@ -291,7 +292,16 @@ export function ConflictsRoute() {
         {view === "pendentes" ? (
           <>
             <div className="flex flex-wrap items-end justify-between gap-3">
-              <Field label="Limiar de similaridade">
+              <Field
+                label="Limiar de similaridade"
+                info={
+                  <Hint label="O que é o limiar de similaridade" align="start">
+                    A similaridade de trigrama mede o quanto duas grafias se parecem, de 0 a 1. Quanto
+                    mais alto o limiar, menos pares entram: só os mais parecidos. O menor valor aceito é
+                    0,5.
+                  </Hint>
+                }
+              >
                 <Input
                   type="number"
                   min={0.5}
