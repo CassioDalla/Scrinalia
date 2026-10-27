@@ -249,7 +249,7 @@ fecha a janela (ADR 0011). **Configure a instância antes de expô-la.**
 uv run uvicorn main:app --host 0.0.0.0 --port 8000 --workers 1
 ```
 
-Depois da migração, a origem `pmc` já existe em `ingestion_origins` (as URLs acima são semeadas nela quando presentes) e a origem `manual` está habilitada. A tela `/sistema/ingestao` é onde a instalação configura as origens; uma descrição é digitada ou importada em `/acervo/nova`.
+Depois da migração, uma instalação nova tem **nenhuma origem configurada**: `ingestion_origins` guarda só as linhas manual e CSV, que são as entradas e aparecem só para leitura. A tela `/sistema/ingestao` é onde o operador adiciona uma origem do pacote — a definição `pmc` está no seletor, e as URLs acima são o fallback dela quando os campos estão vazios — e uma descrição é digitada ou importada em `/acervo/nova`.
 
 A API fica em `http://localhost:8000/`, a interface no mesmo endereço e o documento OpenAPI em
 `/schema/swagger`. O `--reload` é de desenvolvimento (`bun run api:dev`), não de uma instalação.

@@ -12,11 +12,11 @@ import { DiscoverRoute } from "@/routes/DiscoverRoute";
 import { DocumentRoute } from "@/routes/DocumentRoute";
 import { EntitiesRoute, validateEntitiesSearch } from "@/routes/EntitiesRoute";
 import { InboxRoute } from "@/routes/InboxRoute";
-import { IngestionRoute } from "@/routes/IngestionRoute";
 import { LevelsRoute } from "@/routes/LevelsRoute";
 import { NerExclusionsRoute } from "@/routes/NerExclusionsRoute";
 import { NewDescriptionRoute, validateNewDescriptionSearch } from "@/routes/NewDescriptionRoute";
 import { NotFoundRoute } from "@/routes/NotFoundRoute";
+import { OriginsRoute } from "@/routes/OriginsRoute";
 import { PlanRoute, validatePlanSearch } from "@/routes/PlanRoute";
 import { SettingsRoute, validateSettingsSearch } from "@/routes/SettingsRoute";
 import { SubjectExclusionsRoute } from "@/routes/SubjectExclusionsRoute";
@@ -229,10 +229,10 @@ const systemWorkersRoute = createRoute({
   component: SystemWorkersRoute,
 });
 
-const ingestionRoute = createRoute({
+const originsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/sistema/ingestao",
-  component: IngestionRoute,
+  component: OriginsRoute,
 });
 
 /*
@@ -328,7 +328,7 @@ export const router = createRouter({
     cleaningRulesRoute,
     anomaliesRoute,
     systemWorkersRoute,
-    ingestionRoute,
+    originsRoute,
     legacyNewDescriptionRoute,
     systemRunsRoute,
     systemHealthRoute,

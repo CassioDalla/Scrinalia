@@ -379,6 +379,8 @@ export type WorkerRunRequest = components["schemas"]["WorkerRunRequest"];
 /** The ingestion origin and the writes its screen owns (#44). */
 export type IngestionOrigin = components["schemas"]["IngestionOriginDTO"];
 export type IngestionOriginList = components["schemas"]["IngestionOriginListResponse"];
+/** A source the package ships and this installation has not configured yet (#206). */
+export type OriginAvailable = components["schemas"]["OriginAvailableDTO"];
 export type IngestionOriginUpdateRequest = components["schemas"]["IngestionOriginUpdateRequest"];
 export type IngestionScheduleRequest = components["schemas"]["IngestionScheduleRequest"];
 export type IngestionRunRequest = components["schemas"]["IngestionRunRequest"];

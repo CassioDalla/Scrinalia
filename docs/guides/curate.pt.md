@@ -1037,32 +1037,35 @@ correção é a revisão humana da ficha, na descrição.
 
 A máquina, não o acervo. Tudo aqui pertence a quem opera a instalação, e as quatro telas são
 alcançadas por `/configuracoes`, sob *Operação*: o menu ficou com o que o arquivista consulta
-catalogando, e não é isto. A tela de ingestão é a exceção à regra "só operador" — o curador lê o
-status das origens ali — e por isso é um cartão `CURATE`; as duas formas de entrada do acervo moram
-no Acervo (`/acervo/nova`).
+catalogando, e não é isto. As duas formas de entrada do acervo moram no Acervo (`/acervo/nova`), e a
+página de origens é do operador; as rotas de leitura continuam autenticadas, então um curador que
+segue uma URL direta ainda a vê só para leitura.
 
 | Tela | Decisão | Reversível? |
 | --- | --- | --- |
-| Ingestão — `/sistema/ingestao` | qual origem ler, as URLs e a agenda (operador); o curador lê as filas e a última execução | a configuração e a agenda são reversíveis; a tela não escreve descrição |
+| Origens — `/sistema/ingestao` | qual origem adicionar, as URLs e a agenda, se ela está ativa e se enfileira uma execução (operador) | a configuração, a agenda e a pausa são reversíveis; a tela não escreve descrição |
 | Workers de IA — `/sistema/workers` | se roda um worker agora | sim (a configuração da própria execução); os efeitos de uma execução seguem o que ela escreveu |
 | Execuções — `/sistema/execucoes` | se para uma execução ativa (o ledger e as falhas agrupadas são só leitura) | sem desfazer: uma execução cancelada continua cancelada; uma nova execução é uma nova linha no ledger |
 | Saúde do sistema — `/sistema/diagnostico` | nenhuma (banco, modelos, storage, processo) | sim (só leitura) |
 
-### Ingestão — `/sistema/ingestao`
+### Origens — `/sistema/ingestao`
 
-A etapa à frente do Acervo, origem por origem (ADR 0016). Cada cartão é uma origem: a própria fila (o
-que a próxima execução leria), os números de processados e falhas, a última execução e a ativa, e a
-agenda. O **operador** edita a configuração do adaptador (URLs de listagem e detalhe da coleta de
-referência, a espera de cortesia), salva um cron de cinco campos num fuso IANA e **Enfileira
-execução**. A execução é o mesmo ledger dos workers de IA; um período que dispara com a origem já
-rodando é pulado, não enfileirado. As rotas genéricas de worker recusam `ingestion` — uma execução
-dela precisa da origem, e as rotas da origem são o seletor.
+A etapa à frente do Acervo, origem por origem (ADR 0016). **Origens** lista as fontes configuradas:
+cada cartão tem a fila que a próxima execução leria, os números de processados e falhas, a última
+execução e a ativa, a agenda e a configuração efetiva. O **operador** adiciona uma definição pelo
+seletor, edita a configuração do adaptador (URLs de listagem e detalhe da coleta de referência, a
+espera de cortesia), salva um cron de cinco campos num fuso IANA, **Desativa/Ativa** e **Enfileira
+execução**. Pausar mantém a linha, a agenda e as execuções; só a execução é recusada. Uma instalação
+nova começa sem fonte configurada e mostra **Nenhuma origem configurada**; o fluxo de adicionar
+ativa a definição escolhida. A execução é o mesmo ledger dos workers de IA; um período que dispara
+com a origem já rodando é pulado, não enfileirado.
 
-O **curador** vê os mesmos cartões só para leitura: as filas, a última execução e a agenda são o
-status da etapa, e os controles só de operador ficam escondidos. As duas escritas que ficavam aqui —
-o registro digitado e a importação CSV — são `/acervo/nova`, no Acervo (#205); o comportamento delas
-está em *Nova descrição*. A permissão final desta página, e se ela precisa de um modo só leitura
-próprio, é da issue das origens (#206).
+**Entradas** mostra as linhas manual e CSV só para leitura, com o status e um link para o Acervo:
+elas são as formas de entrada, não fontes, e as duas escritas que ficavam aqui estão em *Nova
+descrição* (#205). O cartão é `OPERATE`; as rotas de leitura continuam autenticadas, então um
+curador que segue uma URL direta vê a página só para leitura, com os controles escondidos. As rotas
+genéricas de worker recusam `ingestion` — uma execução dela precisa da origem, e as rotas da origem
+são o seletor.
 
 ### Workers de IA — `/sistema/workers`
 

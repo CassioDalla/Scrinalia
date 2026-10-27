@@ -184,7 +184,7 @@ function WorkerCard({ worker }: { worker: WorkerStatus }) {
         worker.name === "ingestion" ? (
           <Link to="/sistema/ingestao">
             <Button size="sm" variant="secondary">
-              Abrir ingestão
+              Abrir origens
             </Button>
           </Link>
         ) : (

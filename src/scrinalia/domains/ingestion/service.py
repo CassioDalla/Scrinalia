@@ -81,6 +81,7 @@ from scrinalia.domains.ingestion.schemas import (
     ManualIngestionRequest,
     ManualIngestionResponse,
     ManualIngestionResultDTO,
+    OriginAvailableDTO,
     OriginConfigFieldDTO,
 )
 from scrinalia.domains.staging.dates import parse_document_date
@@ -132,7 +133,15 @@ class IngestionOriginService:
     # --- reads -----------------------------------------------------------------------------------
 
     def list_origins(self) -> IngestionOriginListResponse:
-        """Every origin the package ships, with its effective configuration and its own queue."""
+        """
+        The configured origins, with their queue and lifecycle, and the sources still to add.
+
+        A row is the line between the two: a definition without one is **available** (the picker),
+        and a definition with one is **configured**. The manual and CSV entries keep their rows for
+        provenance and for the entry paths, but they are not sources: they come back with
+        ``configurable=False`` so the screen shows them read-only (#206).
+        """
+        rows = {origin.code: origin for origin in self.origins.list_all()}
         last_runs = self.runs.last_ingestion_by_origin()
         active_runs = self.runs.active_ingestion_by_origin()
         online = [runner for runner in WorkerRunnerRepository(self.db).list_for_panel() if runner.online]
@@ -141,14 +150,29 @@ class IngestionOriginService:
         origins = [
             self._dto(
                 summary,
-                self.origins.get(summary.code),
+                rows[summary.code],
                 last_runs.get(summary.code),
                 active_runs.get(summary.code),
                 runner_available,
             )
             for summary in ORIGINS.values()
+            if summary.code in rows
         ]
-        return IngestionOriginListResponse(origins=origins, generated_at=datetime.now(UTC))
+        available = [
+            OriginAvailableDTO(
+                code=summary.code,
+                label=summary.label,
+                description=summary.description,
+                kind=summary.kind.value,
+            )
+            for summary in ORIGINS.values()
+            if summary.configurable and summary.code not in rows
+        ]
+        return IngestionOriginListResponse(
+            origins=origins,
+            available=available,
+            generated_at=datetime.now(UTC),
+        )
 
     def get_origin(self, code: str) -> IngestionOriginDTO:
         summary = get_origin_summary(code)
@@ -179,6 +203,7 @@ class IngestionOriginService:
             description=summary.description,
             kind=summary.kind.value,
             enabled=bool(origin.enabled) if origin is not None else False,
+            configurable=summary.configurable,
             config=_config_of(summary, origin),
             config_fields=[
                 OriginConfigFieldDTO(

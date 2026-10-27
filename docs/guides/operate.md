@@ -104,7 +104,7 @@ ingestion -> transfer -> cleaning -> ner -> typology -> thumbnail -> conflict-ju
 - **`ingestion`** is the stage in front of the archive: it lists one origin, reads its detail pages
   into `raw_data` and structures the new records into `staging_documents`. Its unit is the **origin**,
   not a document, and it has no engine; each origin is a row with its own queue, agenda and
-  configuration, described in [the ingestion origins](#the-ingestion-origins). The host commands
+  configuration, described in [the origins](#the-origins). The host commands
   below still exist for a one-off run, but the panel is the operational path.
 - **`transfer`** copies the structured staging record into the archive description, keyed on the
   hash of the parsed record (`staging_content_hash`). It is the only stage that rewrites content:
@@ -327,23 +327,34 @@ overrides, the concurrency guard and the `--option` coercion, and it uses whatev
 and `preset` the module's `__main__` block hardcodes (for `ner`, `db_batch_size=100` and otherwise
 the signature defaults). Nothing appears in the run history, so nothing tells you it happened.
 
-### The ingestion origins
+### The origins
 
 An origin is a definition in code plus a row in `ingestion_origins` (ADR 0016). The definition — its
 adapter and the `SourceSchema` that says which of its labels fills which staging column — stays next
 to the adapter; the row is the lifecycle: enabled/paused, the URLs, the run policy a scheduled
-execution inherits, and the cron/zone of its agenda. The `csv` origin has no adapter configuration at
-all: its input is the file the browser reads, and its `SourceSchema` maps that file's headers to the
-staging columns. Adding an origin is a module, a registry entry and a row; the staging transform learns
-no site.
+execution inherits, and the cron/zone of its agenda. The `manual` and `csv` definitions are **entry
+paths**, not sources: they have no adapter and are never offered by the picker. Their rows exist for
+provenance and for the form/import, and the page shows them read-only. Adding a source is a module
+and a registry entry; the row is added from the screen, and the staging transform learns no site.
 
-`/sistema/ingestao` is the screen. Each card answers *which queue is this, what does it read, when
-does it run and what happened last time*: the origin's own pending/processed/failed numbers, the last
-and active run, the agenda and the runner availability. The operator can **Enfileirar execução**,
-edit the configuration and save the agenda; a curator reaches the screen to read the queues and sees
-the same cards read-only. The two ways into the collection are not here: they are the tabs of
-`/acervo/nova` (#205). The generic worker routes refuse `ingestion`: a run of it needs an origin, so
-the origin routes are the selector (`/api/v1/ingestion/origins/...`).
+`/sistema/ingestao` is the screen, and it has two sections (#206). **Origens** lists the configured
+sources, one card each: the queue the next execution would read, the processed/failed numbers, the
+last and active run, the agenda, the effective configuration and the runner availability. The
+operator can **Adicionar origem** — a picker of the definitions the package ships and this
+installation has no row for; adding activates — **Configurar**, **Agenda**, **Desativar/Ativar** and
+**Enfileirar execução**. Pausing is the lifecycle, not a removal: the card, the agenda and the runs
+stay, and only the run is refused. A fresh install starts with no configured source (the seeded
+`pmc` row is dropped by `f1090f825a94`), so the section shows **Nenhuma origem configurada** and the
+add flow. **Entradas** lists the manual and CSV rows read-only, with their status and a link to
+`/acervo/nova`: they are the entry paths, not sources.
+
+The two ways into the collection are the tabs of `/acervo/nova` (#205). The generic worker routes
+refuse `ingestion`: a run of it needs an origin, so the origin routes are the selector
+(`/api/v1/ingestion/origins/...`).
+
+The card is an `OPERATE` one: the operator owns adding, configuring, scheduling, pausing and running.
+The read routes stay authenticated, so a curator who follows a direct URL still sees the cards
+read-only, with the operator controls hidden; the ordinary door to the collection is `/acervo/nova`.
 
 The stage runs in the **same** ledger, runner, lease and cancellation as the AI workers. A run has
 `worker_name="ingestion"` and `origin_code` set; the partial unique index is
@@ -620,7 +631,7 @@ The SPA mirrors it, as cards of `/configuracoes` under *Operação*:
 | `/sistema/workers` | the ten workers: engine, preset and model, the queue, what the stamp of each one names (with a producer, without a known one, without a record) and an **Enfileirar execução** button; above them, the runner cards (online, host, version, concurrency, capabilities, last heartbeat) and a warning when none is online. A worker no online runner accepts is marked **sem runner** — the row still queues and waits. The **Agenda** badge and fact show the cron, the zone, the next run and the last skipped period. The effective configuration is read-only here. The `ingestion` row is the exception: it has no engine, no aggregate pending/processed/failed counters, and its run belongs to an origin, so it links to `/sistema/ingestao` instead of a generic run button — the per-origin numbers live on that screen |
 | `/configuracoes/workers` | the persisted default of each worker and its revisions, with save and remove, and the worker's **Agenda** (the cron, the zone, the enabled state and the pinned request) — the write the panel used to carry. A worker the catalogue marks `trial` (today the typology) also carries **Comparar configurações**: two configurations, the sample size, the side-by-side table (agreement with its denominator, coverage, abstention, the largest drawer, entropy, seconds per document, the queue and the projected hours) and **Usar esta**, which saves the measured body, and **Rodar no acervo inteiro**, which reads the saved body's queue and triggers the real run |
 | `/sistema/execucoes` | the execution ledger, and the failures of the last 30 days grouped by root cause; clicking a cause filters the ledger to its occurrences. Each row says who asked (`painel`, `linha de comando` or `agenda`), the attempt (`tentativa 2/3`), the row it retries and, when it is queued with a `not_before`, when it starts. A **trial** row carries an `ensaio` badge and links to the comparison card, so it is never mistaken for a production run (ADR 0018). An active row offers **Cancelar execução…** with an inline confirmation, and a requested stop is shown as a note while the worker finishes the current batch |
-| `/sistema/ingestao` | the origins, one card each: its own queue and last run, the adapter configuration, the agenda and **Enfileirar execução** (operator); a curator reads the cards read-only. The screen no longer carries the entry forms: the typed record and the CSV import are the two tabs of `/acervo/nova`, a `CURATE` screen of the Acervo (#205). The card here stays `CURATE` because the origins' status is a read a curator uses; whether the page needs its own read-only mode is the origins issue (#206) |
+| `/sistema/ingestao` | **Origens**, one card per configured source: its queue and last run, the adapter configuration, the agenda, **Desativar/Ativar** and **Enfileirar execução**; **Adicionar origem** opens the picker of the definitions without a row. The **Entradas** section shows the manual/CSV rows read-only, with a link to `/acervo/nova`. The card is `OPERATE`; the read routes remain authenticated (#206) |
 | `/sistema/diagnostico` | database, Ollama models, thumbnail storage, the ingestion origins (active/total, with a link to `/sistema/ingestao`) and the effective process configuration |
 
 The screen polls every 5 s while a run is running and every 15 s while one is queued, because the
@@ -640,9 +651,10 @@ They are not interchangeable, and merging them is the mistake to avoid.
 | `GET /api/v1/system/health` | which piece is down? | the human panel: database counts, the Ollama models the presets require and which are missing, the object-storage bucket, the `ingestion_origins` summary, and the effective process configuration — secrets as presence, never as value |
 
 The ingestion card reads `ingestion_origins`, not `PUBLIC_SCRAPE_*`: since #44 an origin is a row, so
-an installation can have `pmc` configured with an empty `.env`. The process card labels the variable
-as a **fallback** for the reference adapter, and the per-origin queue, agenda and counters stay on
-`/sistema/ingestao`.
+an installation can have `pmc` configured with an empty `.env`. It counts only the **configurable**
+origins (#206): the manual/CSV entries and a code that left the registry are not sources, so they are
+not in the number. The process card labels the variable as a **fallback** for the reference adapter,
+and the per-origin queue, agenda and counters stay on `/sistema/ingestao`.
 
 A liveness probe that consults the database would restart the API whenever the database restarts,
 which is why `live` touches nothing. The readiness probe owns its own engine with a connection and a

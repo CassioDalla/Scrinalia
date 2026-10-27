@@ -34,6 +34,7 @@ def _origin() -> IngestionOriginDTO:
         description="Um registro digitado.",
         kind="MANUAL",
         enabled=True,
+        configurable=False,
         config={},
         config_fields=[],
         options={},

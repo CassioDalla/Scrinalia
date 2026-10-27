@@ -172,6 +172,17 @@ def test_every_origin_config_field_names_a_model_field() -> None:
         assert described == model_fields, f"{summary.code}: tela {described} != modelo {model_fields}"
 
 
+def test_only_the_sources_are_configurable() -> None:
+    """The page's sources are the configurable definitions; the entries are never offered (#206).
+
+    The manual and CSV entries are input paths with rows for provenance, not origins to add. A new
+    source marked configurable has to show up here, so making an entry addable is a deliberate line
+    in a diff rather than a default nobody reviewed.
+    """
+    configurable = {summary.code for summary in ORIGINS.values() if summary.configurable}
+    assert configurable == {"pmc"}, f"a nova origem configurável precisa entrar aqui: {configurable}"
+
+
 # ==========================================
 # THE ORIGIN'S PORTS
 # ==========================================

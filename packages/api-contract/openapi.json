@@ -5400,6 +5400,10 @@
             },
             "type": "array"
           },
+          "configurable": {
+            "description": "Fonte configurável (operador) ou entrada manual/CSV (só leitura, com link para /acervo/nova).",
+            "type": "boolean"
+          },
           "description": {
             "type": "string"
           },
@@ -5543,6 +5547,7 @@
         },
         "required": [
           "code",
+          "configurable",
           "description",
           "enabled",
           "kind",
@@ -5573,6 +5578,12 @@
       },
       "IngestionOriginListResponse": {
         "properties": {
+          "available": {
+            "items": {
+              "$ref": "#/components/schemas/OriginAvailableDTO"
+            },
+            "type": "array"
+          },
           "generated_at": {
             "format": "date-time",
             "type": "string"
@@ -7413,6 +7424,30 @@
           "ok"
         ],
         "title": "OllamaHealthDTO",
+        "type": "object"
+      },
+      "OriginAvailableDTO": {
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "description",
+          "kind",
+          "label"
+        ],
+        "title": "OriginAvailableDTO",
         "type": "object"
       },
       "OriginConfigFieldDTO": {

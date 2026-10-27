@@ -45,7 +45,7 @@ export type ScreenId =
   | "typologies"
   | "vocabulary"
   | "workers"
-  | "ingestion"
+  | "origins"
   | "newDescription"
   | "workerSettings"
   | "runs"
@@ -186,11 +186,12 @@ export const SCREENS: Record<ScreenId, Screen> = {
     hint: "Presets, filas e execução",
     description: "O que roda, com qual preset e modelo, o que está na fila e o que já rodou.",
   },
-  ingestion: {
+  origins: {
     path: "/sistema/ingestao",
-    label: "Ingestão",
-    hint: "Origens, filas e agenda",
-    description: "Cada origem com a sua fila, a sua agenda e a sua configuração; o curador lê o status.",
+    label: "Origens",
+    hint: "Configurar, pausar e agendar",
+    description:
+      "As fontes que esta instalação lê, com a fila, a agenda e a configuração de cada uma; a entrada manual e a importação CSV ficam no Acervo, em Nova descrição.",
   },
   newDescription: {
     path: "/acervo/nova",

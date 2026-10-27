@@ -95,7 +95,7 @@ export function SystemHealthRoute() {
               />
 
               <ProbeCard
-                title="Ingestão por origem"
+                title="Origens da ingestão"
                 ok={health.data.ingestion.ok}
                 detail={health.data.ingestion.detail}
                 lines={[
@@ -104,12 +104,12 @@ export function SystemHealthRoute() {
                     ? (health.data.ingestion.origins ?? [])
                         .map((origin) => `${origin.label} (${origin.enabled ? "ativa" : "pausada"})`)
                         .join(" · ")
-                    : "nenhuma origem disponível",
-                  "a fila, a agenda e a configuração de cada origem ficam na tela de ingestão",
+                    : "nenhuma origem configurada",
+                  "a fila, a agenda e a configuração de cada origem ficam na tela de origens",
                 ]}
               >
                 <Link to="/sistema/ingestao" className="text-xs font-medium text-(--color-accent) hover:underline">
-                  Abrir ingestão
+                  Abrir origens
                 </Link>
               </ProbeCard>
 
