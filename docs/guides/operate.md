@@ -58,7 +58,7 @@ sources:
   - docs/adr/0014-the-workers-leave-the-api.md
   - apps/curator/src/router.tsx
   - apps/curator/src/routes/SystemWorkersRoute.tsx
-  - apps/curator/src/routes/SystemRunsRoute.tsx
+  - apps/curator/src/components/workers/**
   - apps/curator/src/routes/SystemHealthRoute.tsx
   - .github/workflows/ci.yml
   - mkdocs.yml
@@ -628,15 +628,15 @@ The SPA mirrors it, as cards of `/configuracoes` under *Operação*:
 
 | Screen | Shows |
 | --- | --- |
-| `/sistema/workers` | the ten workers: engine, preset and model, the queue, what the stamp of each one names (with a producer, without a known one, without a record) and an **Enfileirar execução** button; above them, the runner cards (online, host, version, concurrency, capabilities, last heartbeat) and a warning when none is online. A worker no online runner accepts is marked **sem runner** — the row still queues and waits. The **Agenda** badge and fact show the cron, the zone, the next run and the last skipped period. The effective configuration is read-only here. The `ingestion` row is the exception: it has no engine, no aggregate pending/processed/failed counters, and its run belongs to an origin, so it links to `/sistema/ingestao` instead of a generic run button — the per-origin numbers live on that screen |
+| `/sistema/workers` | the operations screen, with two tabs in the URL (#207). **Painel**: the ten workers — engine, preset and model, the queue, what the stamp of each one names (with a producer, without a known one, without a record) and an **Enfileirar execução** button; above them, the runner cards (online, host, version, concurrency, capabilities, last heartbeat) and a warning when none is online. A worker no online runner accepts is marked **sem runner** — the row still queues and waits. The **Agenda** badge and fact show the cron, the zone, the next run and the last skipped period. The effective configuration is read-only here. The `ingestion` row is the exception: it has no engine, no aggregate pending/processed/failed counters, and its run belongs to an origin, so it links to `/sistema/ingestao` instead of a generic run button — the per-origin numbers live on that screen. The last run is a link to the ledger, filtered by that worker and with the exact row highlighted. **Execuções**: the execution ledger, and the failures of the last 30 days grouped by root cause; clicking a cause filters the ledger to its occurrences. Each row says who asked (`painel`, `linha de comando` or `agenda`), the attempt (`tentativa 2/3`), the row it retries and, when it is queued with a `not_before`, when it starts. A **trial** row carries an `ensaio` badge and links to the comparison card, so it is never mistaken for a production run (ADR 0018). An active row offers **Cancelar execução…** with an inline confirmation, and a requested stop is shown as a note while the worker finishes the current batch. The old `/sistema/execucoes` path redirects here with the search preserved |
 | `/configuracoes/workers` | the persisted default of each worker and its revisions, with save and remove, and the worker's **Agenda** (the cron, the zone, the enabled state and the pinned request) — the write the panel used to carry. A worker the catalogue marks `trial` (today the typology) also carries **Comparar configurações**: two configurations, the sample size, the side-by-side table (agreement with its denominator, coverage, abstention, the largest drawer, entropy, seconds per document, the queue and the projected hours) and **Usar esta**, which saves the measured body, and **Rodar no acervo inteiro**, which reads the saved body's queue and triggers the real run |
-| `/sistema/execucoes` | the execution ledger, and the failures of the last 30 days grouped by root cause; clicking a cause filters the ledger to its occurrences. Each row says who asked (`painel`, `linha de comando` or `agenda`), the attempt (`tentativa 2/3`), the row it retries and, when it is queued with a `not_before`, when it starts. A **trial** row carries an `ensaio` badge and links to the comparison card, so it is never mistaken for a production run (ADR 0018). An active row offers **Cancelar execução…** with an inline confirmation, and a requested stop is shown as a note while the worker finishes the current batch |
 | `/sistema/ingestao` | **Origens**, one card per configured source: its queue and last run, the adapter configuration, the agenda, **Desativar/Ativar** and **Enfileirar execução**; **Adicionar origem** opens the picker of the definitions without a row. The **Entradas** section shows the manual/CSV rows read-only, with a link to `/acervo/nova`. The card is `OPERATE`; the read routes remain authenticated (#206) |
 | `/sistema/diagnostico` | database, Ollama models, thumbnail storage, the ingestion origins (active/total, with a link to `/sistema/ingestao`) and the effective process configuration |
 
-The screen polls every 5 s while a run is running and every 15 s while one is queued, because the
-`transfer` counter makes one `/system/workers` call cost about two seconds on the real collection;
-idle, it does not poll. `/configuracoes/workers` reads `/system/workers/settings`, which resolves the
+Only the active tab is mounted, so only its read is polled: the panel every 5 s while a run is
+running and every 15 s while one is queued (the `transfer` counter makes one `/system/workers` call
+cost about two seconds on the real collection), and the ledger every 5 s while an entry is active —
+idle, neither polls. `/configuracoes/workers` reads `/system/workers/settings`, which resolves the
 same configuration and counts no queue — the split exists so that a screen showing no numbers does
 not pay for them.
 
@@ -802,8 +802,9 @@ two outcomes, and the difference is the one the ledger's state machine draws:
 
 The request is idempotent: a second click answers the same outcome and keeps the first author and
 instant. A run that already reached a terminal state answers `409`, and an unknown id answers `404`.
-The SPA offers the action on an active row of `/sistema/execucoes`, with the confirmation the other
-destructive actions use; a requested stop is shown as a note while the row is still running.
+The SPA offers the action on an active row of the *Execuções* tab of `/sistema/workers`, with the
+confirmation the other destructive actions use; a requested stop is shown as a note while the row is
+still running.
 
 The honest limit is one batch (`db_batch_size`, 64 by default): `ThreadPoolExecutor` cannot kill a
 thread and a torch forward pass cannot be interrupted, so `future.cancel()` only covers the queued

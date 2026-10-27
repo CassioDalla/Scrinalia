@@ -576,17 +576,17 @@ A SPA espelha isso, como cartões de `/configuracoes` sob *Operação*:
 
 | Tela | Mostra |
 | --- | --- |
-| `/sistema/workers` | os dez workers: engine, preset e modelo, a fila, o que o carimbo de cada um nomeia (com produtor, sem produtor conhecido, sem registro) e um botão **Enfileirar execução**; acima deles, os cartões dos runners (online, host, versão, concorrência, capacidades, último sinal) e um aviso quando nenhum está online. Um worker que nenhum runner online aceita aparece como **sem runner** — a linha ainda enfileira e espera. O selo e o fato **Agenda** mostram o cron, o fuso, a próxima execução e o último período pulado. A configuração efetiva aqui é só leitura. A linha `ingestion` é a exceção: não tem engine, não tem contadores agregados de pendentes/processados/falhas, e a execução dela pertence a uma origem, então ela leva a `/sistema/ingestao` em vez de um botão genérico — os números por origem ficam naquela tela |
+| `/sistema/workers` | a tela de operação, com duas abas na URL (#207). **Painel**: os dez workers — engine, preset e modelo, a fila, o que o carimbo de cada um nomeia (com produtor, sem produtor conhecido, sem registro) e um botão **Enfileirar execução**; acima deles, os cartões dos runners (online, host, versão, concorrência, capacidades, último sinal) e um aviso quando nenhum está online. Um worker que nenhum runner online aceita aparece como **sem runner** — a linha ainda enfileira e espera. O selo e o fato **Agenda** mostram o cron, o fuso, a próxima execução e o último período pulado. A configuração efetiva aqui é só leitura. A linha `ingestion` é a exceção: não tem engine, não tem contadores agregados de pendentes/processados/falhas, e a execução dela pertence a uma origem, então ela leva a `/sistema/ingestao` em vez de um botão genérico — os números por origem ficam naquela tela. A última execução é um link para o ledger, filtrado por aquele worker e com a linha exata realçada. **Execuções**: o ledger de execuções e as falhas dos últimos 30 dias agrupadas por causa raiz; clicar numa causa filtra o ledger para as ocorrências dela. Cada linha diz quem pediu (`painel`, `linha de comando` ou `agenda`), a tentativa (`tentativa 2/3`), a linha que ela retenta e, quando está na fila com `not_before`, quando começa. Uma linha de **ensaio** carrega o selo `ensaio` e leva ao cartão de comparação, para nunca ser confundida com uma execução de produção (ADR 0018). Uma linha ativa oferece **Cancelar execução…** com confirmação embutida, e um pedido de parada aparece como nota enquanto o worker termina o lote atual. O caminho antigo `/sistema/execucoes` redireciona para cá com a busca preservada |
 | `/configuracoes/workers` | o padrão persistido de cada worker e suas revisões, com salvar e remover, e a **Agenda** do worker (o cron, o fuso, o estado habilitado e o request pinado) — a escrita que o painel carregava. Um worker que o catálogo marca `trial` (hoje a tipologia) também carrega **Comparar configurações**: duas configurações, o tamanho da amostra, a tabela lado a lado (concordância com o denominador, cobertura, abstenção, a maior gaveta, entropia, segundos por documento, a fila e as horas projetadas) e **Usar esta**, que salva o corpo medido, e **Rodar no acervo inteiro**, que lê a fila do corpo salvo e dispara a execução real |
-| `/sistema/execucoes` | o ledger de execuções e as falhas dos últimos 30 dias agrupadas por causa raiz; clicar numa causa filtra o ledger para as ocorrências dela. Cada linha diz quem pediu (`painel`, `linha de comando` ou `agenda`), a tentativa (`tentativa 2/3`), a linha que ela retenta e, quando está na fila com `not_before`, quando começa. Uma linha de **ensaio** carrega o selo `ensaio` e leva ao cartão de comparação, para nunca ser confundida com uma execução de produção (ADR 0018). Uma linha ativa oferece **Cancelar execução…** com confirmação embutida, e um pedido de parada aparece como nota enquanto o worker termina o lote atual |
 | `/sistema/ingestao` | **Origens**, um cartão por fonte configurada: a fila e a última execução, a configuração do adaptador, a agenda, **Desativar/Ativar** e **Enfileirar execução**; **Adicionar origem** abre o seletor das definições sem linha. A seção **Entradas** mostra as linhas manual/CSV só para leitura, com link para `/acervo/nova`. O cartão é `OPERATE`; as rotas de leitura continuam autenticadas (#206) |
 | `/sistema/diagnostico` | banco, modelos do Ollama, storage das miniaturas, as origens da ingestão (ativas/total, com link para `/sistema/ingestao`) e a configuração efetiva do processo |
 
-A tela consulta a cada 5 s enquanto uma execução está rodando e a cada 15 s enquanto uma está na fila,
-porque o contador do `transfer` faz uma chamada a `/system/workers` custar cerca de dois segundos no
-acervo real; ociosa, ela não consulta. A `/configuracoes/workers` lê `/system/workers/settings`, que
-resolve a mesma configuração e não conta fila nenhuma — a separação existe para que uma tela que não
-mostra números não pague por eles.
+Só a aba ativa é montada, então só a leitura dela é consultada em ciclo: o painel a cada 5 s enquanto
+uma execução está rodando e a cada 15 s enquanto uma está na fila (o contador do `transfer` faz uma
+chamada a `/system/workers` custar cerca de dois segundos no acervo real), e o ledger a cada 5 s
+enquanto uma entrada está ativa — ociosa, nenhuma das duas consulta. A `/configuracoes/workers` lê
+`/system/workers/settings`, que resolve a mesma configuração e não conta fila nenhuma — a separação
+existe para que uma tela que não mostra números não pague por eles.
 
 ### Saúde: três endpoints, três perguntas
 
@@ -745,9 +745,9 @@ desfechos, e a diferença é a que a máquina de estados do ledger desenha:
 
 O pedido é idempotente: um segundo clique responde o mesmo desfecho e preserva o primeiro autor e o
 primeiro instante. Uma execução que já chegou a um estado terminal responde `409`, e um id
-desconhecido responde `404`. A SPA oferece a ação numa linha ativa de `/sistema/execucoes`, com a
-confirmação que as outras ações destrutivas usam; um pedido de parada aparece como nota enquanto a
-linha ainda está em execução.
+desconhecido responde `404`. A SPA oferece a ação numa linha ativa da aba *Execuções* de
+`/sistema/workers`, com a confirmação que as outras ações destrutivas usam; um pedido de parada
+aparece como nota enquanto a linha ainda está em execução.
 
 O limite honesto é um lote (`db_batch_size`, 64 por padrão): o `ThreadPoolExecutor` não mata uma
 thread e uma passada do torch não pode ser interrompida, então `future.cancel()` só cobre o caso na

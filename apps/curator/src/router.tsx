@@ -21,8 +21,8 @@ import { PlanRoute, validatePlanSearch } from "@/routes/PlanRoute";
 import { SettingsRoute, validateSettingsSearch } from "@/routes/SettingsRoute";
 import { SubjectExclusionsRoute } from "@/routes/SubjectExclusionsRoute";
 import { SystemHealthRoute } from "@/routes/SystemHealthRoute";
-import { SystemRunsRoute, validateSystemRunsSearch } from "@/routes/SystemRunsRoute";
-import { SystemWorkersRoute } from "@/routes/SystemWorkersRoute";
+import { SystemWorkersRoute, validateSystemWorkersSearch } from "@/routes/SystemWorkersRoute";
+import { validateSystemRunsSearch } from "@/components/workers/RunsLedger";
 import { TagsRoute, validateTagsSearch } from "@/routes/TagsRoute";
 import { TextTemplatesRoute, validateTextTemplatesSearch } from "@/routes/TextTemplatesRoute";
 import { TreeRoute, validateTreeSearch } from "@/routes/TreeRoute";
@@ -220,13 +220,16 @@ const anomaliesRoute = createRoute({
  *
  * A section of its own, not a corner of another screen: the person asking "with which model is this
  * running?" is not doing archival curation, and mixing the two would put engine names in the middle
- * of the collection. Since issue #53 the configuration is a screen of its own
- * (`/configuracoes/workers`, below); this one keeps the machine.
+ * of the collection. Since issue #207 the ledger is the *Execuções* tab of this route and not a
+ * screen beside it — the panel enqueues and the ledger answers, and they are one question asked
+ * twice. Since issue #53 the configuration stays a screen of its own
+ * (`/configuracoes/workers`, below): it answers what the installation is *set* to do.
  */
 const systemWorkersRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/sistema/workers",
   component: SystemWorkersRoute,
+  validateSearch: validateSystemWorkersSearch,
 });
 
 const originsRoute = createRoute({
@@ -249,11 +252,20 @@ const legacyNewDescriptionRoute = createRoute({
   },
 });
 
-const systemRunsRoute = createRoute({
+/*
+ * The old path of the ledger, kept as a redirect so a bookmark, a guide and a link inside an error
+ * state keep working (#207). The filters travel with it: `?worker=ner&run=42` lands on the
+ * *Execuções* tab of the merged screen with the same filter and the same highlighted row, and the
+ * `aba` is what the tab bar reads. Listed in ``REDIRECT_ROUTES`` for the same reason as the one
+ * above: a redirect has no heading to name in ``lib/screens.ts``.
+ */
+const legacySystemRunsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/sistema/execucoes",
-  component: SystemRunsRoute,
   validateSearch: validateSystemRunsSearch,
+  beforeLoad: ({ search }) => {
+    throw redirect({ to: "/sistema/workers", search: { ...search, aba: "execucoes" } });
+  },
 });
 
 const systemHealthRoute = createRoute({
@@ -330,7 +342,7 @@ export const router = createRouter({
     systemWorkersRoute,
     originsRoute,
     legacyNewDescriptionRoute,
-    systemRunsRoute,
+    legacySystemRunsRoute,
     systemHealthRoute,
     settingsRoute,
     usersRoute,

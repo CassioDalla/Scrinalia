@@ -4,7 +4,6 @@ import {
   Download,
   FileType,
   HeartPulse,
-  History,
   Layers,
   SlidersHorizontal,
   UserCog,
@@ -72,7 +71,6 @@ export type SettingsScreenId = Extract<
   | "workers"
   | "origins"
   | "workerSettings"
-  | "runs"
   | "health"
   | "users"
 >;
@@ -102,6 +100,13 @@ export const SETTINGS_TABS: SettingsTab[] = [
     id: "operacao",
     label: "Operação",
     cards: [
+      /*
+        One card for the merged operations screen (#207). It opens on the panel and carries the
+        execution ledger as its second tab, because enqueueing a run and seeing what it did are one
+        question; the old `/sistema/execucoes` path redirects here. The configuration stays a card
+        of its own: #53 split what the machine is *doing* from what the installation is *set* to do,
+        and that distinction is untouched.
+      */
       { screen: "workers", icon: Cpu, permission: "OPERATE" },
       /*
         Origens is the operator's page (#206): adding a source, editing its configuration, saving its
@@ -113,12 +118,11 @@ export const SETTINGS_TABS: SettingsTab[] = [
       /*
         The configuration sits beside the panel it configures, and the two are separate cards
         because they answer different questions: the panel says what the machine is *doing* (queues,
-        pending counters, a run in flight), and this one says what the installation is *set* to do
-        (the persisted default and its history). Both declare `OPERATE` — the split moved where the
-        write is made, not who may make it.
+        pending counters, a run in flight, the ledger of what ran), and this one says what the
+        installation is *set* to do (the persisted default and its history). Both declare `OPERATE` —
+        the split moved where the write is made, not who may make it.
       */
       { screen: "workerSettings", icon: SlidersHorizontal, permission: "OPERATE" },
-      { screen: "runs", icon: History, permission: "OPERATE" },
       { screen: "health", icon: HeartPulse, permission: "OPERATE" },
     ],
   },

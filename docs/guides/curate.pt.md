@@ -1035,7 +1035,7 @@ correção é a revisão humana da ficha, na descrição.
 
 ## Sistema
 
-A máquina, não o acervo. Tudo aqui pertence a quem opera a instalação, e as quatro telas são
+A máquina, não o acervo. Tudo aqui pertence a quem opera a instalação, e as três telas são
 alcançadas por `/configuracoes`, sob *Operação*: o menu ficou com o que o arquivista consulta
 catalogando, e não é isto. As duas formas de entrada do acervo moram no Acervo (`/acervo/nova`), e a
 página de origens é do operador; as rotas de leitura continuam autenticadas, então um curador que
@@ -1044,8 +1044,7 @@ segue uma URL direta ainda a vê só para leitura.
 | Tela | Decisão | Reversível? |
 | --- | --- | --- |
 | Origens — `/sistema/ingestao` | qual origem adicionar, as URLs e a agenda, se ela está ativa e se enfileira uma execução (operador) | a configuração, a agenda e a pausa são reversíveis; a tela não escreve descrição |
-| Workers de IA — `/sistema/workers` | se roda um worker agora | sim (a configuração da própria execução); os efeitos de uma execução seguem o que ela escreveu |
-| Execuções — `/sistema/execucoes` | se para uma execução ativa (o ledger e as falhas agrupadas são só leitura) | sem desfazer: uma execução cancelada continua cancelada; uma nova execução é uma nova linha no ledger |
+| Workers e execuções — `/sistema/workers` | se roda um worker agora (**Painel**); se para uma execução ativa (**Execuções**) | sim para a configuração da própria execução; os efeitos de uma execução seguem o que ela escreveu. Sem desfazer para uma execução cancelada: ela continua cancelada, e uma nova execução é uma nova linha no ledger |
 | Saúde do sistema — `/sistema/diagnostico` | nenhuma (banco, modelos, storage, processo) | sim (só leitura) |
 
 ### Origens — `/sistema/ingestao`
@@ -1067,7 +1066,13 @@ curador que segue uma URL direta vê a página só para leitura, com os controle
 genéricas de worker recusam `ingestion` — uma execução dela precisa da origem, e as rotas da origem
 são o seletor.
 
-### Workers de IA — `/sistema/workers`
+### Workers e execuções — `/sistema/workers`
+
+Uma tela com duas abas na URL (#207), e ela responde ao ciclo de conferir a execução que antes
+precisava de duas telas: a aba **Painel** enfileira e mostra a fila, e a aba **Execuções** é o ledger
+do que rodou. A última execução de um worker é um link para o ledger filtrado por esse worker, com a
+linha exata realçada; o caminho antigo `/sistema/execucoes` redireciona para lá com os filtros
+preservados. Só a aba ativa é montada, então só a leitura dela é consultada em ciclo.
 
 O catálogo dos dez workers, na ordem do pipeline, com a engine, o preset e a configuração efetiva na
 linha recolhida — "com qual modelo isto está rodando?" é a pergunta que a tela existe para responder,
@@ -1103,10 +1108,12 @@ o `worker_embedding` reescreve uma *descrição*: ele re-gera o vetor de um text
 descrição aprovada, a exceção documentada. Os outros três trabalham sobre unidades que não são
 descrições (um registro de staging, um par, uma tag).
 
-### Execuções — `/sistema/execucoes`
+### Execuções — a aba do ledger
 
-O ledger de execuções, em leitura exceto pela parada: uma linha por execução, da linha de comando e do
-painel, com a configuração **já resolvida** que a execução usou (então ele continua legível depois que
+Desde a #207 o ledger é a aba **Execuções** de `/sistema/workers`, e `/sistema/execucoes` redireciona
+para ela com a busca preservada. É leitura exceto pela parada: uma linha por execução, da linha de
+comando e do painel, com a configuração **já resolvida** que a execução usou (então ele continua
+legível depois que
 um preset muda no código), as **opções efetivas do worker** (as colunas que ele leu, o limiar, o teto —
 resolvidas quando a execução começou, então "quais colunas a execução #N leu?" tem resposta), a
 duração, o desfecho e quem pediu. Uma linha anterior à coluna de opções diz "opções não registradas
@@ -1148,7 +1155,7 @@ mudou foi como se chega até ela. Três abas, na ordem da escada de permissões 
 | Aba | Cartões |
 | --- | --- |
 | Arranjo e catálogos | Plano de arranjo (`CURATE`), Níveis de descrição, Tipologias e Vocabulário do acervo (`CATALOGUE`) |
-| Operação | Workers de IA, Configuração dos Workers, Execuções e Saúde do sistema (`OPERATE`) |
+| Operação | Workers e execuções, Configuração dos Workers e Saúde do sistema (`OPERATE`) |
 | Acesso | Usuários (`ADMIN`) |
 
 A aba fica na URL (`?aba=`), então dá para mandar alguém direto aos "cartões dos workers". Uma aba que

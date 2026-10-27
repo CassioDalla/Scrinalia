@@ -80,12 +80,17 @@ export function OriginsRoute() {
               painel de workers vêm depois.
             </p>
             <div className="flex flex-wrap items-center gap-2">
+              {/*
+                The two tabs of the merged operations screen (#207), named the way the tab bar names
+                them: the panel is the queue side, the ledger is the run history of every worker —
+                including this origin's `ingestion` runs.
+              */}
               <Link to="/sistema/workers">
                 <Button size="sm" variant="secondary">
-                  Workers de IA
+                  Painel dos workers
                 </Button>
               </Link>
-              <Link to="/sistema/execucoes">
+              <Link to="/sistema/workers" search={{ aba: "execucoes" }}>
                 <Button size="sm" variant="ghost">
                   Execuções
                 </Button>

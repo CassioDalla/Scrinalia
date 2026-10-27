@@ -267,6 +267,9 @@ def test_the_product_name_is_written_once() -> None:
 #: screen it pointed at.
 REDIRECT_ROUTES: dict[str, str] = {
     "/sistema/ingestao/nova": "/acervo/nova",
+    # The ledger became the *Execuções* tab of the operations screen (#207); the old path keeps the
+    # bookmarks, the guides and the links inside error states working, filters and all.
+    "/sistema/execucoes": "/sistema/workers",
 }
 
 
