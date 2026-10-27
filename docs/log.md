@@ -2569,3 +2569,55 @@ with short or full shas, and part of a `## <date> — <title>` entry.
   and the redirect. The permission hiding was not exercised with a curator or viewer account — the
   render used the administrator — so the mirror is `permissions.ts` and the API guard; the final
   permission of the origins page, and whether it needs a read-only mode, is #206's decision.
+
+## 2026-10-26 — the origins page becomes configuration (#206)
+
+- **Range:** `5da49c6..479e459`
+- **Pages:**
+  - `guides/operate.md` / `operate.pt.md` — **updated**: the screen is *Origens* and has two
+    sections: the configured sources (add picker, configuration, agenda, **Desativar/Ativar**,
+    **Enfileirar execução**, the effective-configuration summary) and the **Entradas** (manual/CSV
+    read-only, with the link to `/acervo/nova`). The page is `OPERATE`, the picker is the existing
+    `PATCH`, pausing keeps the row and the agenda, a fresh install starts empty, and the health probe
+    counts only the configurable origins.
+  - `guides/curate.md` / `curate.pt.md` — **updated**: *Ingestão* becomes *Origens* in the *Sistema*
+    table and section; the page stops being the "operator only" exception (the card is `OPERATE`, the
+    read routes stay authenticated), and the entry paths remain under *Nova descrição* in the Acervo.
+  - `guides/install.md` / `install.pt.md` — **updated**: a fresh installation has no configured
+    source; the operator adds the `pmc` definition from the picker, and the `PUBLIC_SCRAPE_*` values
+    are that adapter's fallback when the fields are empty.
+  - `guides/data-model.md` / `data-model.pt.md` — **no-change**: the migration is data (a row is
+    deleted when it is still the seed); no column or index moved.
+  - `adr/` — **no-change**: the origin is still a definition plus a row (ADR 0016); the page now
+    models the distinction instead of changing it.
+- **Freshness.** The previous floor ended at the #205 feature commit, whose content the squash
+  `5da49c6` carries; this round read the merged pages again and the #206 updates are what closes the
+  range from `5da49c6`.
+- **Why the round exists.** #206: after #205 removed the entry cards, the origins page still rendered
+  every definition as a card, so "never configured" and "paused" looked the same, `manual`/`csv`
+  appeared as sources, and the empty state was unreachable. The page now reads the rows, offers the
+  definitions without one, and has a lifecycle.
+- **What the round measured.** Full suite **2275 passed, 1 skipped** against the test database on
+  5434 (`postgresql+psycopg2`); `ruff check`, `ruff format` and `basedpyright` green through the
+  commit hook; the SPA's `tsc`, ESLint and Vite build green; `bun test` **20 pass**;
+  `testing/unit/curator` and `testing/unit/docs` **53 passed**; `mkdocs build --strict` green; the
+  contract regenerated (the additive `configurable` and `available`); `alembic upgrade head` applied
+  `f1090f825a94` against the dev database (the `pmc` row kept: it has provenance) and against a fresh
+  scratch database (the `pmc` row deleted; `manual` and `csv` kept), and `alembic check` reports no
+  new operations. Rendered with the headless shell over CDP at 1280×1600 against the Vite dev server
+  and an API on the scratch database: `.render/206-empty.png` is the empty *Origens* section with
+  **Adicionar origem** and the two read-only **Entradas**; `.render/206-picker.png` is the picker
+  offering the PMC definition; `.render/206-added.png` is the card active with the effective
+  configuration (`Espera entre requisições (s): 0.5`) and the add action gone; `.render/206-paused.png`
+  is the same card paused, with **Ativar** and "0 ativas"; `.render/206-health.png` is the health
+  panel showing **0 de 1 origens ativas**, only PMC, and **Abrir origens**. The CDP probe clicked the
+  add, the activation and the pause; the scratch database and its session were dropped after the
+  round, and the driver and profile removed.
+- **Not verified, and said so.** The permission hiding was not exercised with a curator or viewer
+  account — the render used the administrator — so the read-only direct URL is the `permissions.ts`
+  mirror plus the API guard. The manual/CSV entries are read-only by design, so their pause/re-enable
+  has no control on the page (the `PATCH` remains) and was not exercised through the UI. The
+  migration's downgrade is a documented no-op and was not run; the verification of the deletion is
+  the fresh scratch database above, and the preservation is the dev database. Only one definition
+  (`pmc`) is available today, so the picker was not exercised with several entries; the retired-code
+  row is out of scope and is ignored by both the page and the probe.
