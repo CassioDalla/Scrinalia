@@ -2621,3 +2621,52 @@ with short or full shas, and part of a `## <date> — <title>` entry.
   the fresh scratch database above, and the preservation is the dev database. Only one definition
   (`pmc`) is available today, so the picker was not exercised with several entries; the retired-code
   row is out of scope and is ignored by both the page and the probe.
+
+## 2026-10-26 — one operations screen for the panel and the ledger (#207)
+
+- **Range:** `f6efb38..1c96177`
+- **Pages:**
+  - `guides/curate.md` — **updated**: *Workers de IA* became *Workers e execuções*, one screen with
+    two tabs in the URL (*Painel* and *Execuções*). The screen table merges the two rows, the section
+    says the last run links to the filtered ledger and that the old path redirects, and the
+    Configurações tab table drops the Execuções card.
+  - `guides/curate.pt.md` — **updated**: the translation of the same three places.
+  - `guides/operate.md` — **updated**: the SPA table merges `/sistema/workers` and
+    `/sistema/execucoes` into one row (the two tabs, the last-run link, the redirect); the polling
+    paragraph says only the active tab is mounted, and the cancel section names the tab.
+  - `guides/operate.pt.md` — **updated**: the same three places.
+  - `adr/0016-the-origin-is-a-first-class-object.md` — **updated**: the ingestion is seen in the
+    execution ledger at `/sistema/workers`, not in a `/sistema/execucoes` screen; the object, its row
+    and its route are unchanged.
+  - `adr/0018-trials-and-the-human-gabarito.md` — **updated**: the trial is distinguishable in the
+    execution ledger (the *Execuções* tab); the trial semantics are unchanged.
+  - `guides/data-model.md` / `data-model.pt.md` — **no-change**: no table, column or index moved.
+  - `guides/install.md` / `install.pt.md` — **no-change**: no setting or command changed.
+- **Why the round exists.** The run-check loop crossed three screens and three URLs: the panel
+  enqueued and showed the last run as plain text, and the ledger was a second door. #207 makes them
+  one route with the tab in the URL, links the last run to the ledger filtered by its worker and with
+  the exact row highlighted, and keeps `/sistema/execucoes` redirecting there with the search
+  preserved. The configuration stays a screen of its own (#53).
+- **What the round measured.** `bun run --cwd apps/curator typecheck` and `lint` green; the Vite
+  build green (2117 modules); `pytest testing/unit/curator testing/unit/docs` **53 passed**; the
+  commit hook ran ruff, ruff-format and basedpyright green; `mkdocs build --strict` green. Rendered
+  with the headless shell over CDP at 1280×1500 against the Vite dev server and an API on a scratch
+  database (`scrinalia_render_207`, dropped after): `207-panel.png` is the heading *Workers e
+  execuções* with the two tabs, the runners card and the ten workers; `207-panel-enqueued.png` is the
+  panel after one run, with "Execução #1 enfileirada; ver no ledger" and the same link under *Última
+  execução*; `207-ledger.png` is the *Execuções* tab with the worker filter set and the run row
+  ringed; `207-settings-operacao.png` is the landing's *Operação* tab with four cards and no
+  *Execuções* card. The link's href was `/sistema/workers?aba=execucoes&worker=transfer&run=1`, and
+  clicking it landed on that URL with exactly **1** highlighted row. `/sistema/execucoes?worker=transfer&run=1`
+  redirected to `/sistema/workers?worker=transfer&run=1&aba=execucoes`. Clicking the tab bar itself
+  moved `?aba=execucoes&worker=transfer&run=1` to `?aba=painel&worker=transfer` and back to
+  `?aba=execucoes&worker=transfer`: the filter survives, and `run` is dropped by a change that is not
+  itself.
+- **Not verified, and said so.** The permission mirror was not exercised with a curator or viewer
+  account — the render used the administrator, so the read-only direct URL is the `permissions.ts`
+  mirror plus the API guard, unchanged by this round. The redirect was exercised with `worker` and
+  `run` only, not with `status`, `origin`, `fingerprint` or `offset`; it carries the whole search
+  object and the validator is the same one the ledger reads. The polling cadence was not measured
+  over time: the evidence that only one tab polls is structural (only the active tab is mounted),
+  not a stopwatch. The ledger was rendered with one queued run, so the rich row (trial, retry,
+  cancellation note) is the existing screen's behaviour, not this round's.
