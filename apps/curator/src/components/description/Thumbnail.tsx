@@ -66,11 +66,11 @@ export function DocumentThumbnail({
     return box;
   }
 
-  const heading = failed ? "Imagem indisponível" : url ? "Miniatura de origem" : "Sem imagem de origem";
+  const heading = failed ? "Imagem indisponível" : url ? "Miniatura guardada" : "Sem imagem de origem";
   const caption = failed
-    ? "O arquivo não pôde ser lido do armazenamento do acervo; a descrição continua completa sem a imagem."
+    ? "A imagem guardada não pôde ser lida; a descrição continua completa sem ela."
     : url
-      ? "Guardada no acervo pelo worker de miniaturas; o dossiê mostra a miniatura, não o arquivo original."
+      ? "Guardada no acervo; o dossiê mostra a miniatura, não o arquivo original."
       : "A origem deste registro não publica uma imagem; a descrição continua completa sem ela.";
 
   return (

@@ -41,7 +41,7 @@ export function DescriptionPreview({
       onClose={onClose}
       footer={
         <div className="flex items-center justify-between gap-2">
-          <span className="text-xs text-(--color-muted)">Nada aqui escreve: o painel só mostra.</span>
+          <span className="text-xs text-(--color-muted)">Nada aqui altera a descrição.</span>
           <Link
             to="/acervo/$descriptionId"
             params={{ descriptionId }}
@@ -85,7 +85,7 @@ function DescriptionPreviewBody({ document }: { document: DocumentSummary }) {
       <dl className="grid grid-cols-[9rem_1fr] gap-x-3 gap-y-1 text-xs">
         {document.reference_code ? (
           <>
-            <dt className="text-(--color-muted)">Código</dt>
+            <dt className="text-(--color-muted)">Código de Referência</dt>
             <dd>
               <code>{document.reference_code}</code>
             </dd>
@@ -106,7 +106,7 @@ function DescriptionPreviewBody({ document }: { document: DocumentSummary }) {
       ) : null}
 
       <div className="grid gap-1">
-        <p className="text-xs font-medium text-(--color-muted)">Tags e categoria</p>
+        <p className="text-xs font-medium text-(--color-muted)">Tags e Categoria</p>
         {tags.length === 0 ? (
           <p className="text-xs text-(--color-muted)">Nenhuma tag nesta descrição.</p>
         ) : (
@@ -117,7 +117,7 @@ function DescriptionPreviewBody({ document }: { document: DocumentSummary }) {
                 {tag.macro_category_name ? (
                   <Badge tone="accent">{tag.macro_category_name}</Badge>
                 ) : (
-                  <Badge tone="neutral" title="O classificador não arquivou esta tag numa categoria">
+                  <Badge tone="neutral" title="Esta tag ainda não tem categoria">
                     sem categoria
                   </Badge>
                 )}

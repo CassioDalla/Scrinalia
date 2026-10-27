@@ -136,11 +136,11 @@ export function NerExclusionsRoute() {
 
       <PageBody>
         <Notice tone="warn">
-          <strong>O veto vale para o termo inteiro, não para pedaços.</strong> O extrator funde tokens
-          vizinhos: com <code>iptu</code> vetado ele ainda devolve <code>“IPTU do Batel”</code> como uma
-          entidade, então o bloqueio é por limite de token. Vetar <strong>não exclui nada</strong>: o que
-          já foi extraído sai no <strong>expurgo do passado</strong>, um passo separado, com impacto na
-          frente e ledger para desfazer.
+          <strong>O veto vale para a palavra inteira, não para pedaços dela.</strong> A extração lê o
+          nome completo: com <code>iptu</code> vetado, <code>“IPTU do Batel”</code> também fica
+          bloqueado, porque a palavra vetada aparece inteira dentro dele. Vetar <strong>não exclui
+          nada</strong>: o que já foi extraído sai no <strong>expurgo do passado</strong>, um passo
+          separado, com impacto na frente e histórico para desfazer.
         </Notice>
 
         {/*
@@ -156,15 +156,15 @@ export function NerExclusionsRoute() {
             <div className="grid gap-1">
               <span className="text-sm font-semibold">Vetar Termos</span>
               <span className="text-xs text-(--color-muted)">
-                O veto vale para o termo inteiro. Ele não exclui nada: o expurgo do passado fica abaixo.
+                O veto vale para a palavra inteira. Ele não exclui nada: o expurgo do passado fica abaixo.
               </span>
             </div>
           }
         >
           <div className="grid gap-2">
             <p className="text-xs text-(--color-muted)">
-              Separe por vírgula ou quebra de linha. O motivo é guardado para auditoria — e ele é o que
-              explica a decisão para quem abrir a lista depois.
+              Separe por vírgula ou quebra de linha. O motivo fica guardado para auditoria e é o que
+              explica a decisão a quem abrir a lista depois.
             </p>
             <Input
               value={draft}
@@ -207,9 +207,9 @@ export function NerExclusionsRoute() {
             title="Nenhum termo vetado"
             hint={
               <>
-                O veto é a decisão “isto é assunto, não nome próprio”. Ele é escrito pelo juiz de
-                conflitos em <Link to="/entidades/conflitos" className="underline">/entidades/conflitos</Link>{" "}
-                ou por você aqui. Enquanto o NER não rodar no acervo, esta lista nasce vazia.
+                O veto é a decisão “isto é assunto, não nome próprio”. Ele vem do juiz de conflitos, na
+                tela <Link to="/entidades/conflitos" className="underline">Conflitos</Link>{" "}
+                ou de você aqui. Enquanto a extração de nomes não rodar no acervo, esta lista nasce vazia.
               </>
             }
           />
@@ -248,7 +248,7 @@ export function NerExclusionsRoute() {
                         size="sm"
                         variant="ghost"
                         disabled={unban.isPending}
-                        title="O extrator volta a considerar o termo. As entidades já expurgadas voltam pelo ledger do expurgo."
+                        title="A extração volta a considerar o termo. As entidades já expurgadas só voltam pelo histórico de expurgos, abaixo."
                         onClick={() => unban.mutate(row.term)}
                       >
                         {ACTION.remove.label}
@@ -266,10 +266,10 @@ export function NerExclusionsRoute() {
           <CardHeader className="text-sm font-semibold text-(--color-danger)">Expurgar do passado</CardHeader>
           <CardBody className="grid gap-3">
             <p className="text-xs text-(--color-muted)">
-              O expurgo exclui toda entidade cujo nome seja um termo vetado. Os vínculos caem junto e o
-              nome sai do vocabulário. Cada entidade excluída entra no <strong>ledger de expurgos</strong>{" "}
-              antes de sair, então o desfazer restaura a entidade, os vínculos e as grafias — mas não
-              levanta o veto.
+              O expurgo exclui toda entidade cujo nome seja um termo vetado. Os vínculos com as
+              descrições caem junto e o nome sai do vocabulário. Antes de sair, cada entidade excluída
+              entra no <strong>histórico de expurgos</strong>{" "}
+              — o desfazer restaura a entidade, os vínculos e as grafias, mas não levanta o veto.
             </p>
 
             <div className="flex flex-wrap items-center gap-2">
@@ -316,7 +316,7 @@ export function NerExclusionsRoute() {
                           {entity.name} <span className="text-(--color-muted)">· {entity.entity_type}</span>
                         </span>
                         <span className="shrink-0 tabular-nums text-(--color-muted)">
-                          {formatCount(entity.document_count)} doc
+                          {formatCount(entity.document_count)} documento(s)
                           {(entity.synonym_names ?? []).length > 0
                             ? ` · ${formatCount((entity.synonym_names ?? []).length)} grafia(s)`
                             : ""}
@@ -330,7 +330,7 @@ export function NerExclusionsRoute() {
 
             {purged !== null ? (
               <Notice tone="ok" as="div" className="grid gap-2">
-                <p>{formatCount(purged)} entidade(s) excluída(s) e registrada(s) no ledger de expurgos.</p>
+                <p>{formatCount(purged)} entidade(s) excluída(s) e registrada(s) no histórico de expurgos.</p>
                 {purgeIds.length > 0 ? (
                   <div className="flex flex-wrap items-center gap-2">
                     <Button
@@ -343,10 +343,10 @@ export function NerExclusionsRoute() {
                         if (first !== undefined) revertPurge.mutate(first);
                       }}
                     >
-                      desfazer este expurgo
+                      Desfazer este expurgo
                     </Button>
                     <span className="text-(--color-muted)">
-                      entradas no ledger: <code>{purgeIds.join(", ")}</code>
+                      entradas no histórico: <code>{purgeIds.join(", ")}</code>
                     </span>
                   </div>
                 ) : null}
@@ -357,12 +357,12 @@ export function NerExclusionsRoute() {
         </Card>
 
         <Card>
-          <CardHeader className="text-sm font-semibold">Ledger dos expurgos</CardHeader>
+          <CardHeader className="text-sm font-semibold">Histórico de expurgos</CardHeader>
           <CardBody className="grid gap-2">
             <p className="text-xs text-(--color-muted)">
-              Cada linha é uma entidade excluída pelo expurgo, com o antes guardado: nome, tipo, vínculos e
-              grafias. O desfazer restaura a entidade — e <strong>não</strong> levanta o veto, que continua
-              fora da próxima extração.
+              Cada linha é uma entidade excluída pelo expurgo, com o que havia antes: nome, tipo,
+              vínculos e grafias. O desfazer restaura a entidade — e <strong>não</strong> levanta o veto,
+              que continua valendo na próxima extração.
             </p>
             {/*
               The search is server-side: the ledger only grows, and a box that filtered the loaded page
@@ -374,7 +374,7 @@ export function NerExclusionsRoute() {
               placeholder="buscar por entidade expurgada…"
               onChange={(event) => setLogTerm(event.target.value)}
             />
-            {log.isPending ? <Spinner label="Lendo o ledger…" /> : null}
+            {log.isPending ? <Spinner label="Lendo o histórico…" /> : null}
             {log.error ? <ErrorState error={log.error} /> : null}
             {log.data && (log.data.items ?? []).length === 0 ? (
               <EmptyState
@@ -382,7 +382,7 @@ export function NerExclusionsRoute() {
                 hint={
                   logTerm.trim()
                     ? "A busca cobre o nome da entidade expurgada."
-                    : "O ledger registra cada entidade excluída, com o antes."
+                    : "O histórico registra cada entidade excluída, com o que havia antes."
                 }
               />
             ) : null}
@@ -393,7 +393,7 @@ export function NerExclusionsRoute() {
                     <span className="font-medium">{entry.purged_name}</span>
                     <span className="text-(--color-muted)">
                       {" "}
-                      · {entry.entity_type} · {formatCount(entry.document_count)} doc(s) ·{" "}
+                      · {entry.entity_type} · {formatCount(entry.document_count)} documento(s) ·{" "}
                       {formatDateTime(entry.changed_at)}
                       {entry.changed_by ? ` · por ${entry.changed_by}` : ""} · veto <code>{entry.excluded_term}</code>
                     </span>
@@ -408,7 +408,7 @@ export function NerExclusionsRoute() {
                       title="Restaura a entidade, os vínculos e as grafias. O veto do termo continua."
                       onClick={() => revertPurge.mutate(entry.purge_id)}
                     >
-                      desfazer
+                      Desfazer
                     </Button>
                   )}
                 </li>

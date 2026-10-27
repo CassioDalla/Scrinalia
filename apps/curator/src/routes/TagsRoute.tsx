@@ -70,7 +70,7 @@ const routeApi = getRouteApi("/assuntos/tags");
 const TABS = [
   { id: "relevancia", label: "Relevância" },
   { id: "similaridade", label: "Similaridade" },
-  { id: "propostas", label: "Propostas de merge" },
+  { id: "propostas", label: "Propostas de Mesclagem" },
   { id: "stopwords", label: "Stopwords" },
   /**
    * The decision queue, and the tab the home screen's cards open.
@@ -220,7 +220,7 @@ function RelevanceTab({
       <div className="flex flex-wrap items-center gap-2">
         <Select className="w-48" value={method} onChange={(event) => patch({ metodo: event.target.value as "count" | "tfidf" })}>
           <option value="count">Contagem de uso</option>
-          <option value="tfidf">TF-IDF (pune o genérico)</option>
+          <option value="tfidf">Especificidade (pune o genérico)</option>
         </Select>
         <Select className="w-36" value={limit} onChange={(event) => setLimit(Number(event.target.value))}>
           {[30, 50, 100, 200].map((value) => (
@@ -232,9 +232,8 @@ function RelevanceTab({
       </div>
 
       <p className="max-w-3xl text-xs text-(--color-muted)">
-        A contagem mostra o que pesa no acervo; o TF-IDF mostra o que é específico, punindo o que aparece em toda
-        parte. As duas listas respondem perguntas diferentes de propósito — a primeira acha o que dominar, a segunda
-        o que caracteriza.
+        A contagem mostra o que pesa no acervo; a especificidade mostra o que caracteriza uma descrição, punindo o
+        que aparece em toda parte. São duas perguntas diferentes: uma acha o que domina, a outra o que distingue.
       </p>
 
       {relevance.error ? <ErrorState error={relevance.error} /> : null}
@@ -252,8 +251,8 @@ function RelevanceTab({
                   ) : (
                     <>
                       <th className="px-3 py-2 text-right font-medium">Frequência</th>
-                      <th className="px-3 py-2 text-right font-medium">IDF</th>
-                      <th className="px-3 py-2 text-right font-medium">TF-IDF</th>
+                      <th className="px-3 py-2 text-right font-medium">Raridade</th>
+                      <th className="px-3 py-2 text-right font-medium">Especificidade</th>
                     </>
                   )}
                 </tr>
@@ -409,7 +408,7 @@ function SimilarityTab({
     <div className="grid gap-3">
       <div className="flex flex-wrap items-center gap-2">
         <label className="flex items-center gap-2 text-xs">
-          <span className="text-(--color-muted)">limiar</span>
+          <span className="text-(--color-muted)">Limiar</span>
           <Input
             type="number"
             step="0.05"
@@ -422,19 +421,19 @@ function SimilarityTab({
         </label>
         <Input
           className="max-w-xs"
-          placeholder="filtrar por nome…"
+          placeholder="Filtrar por nome…"
           defaultValue={search.nome ?? ""}
           onChange={(event) => patch({ nome: event.target.value || undefined })}
         />
       </div>
 
       <p className="max-w-3xl text-xs text-(--color-muted)">
-        Pares por similaridade de trigrama. É a evidência que a proposta de merge usa — mostrada crua, sem julgar:
-        <code> 'alameda cabral' </code> e <code> 'al. alameda cabral' </code> têm similaridade 1.000, e nenhum
-        limiar distingue sozinho o que é abreviação do que é outra coisa. Por isso o par traz o botão de mesclar e
-        a escolha da canônica: a decisão é sua, com o impacto na frente, e o ledger desfaz. Para mesclar mais de um
-        par de uma vez — “carlos de carvalho” aparece em várias linhas —, marque as linhas e use a barra que aparece
-        embaixo.
+        Pares com grafia parecida. A lista mostra a evidência crua, sem julgar:
+        <code> 'alameda cabral' </code> e <code> 'al. alameda cabral' </code> pontuam 1.000, o máximo, e nenhum limiar
+        distingue sozinho o que é abreviação do que é outra coisa. Por isso o par traz o botão de mesclar e a escolha
+        da canônica: a decisão é sua, com o impacto na frente, e o desfazer fica na aba Propostas. Para mesclar mais
+        de um par de uma vez — “carlos de carvalho” aparece em várias linhas —, marque as linhas e use a barra que
+        aparece embaixo.
       </p>
 
       {similar.error ? <ErrorState error={similar.error} /> : null}
@@ -445,12 +444,12 @@ function SimilarityTab({
       {lastBan ? (
         <Notice tone="ok">
           <strong>
-            {formatCount(lastBan.written)} grafia(s) no eixo{" "}
+            {formatCount(lastBan.written)} grafia(s) banida(s) no eixo{" "}
             {labelOf(STOPWORD_SCOPE_LABEL, lastBan.scope).toLowerCase()}
           </strong>
           . Banir <strong>não exclui nada</strong>: as tags continuam no acervo e alcançáveis pela busca, e a marcação
           segue de pé porque a mesclagem continua possível. O passo que exclui é a <strong>purga</strong>, na aba
-          Stopwords, atrás da prévia.
+          Stopwords, depois da prévia.
         </Notice>
       ) : null}
       {banMarked.error ? <ErrorState error={banMarked.error} /> : null}
@@ -463,7 +462,7 @@ function SimilarityTab({
         <TagMergePanel
           members={marked}
           title={`Mesclar ${formatCount(marked.length)} tags marcadas`}
-          hint="Estas tags vieram de linhas diferentes da lista: a canônica é escolhida abaixo, e o impacto é recalculado para o conjunto inteiro."
+          hint="Estas tags vieram de linhas diferentes da lista: escolha a canônica abaixo; o impacto é recalculado para o conjunto inteiro."
           onMerged={afterMerge}
           onClose={closePanel}
         />
@@ -472,7 +471,7 @@ function SimilarityTab({
       {similar.data && pairs.length === 0 ? (
         <EmptyState
           title="Nenhum par acima do limiar"
-          hint="Baixe o limiar para ver pares mais distantes, ou rode uma proposta de merge para registrar os agrupamentos."
+          hint="Baixe o limiar para ver pares mais distantes, ou use Propor Agrupamentos para registrar os conjuntos."
         />
       ) : null}
 
@@ -620,8 +619,8 @@ function MergeOutcome({ label, outcome }: { label: string; outcome: MergeRespons
   return (
     <Notice tone="ok">
       <strong>{label}</strong> · {formatCount(outcome.documents_updated)} documento(s) atualizado(s) ·{" "}
-      {formatCount(outcome.tags_deleted)} tag(s) absorvida(s) · ledger{" "}
-      <code>{(outcome.merge_ids ?? []).join(", ") || "—"}</code>. O desfazer está no ledger de merges.
+      {formatCount(outcome.tags_deleted)} tag(s) absorvida(s) · registro{" "}
+      <code>{(outcome.merge_ids ?? []).join(", ") || "—"}</code>. O desfazer está na aba Propostas.
     </Notice>
   );
 }
@@ -791,8 +790,8 @@ function TagMergePanel({
         </div>
 
         <p className="text-xs text-(--color-muted)">
-          A similaridade não diz qual delas é a boa: a lista vem crua. Desmarque o que não pertence ao conjunto —
-          “289 anos” não é “294 anos” — e o impacto é recalculado com o mesmo planejador da mesclagem.
+          A similaridade não diz qual das duas é a boa: a lista vem crua. Desmarque o que não pertence ao conjunto —
+          “289 anos” não é “294 anos” — e o impacto é recalculado sobre o que sobra.
         </p>
 
         {preview.isPending ? <Spinner label="Conferindo o impacto…" /> : null}
@@ -800,7 +799,7 @@ function TagMergePanel({
 
         {preview.data ? (
           <div className="grid gap-1 rounded-md bg-black/[0.02] p-3 text-xs ring-1 ring-(--color-line)">
-            <p className="font-medium">Nada foi escrito ainda. A mesclagem usa este mesmo planejador.</p>
+            <p className="font-medium">Nada foi escrito ainda. A mesclagem trabalha sobre estes mesmos números.</p>
             <p className="text-(--color-muted)">
               {formatCount(preview.data.documents_updated)} documento(s) atualizado(s) ·{" "}
               {formatCount(preview.data.links_rewritten)} vínculo(s) reescrito(s) ·{" "}
@@ -822,7 +821,7 @@ function TagMergePanel({
             ) : null}
             {(preview.data.synonyms_repointed ?? []).length > 0 ? (
               <p className="text-(--color-muted)">
-                grafias reapontadas: <code>{(preview.data.synonyms_repointed ?? []).join(", ")}</code>
+                grafias redirecionadas: <code>{(preview.data.synonyms_repointed ?? []).join(", ")}</code>
               </p>
             ) : null}
             {preview.data.category_would_be_lost ? (
@@ -835,8 +834,8 @@ function TagMergePanel({
         ) : null}
 
         <Notice tone="ok">
-          Diferente do merge de entidades, este <strong>tem desfazer</strong>: o ledger da aba Propostas guarda a tag,
-          os vínculos, a classificação e as grafias, e restaura tudo.
+          Diferente da mesclagem de entidades, esta <strong>tem desfazer</strong>: a aba Propostas guarda a tag, os
+          vínculos, a classificação e as grafias, e restaura tudo.
         </Notice>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -848,7 +847,7 @@ function TagMergePanel({
                 ? "Um agrupamento precisa de ao menos duas tags: uma canônica e uma absorvida."
                 : preview.data
                   ? undefined
-                  : "O impacto é obrigatório: conferir o impacto vem antes de mesclar."
+                  : "Confira o impacto antes de mesclar."
             }
             onClick={() => merge.mutate()}
           >
@@ -868,7 +867,7 @@ function TagMergePanel({
         {outcome ? (
           <Notice tone="ok">
             {formatCount(outcome.documents_updated)} documento(s) atualizado(s) ·{" "}
-            {formatCount(outcome.tags_deleted)} tag(s) absorvida(s). Ledger{" "}
+            {formatCount(outcome.tags_deleted)} tag(s) absorvida(s). Registro{" "}
             <code>{(outcome.merge_ids ?? []).join(", ") || "—"}</code>: o desfazer fica na aba Propostas.
           </Notice>
         ) : null}
@@ -991,7 +990,7 @@ function ProposalsTab({
     mutationFn: (proposal: TagMergeProposal) =>
       decideMergeProposal(proposal.proposal_id, {
         status: "REJECTED",
-        note: `Editada e aplicada à mão: a máquina propôs ${formatCount((proposal.members ?? []).length)} membros e a seleção revisada foi mesclada pelo ledger.`,
+        note: `Editada à mão: a máquina propôs ${formatCount((proposal.members ?? []).length)} membros e a seleção revisada foi mesclada.`,
       }),
     onSuccess: invalidate,
   });
@@ -1013,7 +1012,7 @@ function ProposalsTab({
           {suggest.isPending ? "Propondo…" : "Propor Agrupamentos"}
         </Button>
         <label className="flex items-center gap-2 text-xs">
-          <span className="text-(--color-muted)">limiar</span>
+          <span className="text-(--color-muted)">Limiar</span>
           <Input
             type="number"
             step="0.05"
@@ -1041,7 +1040,7 @@ function ProposalsTab({
           value={search.motivo ?? ""}
           onChange={(event) => patch({ motivo: asEnum(event.target.value, REASONS) })}
         >
-          <option value="">Todo motivo</option>
+          <option value="">Qualquer motivo</option>
           {REASONS.map((reason) => (
             <option key={reason} value={reason}>
               {labelOf(MERGE_REASON_LABEL, reason)}
@@ -1051,7 +1050,7 @@ function ProposalsTab({
         <Input
           type="number"
           className="w-32"
-          placeholder="mín. docs"
+          placeholder="Mín. docs"
           defaultValue={search.min ?? ""}
           onChange={(event) => patch({ min: event.target.value ? Number(event.target.value) : undefined })}
         />
@@ -1077,8 +1076,8 @@ function ProposalsTab({
         <Notice tone="warn" as="div" className="flex flex-wrap items-center gap-3">
           <span className="text-xs text-(--color-warn)">
             <strong>{formatCount(approvedNotSelected.length)}</strong> agrupamento(s) aprovado(s) nesta página{" "}
-            <strong>ainda não foram mesclados</strong>: aprovar registra a intenção, e só a aplicação absorve as tags.
-            Enquanto ele não roda, o ledger abaixo não muda.
+            <strong>ainda não foram mesclados</strong>: aprovar registra a intenção, e só aplicar absorve as tags.
+            Enquanto isso não acontece, a lista abaixo não muda.
           </span>
           <Button
             size="sm"
@@ -1097,8 +1096,8 @@ function ProposalsTab({
         <div className="flex flex-wrap items-center gap-3 rounded-md bg-black/[0.02] px-3 py-2 ring-1 ring-(--color-line)">
           <span className="text-xs text-(--color-muted)">
             <strong>{formatCount(fulfilled.length)}</strong> agrupamento(s) aprovado(s) nesta página{" "}
-            <strong>já não têm o que absorver</strong>: os membros foram mesclados por outra mesclagem (ou excluídos por
-            uma purga). Não são falhas — não há nada a aplicar.
+            <strong>já não têm o que absorver</strong>: os membros foram mesclados em outra mesclagem (ou excluídos por
+            uma purga). Não são falhas — não há nada a mesclar.
           </span>
           <Button
             size="sm"
@@ -1150,7 +1149,7 @@ function ProposalsTab({
           {(batch.applied ?? []).map((entry) => (
             <p key={entry.proposal_id} className="text-(--color-muted)">
               #{entry.proposal_id}: {formatCount(entry.documents_updated)} documento(s), {formatCount(entry.tags_deleted)}{" "}
-              tag(s) absorvida(s) · ledger {(entry.merge_ids ?? []).join(", ")}
+              tag(s) absorvida(s) · registro {(entry.merge_ids ?? []).join(", ")}
             </p>
           ))}
           {(batch.skipped ?? []).map((entry) => (
@@ -1178,7 +1177,7 @@ function ProposalsTab({
       {proposals.data && total === 0 ? (
         <EmptyState
           title="Nenhuma proposta com este filtro"
-          hint="Rode 'Propor Agrupamentos' para registrar os pares acima do limiar. A proposta não mescla nada: ela só escreve a pergunta."
+          hint="Use Propor Agrupamentos para registrar os pares acima do limiar. A proposta não mescla nada: ela só registra a pergunta."
           action={
             <Button onClick={() => suggest.mutate()} disabled={suggest.isPending}>
               Propor Agrupamentos
@@ -1225,8 +1224,8 @@ function ProposalsTab({
               <TagMergePanel
                 members={(proposal.members ?? []).map((member) => ({ tag_id: member.tag_id, name: member.name }))}
                 initialCanonicalId={proposal.canonical_id ?? undefined}
-                title={`Editar e aplicar o agrupamento #${proposal.proposal_id}`}
-                hint="Desmarque a tag que não pertence ao conjunto e escolha a canônica. Aplicar mescla a seleção revisada pelo mesmo planejador do lote, registra no ledger — e fecha esta proposta como rejeitada, porque a pergunta da máquina foi respondida de outro jeito."
+                title={`Editar e mesclar o agrupamento #${proposal.proposal_id}`}
+                hint="Desmarque a tag que não pertence ao conjunto e escolha a canônica. Mesclar absorve a seleção revisada, registra o resultado — e fecha esta proposta como rejeitada, porque a pergunta da máquina foi respondida de outro jeito."
                 onMerged={(outcome) => {
                   // The report goes to the screen: this row is about to leave the SUGGESTED filter.
                   setLastEdited({ proposalId: proposal.proposal_id, outcome });
@@ -1264,10 +1263,10 @@ function ProposalsTab({
       ) : null}
 
       <Card>
-        <CardHeader className="text-sm font-semibold">Ledger dos merges</CardHeader>
+        <CardHeader className="text-sm font-semibold">Registro das mesclagens</CardHeader>
         <CardBody className="grid gap-2">
           <p className="text-xs text-(--color-muted)">
-            Aqui só entram merges <strong>aplicados</strong>: aprovar não escreve nesta lista. Cada linha guarda o
+            Aqui só entram mesclagens <strong>aplicadas</strong>: aprovar não escreve nesta lista. Cada linha guarda o
             estado anterior — tag, vínculos, classificação e grafias — e o desfazer restaura tudo.
           </p>
           {/*
@@ -1277,18 +1276,18 @@ function ProposalsTab({
           <Input
             className="max-w-xs"
             value={logTerm}
-            placeholder="buscar por grafia absorvida ou canônica…"
+            placeholder="Buscar por grafia absorvida ou canônica…"
             onChange={(event) => setLogTerm(event.target.value)}
           />
-          {log.isPending ? <Spinner label="Lendo o ledger…" /> : null}
+          {log.isPending ? <Spinner label="Lendo o registro…" /> : null}
           {log.error ? <ErrorState error={log.error} /> : null}
           {log.data && (log.data.items ?? []).length === 0 ? (
             <EmptyState
-              title={logTerm.trim() ? `Nenhum merge para “${logTerm.trim()}”` : "Nenhum merge aplicado ainda"}
+              title={logTerm.trim() ? `Nenhuma mesclagem para “${logTerm.trim()}”` : "Nenhuma mesclagem feita ainda"}
               hint={
                 logTerm.trim()
                   ? "A busca cobre as duas grafias de cada linha: a absorvida e a canônica."
-                  : "O ledger registra cada tag absorvida, com o antes."
+                  : "O registro guarda cada tag absorvida, com o estado anterior."
               }
             />
           ) : null}
@@ -1335,7 +1334,7 @@ function ProposalsTab({
               ) : null}
               <span className="text-xs text-(--color-muted)">
                 mostrando {formatCount((log.data.items ?? []).length)} de {formatCount(log.data.total)}{" "}
-                {settledLogTerm.trim() ? "merge(s) que casam com a busca" : "merge(s) aplicado(s)"}
+                {settledLogTerm.trim() ? "mesclagem(ns) que a busca encontrou" : "mesclagem(ns) feitas"}
               </span>
             </div>
           ) : null}
@@ -1487,7 +1486,7 @@ function ProposalCard({
 
         {preview ? (
           <div className="grid gap-1 rounded-md bg-black/[0.02] p-3 text-xs ring-1 ring-(--color-line)">
-            <p className="font-medium">Nada foi escrito ainda. A aplicação usa este mesmo planejador.</p>
+            <p className="font-medium">Nada foi escrito ainda. A mesclagem trabalha sobre estes mesmos números.</p>
             <p className="text-(--color-muted)">
               {formatCount(preview.documents_updated)} documento(s) atualizado(s) ·{" "}
               {formatCount(preview.links_rewritten)} vínculo(s) reescrito(s) ·{" "}
@@ -1508,7 +1507,7 @@ function ProposalCard({
             ) : null}
             {(preview.synonyms_repointed ?? []).length > 0 ? (
               <p className="text-(--color-muted)">
-                grafias reapontadas: <code>{(preview.synonyms_repointed ?? []).join(", ")}</code>
+                grafias redirecionadas: <code>{(preview.synonyms_repointed ?? []).join(", ")}</code>
               </p>
             ) : null}
             {preview.category_would_be_lost ? (
@@ -1657,7 +1656,7 @@ function ClassificarTab({ search, patch }: { search: TagsSearch; patch: (changes
           ? `categoria ${drawers.find((category) => category.category_id === action.categoryId)?.name ?? `#${action.categoryId}`}`
           : "não-assunto (a grafia não volta a virar tag)";
       setReport(
-        `${formatCount(written.length)} tag(s) escritas: ${destination}.` +
+        `${formatCount(written.length)} tag(s) com decisão registrada: ${destination}.` +
           (failed.length > 0
             ? ` ${formatCount(failed.length)} não responderam (ids ${failed.join(", ")}): a decisão delas continua em aberto, e elas seguem marcadas.`
             : ""),
@@ -1826,7 +1825,7 @@ function ClassificarTab({ search, patch }: { search: TagsSearch; patch: (changes
                 if (event.target.value) bulk.mutate({ ids: selected, action: { kind: "category", categoryId: Number(event.target.value) } });
               }}
             >
-              <option value="">mover para categoria…</option>
+              <option value="">Mover para categoria…</option>
               {drawers.map((category) => (
                 <option key={category.category_id} value={category.category_id}>
                   {category.name}
@@ -1917,7 +1916,7 @@ function CatalogRow({
             title="Vale para todas as descrições que carregam a tag, não só para uma."
             onChange={(event) => onCurate(event.target.value ? Number(event.target.value) : null)}
           >
-            <option value="">sem categoria (não é assunto)</option>
+            <option value="">Sem categoria (não é assunto)</option>
             {drawers.map((category) => (
               <option key={category.category_id} value={category.category_id}>
                 {category.name}
@@ -1969,7 +1968,7 @@ function CatalogSearchBox({
     <Input
       className="max-w-xs"
       value={term}
-      placeholder="buscar tag…"
+      placeholder="Buscar tag…"
       onChange={(event) => setTerm(event.target.value)}
     />
   );
@@ -2072,8 +2071,8 @@ function StopwordsTab({ search, patch }: { search: TagsSearch; patch: (changes: 
     <div className="grid gap-4">
       <Notice tone="warn" className="max-w-3xl">
         <strong>Banir não exclui nada.</strong> Banir registra que o termo não vale; a <strong>purga</strong> é o passo
-        que exclui as tags com esse nome. Como o merge, ela <strong>guarda um ledger</strong>: cada tag excluída pode ser
-        restaurada com seus vínculos e suas grafias. O desfazer fica no ledger de purgas, no fim desta aba.
+        que exclui as tags com esse nome. Como a mesclagem, ela <strong>guarda um registro</strong>: cada tag excluída
+        pode ser restaurada com seus vínculos e suas grafias. O desfazer fica no registro de purgas, no fim desta aba.
       </Notice>
 
       <div className="flex flex-wrap items-center gap-2">
@@ -2119,7 +2118,7 @@ function StopwordsTab({ search, patch }: { search: TagsSearch; patch: (changes: 
                 labelOf(STOPWORD_SCOPE_LABEL, item.scope),
                 labelOf(STOPWORD_SOURCE_LABEL, item.source),
               ]}
-              searchPlaceholder="buscar termo banido…"
+              searchPlaceholder="Buscar termo banido…"
               nounSingular="termo banido"
               nounPlural="termos banidos"
               emptyTitle="Nenhum termo banido"
@@ -2186,7 +2185,7 @@ function StopwordsTab({ search, patch }: { search: TagsSearch; patch: (changes: 
           <div className="flex flex-wrap items-end gap-2">
             <label className="flex-1">
               <span className="mb-1 block text-xs font-medium text-(--color-muted)">
-                Termos, separados por vírgula ou linha
+                Termos, Separados por Vírgula ou Linha
               </span>
               <Input
                 value={draft}
@@ -2244,10 +2243,10 @@ function StopwordsTab({ search, patch }: { search: TagsSearch; patch: (changes: 
         <CardHeader className="text-sm font-semibold text-(--color-danger)">Excluir as tags banidas</CardHeader>
         <CardBody className="grid gap-3">
           <p className="text-xs text-(--color-muted)">
-            A purga exclui toda tag cujo nome seja um termo banido nos eixos <code>TAG</code> ou <code>ALL</code>. Os
-            vínculos caem junto e a classificação da tag vai embora. Cada tag excluída entra no <strong>ledger de
-            purgas</strong> antes de sair, então o desfazer restaura a tag, os vínculos e as grafias — mas não
-            desbane o termo.
+            A purga exclui toda tag cujo nome seja um termo banido no eixo de assunto (tags) ou nos
+            dois eixos. Os vínculos caem junto e a classificação da tag vai embora. Cada tag excluída
+            entra no <strong>registro de purgas</strong> antes de sair, então o desfazer restaura a tag, os vínculos e
+            as grafias — mas não desbane o termo.
           </p>
 
           <div className="flex flex-wrap items-center gap-2">
@@ -2312,7 +2311,7 @@ function StopwordsTab({ search, patch }: { search: TagsSearch; patch: (changes: 
           {purged !== null ? (
             <Notice tone="ok" as="div" className="grid gap-2">
               <p>
-                {formatCount(purged)} tag(s) excluída(s) e registrada(s) no ledger de purgas.
+                {formatCount(purged)} tag(s) excluída(s) e registrada(s) no registro de purgas.
               </p>
               {purgeIds.length > 0 ? (
                 <div className="flex flex-wrap items-center gap-2">
@@ -2329,7 +2328,7 @@ function StopwordsTab({ search, patch }: { search: TagsSearch; patch: (changes: 
                     desfazer esta purga
                   </Button>
                   <span className="text-(--color-muted)">
-                    entradas no ledger: <code>{purgeIds.join(", ")}</code>
+                    entradas no registro: <code>{purgeIds.join(", ")}</code>
                   </span>
                 </div>
               ) : null}
@@ -2340,11 +2339,11 @@ function StopwordsTab({ search, patch }: { search: TagsSearch; patch: (changes: 
       </Card>
 
       <Card>
-        <CardHeader className="text-sm font-semibold">Ledger das purgas</CardHeader>
+        <CardHeader className="text-sm font-semibold">Registro das purgas</CardHeader>
         <CardBody className="grid gap-2">
           <p className="text-xs text-(--color-muted)">
-            Cada linha é uma tag excluída pela purga, com o antes guardado: nome, vínculos, grafias e classificação. O
-            desfazer restaura a tag — e <strong>não</strong> desbane o termo, que continua fora do próximo índice.
+            Cada linha é uma tag excluída pela purga, com o estado anterior guardado: nome, vínculos, grafias e
+            classificação. O desfazer restaura a tag — e <strong>não</strong> desbane o termo, que continua banido.
           </p>
           {/*
             The search is server-side: the ledger only grows, and a box that filtered the loaded page
@@ -2353,10 +2352,10 @@ function StopwordsTab({ search, patch }: { search: TagsSearch; patch: (changes: 
           <Input
             className="max-w-xs"
             value={logTerm}
-            placeholder="buscar por tag excluída…"
+            placeholder="Buscar por tag excluída…"
             onChange={(event) => setLogTerm(event.target.value)}
           />
-          {log.isPending ? <Spinner label="Lendo o ledger…" /> : null}
+          {log.isPending ? <Spinner label="Lendo o registro…" /> : null}
           {log.error ? <ErrorState error={log.error} /> : null}
           {log.data && (log.data.items ?? []).length === 0 ? (
             <EmptyState
@@ -2364,7 +2363,7 @@ function StopwordsTab({ search, patch }: { search: TagsSearch; patch: (changes: 
               hint={
                 logTerm.trim()
                   ? "A busca cobre o nome da tag excluída."
-                  : "O ledger registra cada tag excluída, com o antes."
+                  : "O registro guarda cada tag excluída, com o estado anterior."
               }
             />
           ) : null}
@@ -2409,7 +2408,7 @@ function StopwordsTab({ search, patch }: { search: TagsSearch; patch: (changes: 
               ) : null}
               <span className="text-xs text-(--color-muted)">
                 mostrando {formatCount((log.data.items ?? []).length)} de {formatCount(log.data.total)}{" "}
-                {settledLogTerm.trim() ? "purga(s) que casam com a busca" : "purga(s) registrada(s)"}
+                {settledLogTerm.trim() ? "purga(s) que a busca encontrou" : "purga(s) registrada(s)"}
               </span>
             </div>
           ) : null}

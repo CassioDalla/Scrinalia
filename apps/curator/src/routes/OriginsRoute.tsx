@@ -74,10 +74,9 @@ export function OriginsRoute() {
         <Card>
           <CardBody className="grid gap-2">
             <p className="text-sm text-(--color-muted)">
-              A ingestão lê a origem para o <span className="font-mono text-xs">raw</span>, estrutura o
-              resultado no <span className="font-mono text-xs">staging</span> e o deixa pronto para a
-              transferência. Cada origem tem a sua fila, a sua agenda e a sua configuração; a IA e o
-              painel de workers vêm depois.
+              A ingestão lê a origem, guarda o registro <span className="font-mono text-xs">bruto</span> e o
+              deixa <span className="font-mono text-xs">estruturado</span>, pronto para a transferência.
+              Cada origem tem a sua fila, a sua agenda e a sua configuração.
             </p>
             <div className="flex flex-wrap items-center gap-2">
               {/*
@@ -87,7 +86,7 @@ export function OriginsRoute() {
               */}
               <Link to="/sistema/workers">
                 <Button size="sm" variant="secondary">
-                  Painel dos workers
+                  Painel
                 </Button>
               </Link>
               <Link to="/sistema/workers" search={{ aba: "execucoes" }}>
@@ -104,7 +103,7 @@ export function OriginsRoute() {
             <div>
               <h2 className="text-sm font-semibold">Origens</h2>
               <p className="text-xs text-(--color-muted)">
-                As fontes que esta instalação lê: adicione uma definição do pacote, configure, agende,
+                As fontes que esta instalação lê: adicione uma origem disponível, configure, agende,
                 pause e enfileire uma execução.
               </p>
             </div>
@@ -124,14 +123,14 @@ export function OriginsRoute() {
           ) : sources.length === 0 ? (
             <EmptyState
               title="Nenhuma origem configurada"
-              hint="A instalação ainda não lê nenhum site. Adicione uma origem do pacote; a entrada manual e a importação CSV ficam no Acervo, em Nova descrição."
+              hint="A instalação ainda não lê nenhum site. Adicione uma origem disponível; a entrada manual e a importação CSV ficam no Acervo, em Nova Descrição."
               action={
                 canOperate && available.length > 0 ? (
                   <Button size="sm" variant="primary" onClick={() => setPickerOpen(true)}>
                     Adicionar origem
                   </Button>
                 ) : canOperate ? (
-                  <p className="text-xs text-(--color-muted)">Todas as origens do pacote já estão configuradas.</p>
+                  <p className="text-xs text-(--color-muted)">Todas as origens disponíveis já estão configuradas.</p>
                 ) : null
               }
             />
@@ -140,7 +139,7 @@ export function OriginsRoute() {
           )}
 
           {!isPending && sources.length > 0 && canOperate && available.length === 0 ? (
-            <p className="text-xs text-(--color-muted)">Todas as origens do pacote já estão configuradas.</p>
+            <p className="text-xs text-(--color-muted)">Todas as origens disponíveis já estão configuradas.</p>
           ) : null}
         </section>
 
@@ -150,7 +149,7 @@ export function OriginsRoute() {
               <h2 className="text-sm font-semibold">Entradas</h2>
               <p className="text-xs text-(--color-muted)">
                 A entrada manual e a importação CSV não são origens de leitura: o registro é criado no
-                Acervo, e estas linhas só mostram o estado delas.
+                Acervo, e estas linhas só mostram o estado de cada uma.
               </p>
             </div>
             {entries.map((origin) => (
@@ -169,7 +168,7 @@ export function OriginsRoute() {
 const ORIGIN_KIND_LABEL: Record<string, string> = {
   MANUAL: "manual",
   CSV: "csv",
-  SCRAPER: "scraper",
+  SCRAPER: "site",
 };
 
 function OriginCard({ origin, canOperate }: { origin: IngestionOrigin; canOperate: boolean }) {
@@ -209,7 +208,7 @@ function OriginCard({ origin, canOperate }: { origin: IngestionOrigin; canOperat
               {origin.pending == null ? "—" : formatCount(origin.pending)}
             </span>
             <p className="mt-1 text-xs text-(--color-muted)">
-              {origin.pending_reason ?? "O que a próxima execução desta origem leria."}
+              {origin.pending_reason ?? "O que a próxima execução desta origem vai ler."}
             </p>
           </Fact>
           <Fact label="Processados">
@@ -217,7 +216,7 @@ function OriginCard({ origin, canOperate }: { origin: IngestionOrigin; canOperat
               {origin.processed == null ? "—" : formatCount(origin.processed)}
             </span>
             <p className="mt-1 text-xs text-(--color-muted)">
-              {origin.failed ? `${formatCount(origin.failed)} com falha terminal` : "sem falha terminal"}
+              {origin.failed ? `${formatCount(origin.failed)} com erro definitivo` : "sem erro definitivo"}
             </p>
           </Fact>
           <Fact label="Última execução">
@@ -258,7 +257,7 @@ function OriginCard({ origin, canOperate }: { origin: IngestionOrigin; canOperat
           {controlled ? (
             <RunNowButton origin={origin} disabled={active} />
           ) : (
-            <p className="text-xs text-(--color-muted)">A configuração, a agenda e a execução são do operador.</p>
+            <p className="text-xs text-(--color-muted)">Configuração, agenda e execução ficam com o operador.</p>
           )}
           {active ? (
             <Badge tone="accent">
@@ -266,9 +265,9 @@ function OriginCard({ origin, canOperate }: { origin: IngestionOrigin; canOperat
             </Badge>
           ) : null}
           {origin.runner_available ? (
-            <Badge tone="ok">runner disponível</Badge>
+            <Badge tone="ok">a fila vai andar</Badge>
           ) : (
-            <Badge tone="warn">nenhum runner aceita ingestão</Badge>
+            <Badge tone="warn">a fila vai esperar</Badge>
           )}
         </div>
 
@@ -303,7 +302,7 @@ function configSummary(origin: IngestionOrigin): string {
   });
   return parts.length > 0
     ? parts.join(" · ")
-    : "Sem configuração própria: o adapter usa os valores do ambiente quando os tem.";
+    : "Sem configuração própria: a origem usa os valores da instalação quando existem.";
 }
 
 /** Pausing is the lifecycle, not a removal: the row, the agenda and the runs stay. */
@@ -329,7 +328,7 @@ function LifecycleButton({ origin }: { origin: IngestionOrigin }) {
         disabled={toggle.isPending}
         onClick={() => toggle.mutate()}
       >
-        {toggle.isPending ? "Salvando…" : origin.enabled ? "Desativar" : "Ativar"}
+        {toggle.isPending ? "Salvando…" : origin.enabled ? "Pausar" : "Reativar"}
       </Button>
       {toggle.error ? <ErrorState error={toggle.error} /> : null}
     </div>
@@ -358,7 +357,7 @@ function RunNowButton({ origin, disabled }: { origin: IngestionOrigin; disabled:
       </Button>
       {run.data ? (
         <span className="text-xs text-(--color-muted)">
-          Execução #{run.data.run_id} na fila; um runner a pega quando estiver livre.
+          Execução #{run.data.run_id} na fila; ela ainda não começou.
         </span>
       ) : null}
       {run.error ? <ErrorState error={run.error} /> : null}
@@ -393,7 +392,7 @@ function OriginConfigForm({ origin }: { origin: IngestionOrigin }) {
   return (
     <div className="grid gap-3 rounded-md bg-black/[0.02] p-3 ring-1 ring-(--color-line)">
       {configFields.length === 0 ? (
-        <p className="text-xs text-(--color-muted)">Esta origem não tem configuração de adapter.</p>
+        <p className="text-xs text-(--color-muted)">Esta origem não tem campos de configuração.</p>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2">
           {configFields.map((field) => (
@@ -485,14 +484,14 @@ function OriginScheduleForm({ origin }: { origin: IngestionOrigin }) {
   return (
     <div className="grid gap-3 rounded-md bg-black/[0.02] p-3 ring-1 ring-(--color-line)">
       <p className="text-xs text-(--color-muted)">
-        Cinco campos (minuto, hora, dia do mês, mês, dia da semana), avaliados na zona indicada. Um período
-        que chega com uma ingestão ativa é <strong>pulado</strong>, não enfileirado.
+        Cinco campos (minuto, hora, dia do mês, mês, dia da semana), avaliados no fuso indicado. Um período
+        que chega com uma ingestão em andamento é <strong>pulado</strong>, não enfileirado.
       </p>
       <div className="grid gap-3 sm:grid-cols-2">
-        <Field label="Cron">
+        <Field label="Agendamento">
           <Input value={cron} onChange={(event) => setCron(event.target.value)} placeholder="0 2 * * *" />
         </Field>
-        <Field label="Fuso IANA">
+        <Field label="Fuso Horário">
           <Input value={timezone} onChange={(event) => setTimezone(event.target.value)} placeholder="America/Sao_Paulo" />
         </Field>
       </div>
@@ -523,7 +522,7 @@ function EntryCard({ origin }: { origin: IngestionOrigin }) {
         </div>
         <p className="text-xs text-(--color-muted)">{origin.description}</p>
         {origin.pending ? (
-          <p className="text-xs text-(--color-muted)">{formatCount(origin.pending)} na fila de staging.</p>
+          <p className="text-xs text-(--color-muted)">{formatCount(origin.pending)} aguardando transferência.</p>
         ) : null}
         <div>
           <Link to="/acervo/nova" search={origin.kind === "CSV" ? { modo: "csv" } : {}}>
@@ -555,7 +554,7 @@ function AddOriginPanel({ available, onClose }: { available: OriginAvailable[]; 
       footer={
         <div className="flex items-center justify-between gap-2">
           <span className="text-xs text-(--color-muted)">
-            A origem é uma definição do pacote; adicionar só a ativa nesta instalação.
+            A origem já vem pronta com o sistema; adicioná-la aqui só a ativa nesta instalação.
           </span>
           <Button size="sm" variant="ghost" onClick={onClose}>
             Fechar
@@ -568,7 +567,7 @@ function AddOriginPanel({ available, onClose }: { available: OriginAvailable[]; 
           <div>
             <h2 className="text-base font-semibold">Adicionar origem</h2>
             <p className="mt-0.5 text-xs text-(--color-muted)">
-              Escolha uma definição que o pacote traz e ainda não está configurada. Adicionar a ativa.
+              Escolha uma origem que ainda não está configurada.
             </p>
           </div>
           <SidePanelClose onClose={onClose} />
@@ -579,7 +578,7 @@ function AddOriginPanel({ available, onClose }: { available: OriginAvailable[]; 
         {available.length === 0 ? (
           <EmptyState
             title="Todas as origens já estão configuradas"
-            hint="O pacote não tem outra definição de leitura para adicionar."
+            hint="Não há outra origem de leitura para adicionar."
           />
         ) : (
           available.map((item) => (

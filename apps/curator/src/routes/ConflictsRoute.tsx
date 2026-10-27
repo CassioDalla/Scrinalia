@@ -47,28 +47,28 @@ export type ConflictsSearch = {
 export type ConflictView = "pendentes" | "decididos" | "resolucoes";
 
 const VIEWS: { key: ConflictView; label: string; hint: string }[] = [
-  { key: "pendentes", label: "Pendentes", hint: "O que a varredura ao vivo encontra" },
-  { key: "decididos", label: "Decididos pelo juiz", hint: "O que ele já julgou" },
-  { key: "resolucoes", label: "Resoluções", hint: "O que foi escrito, e o desfazer" },
+  { key: "pendentes", label: "Pendentes", hint: "As colisões que o acervo tem hoje" },
+  { key: "decididos", label: "Decididos pelo juiz", hint: "As colisões que o juiz já julgou" },
+  { key: "resolucoes", label: "Resoluções", hint: "As decisões registradas, com o desfazer" },
 ];
 
 const PAIR_KINDS: { key: ConflictPairKindFilter; label: string; hint: string }[] = [
   {
     key: "near_duplicate",
     label: "grafias diferentes",
-    hint: "A mesma palavra escrita de duas formas — quase sempre abreviação de logradouro. É a pergunta de grafia.",
+    hint: "A mesma palavra escrita de duas formas — quase sempre abreviação de logradouro.",
   },
   {
     key: "exact_name",
     label: "nomes idênticos",
-    hint: "A mesma grafia nos dois eixos. É uma pergunta estrutural, e é a população que um lote consegue decidir.",
+    hint: "A mesma grafia no assunto e no nome próprio: a decisão é onde ela fica.",
   },
-  { key: "all", label: "todos", hint: "Nenhum filtro: as duas populações juntas." },
+  { key: "all", label: "todos", hint: "Sem filtro: as duas listas juntas." },
 ];
 
 /** The categories of named entity, as the filter and the batch name them: "a street is an entity". */
 const ENTITY_KINDS: { key: EntityType | "all"; label: string; hint: string }[] = [
-  { key: "all", label: "todas as categorias", hint: "Nenhum filtro de categoria: a população inteira." },
+  { key: "all", label: "todas as categorias", hint: "Sem filtro de categoria: entram as três." },
   { key: "LOC", label: labelOf(ENTITY_TYPE_LABEL, "LOC"), hint: labelOf(ENTITY_TYPE_HINT, "LOC") },
   { key: "PER", label: labelOf(ENTITY_TYPE_LABEL, "PER"), hint: labelOf(ENTITY_TYPE_HINT, "PER") },
   { key: "ORG", label: labelOf(ENTITY_TYPE_LABEL, "ORG"), hint: labelOf(ENTITY_TYPE_HINT, "ORG") },
@@ -248,11 +248,11 @@ export function ConflictsRoute() {
         pending={view === "pendentes" ? conflicts.isPending : view === "decididos" ? judged.isPending : ledger.isPending}
         status={
           view === "pendentes" && conflicts.data
-            ? `${formatCount(conflicts.data.total)} colisões acima de ${threshold.toFixed(2)} de similaridade de trigrama`
+            ? `${formatCount(conflicts.data.total)} colisões com similaridade acima de ${threshold.toFixed(2)}`
             : view === "decididos" && judged.data
               ? `${formatCount(judged.data.total)} pares julgados · ${formatCount(judged.data.still_applicable)} ainda decidíveis`
               : view === "resolucoes" && ledger.data
-                ? `${formatCount(ledger.data.total)} resoluções no ledger`
+                ? `${formatCount(ledger.data.total)} resoluções registradas`
                 : undefined
         }
       />
@@ -276,16 +276,16 @@ export function ConflictsRoute() {
             <div className="grid gap-1">
               <span className="text-sm font-semibold">Onde cada veredito é gravado</span>
               <span className="text-xs text-(--color-muted)">
-                tag vence: {CONFLICT_WINNER_HINT.TAG} · entidade vence: {CONFLICT_WINNER_HINT.ENTITY}
+                assunto vence: {CONFLICT_WINNER_HINT.TAG} · entidade vence: {CONFLICT_WINNER_HINT.ENTITY}
               </span>
             </div>
           }
         >
           <p className="text-xs text-(--color-accent)">
-            A decisão é guardada em <strong>dois lugares diferentes</strong>, de propósito: não são o
-            mesmo mecanismo — e um veto de entidade não pode fazer a purga de assunto excluir uma tag que
-            você manteve. Toda resolução agora deixa também uma linha no ledger, com o que foi
-            transferido e qual bloqueio foi plantado, e é isso que torna o desfazer exato.
+            A decisão é guardada em <strong>dois lugares diferentes</strong>, de propósito: se as duas
+            ficassem juntas, um veto de nome próprio faria a purga do assunto excluir uma tag que você
+            manteve. Toda resolução deixa também um registro no histórico, com o que foi transferido e
+            qual bloqueio foi criado — é isso que torna o desfazer exato.
           </p>
         </Disclosure>
 
@@ -293,12 +293,11 @@ export function ConflictsRoute() {
           <>
             <div className="flex flex-wrap items-end justify-between gap-3">
               <Field
-                label="Limiar de similaridade"
+                label="Limiar de Similaridade"
                 info={
                   <Hint label="O que é o limiar de similaridade" align="start">
-                    A similaridade de trigrama mede o quanto duas grafias se parecem, de 0 a 1. Quanto
-                    mais alto o limiar, menos pares entram: só os mais parecidos. O menor valor aceito é
-                    0,5.
+                    Mede o quanto duas grafias se parecem, de 0 a 1 — o menor valor aceito é 0,5.
+                    Quanto mais alto o limiar, menos pares entram: só os mais parecidos.
                   </Hint>
                 }
               >
@@ -376,13 +375,13 @@ export function ConflictsRoute() {
                     </Badge>
                   </div>
                   <p className="text-xs text-(--color-muted)">
-                    Uma decisão vale para a seleção inteira e escreve uma linha no ledger por par, então
-                    cada par continua com o seu próprio desfazer. Até {formatCount(CONFLICTS_BATCH_LIMIT)}{" "}
+                    Uma decisão vale para a seleção inteira e registra cada par no histórico, então cada
+                    par continua com o seu próprio desfazer. Até {formatCount(CONFLICTS_BATCH_LIMIT)}{" "}
                     pares por clique; o que sobrar continua nesta seleção.
                   </p>
                   {batchOpen ? (
                     <div className="grid gap-2">
-                      <Field label="Nota da decisão">
+                      <Field label="Nota da Decisão">
                         <Input value={batchNote} onChange={(event) => setBatchNote(event.target.value)} />
                       </Field>
                       <div className="flex flex-wrap gap-2">
@@ -392,7 +391,7 @@ export function ConflictsRoute() {
                           title={CONFLICT_WINNER_HINT.TAG}
                           onClick={() => resolveBatch.mutate("TAG")}
                         >
-                          {ACTION.apply.label}: lote {CONFLICT_WINNER_LABEL.TAG} vence
+                          {ACTION.apply.label} ao lote: {CONFLICT_WINNER_LABEL.TAG} vence
                         </Button>
                         <Button
                           variant="primary"
@@ -400,7 +399,7 @@ export function ConflictsRoute() {
                           title={CONFLICT_WINNER_HINT.ENTITY}
                           onClick={() => resolveBatch.mutate("ENTITY")}
                         >
-                          {ACTION.apply.label}: lote {CONFLICT_WINNER_LABEL.ENTITY} vence
+                          {ACTION.apply.label} ao lote: {CONFLICT_WINNER_LABEL.ENTITY} vence
                         </Button>
                         <Button
                           variant="ghost"
@@ -415,7 +414,7 @@ export function ConflictsRoute() {
                     <div className="flex flex-wrap gap-2">
                       <Button
                         variant="secondary"
-                        title="Mostra a seleção e só então escreve: um veredito para todos estes pares."
+                        title="Mostra a seleção e só então grava: um veredito para todos estes pares."
                         onClick={() => setBatchOpen(true)}
                       >
                         Decidir em lote
@@ -435,7 +434,7 @@ export function ConflictsRoute() {
         ) : null}
         {batchResult ? <BatchReport result={batchResult} /> : null}
         {active.error ? <ErrorState error={active.error} /> : null}
-        {active.isPending ? <Spinner label="Lendo a colisão…" /> : null}
+        {active.isPending ? <Spinner label="Lendo as colisões…" /> : null}
         {resolve.error ? <ErrorState error={resolve.error} /> : null}
         {resolveBatch.error ? <ErrorState error={resolveBatch.error} /> : null}
         {undo.error ? <ErrorState error={undo.error} /> : null}
@@ -456,8 +455,8 @@ export function ConflictsRoute() {
           <>
             {conflicts.data && (conflicts.data.items ?? []).length === 0 && !preview ? (
               <EmptyState
-                title="Nenhuma colisão nesta população"
-                hint="Nenhuma tag e nenhum nome próprio se parecem o bastante neste limiar. Baixar o limiar mostra pares mais frouxos — e mais falsos positivos."
+                title="Nenhuma colisão com este filtro"
+                hint="Nenhuma tag e nenhum nome próprio se parecem o bastante com estes filtros. Um limiar menor mostra pares mais frouxos — e mais falsos positivos."
               />
             ) : null}
             <ul className="grid gap-2">
@@ -498,7 +497,7 @@ export function ConflictsRoute() {
                           title="Mostra o que cada veredito transfere, exclui e bloqueia. Nada é escrito."
                           onClick={() => ask.mutate({ tag_id: row.tag_id, entity_id: row.entity_id })}
                         >
-                          ver o impacto antes de decidir
+                          Conferir impacto
                         </Button>
                       </div>
                     </CardBody>
@@ -512,7 +511,7 @@ export function ConflictsRoute() {
         {view === "decididos" && judged.data && (judged.data.items ?? []).length === 0 ? (
           <EmptyState
             title="O juiz ainda não julgou nada"
-            hint="O worker conflict-judge é quem escreve aqui. Uma fila vazia quer dizer que ele não rodou, não que não há colisão — a aba Pendentes é a que mostra o que existe hoje."
+            hint="Nenhum veredito do juiz foi registrado ainda. Isso não quer dizer que não existam colisões: a aba Pendentes mostra o que existe hoje."
           />
         ) : null}
 
@@ -546,10 +545,10 @@ export function ConflictsRoute() {
                       </div>
                       {item.judge_reason ? <p className="text-xs text-(--color-muted)">{item.judge_reason}</p> : null}
                       <p className="text-xs text-(--color-muted)">
-                        {item.tag_alive ? "tag viva" : "tag já removida"} ·{" "}
-                        {item.entity_alive ? "entidade viva" : "entidade já removida"} — a linha do juiz
-                        sobrevive ao vocabulário que ela nomeia, e é por isso que ela é lida aqui e não na
-                        varredura.
+                        {item.tag_alive ? "tag existente" : "tag já removida"} ·{" "}
+                        {item.entity_alive ? "entidade existente" : "entidade já removida"} — o julgamento
+                        continua registrado mesmo que a tag ou a entidade sejam removidas, e é por isso que
+                        ele aparece aqui e não na aba Pendentes.
                       </p>
                     </CardBody>
                   </Card>
@@ -561,8 +560,8 @@ export function ConflictsRoute() {
 
         {view === "resolucoes" && ledger.data && (ledger.data.items ?? []).length === 0 ? (
           <EmptyState
-            title="Nenhuma resolução escrita"
-            hint="Toda decisão — do juiz ou da curadoria — deixa uma linha aqui, com o que foi transferido e qual bloqueio foi plantado. É essa linha que torna o desfazer exato."
+            title="Nenhuma resolução registrada"
+            hint="Toda decisão — do juiz ou da curadoria — deixa um registro aqui, com o que foi transferido e qual bloqueio foi criado. É esse registro que torna o desfazer exato."
           />
         ) : null}
 
@@ -591,7 +590,7 @@ export function ConflictsRoute() {
                         <>
                           {" "}
                           · bloqueio <code>{entry.ban_kind}</code> em <code>{entry.ban_term}</code>
-                          {entry.ban_created ? " (plantado por esta resolução)" : " (já existia)"}
+                          {entry.ban_created ? " (criado por esta resolução)" : " (já existia)"}
                         </>
                       ) : null}
                       {entry.decided_by ? ` · por ${entry.decided_by}` : ""}
@@ -605,8 +604,8 @@ export function ConflictsRoute() {
                         disabled={entry.is_undone || undo.isPending}
                         title={
                           entry.is_undone
-                            ? "Esta resolução já foi desfeita; o ledger guarda a história."
-                            : "Devolve a linha removida, os vínculos e o bloqueio que esta resolução plantou."
+                            ? "Esta resolução já foi desfeita; o histórico mantém o registro."
+                            : "Devolve a tag ou a entidade removida, os vínculos e o bloqueio que esta decisão criou."
                         }
                         onClick={() => undo.mutate(entry.resolution_id)}
                       >
@@ -615,7 +614,7 @@ export function ConflictsRoute() {
                       {entry.is_undone ? (
                         <span className="text-xs text-(--color-muted)">
                           desfeita{entry.undone_by ? ` por ${entry.undone_by}` : ""}
-                          {entry.loser_restored ? " · linha restaurada" : " · linha não restaurada"}
+                          {entry.loser_restored ? " · registro restaurado" : " · registro não restaurado"}
                         </span>
                       ) : null}
                     </div>
@@ -652,9 +651,9 @@ export function ConflictsRoute() {
 
         <p className="text-xs text-(--color-muted)">
           O juiz de conflitos resolve sozinho os casos acima do limiar dele e manda para revisão só os
-          duvidosos — é <em>essa</em> fila que a tela inicial conta. A aba <em>decididos</em> é a única
-          que mostra as auto-resoluções: elas excluíram a linha perdedora, então não existem mais na
-          varredura ao vivo.
+          duvidosos — é <em>essa</em> revisão pendente que a tela inicial conta. A aba <em>decididos</em> é
+          a única que mostra as auto-resoluções: elas excluíram o registro perdedor, então não aparecem
+          mais na aba Pendentes.
         </p>
       </PageBody>
     </>
@@ -703,8 +702,8 @@ function BatchReport({ result }: { result: ConflictBatchResult }) {
           </ul>
         ) : null}
         <p className="text-xs text-(--color-muted)">
-          Cada par resolvido tem a sua própria linha no ledger: a aba <em>Resoluções</em> desfaz um de
-          cada vez, mesmo quando a decisão foi tomada para a categoria inteira.
+          Cada par resolvido tem o seu próprio registro no histórico: a aba <em>Resoluções</em> desfaz um
+          de cada vez, mesmo quando a decisão foi tomada para a categoria inteira.
         </p>
       </CardBody>
     </Card>
@@ -747,7 +746,7 @@ function PreviewPanel({
 
         {plan.already_resolved ? (
           <Notice tone="warn">
-            Este par já tem uma resolução em vigor no ledger. Decidir de novo escreve uma segunda
+            Este par já tem uma resolução registrada no histórico. Decidir de novo grava uma segunda
             resolução — o desfazer de cada uma é independente.
           </Notice>
         ) : null}
@@ -792,7 +791,7 @@ function PreviewPanel({
         )}
 
         <div className="grid gap-2 sm:grid-cols-2">
-          <Field label="Nota da decisão">
+          <Field label="Nota da Decisão">
             <Input value={note} onChange={(event) => onNote(event.target.value)} />
           </Field>
         </div>
@@ -804,7 +803,7 @@ function PreviewPanel({
             title={CONFLICT_WINNER_HINT.TAG}
             onClick={() => onConfirm("TAG")}
           >
-            {ACTION.apply.label}: {CONFLICT_WINNER_LABEL.TAG} vence
+            {ACTION.apply.label} a decisão: {CONFLICT_WINNER_LABEL.TAG} vence
           </Button>
           <Button
             variant="primary"
@@ -812,7 +811,7 @@ function PreviewPanel({
             title={CONFLICT_WINNER_HINT.ENTITY}
             onClick={() => onConfirm("ENTITY")}
           >
-            {ACTION.apply.label}: {CONFLICT_WINNER_LABEL.ENTITY} vence
+            {ACTION.apply.label} a decisão: {CONFLICT_WINNER_LABEL.ENTITY} vence
           </Button>
           <Button variant="ghost" disabled={pending} onClick={onCancel}>
             {ACTION.cancel.label}
@@ -859,7 +858,7 @@ function VerdictCard({
       {banTerm ? (
         <p className="text-(--color-muted)">
           bloqueio <code>{banKind}</code> em <code>{banTerm}</code>
-          {banExists ? " — já existe, não é reescrito" : " — será plantado por esta decisão"}
+          {banExists ? " — já existe, não é reescrito" : " — será criado por esta decisão"}
         </p>
       ) : null}
       <p className="text-(--color-muted)">{hint}</p>

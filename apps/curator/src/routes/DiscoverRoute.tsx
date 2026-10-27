@@ -76,8 +76,8 @@ export function DiscoverRoute() {
           <CardHeader className="text-sm font-semibold">Agrupar por tema</CardHeader>
           <CardBody className="grid gap-2">
             <p className="text-xs text-(--color-muted)">
-              Roda o motor de agrupamento de verdade: leva alguns segundos e é um clique deliberado. Os
-              agrupamentos abaixo são só <strong>propostas</strong> — nada entra no vocabulário sem aprovação.
+              O agrupamento roda quando você pede e leva alguns segundos. Os agrupamentos abaixo são só{" "}
+              <strong>propostas</strong> — nada entra no vocabulário sem a sua aprovação.
             </p>
             <div className="flex flex-wrap items-center gap-2">
               <Button
@@ -110,9 +110,7 @@ export function DiscoverRoute() {
             */}
             {sourceType === "documents" ? (
               <div className="grid gap-1">
-                <span className="text-xs text-(--color-muted)">
-                  O clustering lê o texto destas colunas. Desmarcar todas não é uma escolha válida.
-                </span>
+                <span className="text-xs text-(--color-muted)">O agrupamento lê o texto destes campos.</span>
                 {catalogue.isError ? <ErrorState error={catalogue.error} /> : null}
                 {catalogue.data ? (
                   <div className="flex flex-wrap items-center gap-3">
@@ -128,7 +126,7 @@ export function DiscoverRoute() {
                   </div>
                 ) : null}
                 {noColumnChosen ? (
-                  <span className="text-xs text-(--color-danger)">Escolha ao menos uma coluna.</span>
+                  <span className="text-xs text-(--color-danger)">Escolha ao menos um campo.</span>
                 ) : null}
               </div>
             ) : null}
@@ -146,8 +144,8 @@ export function DiscoverRoute() {
 
             {suggestions.length === 0 && !routeMessage(suggest.data) ? (
               <EmptyState
-                title="Nenhum agrupamento novo"
-                hint="O agrupamento não encontrou tema que já não esteja coberto pelas categorias atuais."
+                title="Nenhuma proposta nova"
+                hint="O agrupamento não encontrou tema novo, ou as propostas já foram descartadas."
               />
             ) : null}
           </>
@@ -186,7 +184,7 @@ function SuggestionCard({
       asked yet; the samples that justify the name are one click away, next to the button.
     */
     <Disclosure
-      toggleLabel="Ver as amostras do Agrupamento"
+      toggleLabel="Ver as amostras do agrupamento"
       header={
         <div className="flex flex-wrap items-center gap-2">
           <Badge tone="accent">{formatCount(category.estimate_count)} estimativas</Badge>
@@ -202,7 +200,7 @@ function SuggestionCard({
             disabled={name.trim().length === 0 || create.isPending || create.isSuccess}
             onClick={() => create.mutate()}
           >
-            {create.isSuccess ? "criada" : create.isPending ? ACTION.create.pending : `${ACTION.create.label} categoria`}
+            {create.isSuccess ? "Criada" : create.isPending ? ACTION.create.pending : `${ACTION.create.label} categoria`}
           </Button>
           <Button size="sm" variant="ghost" onClick={onDismiss}>
             {ACTION.discard.label}
@@ -226,7 +224,7 @@ function SuggestionCard({
         ) : null}
 
         <p className="text-xs text-(--color-muted)">
-          A Categoria só passa a valer quando o classificador rodar de novo.
+          A categoria só é usada quando a classificação rodar de novo.
         </p>
 
         {create.error ? <ErrorState error={create.error} /> : null}

@@ -279,8 +279,8 @@ export function CsvImportPanel() {
               <Notice tone={submit.data.data.accepted > 0 ? "ok" : "warn"} as="div" className="grid gap-2">
                 <p className="font-medium">{routeMessage(submit.data)}</p>
                 <p>
-                  O dossiê só encontra o registro depois que a transferência rodar; até lá, ele está no
-                  staging e a fila de IA ainda não o viu.
+                  O dossiê só encontra o registro depois que a transferência rodar; até lá, ele ainda
+                  não aparece no acervo e a revisão por IA não começou.
                 </p>
                 <div className="overflow-x-auto rounded-md ring-1 ring-(--color-line)">
                   <table className="w-full text-left text-xs">

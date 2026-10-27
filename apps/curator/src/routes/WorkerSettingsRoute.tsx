@@ -77,7 +77,7 @@ function WorkerSettingsCard({ worker }: { worker: WorkerSettingsItem }) {
       onOpenChange={(next) => {
         if (!next) setFeedback(null);
       }}
-      toggleLabel="Configurar este worker"
+      toggleLabel="Configurar"
       header={<SettingsHeader worker={worker} />}
     >
       <div className="grid gap-3">
@@ -182,20 +182,20 @@ function SettingsForm({ worker, onDone }: { worker: WorkerSettingsItem; onDone: 
     mutationFn: () => clearWorkerSettings(worker.name),
     onSuccess: () => {
       invalidate();
-      onDone("Padrão removido; o worker voltou a seguir o código.");
+      onDone("Padrão removido; volta a valer a configuração original.");
     },
   });
 
   return (
     <div className="grid gap-3">
       <p className="text-xs text-(--color-muted)">
-        O padrão vale para toda execução deste worker, pela linha de comando ou pelo painel, até ser removido.
-        Deixar um campo vazio mantém o valor do código.
+        O padrão vale para toda execução deste worker até ser removido. Um campo vazio mantém o padrão
+        do código.
       </p>
 
       {settings.engine_source === "signature" ? (
         <div className="grid gap-3 sm:grid-cols-2">
-          <Field label="Engine">
+          <Field label="Motor">
             <Select
               value={engine}
               onChange={(event) => {
@@ -204,7 +204,7 @@ function SettingsForm({ worker, onDone }: { worker: WorkerSettingsItem; onDone: 
                 clearPreview();
               }}
             >
-              <option value="">(a do código)</option>
+              <option value="">(o do código)</option>
               {(settings.available_engines ?? []).map((item) => (
                 <option key={item.name} value={item.name}>
                   {item.name}
@@ -234,13 +234,13 @@ function SettingsForm({ worker, onDone }: { worker: WorkerSettingsItem; onDone: 
       ) : (
         <p className="text-xs text-(--color-muted)">
           {settings.engine_source === "llm_check_rule"
-            ? "A engine e o preset deste worker vivem na regra LLM_CHECK ativa (tela de regras de limpeza)."
-            : "Este worker não carrega modelo; só os parâmetros abaixo são configuráveis."}
+            ? "O motor e o preset vêm da regra de limpeza ativa. Para trocá-los, ajuste a regra."
+            : "Não há modelo a escolher aqui: só os ajustes abaixo podem ser definidos."}
         </p>
       )}
 
       <div className="grid gap-3 sm:grid-cols-2">
-        <Field label="Tamanho do lote (vazio = o do código)">
+        <Field label="Tamanho do Lote (vazio = o padrão do código)">
           <Input
             type="number"
             min={1}
@@ -270,13 +270,13 @@ function SettingsForm({ worker, onDone }: { worker: WorkerSettingsItem; onDone: 
 
       <div className="flex flex-wrap items-center gap-2">
         <Button variant="primary" onClick={() => save.mutate()} disabled={save.isPending}>
-          {ACTION.save.label} padrão
+          {ACTION.save.label} como padrão
         </Button>
         <Button
           variant="secondary"
           onClick={() => preview.mutate()}
           disabled={preview.isPending}
-          title="Contar a fila que esta configuração leria, sem salvar nada"
+          title="Ver quantos registros a próxima execução pegaria, sem salvar nada"
         >
           {preview.isPending ? ACTION.preview.pending : ACTION.preview.label}
         </Button>
@@ -293,7 +293,7 @@ function SettingsForm({ worker, onDone }: { worker: WorkerSettingsItem; onDone: 
       {preview.data ? (
         <p className="text-xs text-(--color-muted)">
           {preview.data.pending == null
-            ? (preview.data.pending_reason ?? "A fila deste worker não é mensurável.")
+            ? (preview.data.pending_reason ?? "Não é possível contar a fila para esta configuração.")
             : `${formatCount(preview.data.pending)} na fila com esta configuração (nada foi salvo).`}
         </p>
       ) : null}
@@ -381,7 +381,7 @@ function ScheduleForm({ worker, schedule }: { worker: WorkerSettingsItem; schedu
       setFeedback(
         saved.enabled
           ? `Agenda salva; a próxima execução é ${formatDateTime(saved.next_run_at)}.`
-          : "Agenda pausada; o worker não roda sozinho.",
+          : "Agenda pausada; nada roda sozinho.",
       );
     },
   });
@@ -392,7 +392,7 @@ function ScheduleForm({ worker, schedule }: { worker: WorkerSettingsItem; schedu
       invalidate();
       setEnabled(false);
       setCron("");
-      setFeedback("Agenda removida; o worker não roda sozinho.");
+      setFeedback("Agenda removida; nada roda sozinho.");
     },
   });
 
@@ -406,8 +406,8 @@ function ScheduleForm({ worker, schedule }: { worker: WorkerSettingsItem; schedu
       </div>
 
       <p className="text-xs text-(--color-muted)">
-        Cinco campos (minuto, hora, dia do mês, mês e dia da semana) avaliados no fuso abaixo. O request
-        fica pinado; o que ficar vazio segue as configurações persistidas.
+        Cinco campos (minuto, hora, dia do mês, mês e dia da semana), no fuso abaixo. O que você escolher
+        aqui fica fixo nesta agenda; o que ficar em branco segue a configuração salva.
       </p>
 
       <div className="grid gap-3 sm:grid-cols-3">
@@ -417,10 +417,10 @@ function ScheduleForm({ worker, schedule }: { worker: WorkerSettingsItem; schedu
             <option value="off">pausada</option>
           </Select>
         </Field>
-        <Field label="Cron">
+        <Field label="Agendamento">
           <Input value={cron} onChange={(event) => setCron(event.target.value)} placeholder="0 2 * * *" />
         </Field>
-        <Field label="Fuso (IANA)">
+        <Field label="Fuso Horário">
           <Input
             value={timezone}
             onChange={(event) => setTimezone(event.target.value)}
@@ -431,7 +431,7 @@ function ScheduleForm({ worker, schedule }: { worker: WorkerSettingsItem; schedu
 
       {settings.engine_source === "signature" ? (
         <div className="grid gap-3 sm:grid-cols-2">
-          <Field label="Engine (pinar)">
+          <Field label="Motor (fixar nesta agenda)">
             <Select
               value={engine}
               onChange={(event) => {
@@ -439,7 +439,7 @@ function ScheduleForm({ worker, schedule }: { worker: WorkerSettingsItem; schedu
                 setPreset("");
               }}
             >
-              <option value="">(a das configurações)</option>
+              <option value="">(o da configuração salva)</option>
               {(settings.available_engines ?? []).map((item) => (
                 <option key={item.name} value={item.name}>
                   {item.name}
@@ -449,7 +449,7 @@ function ScheduleForm({ worker, schedule }: { worker: WorkerSettingsItem; schedu
           </Field>
           <Field label="Preset">
             <Select value={preset} onChange={(event) => setPreset(event.target.value)}>
-              <option value="">(o das configurações)</option>
+              <option value="">(o da configuração salva)</option>
               {((settings.available_engines ?? []).find((item) => item.name === engine)?.presets ?? []).map(
                 (item) => (
                   <option key={item.name} value={item.name}>
@@ -463,14 +463,14 @@ function ScheduleForm({ worker, schedule }: { worker: WorkerSettingsItem; schedu
       ) : null}
 
       <div className="grid gap-3 sm:grid-cols-2">
-        <Field label="Lote (db_batch_size)">
+        <Field label="Tamanho do Lote">
           <Input
             value={batch}
             onChange={(event) => setBatch(event.target.value)}
-            placeholder="(o das configurações)"
+            placeholder="(o da configuração salva)"
           />
         </Field>
-        <Field label='Repasses (JSON; ex.: {"device": "cpu"})'>
+        <Field label='Ajustes do Motor (JSON; ex.: {"device": "cpu"})'>
           <Textarea
             rows={2}
             value={engineText}

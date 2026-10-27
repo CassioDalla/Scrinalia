@@ -180,7 +180,7 @@ export function EntitiesRoute() {
         pending={relevance.isPending}
         status={
           relevance.data
-            ? `${formatCount(rows.length)} nomes por relvância · ${formatCount(
+            ? `${formatCount(rows.length)} nomes por relevância · ${formatCount(
               rows.reduce((sum, row) => sum + row.total_usage, 0),
             )} vínculos entre os listados`
             : undefined
@@ -190,20 +190,20 @@ export function EntitiesRoute() {
             size="sm"
             variant="danger"
             disabled={purgeOrphans.isPending}
-            title="Exclui as entidades que nenhuma descrição carrega"
+            title="Excluir as entidades que nenhuma descrição carrega — não há como desfazer."
             onClick={() => purgeOrphans.mutate()}
           >
-            {purgeOrphans.isPending ? ACTION.exclude.pending : "Excluir Órfãs"}
+            {purgeOrphans.isPending ? ACTION.exclude.pending : "Excluir órfãs"}
           </Button>
         }
       />
 
       <PageBody>
         <Notice tone="accent">
-          <strong>Reclassificar não é renomear um rótulo.</strong> Ao corrigir o tipo, o serviço grava
-          também o sinônimo de ancoragem: o extrator passa a devolver aquela grafia com o tipo novo, em
-          toda execução futura. E <strong>mesclar tem desfazer</strong>: cada entidade absorvida entra no
-          ledger antes de a escrita acontecer, e o painel mostra o impacto antes do clique.
+          <strong>Reclassificar não é renomear um rótulo.</strong> Ao corrigir o tipo, o extrator passa
+          a reconhecer aquela grafia com o tipo novo em toda extração futura. E{" "}
+          <strong>mesclar tem desfazer</strong>: o painel mostra o impacto antes do clique, e cada
+          entidade absorvida fica registrada antes de a mesclagem acontecer.
         </Notice>
 
         {purgeOrphans.data ? (
@@ -263,7 +263,7 @@ export function EntitiesRoute() {
               ))}
               {selected.length > 0 ? (
                 <span className="text-xs text-(--color-muted)">
-                  {formatCount(selected.length)} selecionada(s) · marque ao menos duas para mesclar
+                  Marcadas: {formatCount(selected.length)} · marque ao menos duas para mesclar
                 </span>
               ) : (
                 <span className="text-xs text-(--color-muted)">
@@ -277,7 +277,7 @@ export function EntitiesRoute() {
             {relevance.data && rows.length === 0 ? (
               <EmptyState
                 title="Nenhuma entidade neste tipo"
-                hint="A extração de nomes ainda não rodou neste acervo, ou o filtro escolhido não tem nomes. O worker de NER é quem popula esta lista."
+                hint="A extração de nomes ainda não rodou neste acervo, ou o tipo escolhido não tem nomes."
               />
             ) : null}
 
@@ -423,7 +423,7 @@ function EntityRow({
               aria-label={`Selecionar ${entity.name}`}
             />
             <label className="flex items-center gap-1 text-xs text-(--color-muted)">
-              tipo
+              Tipo
               <Select
                 className="h-7 w-32 text-xs"
                 value={entity.entity_type}
@@ -453,7 +453,7 @@ function EntityRow({
                 size="sm"
                 variant="danger"
                 disabled={remove.isPending}
-                title="Nenhuma descrição carrega este nome: excluir não perde vínculo"
+                title="Nenhuma descrição carrega este nome: excluir não perde vínculo, e não há como desfazer."
                 onClick={() => remove.mutate()}
               >
                 {ACTION.exclude.label}
@@ -483,9 +483,9 @@ function EntityRow({
                   onChange={(event) => setKeepOldSpelling(event.target.checked)}
                 />
                 <span>
-                  manter a grafia antiga como sinônimo — é o que faz uma extração futura da grafia
-                  antiga continuar resolvendo para esta entidade. Desmarque quando a grafia antiga for
-                  um erro de digitação.
+                  Manter a grafia antiga como sinônimo — é o que faz a grafia antiga continuar levando a
+                  esta entidade nas próximas extrações. Desmarque quando a grafia antiga for um erro de
+                  digitação.
                 </span>
               </label>
 
@@ -498,15 +498,15 @@ function EntityRow({
                 >
                   {rename.isPending ? ACTION.save.pending : ACTION.save.label}
                 </Button>
-                {dirty ? <span className="text-xs text-(--color-muted)">alteração não salva</span> : null}
+                {dirty ? <span className="text-xs text-(--color-muted)">alterações não salvas</span> : null}
               </div>
 
               {rename.data ? (
                 <p className="text-xs text-(--color-muted)">
                   {routeMessage(rename.data)}{" "}
                   {rename.data.kept_old_spelling
-                    ? `A grafia antiga continua resolvendo para esta entidade, e o desfazer é a linha ${rename.data.merge_id} do ledger.`
-                    : `A grafia antiga não foi mantida, e o desfazer é a linha ${rename.data.merge_id} do ledger.`}
+                    ? "A grafia antiga continua levando a esta entidade. O desfazer está no histórico, no fim desta tela."
+                    : "A grafia antiga não foi mantida. O desfazer está no histórico, no fim desta tela."}
                 </p>
               ) : null}
 
@@ -521,7 +521,7 @@ function EntityRow({
               onPreview={onPreview}
               empty={{
                 title: "Nenhuma descrição carrega este nome",
-                hint: "O nome existe no vocabulário e nenhuma descrição o carrega — é a linha que a exclusão de órfãs remove. A expansão lê a mesma busca da lista, então o número aqui é o mesmo do cartão.",
+                hint: "O nome existe no vocabulário e nenhuma descrição o carrega — é a linha que a exclusão de órfãs remove.",
               }}
             />
           )}
@@ -631,13 +631,13 @@ function MergeCard({ onMerged }: { onMerged: () => void }) {
 
         {members.length < 2 ? (
           <p className="text-xs text-(--color-muted)">
-            Um merge precisa de duas grafias, e abaixo disso nada é escrito.
+            Uma mesclagem precisa de duas grafias — com menos do que isso, nada é mesclado.
           </p>
         ) : (
           <MergePanel
             members={members}
             title="Mesclar os nomes escolhidos"
-            hint="A canônica é escolha sua. O desfazer de cada entidade absorvida fica no ledger, no fim desta tela."
+            hint="A canônica é escolha sua. O desfazer de cada entidade absorvida fica no histórico, no fim desta tela."
             onChanged={onMerged}
             onDone={() => {
               clear();
@@ -735,7 +735,7 @@ function MergePanel({
           ))}
         </div>
 
-        <Field label="Renomear a canônica (opcional; o nome antigo vira sinônimo)">
+        <Field label="Renomear a Canônica (opcional; o nome antigo vira sinônimo)">
           <Input
             value={newName}
             onChange={(event) => setNewName(event.target.value)}
@@ -751,7 +751,7 @@ function MergePanel({
           <p className="text-xs text-(--color-muted)">
             {formatCount(preview.data.documents_updated)} descrição(ões) passam a carregar{" "}
             <strong>{nameOf(canonicalId)}</strong> · {formatCount(preview.data.links_rewritten)} vínculo(s)
-            reescrito(s) · {formatCount(preview.data.entities_deleted?.length ?? 0)} entidade(s) absorvida(s).
+            movido(s) · {formatCount(preview.data.entities_deleted?.length ?? 0)} entidade(s) absorvida(s).
           </p>
         ) : null}
         {preview.data && (preview.data.review_flags ?? []).length > 0 ? (
@@ -768,9 +768,9 @@ function MergePanel({
 
         <Notice tone="warn">
           As <strong>{formatCount(absorbed.length)}</strong> entidades absorvidas deixam de existir e
-          seus vínculos passam para <strong>{nameOf(canonicalId)}</strong>. As grafias viram sinônimos
-          (o extrator continua reconhecendo-as) e cada absorvida entra no ledger{" "}
-          <strong>antes</strong> da escrita — o desfazer restaura a linha, os vínculos e as grafias.
+          seus vínculos passam para <strong>{nameOf(canonicalId)}</strong>. As grafias viram sinônimos,
+          e o extrator continua reconhecendo-as. A mesclagem é registrada{" "}
+          <strong>antes</strong> de acontecer — o desfazer restaura a linha, os vínculos e as grafias.
         </Notice>
 
         <div className="flex items-center gap-2">
@@ -790,8 +790,8 @@ function MergePanel({
           <div className="grid gap-1 text-xs text-(--color-muted)">
             <p>
               {formatCount(merge.data.documents_updated)} vínculo(s) movido(s) ·{" "}
-              {formatCount(merge.data.entities_deleted)} entidade(s) absorvida(s) · ledger{" "}
-              <code>{(merge.data.merge_ids ?? []).join(", ") || "—"}</code>.
+              {formatCount(merge.data.entities_deleted)} entidade(s) absorvida(s) · registros{" "}
+              <code>{(merge.data.merge_ids ?? []).join(", ") || "—"}</code> no histórico.
             </p>
             {(merge.data.merge_ids ?? []).length > 0 ? (
               <div className="flex items-center gap-2">
@@ -802,9 +802,9 @@ function MergePanel({
                   title="Restaura cada entidade absorvida, seus vínculos e as grafias."
                   onClick={() => undo.mutate(merge.data.merge_ids ?? [])}
                 >
-                  {undo.isPending ? "desfazendo…" : "Desfazer este merge"}
+                  {undo.isPending ? "Desfazendo…" : "Desfazer esta mesclagem"}
                 </Button>
-                <span>O desfazer também está no ledger abaixo.</span>
+                <span>O desfazer também está no histórico abaixo.</span>
               </div>
             ) : null}
           </div>
@@ -838,11 +838,11 @@ function EntityMergeLedger({ onChanged }: { onChanged: () => void }) {
 
   return (
     <Card>
-      <CardHeader className="text-sm font-semibold">Ledger dos nomes: merges e renomeações</CardHeader>
+      <CardHeader className="text-sm font-semibold">Histórico dos nomes: mesclagens e renomeações</CardHeader>
       <CardBody className="grid gap-2">
         <p className="text-xs text-(--color-muted)">
-          Aqui só entram escritas <strong>aplicadas</strong>. Cada linha guarda o estado anterior — no
-          merge, a entidade, seus vínculos, suas grafias e o nome que a canônica perdeu; na
+          Aqui só entram decisões já concluídas. Cada linha guarda o <strong>estado anterior</strong> —
+          na mesclagem, a entidade, seus vínculos, suas grafias e o nome que a canônica perdeu; na
           renomeação, o nome antigo e se ele ficou como sinônimo — e o desfazer restaura tudo.
         </p>
         <Input
@@ -854,7 +854,7 @@ function EntityMergeLedger({ onChanged }: { onChanged: () => void }) {
             setLimit(ENTITY_MERGE_LOG_PAGE_SIZE);
           }}
         />
-        {log.isPending ? <Spinner label="Lendo o ledger…" /> : null}
+        {log.isPending ? <Spinner label="Lendo o histórico…" /> : null}
         {log.error ? <ErrorState error={log.error} /> : null}
         {log.data && (log.data.items ?? []).length === 0 ? (
           <EmptyState
@@ -862,7 +862,7 @@ function EntityMergeLedger({ onChanged }: { onChanged: () => void }) {
             hint={
               term.trim()
                 ? "A busca cobre as duas grafias de cada linha: a absorvida (ou a antiga) e a canônica."
-                : "O ledger registra cada entidade absorvida por um merge e cada nome renomeado, com o antes."
+                : "O histórico registra cada entidade absorvida numa mesclagem e cada nome renomeado, com o estado anterior."
             }
           />
         ) : null}
@@ -900,12 +900,12 @@ function EntityMergeLedger({ onChanged }: { onChanged: () => void }) {
                   disabled={undo.isPending}
                   title={
                     entry.is_rename
-                      ? "Devolve o nome anterior e desfaz o sinônimo que a renomeação plantou."
+                      ? "Devolve o nome anterior e desfaz o sinônimo que a renomeação criou."
                       : "Restaura a entidade, seus vínculos, suas grafias e o nome da canônica."
                   }
                   onClick={() => undo.mutate(entry.merge_id)}
                 >
-                  desfazer
+                  Desfazer
                 </Button>
               )}
             </li>
@@ -915,7 +915,7 @@ function EntityMergeLedger({ onChanged }: { onChanged: () => void }) {
         {log.data && log.data.total > (log.data.items ?? []).length ? (
           <div className="flex items-center gap-2">
             <Button size="sm" variant="ghost" onClick={() => setLimit((current) => current + ENTITY_MERGE_LOG_PAGE_SIZE)}>
-              ver mais
+              Ver mais
             </Button>
             <span className="text-xs text-(--color-muted)">
               {formatCount((log.data.items ?? []).length)} de {formatCount(log.data.total)}
@@ -986,7 +986,7 @@ function SimilarityTab({ onMerged }: { onMerged: () => void }) {
   return (
     <div className="grid gap-3">
       <div className="flex flex-wrap items-end gap-3">
-        <Field label="Nome-alvo (vazio = todos os pares parecidos)">
+        <Field label="Nome-Alvo (vazio: todos os pares parecidos)">
           <Input
             value={target}
             onChange={(event) => setTarget(event.target.value)}
@@ -1008,10 +1008,10 @@ function SimilarityTab({ onMerged }: { onMerged: () => void }) {
       </div>
 
       <p className="text-xs text-(--color-muted)">
-        O par é evidência, não decisão: similaridade de trigrama alta também acontece entre nomes
-        diferentes. A canônica é escolha sua, e mesclar aqui é a mesma operação da aba de relevância —
-        o ledger guarda cada absorvida e o desfazer restaura. Para mesclar mais de um par de uma vez,
-        marque as linhas e use a barra que aparece embaixo.
+        O par é evidência, não decisão: nomes parecidos na grafia também podem ser nomes diferentes. A
+        canônica é escolha sua, e mesclar aqui é a mesma operação da aba Relevância — o histórico guarda
+        cada absorvida e o desfazer restaura. Para mesclar mais de um par de uma vez, marque as linhas e
+        use a barra que aparece embaixo.
       </p>
 
       {pull.error ? <ErrorState error={pull.error} /> : null}
@@ -1019,7 +1019,7 @@ function SimilarityTab({ onMerged }: { onMerged: () => void }) {
       {pull.data && data.length === 0 ? (
         <EmptyState
           title="Nenhum par acima do limiar"
-          hint="Com o limiar assim e nenhum par, o vocabulário pode já estar limpo — ou o alvo não existe."
+          hint="Com esse limiar e nenhum par, o vocabulário pode já estar limpo — ou o alvo não existe."
         />
       ) : null}
 
@@ -1031,7 +1031,7 @@ function SimilarityTab({ onMerged }: { onMerged: () => void }) {
         <MergePanel
           members={marked}
           title={`Mesclar ${formatCount(marked.length)} entidades marcadas`}
-          hint="Estas entidades vieram de linhas diferentes da lista: a canônica é escolhida abaixo. O ledger guarda cada absorvida e o desfazer restaura."
+          hint="Estas entidades vieram de linhas diferentes da lista: a canônica é escolhida abaixo. O histórico guarda cada absorvida e o desfazer restaura."
           onChanged={onMerged}
           onDone={afterMerge}
           onCancel={clearMarked}
@@ -1040,7 +1040,7 @@ function SimilarityTab({ onMerged }: { onMerged: () => void }) {
 
       {!showAll && all.length > data.length ? (
         <Button variant="secondary" onClick={() => setShowAll(true)}>
-          mostrar todos os {formatCount(all.length)} pares
+          Mostrar todos os {formatCount(all.length)} pares
         </Button>
       ) : null}
 
@@ -1063,8 +1063,7 @@ function SimilarityTab({ onMerged }: { onMerged: () => void }) {
                       to the one that has them instead of offering a button it cannot honour.
                     */}
                   <span className="text-xs text-(--color-muted)">
-                    vizinho de “{target}” — para mesclar, abra a lista de pares (esta resposta não traz o
-                    id do alvo)
+                    vizinho de “{target}” — para mesclar, deixe o nome-alvo vazio e use a lista de pares
                   </span>
                 </CardBody>
               </Card>
@@ -1142,7 +1141,7 @@ function SimilarityTab({ onMerged }: { onMerged: () => void }) {
               Mesclar entidades
             </Button>
             <button className="text-xs text-white/70 hover:text-white" onClick={clearMarked}>
-              limpar
+              Limpar
             </button>
           </div>
         </div>

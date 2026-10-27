@@ -122,9 +122,10 @@ export function RunsLedger({
   return (
     <>
       <p className="text-xs text-(--color-muted)">
-        {page.data ? `${formatCount(total)} execução(ões) registrada(s). ` : ""}
-        Toda execução entra aqui — pela linha de comando ou pelo painel. O registro guarda a configuração já
-        resolvida (preset e modelo), então ele continua legível depois que um preset mudar no código.
+        {page.data ? `Execuções registradas: ${formatCount(total)}. ` : ""}
+        Toda execução aparece aqui, venha do painel, da agenda ou da linha de comando. O registro
+        guarda a configuração que foi usada — modelo e preset —, então continua legível depois que a
+        configuração padrão mudar.
       </p>
 
         <FailuresPanel
@@ -145,7 +146,7 @@ export function RunsLedger({
             value={search.worker ?? ""}
             onChange={(event) => patch({ worker: event.target.value || undefined })}
           >
-            <option value="">todos os workers</option>
+            <option value="">todas as etapas</option>
             {(catalogue.data?.workers ?? []).map((worker) => (
               <option key={worker.name} value={worker.name}>
                 {worker.label}
@@ -187,7 +188,7 @@ export function RunsLedger({
                 patch({ worker: undefined, origin: undefined, status: undefined, fingerprint: undefined })
               }
             >
-              limpar filtros
+              Limpar filtros
             </Button>
           ) : null}
         </div>
@@ -195,10 +196,10 @@ export function RunsLedger({
         {search.fingerprint ? (
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-(--color-surface) px-4 py-2 ring-1 ring-(--color-line)">
             <span className="text-xs">
-              Só as execuções da causa <span className="font-mono">{search.fingerprint}</span>
+              Só as execuções desta causa <span className="font-mono">{search.fingerprint}</span>
             </span>
             <Button size="sm" variant="ghost" onClick={() => patch({ fingerprint: undefined })}>
-              ver todas
+              Ver todas
             </Button>
           </div>
         ) : null}
@@ -216,7 +217,7 @@ export function RunsLedger({
         {page.data && total === 0 ? (
           <EmptyState
             title="Nenhuma execução registrada"
-            hint="Nada rodou desde que o ledger existe. O botão 'Enfileirar execução' na tela de workers cria a primeira entrada."
+            hint="Nenhuma execução foi registrada ainda. O botão 'Enfileirar execução', no painel, cria a primeira entrada."
           />
         ) : null}
 
@@ -239,7 +240,7 @@ export function RunsLedger({
                       {run.trial ? (
                         <Badge
                           tone="accent"
-                          title="Um ensaio compara configurações e não escreve no acervo (ADR 0018)."
+                          title="Um ensaio compara configurações e não altera o acervo."
                         >
                           ensaio
                         </Badge>
@@ -291,10 +292,10 @@ export function RunsLedger({
 
                   {run.runner_id ? (
                     <p className="font-mono text-[11px] text-(--color-muted)">
-                      runner {run.runner_id}
-                      {run.heartbeat_at ? ` · sinal ${formatDateTime(run.heartbeat_at)}` : ""}
+                      executor {run.runner_id}
+                      {run.heartbeat_at ? ` · contato ${formatDateTime(run.heartbeat_at)}` : ""}
                       {run.lease_expires_at && isActiveRun(run)
-                        ? ` · lease até ${formatDateTime(run.lease_expires_at)}`
+                        ? ` · reservado até ${formatDateTime(run.lease_expires_at)}`
                         : ""}
                     </p>
                   ) : null}
@@ -320,7 +321,7 @@ export function RunsLedger({
                 disabled={offset === 0}
                 onClick={() => patch({ offset: Math.max(0, offset - RUNS_PAGE_SIZE) })}
               >
-                anteriores
+                Anteriores
               </Button>
               <Button
                 size="sm"
@@ -328,7 +329,7 @@ export function RunsLedger({
                 disabled={offset + RUNS_PAGE_SIZE >= total}
                 onClick={() => patch({ offset: offset + RUNS_PAGE_SIZE })}
               >
-                próximas
+                Próximas
               </Button>
             </div>
           </div>
@@ -387,8 +388,8 @@ function RunCancel({ run }: { run: WorkerRun }) {
         <Notice tone="warn" as="div" className="grid gap-2">
           <p>
             A execução para no fim do lote atual e o que já foi gravado fica. Se ela ainda não começou, é
-            cancelada agora. O lote em curso não é interrompido: uma passada do modelo não pode ser cortada no
-            meio.
+            cancelada agora. O lote em curso não é interrompido: a parada acontece entre um lote e o
+            próximo.
           </p>
           <div className="flex flex-wrap items-center gap-2">
             <Button size="sm" variant="danger" disabled={cancel.isPending} onClick={() => cancel.mutate()}>
@@ -449,8 +450,8 @@ function FailuresPanel({
 
         {!pending && !failed && shown.length === 0 ? (
           <p className="text-xs text-(--color-muted)">
-            Nenhuma falha na janela. As execuções que falharam e os erros inesperados da API aparecem aqui
-            agrupados pela causa, e não linha a linha.
+            Nenhuma falha nos últimos 30 dias. As execuções que falharam e os erros inesperados do
+            sistema aparecem aqui agrupados pela causa, e não um a um.
           </p>
         ) : null}
 
@@ -489,13 +490,14 @@ function FailuresPanel({
 
         {shown.length > 0 ? (
           <p className="text-xs text-(--color-muted)">
-            Clique numa causa para ver só as execuções dela. A referência de uma falha de API é o que se procura no log.
+            Clique numa causa para ver só as execuções dela. A referência de uma falha é o que identifica o
+            erro no registro do sistema.
           </p>
         ) : null}
 
         {total > shown.length ? (
           <p className="text-xs text-(--color-muted)">
-            Há mais {formatCount(total - shown.length)} causa(s) na janela; as mais recentes estão acima.
+            Há mais {formatCount(total - shown.length)} causa(s) nos últimos 30 dias; as mais recentes estão acima.
           </p>
         ) : null}
       </CardBody>

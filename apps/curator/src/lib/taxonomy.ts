@@ -38,11 +38,11 @@ export const REVIEW_FLAG_HINT: Record<string, string> = {
   MEMBER_WITH_DIGITS:
     "Algum membro tem número no nome. Pode ser a mesma coisa (br-116 / br 116) ou outra (rua / rua 7): o número não decide.",
   WEAK_MEMBER:
-    "A similaridade de algum membro com a canônica é baixa; o agrupamento pode estar juntando coisas diferentes.",
+    "A semelhança de algum membro com a canônica é baixa; o agrupamento pode estar juntando coisas diferentes.",
   CATEGORY_WOULD_BE_LOST:
     "Um dos membros está numa categoria de assunto que a canônica não tem. Mesclar exclui essa classificação.",
   MEMBER_IS_SYNONYM:
-    "Algum membro é uma grafia que já foi absorvida por um merge anterior — o agrupamento pode ser reflexo de uma decisão antiga.",
+    "Algum membro é uma grafia que já foi absorvida por uma mesclagem anterior — o agrupamento pode ser reflexo de uma decisão antiga.",
 };
 
 export const PROPOSAL_STATUS_LABEL: Record<string, string> = {
@@ -74,12 +74,12 @@ export function labelOf(labels: Record<string, string>, code: string): string {
  */
 export const STOPWORD_SCOPE_LABEL: Record<string, string> = {
   TAG: "assunto (tags)",
-  ENTITY: "entidades (NER)",
+  ENTITY: "entidades nomeadas",
   ALL: "os dois eixos",
 };
 
 export const STOPWORD_SCOPE_HINT: Record<string, string> = {
-  TAG: "O termo sai do eixo de assunto. A purga exclui as tags com esse nome e guarda cada uma no ledger, com desfazer.",
+  TAG: "O termo sai do eixo de assunto. A purga exclui as tags com esse nome e guarda cada uma no registro de purgas, com desfazer.",
   ENTITY: "O termo sai da extração de nomes próprios. Não afeta tag nenhuma.",
   ALL: "O termo sai dos dois eixos, e a purga o alcança.",
 };
@@ -98,7 +98,7 @@ export const STOPWORD_MATCH_LABEL: Record<string, string> = {
 
 export const STOPWORD_MATCH_HINT: Record<string, string> = {
   TOKEN:
-    "Bloqueia a palavra e qualquer nome que a contenha como palavra inteira — é o que pega o span fundido que o extrator devolve (IPTU do Exemplo).",
+    "Bloqueia a palavra e qualquer nome que a contenha como palavra inteira — é o que pega o nome que o extrator devolve junto com ela (IPTU do Exemplo).",
   EXACT:
     "Bloqueia só a palavra inteira. Um nome que apenas começa ou contém a palavra passa: alameda sozinho é ruído, Alameda Cabral é uma rua.",
 };
@@ -146,5 +146,5 @@ export const CATALOG_STATE_HINT: Record<string, string> = {
   NOT_SUBJECT:
     "Uma pessoa declarou que a tag não é assunto: o classificador para de adivinhar e a grafia não volta a virar tag. A tag atual fica no acervo, alcançável pela busca.",
   LOW_CONFIDENCE:
-    "O classificador rodou e não teve confiança para arquivar a tag; ela continua sem decisão. A nota dele aparece na linha.",
+    "O classificador rodou e não teve confiança suficiente para decidir; a tag continua sem decisão. A nota dele aparece na linha.",
 };

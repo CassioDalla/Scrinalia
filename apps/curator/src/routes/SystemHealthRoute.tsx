@@ -46,56 +46,58 @@ export function SystemHealthRoute() {
         {health.data ? (
           <>
             <p className="text-xs text-(--color-muted)">
-              Leitura de {formatDateTime(health.data.generated_at)}. Cada verificação tem um limite de tempo próprio,
-              então um serviço fora do ar aparece como um cartão vermelho, não como uma tela quebrada.
+              Verificado em {formatDateTime(health.data.generated_at)}. Cada verificação tem seu próprio limite de
+              tempo: um serviço fora do ar aparece como um cartão vermelho, não como uma tela quebrada.
             </p>
 
             <div className="grid gap-3 sm:grid-cols-2">
               <ProbeCard
-                title="Banco de dados"
+                title="Acervo"
                 ok={health.data.database.ok}
                 detail={health.data.database.detail}
                 lines={[
                   `${formatCount(health.data.database.documents ?? 0)} descrições`,
                   `${formatCount(health.data.database.tags ?? 0)} tags`,
                   `${formatCount(health.data.database.entities ?? 0)} entidades`,
-                  `${formatCount(health.data.database.staging_records ?? 0)} registros de staging`,
+                  `${formatCount(health.data.database.staging_records ?? 0)} registros aguardando transferência`,
                 ]}
               />
 
               <ProbeCard
-                title="Ollama (modelos)"
+                title="Modelos (Ollama)"
                 ok={health.data.ollama.ok}
                 detail={health.data.ollama.detail}
                 lines={[
-                  `host ${health.data.ollama.host} (${health.data.ollama.host_source === "default" ? "padrão local" : "OLLAMA_HOST_URL"})`,
-                  `${formatCount((health.data.ollama.installed_models ?? []).length)} modelo(s) instalado(s)`,
+                  `endereço ${health.data.ollama.host} (${health.data.ollama.host_source === "default" ? "padrão local" : "definido na configuração"})`,
+                  `modelos instalados: ${formatCount((health.data.ollama.installed_models ?? []).length)}`,
                   (health.data.ollama.required_models ?? []).length > 0
-                    ? `presets exigem: ${(health.data.ollama.required_models ?? []).join(", ")}`
-                    : "nenhum preset exige modelo",
+                    ? `modelos necessários: ${(health.data.ollama.required_models ?? []).join(", ")}`
+                    : "nenhum modelo é necessário",
                 ]}
               >
                 {(health.data.ollama.missing_models ?? []).length > 0 ? (
                   <p className="text-xs text-(--color-danger)">
-                    Faltam no servidor: {(health.data.ollama.missing_models ?? []).join(", ")}. Uma execução que use esse preset
-                    falha ao carregar o modelo.
+                    Faltam no servidor: {(health.data.ollama.missing_models ?? []).join(", ")}. Uma execução que
+                    precise de um deles falha ao carregar o modelo.
                   </p>
                 ) : null}
               </ProbeCard>
 
               <ProbeCard
-                title="Storage das miniaturas"
+                title="Armazenamento das miniaturas"
                 ok={health.data.storage.ok}
                 detail={health.data.storage.detail}
                 lines={[
                   health.data.storage.configured ? "configurado" : "não configurado",
-                  health.data.storage.endpoint ? `endpoint ${health.data.storage.endpoint}` : "sem endpoint",
-                  health.data.storage.bucket ? `bucket ${health.data.storage.bucket}` : "sem bucket",
+                  health.data.storage.endpoint ? `endereço ${health.data.storage.endpoint}` : "sem endereço",
+                  health.data.storage.bucket
+                    ? `espaço de armazenamento ${health.data.storage.bucket}`
+                    : "sem espaço de armazenamento",
                 ]}
               />
 
               <ProbeCard
-                title="Origens da ingestão"
+                title="Origens"
                 ok={health.data.ingestion.ok}
                 detail={health.data.ingestion.detail}
                 lines={[
@@ -114,18 +116,18 @@ export function SystemHealthRoute() {
               </ProbeCard>
 
               <ProbeCard
-                title="Processo da API"
+                title="Configuração em uso"
                 ok
                 detail={null}
                 lines={[
-                  `log ${health.data.process.log_level}${health.data.process.debug ? " · debug ligado" : ""} em ${health.data.process.log_dir}`,
-                  `banco ${health.data.process.database}`,
-                  `ollama ${health.data.process.ollama_host_url ?? "não configurado"}`,
-                  `s3 ${health.data.process.s3_endpoint_url ?? "não configurado"}`,
-                  `fallback de coleta no .env ${
-                    health.data.process.public_scrape_configured ? "presente" : "ausente"
+                  `registros ${health.data.process.log_level}${health.data.process.debug ? " · modo detalhado" : ""} em ${health.data.process.log_dir}`,
+                  `acervo em ${health.data.process.database}`,
+                  `modelos em ${health.data.process.ollama_host_url ?? "não configurado"}`,
+                  `armazenamento em ${health.data.process.s3_endpoint_url ?? "não configurado"}`,
+                  `endereço padrão das origens: ${
+                    health.data.process.public_scrape_configured ? "definido" : "não definido"
                   }`,
-                  `segredos presentes: ${Object.entries(health.data.process.secrets_present ?? {})
+                  `chaves e senhas configuradas: ${Object.entries(health.data.process.secrets_present ?? {})
                     .map(([name, present]) => `${name} ${present ? "sim" : "não"}`)
                     .join(" · ")}`,
                 ]}

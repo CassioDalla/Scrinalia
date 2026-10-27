@@ -118,10 +118,10 @@ export function TypologiesRoute() {
         <SectionTitle>Catálogo</SectionTitle>
 
         <Notice tone="accent">
-          O nome é o rótulo que o classificador propõe, e a descrição de contexto é{" "}
-          <strong>documentação para quem lê o catálogo</strong> — ela nunca vai para o modelo.
-          Aposentar uma tipologia a tira das opções do classificador <strong>sem</strong> desclassificar
-          nenhuma descrição: por isso o peso de cada uma continua visível.
+          O nome é o rótulo que o classificador propõe; a descrição de contexto é{" "}
+          <strong>documentação para quem lê o catálogo</strong> e não chega à classificação.
+          Aposentar uma tipologia a retira das opções do classificador <strong>sem</strong> desclassificar
+          nenhuma descrição — por isso a contagem de cada uma continua visível.
         </Notice>
 
         {catalog.error ? <ErrorState error={catalog.error} /> : null}
@@ -178,9 +178,10 @@ function RefusalQueue({
       </div>
 
       <p className="max-w-prose text-xs text-(--color-muted)">
-        O classificador olhou estas descrições e não passou do limiar. A mais próxima do limiar vem
-        primeiro; classificar aqui grava a revisão e marca a descrição como aprovada por uma pessoa.
-        Se nenhuma tipologia serve, crie ou reative uma no catálogo abaixo.
+        O classificador examinou estas descrições e não teve confiança suficiente para escolher uma
+        tipologia. As que chegaram mais perto de ser classificadas vêm primeiro. Classificar aqui salva
+        a escolha, registra a revisão e marca a descrição como aprovada por uma pessoa — o classificador
+        não a altera depois. Se nenhuma tipologia serve, crie ou reative uma no catálogo abaixo.
       </p>
 
       {error ? <ErrorState error={error} /> : null}
@@ -194,8 +195,8 @@ function RefusalQueue({
             <>
               Isso não quer dizer que o catálogo cobre o acervo: quer dizer que nenhuma descrição tem
               uma recusa aberta do classificador. Uma descrição que já recebeu tipologia sai daqui, e
-              uma que o worker nunca alcançou não entra — a recusa só é gravada quando a classificação
-              roda e fica abaixo do limiar.
+              uma que o classificador nunca examinou não entra — a recusa só é registrada quando a
+              classificação é feita e fica abaixo da confiança mínima.
             </>
           }
         />
@@ -292,9 +293,9 @@ function RefusalCard({
           </Link>
           <Badge
             tone={score === null || score === undefined ? "neutral" : "warn"}
-            title="O que o classificador pontuou antes de recusar. Abaixo do limiar, a decisão é sua."
+            title="A confiança que o classificador teve antes de recusar. Abaixo da confiança mínima, a decisão é sua."
           >
-            {score === null || score === undefined ? "sem score" : `confiança ${score.toFixed(2)}`}
+            {score === null || score === undefined ? "sem confiança registrada" : `confiança ${score.toFixed(2)}`}
           </Badge>
         </div>
 
@@ -319,7 +320,7 @@ function RefusalCard({
             disabled={file.isPending}
             onChange={(event) => setChoice(event.target.value)}
           >
-            <option value="">escolher tipologia…</option>
+            <option value="">Escolha uma tipologia…</option>
             {active.map((typology) => (
               <option key={typology.typology_id} value={typology.typology_id}>
                 {typology.name}
@@ -399,7 +400,7 @@ function TypologyCard({ typology, onChanged }: { typology: Typology; onChanged: 
           <Input value={name} onChange={(event) => setName(event.target.value)} maxLength={100} />
         </Field>
 
-        <Field label="Descrição de contexto (o que cai nesta tipologia; o arquivista lê, o modelo não)">
+        <Field label="Descrição de Contexto (o que entra nesta tipologia; só o arquivista lê)">
           <Input value={context} onChange={(event) => setContext(event.target.value)} />
         </Field>
 
@@ -447,16 +448,16 @@ function CreateTypologyCard({ onCreated }: { onCreated: () => void }) {
         <div className="grid gap-1">
           <span className="text-sm font-semibold">Criar uma tipologia</span>
           <span className="text-xs text-(--color-muted)">
-            Vale a pena quando o acervo carrega uma forma que o classificador não tem como propor —
-            e o nome é o rótulo que ele vai usar.
+            Serve quando o acervo tem uma forma documental que o classificador não propõe; o nome é o
+            rótulo que ele usa.
           </span>
         </div>
       }
     >
       <div className="grid gap-2">
         <p className="text-xs text-(--color-muted)">
-          O classificador recebe <strong>só o nome</strong>. Um nome comprido ou uma frase fazem o
-          modelo perder o vínculo com o texto e rotular tudo com a mesma tipologia, então prefira a
+          O classificador recebe <strong>só o nome</strong>. Um nome comprido ou uma frase fazem a
+          classificação perder o vínculo com o texto e rotular tudo com a mesma tipologia: prefira a
           forma diplomática curta (Ata de Reunião, Ofício, Planta) e deixe os exemplos na descrição de
           contexto.
         </p>
@@ -469,7 +470,7 @@ function CreateTypologyCard({ onCreated }: { onCreated: () => void }) {
               maxLength={100}
             />
           </Field>
-          <Field label="Descrição de contexto">
+          <Field label="Descrição de Contexto">
             <Input
               value={draft.context_description ?? ""}
               onChange={(event) => setDraft({ ...draft, context_description: event.target.value || null })}

@@ -40,7 +40,7 @@ export const REVIEW_STATUS_LABEL: Record<ArchiveReviewStatus, string> = {
   PENDING_AI: "Aguardando IA",
   AI_APPROVED: "Aprovado pela IA",
   NEEDS_REVIEW: "Precisa de revisão",
-  HUMAN_APPROVED: "Revisado por humano",
+  HUMAN_APPROVED: "Revisado por pessoa",
   REJECTED: "Rejeitado",
 };
 

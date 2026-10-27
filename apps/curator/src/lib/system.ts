@@ -89,15 +89,15 @@ export function describeConfig(config: Record<string, unknown> | undefined): str
   if (typeof config.device === "string") parts.push(config.device);
   if (typeof config.host === "string") parts.push(config.host);
   if (typeof config.batch_size === "number") parts.push(`lote ${config.batch_size}`);
-  if (typeof config.dimensions === "number") parts.push(`${config.dimensions} dims`);
-  if (Array.isArray(config.disable) && config.disable.length > 0) parts.push("sem NER/parser");
+  if (typeof config.dimensions === "number") parts.push(`${config.dimensions} dimensões`);
+  if (Array.isArray(config.disable) && config.disable.length > 0) parts.push("com etapas desligadas");
   return parts.length > 0 ? parts.join(" · ") : "sem parâmetros";
 }
 
 /** What one unit of a queue is, so "12 pendentes" is never ambiguous. */
 export const UNIT_LABEL: Record<WorkerStatus["unit"], string> = {
   origin: "origens",
-  staging: "registros de staging",
+  staging: "registros importados",
   document: "descrições",
   tag: "tags",
   pair: "pares",
@@ -136,7 +136,7 @@ export function parseOptions(text: string): { options?: Record<string, unknown>;
   try {
     const parsed: unknown = JSON.parse(trimmed);
     if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
-      return { error: "As opções precisam ser um objeto JSON, por exemplo {\"force\": true}." };
+      return { error: "Informe as opções como um objeto JSON, por exemplo {\"force\": true}." };
     }
     return { options: parsed as Record<string, unknown> };
   } catch {

@@ -103,16 +103,20 @@ export function mapCsv(parsed: ParsedCsv, spec: CsvSpec, idFactory: () => string
 
   const blocking: string[] = [];
   if (parsed.rows.length === 0) {
-    blocking.push("O arquivo não tem linhas de dados.");
+    blocking.push("O arquivo tem só o cabeçalho e nenhuma linha de dados.");
   }
   if (parsed.rows.length > spec.max_rows) {
-    blocking.push(`O arquivo tem ${parsed.rows.length} linhas; o limite é ${spec.max_rows}. Divida-o em partes.`);
+    blocking.push(`O arquivo tem ${parsed.rows.length} linhas e o limite é ${spec.max_rows}. Divida o arquivo em partes.`);
   }
   if (missingRequired.length > 0) {
-    blocking.push(`Faltam as colunas obrigatórias: ${missingRequired.join(", ")}.`);
+    blocking.push(
+      `Faltam colunas obrigatórias: ${missingRequired.join(", ")}. Baixe o modelo para conferir os nomes das colunas.`,
+    );
   }
   if (duplicateFields.length > 0) {
-    blocking.push(`Mais de uma coluna aponta para o mesmo campo: ${duplicateFields.join(", ")}.`);
+    blocking.push(
+      `Mais de uma coluna preenche o mesmo campo: ${duplicateFields.join(", ")}. Deixe só uma coluna para cada campo.`,
+    );
   }
 
   const seenIds = new Map<string, number>();
@@ -121,7 +125,7 @@ export function mapCsv(parsed: ParsedCsv, spec: CsvSpec, idFactory: () => string
   for (const row of parsed.rows) {
     if (row.cells.length !== parsed.headers.length) {
       blocking.push(
-        `A linha ${row.line} tem ${row.cells.length} colunas; o cabeçalho tem ${parsed.headers.length}.`,
+        `A linha ${row.line} tem ${row.cells.length} colunas, mas o cabeçalho tem ${parsed.headers.length}.`,
       );
       continue;
     }
@@ -138,11 +142,11 @@ export function mapCsv(parsed: ParsedCsv, spec: CsvSpec, idFactory: () => string
 
     const issues: string[] = [];
     if (descriptionId.length > 50) {
-      issues.push("O identificador tem mais de 50 caracteres.");
+      issues.push("O identificador aceita no máximo 50 caracteres.");
     }
     const firstSeen = seenIds.get(descriptionId);
     if (firstSeen !== undefined) {
-      issues.push(`O identificador repete a linha ${firstSeen}.`);
+      issues.push(`O identificador já aparece na linha ${firstSeen}. Use um identificador diferente.`);
     } else {
       seenIds.set(descriptionId, row.line);
     }
@@ -150,11 +154,11 @@ export function mapCsv(parsed: ParsedCsv, spec: CsvSpec, idFactory: () => string
       const value = values[field.label];
       if (value === undefined) continue;
       if (field.required && value.trim() === "") {
-        issues.push(`O campo '${field.label}' é obrigatório.`);
+        issues.push(`O campo '${field.label}' é obrigatório e está em branco.`);
       }
       const limit = fieldLimit(field, spec);
       if (value.length > limit) {
-        issues.push(`O campo '${field.label}' passa do limite de ${limit} caracteres.`);
+        issues.push(`O campo '${field.label}' aceita no máximo ${limit} caracteres.`);
       }
     }
 
@@ -164,7 +168,7 @@ export function mapCsv(parsed: ParsedCsv, spec: CsvSpec, idFactory: () => string
   const payloadBytes = new TextEncoder().encode(JSON.stringify(rows.map((row) => row.fields))).length;
   if (payloadBytes > spec.max_bytes) {
     blocking.push(
-      `As linhas somam ${(payloadBytes / (1024 * 1024)).toFixed(1)} MB; o limite é ${spec.max_bytes / (1024 * 1024)} MB.`,
+      `A importação tem ${(payloadBytes / (1024 * 1024)).toFixed(1)} MB e o limite é ${spec.max_bytes / (1024 * 1024)} MB. Divida o arquivo em partes.`,
     );
   }
 

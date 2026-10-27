@@ -64,7 +64,7 @@ export function SettingsRoute() {
         <div className="px-6 py-5">
           <EmptyState
             title="Nada para configurar"
-            hint="Os cartões desta página são as telas de configuração da instalação — contas, catálogos, arranjo e operação —, e o seu papel não carrega nenhuma delas. Foi por isso que a entrada não apareceu no menu."
+            hint="Os cartões desta página são as telas de configuração da instalação (contas, catálogos, arranjo e operação), e o seu papel não alcança nenhuma delas. Por isso a entrada Configurações não aparece no menu."
           />
         </div>
       ) : (

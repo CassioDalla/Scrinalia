@@ -22,16 +22,16 @@ export const RULE_KIND_TONE: Record<string, BadgeTone> = {
 
 export const RULE_KIND_HINT: Record<string, string> = {
   REWRITE:
-    "O worker substitui cada ocorrência pelo texto de substituição. É a única espécie de regra que mexe no acervo.",
+    "A regra substitui cada ocorrência pelo texto de substituição. É a única espécie de regra que mexe no acervo.",
   VALIDATE:
-    "O worker não toca no texto: quando a expressão casa, o documento ganha uma anomalia com o motivo declarado.",
+    "A regra não toca no texto: quando a expressão casa, a descrição ganha uma anomalia com o motivo declarado.",
   LLM_CHECK:
-    "Opt-in: um modelo de linguagem dá uma opinião sobre o título. Sem uma regra ativa deste tipo, nenhum engine é carregado.",
+    "Um modelo de linguagem dá uma opinião sobre o título. Sem uma regra ativa deste tipo, o modelo não é carregado.",
 };
 
 export const TARGET_COLUMN_LABEL: Record<string, string> = {
   original_title: "título original",
-  scope_content: "conteúdo/escopo",
+  scope_content: "âmbito e conteúdo",
   admin_bio_history: "história administrativa",
   provenance: "proveniência",
   archivist_notes: "notas do arquivista",
@@ -55,7 +55,7 @@ export const TEMPLATE_ACTION_LABEL: Record<string, string> = {
 };
 
 export const TEMPLATE_SCOPE_LABEL: Record<string, string> = {
-  EMBEDDING: "vetor",
+  EMBEDDING: "busca por significado",
   NER: "extração de nomes",
   TITLE: "título sugerido",
 };
@@ -68,9 +68,9 @@ export const TEMPLATE_SCOPE_LABEL: Record<string, string> = {
  * consumers it damages and kept where it helps, one scope at a time.
  */
 export const TEMPLATE_SCOPE_HINT: Record<string, string> = {
-  EMBEDDING: "O trecho sai do texto que vira vetor. Foi o maior ganho medido: 53% do acervo compartilhava o mesmo bloco.",
-  NER: "O trecho sai do texto que o extrator e o classificador leem.",
-  TITLE: "O trecho sai do título sugerido. O prefixo 'Registros Fotográficos -' ajuda aqui e prejudica o vetor — por isso os escopos são separados.",
+  EMBEDDING: "O trecho sai do texto usado na busca por significado. É onde o ganho é maior: mais da metade do acervo repetia o mesmo bloco.",
+  NER: "O trecho sai do texto que a extração de nomes e o classificador leem.",
+  TITLE: "O trecho sai do título sugerido. O prefixo 'Registros Fotográficos -' ajuda aqui e atrapalha a busca por significado — por isso os escopos são separados.",
 };
 
 export function labelOf(labels: Record<string, string>, code: string): string {
@@ -92,7 +92,7 @@ export const ANOMALY_REASON_LABEL: Record<string, string> = {
   ALL_CAPS_TITLE: "título em caixa alta",
   REPEATED_TITLE: "título repetido",
   TITLE_ONLY_TEMPLATE: "título só com trecho de origem",
-  SCOPE_ONLY_BOILERPLATE: "âmbito só com boilerplate",
+  SCOPE_ONLY_BOILERPLATE: "âmbito só com texto repetido",
   NO_TAGS: "sem assuntos",
   NO_TYPOLOGY: "sem tipologia",
   NO_ENTITIES: "sem entidades nomeadas",
@@ -102,9 +102,9 @@ export const ANOMALY_REASON_LABEL: Record<string, string> = {
 
 export const ANOMALY_REASON_HINT: Record<string, string> = {
   RULE_MATCH:
-    "Uma regra VALIDATE ou LLM_CHECK ativa casou. O nome da regra vem depois dos dois-pontos e é ele que o filtro usa.",
+    "Uma regra ativa que só sinaliza ou que consulta o modelo casou. O nome da regra vem depois dos dois-pontos e é ele que o filtro usa.",
   LLM_SUSPECT:
-    "O modelo achou o título suspeito. O texto que ele escreveu fica na ficha, não no filtro: uma faceta sobre a prosa dele seria uma cauda de opções que nunca se repetem.",
+    "O modelo achou o título suspeito. O que ele escreveu fica na ficha, não no filtro: uma faceta sobre esse texto teria opções que nunca se repetem.",
 };
 
 /**
@@ -133,7 +133,7 @@ export function anomalyReasonCode(key: string): string {
  * no reason is indistinguishable from a mistake.
  */
 export const SIGNAL_LABEL: Record<string, string> = {
-  PLACEHOLDER: "placeholder",
+  PLACEHOLDER: "texto de preenchimento",
   YEAR: "ano isolado",
   MEASURE: "número com unidade",
   STREET: "logradouro",
@@ -142,10 +142,10 @@ export const SIGNAL_LABEL: Record<string, string> = {
 };
 
 export const SIGNAL_HINT: Record<string, string> = {
-  PLACEHOLDER: "O parser de origem grava este texto quando o dado não veio; não é sobre coisa nenhuma.",
-  YEAR: "Um ano solto é uma data, não um assunto — e o modelo o classificava com 0,73 de confiança.",
+  PLACEHOLDER: "A importação grava este texto quando o dado não veio: ele não fala de assunto nenhum.",
+  YEAR: "Um ano solto é uma data, não um assunto — e o modelo chegava a classificá-lo como assunto.",
   MEASURE: "Número com unidade é medida, não conceito.",
-  STREET: "Logradouro é lugar: sai do assunto, e quem carrega o lugar é o eixo de entidades (LOC).",
-  PERSON: "Nome de pessoa é produtor ou biografado, não assunto: o eixo de entidades (PER) o carrega.",
-  RECORDED: "Não tem forma reconhecível: alguém decidiu, e a decisão é o motivo.",
+  STREET: "Logradouro é lugar: não é assunto, e o eixo de entidades carrega o lugar.",
+  PERSON: "Nome de pessoa é produtor ou biografado, não assunto: o eixo de entidades o carrega.",
+  RECORDED: "Não segue um formato reconhecível: foi uma decisão de alguém, e essa decisão é o motivo.",
 };

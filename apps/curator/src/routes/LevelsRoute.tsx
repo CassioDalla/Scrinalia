@@ -62,10 +62,10 @@ export function LevelsRoute() {
 
       <PageBody>
         <Notice tone="accent">
-          A norma é o padrão, não a lei — mas ela é a assimetria que sustenta a carga: um nível
-          desconhecido que chega da origem <strong>entra</strong> (a descrição fica sem nível e o
-          diagnóstico a lista), enquanto o arquivista <strong>não</strong> pode salvar um nível que
-          não existe. Sem isso, uma lote inteiro falharia por causa de uma grafia nova.
+          A norma é o padrão, não a lei. Um nível desconhecido que chega com a importação{" "}
+          <strong>entra</strong> — a descrição fica sem nível e o diagnóstico a lista —, enquanto o
+          arquivista <strong>não</strong> pode salvar um nível que não existe. Sem essa diferença, um
+          lote inteiro falharia por causa de uma grafia nova.
         </Notice>
 
         {levels.error ? <ErrorState error={levels.error} /> : null}
@@ -130,12 +130,12 @@ function LevelCard({ level, onChanged }: { level: DescriptionLevel; onChanged: (
       className={level.is_active ? undefined : "opacity-80"}
       header={
         <div className="flex flex-wrap items-center gap-2">
-          <Badge tone="accent" title="Posição na escada; não é editável depois de criada">
+          <Badge tone="accent" title="Posição na escada; não é editável depois de criado">
             {level.ordinal}
           </Badge>
           <span className="text-sm font-medium">{level.name}</span>
           <code className="text-xs text-(--color-muted)">{level.code}</code>
-          {level.is_active ? <Badge tone="ok">ativo</Badge> : <Badge tone="neutral">desativado</Badge>}
+          {level.is_active ? <Badge tone="ok">ativo</Badge> : <Badge tone="neutral">aposentado</Badge>}
           <Badge tone="neutral" title="Descrições classificadas neste nível">
             {descricoes(level.document_count ?? 0)}
           </Badge>
@@ -160,7 +160,7 @@ function LevelCard({ level, onChanged }: { level: DescriptionLevel; onChanged: (
           <Field label="Nome">
             <Input value={name} onChange={(event) => setName(event.target.value)} maxLength={60} />
           </Field>
-          <Field label="Grafias aceitas (separadas por vírgula)">
+          <Field label="Grafias Aceitas (separadas por vírgula)">
             <Input
               value={aliases}
               onChange={(event) => setAliases(event.target.value)}
@@ -252,16 +252,16 @@ function CreateLevelCard({ onCreated }: { onCreated: () => void }) {
         <div className="grid gap-1">
           <span className="text-sm font-semibold">Acrescentar um degrau</span>
           <span className="text-xs text-(--color-muted)">
-            Um ordinal novo e um código novo são um degrau novo; o ordinal não é editável depois.
+            Cada degrau tem um ordinal fixo: confira a escada antes de escolher o número.
           </span>
         </div>
       }
     >
       <div className="grid gap-2">
         <p className="text-xs text-(--color-muted)">
-          O ordinal é a posição na escada: um nível só pode ser filho de outro de ordinal menor. Ele
-          não é editável depois — mudá-lo renumeraria a árvore, e a árvore passada foi decidida contra
-          estes números. Um ordinal novo e um código novo são um degrau novo.
+          O ordinal é a posição na escada: um nível só pode ser filho de outro de ordinal menor, e
+          depois de criado ele não muda — renumerar mudaria a árvore que já foi arrumada com estes
+          números. Um ordinal novo e um código novo criam um degrau novo.
         </p>
         <div className="grid gap-2 sm:grid-cols-4">
           <Field label="Ordinal">
@@ -288,7 +288,7 @@ function CreateLevelCard({ onCreated }: { onCreated: () => void }) {
               maxLength={60}
             />
           </Field>
-          <Field label="Grafias aceitas">
+          <Field label="Grafias Aceitas">
             <Input value={aliases} onChange={(event) => setAliases(event.target.value)} />
           </Field>
         </div>

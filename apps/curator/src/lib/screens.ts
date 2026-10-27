@@ -184,7 +184,7 @@ export const SCREENS: Record<ScreenId, Screen> = {
     label: "Workers e execuções",
     hint: "O que roda e o que rodou",
     description:
-      "O painel do que o worker está fazendo — preset, modelo, fila, última e execução ativa — e o ledger do que já rodou, na aba ao lado.",
+      "O painel do que está rodando agora — preset, modelo, fila, última e execução ativa — e o histórico do que já rodou, na aba ao lado.",
   },
   origins: {
     path: "/sistema/ingestao",
@@ -203,9 +203,9 @@ export const SCREENS: Record<ScreenId, Screen> = {
   workerSettings: {
     path: "/configuracoes/workers",
     label: "Configuração dos Workers",
-    hint: "Engine, preset e o histórico",
+    hint: "Motor, preset e o histórico",
     description:
-      "O padrão persistido de cada worker — engine, preset, lote e opções — e quem alterou o quê, execução após execução.",
+      "O padrão salvo de cada worker — motor, preset, lote e opções — e quem alterou o quê, execução após execução.",
   },
   health: {
     path: "/sistema/diagnostico",

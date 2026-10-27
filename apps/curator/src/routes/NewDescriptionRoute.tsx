@@ -170,8 +170,8 @@ function ManualEntryForm({ canCurate }: { canCurate: boolean }) {
             </p>
           ) : null}
           <p className="text-xs">
-            O registro aparece no acervo quando a transferência rodar. Até lá ele está no staging, e o
-            dossiê ainda pode responder “não encontrado”.
+            O registro aparece no acervo quando a transferência rodar. Até lá, o dossiê ainda pode
+            responder “não encontrado”.
           </p>
           <div className="flex flex-wrap items-center gap-2">
             <Link
@@ -365,7 +365,7 @@ function ManualEntryForm({ canCurate }: { canCurate: boolean }) {
             </div>
             <Field
               label="URL da Imagem"
-              hint="Se a imagem já está publicada em outro lugar, o worker de miniatura a copia para o acervo."
+              hint="Se a imagem já está publicada em outro lugar, a cópia para o acervo é feita automaticamente."
             >
               <Input
                 value={valueOf("thumb_down_link")}

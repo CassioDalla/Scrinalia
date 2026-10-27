@@ -138,6 +138,6 @@ export const ACTION = {
  */
 export const DIGITAL_OBJECT = {
   label: "Objeto Digital",
-  hint: "Anexos (imagem, PDF, áudio) ainda não são enviados: o objeto digital é a issue #198.",
+  hint: "Anexos (imagem, PDF, áudio) ainda não são enviados; o registro guarda a descrição.",
   disabled: "Indisponível por enquanto",
 } as const;

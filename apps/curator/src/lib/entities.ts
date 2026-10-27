@@ -47,7 +47,7 @@ export const ENTITY_ORIGIN_TONE: Record<string, BadgeTone> = {
 export const ENTITY_ORIGIN_HINT: Record<string, string> = {
   HUMAN: "Uma pessoa associou ou confirmou esta entidade.",
   AI: "O extrator propôs esta entidade e ninguém a revisou ainda.",
-  UNKNOWN: "Escrita antes de o sistema registrar quem associou; não é atribuível.",
+  UNKNOWN: "Vínculo escrito antes de o sistema registrar quem o criou: não dá para atribuir a ninguém.",
 };
 
 /**
@@ -70,14 +70,14 @@ export const ENTITY_MERGE_FLAG_HINT: Record<string, string> = {
   MIXED_TYPES:
     "Algum membro tem tipo diferente da canônica. As grafias absorvidas passam a resolver com o tipo da canônica.",
   MEMBER_IS_SYNONYM:
-    "Algum membro é uma grafia que já foi absorvida por um merge anterior — o agrupamento pode ser reflexo de uma decisão antiga.",
+    "Algum membro é uma grafia que já foi absorvida por uma mesclagem anterior — o agrupamento pode ser reflexo de uma decisão antiga.",
   ORPHAN_MEMBER:
-    "Algum membro não é carregado por nenhuma descrição. Absorvê-lo não perde vínculo, mas é a classe que a purga de órfãs remove.",
+    "Algum membro não está ligado a nenhuma descrição. Absorvê-lo não perde vínculo, mas é o tipo de registro que a purga de órfãs exclui.",
 };
 
 /** Who recorded a NER veto: the conflict judge, or an archivist. */
 export const EXCLUSION_SOURCE_LABEL: Record<string, string> = {
-  JUDGE: "juiz LLM",
+  JUDGE: "juiz de conflitos",
   HUMAN: "curadoria",
 };
 
@@ -114,5 +114,5 @@ export const CONFLICT_WINNER_HINT: Record<string, string> = {
   ENTITY:
     "A grafia é um nome próprio. O nome da tag é banido do eixo de assunto, e a classificação daquela tag se perde.",
   TAG:
-    "A grafia é assunto. O termo entra nas exclusões de NER com a tag que o justifica, e o extrator para de devolvê-lo como nome próprio.",
+    "A grafia é assunto. O termo entra nas exclusões de entidades com a tag que o justifica, e o extrator para de devolvê-lo como nome próprio.",
 };

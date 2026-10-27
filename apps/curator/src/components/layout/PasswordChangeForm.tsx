@@ -49,15 +49,15 @@ export function PasswordChangeForm({
           change.mutate();
         }}
       >
-        <p className="text-base font-semibold">Trocar a senha</p>
+        <p className="text-base font-semibold">Trocar senha</p>
         <p className="pb-5 text-sm text-(--color-muted)">
           {forced
-            ? "Esta conta ainda usa a senha temporária criada no servidor. Escolha uma senha sua para continuar."
+            ? "Esta conta ainda usa a senha temporária do primeiro acesso. Escolha uma senha sua para continuar."
             : "As outras sessões desta conta serão encerradas."}
         </p>
 
         <label className="block pb-3 text-sm">
-          <span className="pb-1 block text-(--color-muted)">Senha atual</span>
+          <span className="pb-1 block text-(--color-muted)">Senha Atual</span>
           <Input
             type="password"
             value={currentPassword}
@@ -68,7 +68,7 @@ export function PasswordChangeForm({
         </label>
 
         <label className="block pb-3 text-sm">
-          <span className="pb-1 block text-(--color-muted)">Nova senha</span>
+          <span className="pb-1 block text-(--color-muted)">Nova Senha</span>
           <Input
             type="password"
             value={newPassword}
@@ -78,7 +78,7 @@ export function PasswordChangeForm({
         </label>
 
         <label className="block pb-5 text-sm">
-          <span className="pb-1 block text-(--color-muted)">Repita a nova senha</span>
+          <span className="pb-1 block text-(--color-muted)">Confirmação da Nova Senha</span>
           <Input
             type="password"
             value={confirmation}
@@ -87,7 +87,7 @@ export function PasswordChangeForm({
           />
         </label>
 
-        {mismatch ? <p className="pb-4 text-sm text-(--color-danger)">As duas senhas não conferem.</p> : null}
+        {mismatch ? <p className="pb-4 text-sm text-(--color-danger)">As duas senhas não coincidem.</p> : null}
         {failure ? (
           <p className="pb-4 text-sm text-(--color-danger)">
             {failure instanceof ApiError ? failure.message : "Não foi possível trocar a senha."}
@@ -100,7 +100,7 @@ export function PasswordChangeForm({
             variant="primary"
             disabled={change.isPending || !currentPassword || !newPassword || mismatch}
           >
-            {change.isPending ? "Salvando…" : "Trocar a senha"}
+            {change.isPending ? "Trocando…" : "Trocar senha"}
           </Button>
           {!forced && onDone ? (
             <Button type="button" variant="ghost" onClick={onDone}>

@@ -101,9 +101,9 @@ export function TextTemplatesRoute() {
 
       <PageBody>
         <Notice tone="accent">
-          <strong>O escopo é a decisão que importa.</strong> Cada trecho diz de qual consumidor ele sai
+          <strong>O escopo é a decisão que importa.</strong> Cada trecho diz de qual texto ele sai
           — vetor, extração de nomes ou título sugerido. Aprovar tudo o que a máquina sugeriu
-          <strong> piorou</strong> o ranking (Hit@10 0.562 → 0.500): o prefixo de título ajudava o
+          <strong> piorou</strong> os resultados da busca: o prefixo de título ajudava o
           título e prejudicava o vetor. Por isso não existe botão de aprovar todos aqui.
         </Notice>
 
@@ -114,18 +114,18 @@ export function TextTemplatesRoute() {
             <div className="grid gap-1">
               <span className="text-sm font-semibold">Procurar trechos repetidos</span>
               <span className="text-xs text-(--color-muted)">
-                A varredura registra candidatos inativos: nada entra no texto da IA antes de você aprovar um escopo.
+                A varredura procura blocos repetidos no acervo e registra cada um como sugestão, sem mexer nos documentos.
               </span>
             </div>
           }
         >
           <div className="grid gap-2">
             <p className="text-xs text-(--color-muted)">
-              A varredura registra os candidatos como <strong>sugestões inativas</strong>: nada entra no
-              texto da IA antes de você aprovar um escopo.
+              A varredura registra os candidatos como <strong>sugestões inativas</strong>: nada muda nos
+              documentos antes de você aprovar um escopo.
             </p>
             <div className="flex flex-wrap items-end gap-3">
-              <Field label="Fração mínima do acervo">
+              <Field label="Fração Mínima do Acervo">
                 <Input
                   type="number"
                   min={0.01}
@@ -136,7 +136,7 @@ export function TextTemplatesRoute() {
                   className="w-32"
                 />
               </Field>
-              <Field label="Documentos mínimos">
+              <Field label="Documentos Mínimos">
                 <Input
                   type="number"
                   min={2}
@@ -180,7 +180,7 @@ export function TextTemplatesRoute() {
         {templates.data && rows.length === 0 ? (
           <EmptyState
             title="Nenhum trecho neste filtro"
-            hint="Rode a procura acima, ou escreva um trecho à mão. Os 5 candidatos do acervo real vieram dessa varredura: um bloco de escopo compartilhado por 2.467 documentos e o prefixo de título 'Registros Fotográficos -'."
+            hint="Faça a procura acima, ou escreva um trecho à mão. Os trechos aparecem aqui conforme o filtro escolhido."
           />
         ) : null}
 
@@ -258,7 +258,7 @@ function TemplateCard({ template, onChanged }: { template: TextTemplate; onChang
         ) : null}
 
         <div className="flex flex-wrap items-center gap-3 text-xs">
-          <span className="text-(--color-muted)">sai de:</span>
+          <span className="text-(--color-muted)">Remover de:</span>
           {SCOPES.map((value) => (
             <label key={value} className="flex items-center gap-1" title={TEMPLATE_SCOPE_HINT[value]}>
               <input
@@ -320,7 +320,7 @@ function TemplateCard({ template, onChanged }: { template: TextTemplate; onChang
             size="sm"
             variant="danger"
             disabled={remove.isPending}
-            title="Remove do catálogo e devolve os documentos afetados à fila da IA"
+            title="Remove do catálogo e devolve os documentos afetados à fila"
             onClick={() => remove.mutate()}
           >
             {ACTION.remove.label}
@@ -396,14 +396,14 @@ function NewTemplateCard({ onCreated }: { onCreated: () => void }) {
         <div className="grid gap-1">
           <span className="text-sm font-semibold">Escrever um trecho</span>
           <span className="text-xs text-(--color-muted)">
-            Criar o trecho já o aplica e devolve os documentos afetados à fila da IA; só libera depois do impacto.
+            Criar o trecho já o aplica aos documentos; os afetados voltam para a fila.
           </span>
         </div>
       }
     >
       <div className="grid gap-2">
         <p className="text-xs text-(--color-muted)">
-          Criar o trecho já o aplica e devolve os documentos afetados à fila da IA. Por isso o
+          Criar o trecho já o aplica, e os documentos afetados voltam para a fila. Por isso o
           botão de criar só libera depois de conferir o impacto.
         </p>
         <textarea
@@ -417,7 +417,7 @@ function NewTemplateCard({ onCreated }: { onCreated: () => void }) {
           className="w-full rounded-md bg-white px-3 py-2 font-mono text-xs ring-1 ring-(--color-line) focus:ring-2 focus:ring-(--color-accent) focus:outline-none"
         />
         <div className="flex flex-wrap items-end gap-3">
-          <Field label="O que fazer com ele">
+          <Field label="O Que Fazer com Ele">
             <Select
               value={action}
               onChange={(event) => setAction(event.target.value as TemplateAction)}
@@ -442,7 +442,7 @@ function NewTemplateCard({ onCreated }: { onCreated: () => void }) {
           ) : null}
         </div>
         <div className="flex flex-wrap items-center gap-3 text-xs">
-          <span className="text-(--color-muted)">sai de:</span>
+          <span className="text-(--color-muted)">Remover de:</span>
           {SCOPES.map((value) => (
             <label key={value} className="flex items-center gap-1" title={TEMPLATE_SCOPE_HINT[value]}>
               <input
