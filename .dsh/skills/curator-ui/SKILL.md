@@ -48,6 +48,44 @@ whenToUse: "When changing anything under apps/curator."
   recorta o tooltip: os usos atuais não têm esse ancestral. Se um lugar precisar de colisão real,
   isso é uma decisão sobre Floating UI, não um `z-index` maior.
 
+## A copy is written for the archivist, not for the engineer
+
+The person on this screen catalogues a collection; they never read this code and do not run the
+system. A sentence earns its place by saying what to do, what will happen, or what they are looking
+at — never how the pipeline is built. The canon below was measured on the copy pass of 2026-10-27
+(commit `05b51ee`) and is the rule for the next one.
+
+- **The system's internals are not copy.** `staging`, the AI queue, a worker's name, `PENDING_AI`,
+  the run ledger, a table or a column, `apply`/`dry-run`, a scoring method ("Reciprocal Rank
+  Fusion"), an ADR or an issue number — those describe the machinery to whoever maintains it. Say
+  the thing the person sees: "importar", "enviar para revisão", "salvo", "busca combinada". A
+  benchmark and a link to the guide belong in `docs/guides/`, never on the screen.
+- **The archivist's own vocabulary stays.** `Fundo`, `Série`, `ISAD(G)`, `âmbito e conteúdo`,
+  `pontos de acesso` are the words of their profession, and simplifying them is what makes a screen
+  *harder* to use. The line this rule draws is engineering vocabulary versus archival vocabulary,
+  not "simple" versus "technical". When a standard's term is unavoidable, keep the term and explain
+  it in the hint; do not replace it with a metaphor they have never seen.
+- **A label names a field, a sentence tells the person what to do.** Field labels are Title Case,
+  content words capitalised and articles/prepositions lowercased (`Nível de Descrição`, `Unidade
+  Pai / Superior`, `Pontos de Acesso`); everything else — `hint`, help, `Notice`, empty state, the
+  sentence beside a button — is sentence case, in the imperative, and about the task: "Crie uma
+  descrição manualmente ou importe um CSV." The tree is not uniform yet (`Âmbito e conteúdo
+  (opcional)` in `TreeRoute`, `Histórico de exclusões` in `lib/screens.ts` sit beside their titled
+  twins); a copy pass fixes the pair it touches rather than adding a third spelling.
+- **One term per concept, and the gate holds it.** The verbs are `lib/copy.ts` (`ACTION`), the
+  headings are `lib/screens.ts`, and `testing/unit/curator/test_curator_copy.py` fails on a retired
+  word — `apagar`, `cadastrar`, `apply`, `gaveta`, `cluster` and the rest. A rewrite reintroduces
+  them easily: the 2026-10-27 pass did, three times, and the suite caught it before the commit. A
+  legitimate use goes into `ALLOWED` with its reason; `RETIRED` is never widened.
+- **The rule outlives the file that holds the text.** The screens carry the Portuguese today. ADR
+  0020 moves it to `apps/curator/src/i18n/` (not in the tree yet), and the canon then applies to the
+  catalogue values in both locales, one sentence at a time. A moved string is still a reviewed
+  string, and an edited `pt` value reopens its `en` entry in the same change.
+
+What can be checked is a gate (constitution, principle V), and the retired-word scan is one. What
+cannot — "this sentence explains the pipeline" is a judgement — stays a paragraph a reviewer reads,
+which is why this section exists.
+
 ## Editing copy: click the element, land on the line
 
 - **Alt+right-click** an element on a screen opened through `bun run curator:dev` and the plugin
