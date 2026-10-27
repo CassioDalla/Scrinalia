@@ -41,7 +41,6 @@ export function DescriptionPreview({
       onClose={onClose}
       footer={
         <div className="flex items-center justify-between gap-2">
-          <span className="text-xs text-(--color-muted)">Nada aqui altera a descrição.</span>
           <Link
             to="/acervo/$descriptionId"
             params={{ descriptionId }}

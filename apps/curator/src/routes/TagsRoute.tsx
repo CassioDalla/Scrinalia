@@ -64,6 +64,7 @@ import {
   STOPWORD_SOURCE_LABEL,
   labelOf,
 } from "@/lib/taxonomy";
+import { Hint } from "@/components/ui/Hint";
 
 const routeApi = getRouteApi("/assuntos/tags");
 
@@ -71,7 +72,7 @@ const TABS = [
   { id: "relevancia", label: "Relevância" },
   { id: "similaridade", label: "Similaridade" },
   { id: "propostas", label: "Propostas de Mesclagem" },
-  { id: "stopwords", label: "Stopwords" },
+  { id: "stopwords", label: "Termos Bloqueados" },
   /**
    * The decision queue, and the tab the home screen's cards open.
    *
@@ -219,7 +220,7 @@ function RelevanceTab({
     <div className="grid gap-3">
       <div className="flex flex-wrap items-center gap-2">
         <Select className="w-48" value={method} onChange={(event) => patch({ metodo: event.target.value as "count" | "tfidf" })}>
-          <option value="count">Contagem de uso</option>
+          <option value="count"><strong>Contagem</strong> de uso</option>
           <option value="tfidf">Especificidade (pune o genérico)</option>
         </Select>
         <Select className="w-36" value={limit} onChange={(event) => setLimit(Number(event.target.value))}>
@@ -229,12 +230,11 @@ function RelevanceTab({
             </option>
           ))}
         </Select>
+        <Hint label="Explicando os metodos" className="max-w-3xl text-xs text-(--color-muted)">
+          A <strong>contagem</strong> mostra o que pesa no acervo; a <strong>especificidade</strong> mostra o que caracteriza uma descrição, punindo o
+          que aparece em toda parte. São duas perguntas diferentes: uma acha o que domina, a outra o que distingue.
+        </Hint>
       </div>
-
-      <p className="max-w-3xl text-xs text-(--color-muted)">
-        A contagem mostra o que pesa no acervo; a especificidade mostra o que caracteriza uma descrição, punindo o
-        que aparece em toda parte. São duas perguntas diferentes: uma acha o que domina, a outra o que distingue.
-      </p>
 
       {relevance.error ? <ErrorState error={relevance.error} /> : null}
       {relevance.isPending ? <Spinner /> : null}
@@ -428,12 +428,7 @@ function SimilarityTab({
       </div>
 
       <p className="max-w-3xl text-xs text-(--color-muted)">
-        Pares com grafia parecida. A lista mostra a evidência crua, sem julgar:
-        <code> 'alameda cabral' </code> e <code> 'al. alameda cabral' </code> pontuam 1.000, o máximo, e nenhum limiar
-        distingue sozinho o que é abreviação do que é outra coisa. Por isso o par traz o botão de mesclar e a escolha
-        da canônica: a decisão é sua, com o impacto na frente, e o desfazer fica na aba Propostas. Para mesclar mais
-        de um par de uma vez — “carlos de carvalho” aparece em várias linhas —, marque as linhas e use a barra que
-        aparece embaixo.
+        Lista termos parecidos que podem ser variações do mesmo assunto. Selecione qual termo deve ser mantido como padrão ao mesclar. É possível selecionar múltiplas linhas para mesclar de uma vez só pela barra inferior. Caso precise reverter alguma mesclagem, consulte a aba Propostas.
       </p>
 
       {similar.error ? <ErrorState error={similar.error} /> : null}
@@ -1263,12 +1258,12 @@ function ProposalsTab({
       ) : null}
 
       <Card>
-        <CardHeader className="text-sm font-semibold">Registro das mesclagens</CardHeader>
+        <CardHeader className="text-sm font-semibold">Registro das Mesclagens
+          <Hint label="Registro das Mesclagens" className="text-xs text-(--color-muted)">
+            Registro de mesclagens <strong>concluídas</strong>. O histórico mantém os dados e vínculos originais de cada termo, permitindo restaurá-los a qualquer momento pelo botão Desfazer.
+          </Hint>
+        </CardHeader>
         <CardBody className="grid gap-2">
-          <p className="text-xs text-(--color-muted)">
-            Aqui só entram mesclagens <strong>aplicadas</strong>: aprovar não escreve nesta lista. Cada linha guarda o
-            estado anterior — tag, vínculos, classificação e grafias — e o desfazer restaura tudo.
-          </p>
           {/*
             The search is server-side and covers both sides of each entry: the ledger only grows, and a
             box that filtered the loaded page would say "não está aqui" for a merge that happened.
@@ -1657,9 +1652,9 @@ function ClassificarTab({ search, patch }: { search: TagsSearch; patch: (changes
           : "não-assunto (a grafia não volta a virar tag)";
       setReport(
         `${formatCount(written.length)} tag(s) com decisão registrada: ${destination}.` +
-          (failed.length > 0
-            ? ` ${formatCount(failed.length)} não responderam (ids ${failed.join(", ")}): a decisão delas continua em aberto, e elas seguem marcadas.`
-            : ""),
+        (failed.length > 0
+          ? ` ${formatCount(failed.length)} não responderam (ids ${failed.join(", ")}): a decisão delas continua em aberto, e elas seguem marcadas.`
+          : ""),
       );
       // What did not go through stays marked, so the retry is a click and not a re-selection.
       setSelected(failed);
@@ -1698,6 +1693,10 @@ function ClassificarTab({ search, patch }: { search: TagsSearch; patch: (changes
         ))}
       </div>
 
+      <p className="max-w-3xl text-xs text-(--color-muted)">
+        {CATALOG_STATE_HINT[state]}
+      </p>
+
       <div className="flex flex-wrap items-center gap-2">
         <CatalogSearchBox value={search.termo} onSearch={(term) => patch({ termo: term })} />
         <Select
@@ -1716,9 +1715,12 @@ function ClassificarTab({ search, patch }: { search: TagsSearch; patch: (changes
       </div>
 
       <p className="max-w-3xl text-xs text-(--color-muted)">
-        {CATALOG_STATE_HINT[state]} Decidir aqui é uma decisão <strong>global</strong>: muda o selo de todas as
-        descrições que carregam a tag. Declarar não-assunto também bane a grafia de voltar a virar tag (a tag atual
-        fica no acervo); excluir as tags banidas é o passo separado da aba Stopwords.
+        A decisão tomada aqui afeta <strong>todo o sistema</strong>:
+        ela atualiza a classificação em todos os documentos que
+        contêm o termo. Ao marcar como <strong>Não assunto</strong>, a palavra
+        é incluída na lista de termos bloqueados para evitar
+        novas ocorrências (os registros existentes continuam
+        intactos até a limpeza na aba Termos Bloqueados).
       </p>
 
       {curate.error ? <ErrorState error={curate.error} /> : null}
@@ -2070,9 +2072,12 @@ function StopwordsTab({ search, patch }: { search: TagsSearch; patch: (changes: 
   return (
     <div className="grid gap-4">
       <Notice tone="warn" className="max-w-3xl">
-        <strong>Banir não exclui nada.</strong> Banir registra que o termo não vale; a <strong>purga</strong> é o passo
-        que exclui as tags com esse nome. Como a mesclagem, ela <strong>guarda um registro</strong>: cada tag excluída
-        pode ser restaurada com seus vínculos e suas grafias. O desfazer fica no registro de purgas, no fim desta aba.
+        Banir apenas <strong>bloqueia</strong> o uso futuro do termo,
+        sem excluí-lo do acervo. Para remover definitivamente as
+        etiquetas com esse nome, aplique a <strong>limpeza (purga)</strong>.
+        Assim como nas mesclagens, o sistema guarda um histórico completo:
+        você pode restaurar qualquer termo excluído, com seus vínculos
+        e grafias, na seção de histórico ao final desta página.
       </Notice>
 
       <div className="flex flex-wrap items-center gap-2">
@@ -2092,6 +2097,66 @@ function StopwordsTab({ search, patch }: { search: TagsSearch; patch: (changes: 
         ))}
       </div>
 
+      <Card>
+        <CardHeader className="text-sm font-semibold">Banir Termos</CardHeader>
+        <CardBody className="grid gap-2">
+          <div className="flex flex-wrap items-end gap-2">
+            <label className="flex-1">
+              <span className="mb-1 block text-xs font-medium text-(--color-muted)">
+                Termos, Separados por Vírgula ou Linha
+              </span>
+              <Input
+                value={draft}
+                onChange={(event) => setDraft(event.target.value)}
+                placeholder="ex.: pessoas, vista aérea"
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" && splitWords(draft).length > 0) ban.mutate();
+                }}
+              />
+            </label>
+            <label className="w-56">
+              <span className="mb-1 block text-xs font-medium text-(--color-muted)">Eixo</span>
+              <Select value={draftScope} onChange={(event) => setDraftScope(event.target.value as StopwordsScope)}>
+                {SCOPE_VALUES.map((scope) => (
+                  <option key={scope} value={scope}>
+                    {labelOf(STOPWORD_SCOPE_LABEL, scope)}
+                  </option>
+                ))}
+              </Select>
+            </label>
+            {/*
+              Only the extraction axis reads the mode: a TAG ban never reaches the NER filter, and
+              offering the choice there would imply it does.
+            */}
+            {draftScope !== "TAG" ? (
+              <label className="w-64">
+                <span className="mb-1 block text-xs font-medium text-(--color-muted)">Casamento</span>
+                <Select value={draftMatch} onChange={(event) => setDraftMatch(event.target.value as StopwordMatch)}>
+                  {MATCH_VALUES.map((mode) => (
+                    <option key={mode} value={mode}>
+                      {labelOf(STOPWORD_MATCH_LABEL, mode)}
+                    </option>
+                  ))}
+                </Select>
+              </label>
+            ) : null}
+            <Button
+              variant="primary"
+              disabled={splitWords(draft).length === 0 || ban.isPending}
+              onClick={() => ban.mutate()}
+            >
+              {ban.isPending ? ACTION.ban.pending : ACTION.ban.label}
+            </Button>
+          </div>
+          <p className="text-xs text-(--color-muted)">
+            {STOPWORD_SCOPE_HINT[draftScope]}
+            {draftScope !== "TAG" ? ` ${STOPWORD_MATCH_HINT[draftMatch]}` : ""}
+          </p>
+          {ban.error ? <ErrorState error={ban.error} /> : null}
+          {unban.error ? <ErrorState error={unban.error} /> : null}
+        </CardBody>
+      </Card>
+
       {stopwords.error ? <ErrorState error={stopwords.error} /> : null}
       {stopwords.isPending ? <Spinner label="Lendo os termos banidos…" /> : null}
 
@@ -2104,7 +2169,7 @@ function StopwordsTab({ search, patch }: { search: TagsSearch; patch: (changes: 
 
       {words.length > 0 ? (
         <Card>
-          <CardHeader className="text-sm font-semibold">Termos banidos</CardHeader>
+          <CardHeader className="text-sm font-semibold">Termos Banidos</CardHeader>
           <CardBody>
             {/*
               A searchable ledger and not a flat column: 200 banned terms is already past the point
@@ -2179,74 +2244,11 @@ function StopwordsTab({ search, patch }: { search: TagsSearch; patch: (changes: 
         </Card>
       ) : null}
 
-      <Card>
-        <CardHeader className="text-sm font-semibold">Banir termos</CardHeader>
-        <CardBody className="grid gap-2">
-          <div className="flex flex-wrap items-end gap-2">
-            <label className="flex-1">
-              <span className="mb-1 block text-xs font-medium text-(--color-muted)">
-                Termos, Separados por Vírgula ou Linha
-              </span>
-              <Input
-                value={draft}
-                onChange={(event) => setDraft(event.target.value)}
-                placeholder="ex.: pessoas, vista aérea"
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" && splitWords(draft).length > 0) ban.mutate();
-                }}
-              />
-            </label>
-            <label className="w-56">
-              <span className="mb-1 block text-xs font-medium text-(--color-muted)">Eixo</span>
-              <Select value={draftScope} onChange={(event) => setDraftScope(event.target.value as StopwordsScope)}>
-                {SCOPE_VALUES.map((scope) => (
-                  <option key={scope} value={scope}>
-                    {labelOf(STOPWORD_SCOPE_LABEL, scope)}
-                  </option>
-                ))}
-              </Select>
-            </label>
-            {/*
-              Only the extraction axis reads the mode: a TAG ban never reaches the NER filter, and
-              offering the choice there would imply it does.
-            */}
-            {draftScope !== "TAG" ? (
-              <label className="w-64">
-                <span className="mb-1 block text-xs font-medium text-(--color-muted)">Casamento</span>
-                <Select value={draftMatch} onChange={(event) => setDraftMatch(event.target.value as StopwordMatch)}>
-                  {MATCH_VALUES.map((mode) => (
-                    <option key={mode} value={mode}>
-                      {labelOf(STOPWORD_MATCH_LABEL, mode)}
-                    </option>
-                  ))}
-                </Select>
-              </label>
-            ) : null}
-            <Button
-              variant="primary"
-              disabled={splitWords(draft).length === 0 || ban.isPending}
-              onClick={() => ban.mutate()}
-            >
-              {ban.isPending ? ACTION.ban.pending : ACTION.ban.label}
-            </Button>
-          </div>
-          <p className="text-xs text-(--color-muted)">
-            {STOPWORD_SCOPE_HINT[draftScope]}
-            {draftScope !== "TAG" ? ` ${STOPWORD_MATCH_HINT[draftMatch]}` : ""}
-          </p>
-          {ban.error ? <ErrorState error={ban.error} /> : null}
-          {unban.error ? <ErrorState error={unban.error} /> : null}
-        </CardBody>
-      </Card>
-
       <Card className="ring-(--color-danger)/30">
         <CardHeader className="text-sm font-semibold text-(--color-danger)">Excluir as tags banidas</CardHeader>
         <CardBody className="grid gap-3">
           <p className="text-xs text-(--color-muted)">
-            A purga exclui toda tag cujo nome seja um termo banido no eixo de assunto (tags) ou nos
-            dois eixos. Os vínculos caem junto e a classificação da tag vai embora. Cada tag excluída
-            entra no <strong>registro de purgas</strong> antes de sair, então o desfazer restaura a tag, os vínculos e
-            as grafias — mas não desbane o termo.
+            A limpeza remove todas as etiquetas identificadas como termos bloqueados (no eixo de assunto ou em ambos). Os vínculos com os documentos e as classificações são desfeitos, mas uma cópia de segurança é criada antes da exclusão. Caso precise reverter, o botão Desfazer restaura a etiqueta, suas grafias e seus vínculos com os itens — porém o termo continua na lista de bloqueados.
           </p>
 
           <div className="flex flex-wrap items-center gap-2">
@@ -2339,12 +2341,14 @@ function StopwordsTab({ search, patch }: { search: TagsSearch; patch: (changes: 
       </Card>
 
       <Card>
-        <CardHeader className="text-sm font-semibold">Registro das purgas</CardHeader>
-        <CardBody className="grid gap-2">
-          <p className="text-xs text-(--color-muted)">
+        <CardHeader className="text-sm font-semibold">
+          Registro das Purgas
+          <Hint label="Registro das Purgas" className="text-xs text-(--color-muted)">
             Cada linha é uma tag excluída pela purga, com o estado anterior guardado: nome, vínculos, grafias e
             classificação. O desfazer restaura a tag — e <strong>não</strong> desbane o termo, que continua banido.
-          </p>
+          </Hint>
+        </CardHeader>
+        <CardBody className="grid gap-2">
           {/*
             The search is server-side: the ledger only grows, and a box that filtered the loaded page
             would say "não está aqui" for a purge that happened.

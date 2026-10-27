@@ -14,7 +14,6 @@ import { Disclosure } from "@/components/ui/Disclosure";
 import { ErrorState, Skeleton } from "@/components/ui/Feedback";
 import { Field } from "@/components/ui/Field";
 import { Input, Textarea } from "@/components/ui/Input";
-import { Notice } from "@/components/ui/Notice";
 import { SectionTitle } from "@/components/ui/SectionTitle";
 import { Tabs } from "@/components/ui/Tabs";
 import { ACTION } from "@/lib/copy";
@@ -136,12 +135,6 @@ export function CategoriesRoute() {
       />
 
       <PageBody>
-        <Notice tone="warn">
-          <strong>A frase não melhora a classificação.</strong> Dar uma frase ao modelo em vez do nome da
-          categoria não aumenta a precisão: na medição feita, nenhuma tag foi classificada corretamente e a
-          maioria caiu numa <strong>única categoria</strong>. O rótulo existe para o curador ajustar a
-          redação sem esperar uma versão nova do sistema — não espere ganho dele.
-        </Notice>
 
         {categories.error ? <ErrorState error={categories.error} /> : null}
         {categories.isPending ? (
@@ -376,13 +369,13 @@ function CategoryCard({
             empty={
               category.is_active
                 ? {
-                    title: "Nenhuma descrição nesta categoria",
-                    hint: "Nenhuma tag desta categoria está ligada a uma descrição ainda. As tags sem categoria de assunto estão na aba Classificar, em Tags.",
-                  }
+                  title: "Nenhuma descrição nesta categoria",
+                  hint: "Nenhuma tag desta categoria está ligada a uma descrição ainda. As tags sem categoria de assunto estão na aba Classificar, em Tags.",
+                }
                 : {
-                    title: "Categoria aposentada e vazia",
-                    hint: "Ela saiu do eixo de assunto, e o classificador não a propõe mais — por isso nenhuma descrição a carrega. Continua no catálogo, aposentada: excluir uma categoria excluiria o registro de que ela existiu.",
-                  }
+                  title: "Categoria aposentada e vazia",
+                  hint: "Ela saiu do eixo de assunto, e o classificador não a propõe mais — por isso nenhuma descrição a carrega. Continua no catálogo, aposentada: excluir uma categoria excluiria o registro de que ela existiu.",
+                }
             }
           />
         )}

@@ -136,11 +136,13 @@ export function NerExclusionsRoute() {
 
       <PageBody>
         <Notice tone="warn">
-          <strong>O veto vale para a palavra inteira, não para pedaços dela.</strong> A extração lê o
-          nome completo: com <code>iptu</code> vetado, <code>“IPTU do Batel”</code> também fica
-          bloqueado, porque a palavra vetada aparece inteira dentro dele. Vetar <strong>não exclui
-          nada</strong>: o que já foi extraído sai no <strong>expurgo do passado</strong>, um passo
-          separado, com impacto na frente e histórico para desfazer.
+          <strong>O bloqueio se aplica à palavra exata inteira.</strong>
+          A extração avalia expressões completas: ao bloquear "<code>IPTU</code>", um
+          termo composto como "<code>IPTU do prédio</code>" também será ignorado, pois
+          contém a palavra bloqueada. <strong>Bloquear um termo não remove os dados já existentes;</strong>
+          para excluir as ocorrências anteriores, execute a limpeza
+          retroativa, onde você pode revisar os impactos e desfazer ações
+          pelo histórico.
         </Notice>
 
         {/*

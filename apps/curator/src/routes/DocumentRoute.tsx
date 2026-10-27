@@ -33,6 +33,7 @@ import { ACTION, DIGITAL_OBJECT } from "@/lib/copy";
 import { ENTITY_ORIGIN_HINT, ENTITY_ORIGIN_LABEL, ENTITY_ORIGIN_TONE } from "@/lib/entities";
 import { formatCount, formatDate, formatDateTime, REVIEW_STATUS_LABEL, REVIEW_STATUS_TONE } from "@/lib/format";
 import { fieldsOfArea, ISAD_AREAS } from "@/lib/isad";
+import { Hint } from "@/components/ui/Hint";
 
 const routeApi = getRouteApi("/acervo/$descriptionId");
 
@@ -315,11 +316,9 @@ function DescriptionTab({ document }: { document: DocumentSummary }) {
           <label className="flex items-center gap-2">
             <input type="checkbox" checked={published} onChange={(event) => setPublished(event.target.checked)} />
             <span className="text-sm">
-              Publicar na difusão
-              <span className="block text-xs text-(--color-muted)">
-                Publicar é decisão de difusão, separada da revisão: publicar não impede a IA de continuar melhorando
-                o registro.
-              </span>
+              Publicar na Difusão
+              <Hint label="Publicar na Difusão" className="text-xs"> Publicar é decisão de difusão, separada da revisão: publicar <strong>não impede</strong> a IA de continuar melhorando
+                o registro.</Hint>
             </span>
           </label>
         </CardBody>
@@ -543,9 +542,8 @@ function SubjectsTab({ document }: { document: DocumentSummary }) {
                   (await searchTags(term)).map((result) => ({
                     value: String(result.tag_id),
                     label: result.name,
-                    hint: `${formatCount(result.document_count)} doc${
-                      result.macro_category_name ? ` · ${result.macro_category_name}` : " · sem categoria"
-                    }`,
+                    hint: `${formatCount(result.document_count)} doc${result.macro_category_name ? ` · ${result.macro_category_name}` : " · sem categoria"
+                      }`,
                   }))
                 }
                 onPick={(option) => addTag.mutate(Number(option.value))}
@@ -837,32 +835,32 @@ function HistoryTab({ document }: { document: DocumentSummary }) {
       ) : (
         <ol className="space-y-3">
           {data.map((revision) => (
-        <li key={revision.revision_id}>
-          <Card>
-            <CardHeader className="flex items-center justify-between text-sm">
-              <span className="font-medium">{revision.changed_by ?? "autoria não registrada"}</span>
-              <span className="text-xs text-(--color-muted)">{formatDateTime(revision.created_at)}</span>
-            </CardHeader>
-            <CardBody className="space-y-2">
-              {revision.note ? <p className="text-sm italic text-(--color-muted)">{revision.note}</p> : null}
-              <ul className="space-y-1">
-                {Object.entries(revision.changes ?? {}).map(([field, change]) => {
-                  const pair = change as { old?: unknown; new?: unknown };
-                  return (
-                    <li key={field} className="text-xs">
-                      <code className="rounded bg-black/[0.05] px-1 font-medium">{field}</code>
-                      <span className="mx-2 text-(--color-danger) line-through">
-                        {JSON.stringify(pair?.old) ?? "—"}
-                      </span>
-                      <span className="text-(--color-ok)">{JSON.stringify(pair?.new) ?? "—"}</span>
-                    </li>
-                  );
-                })}
-              </ul>
-            </CardBody>
-          </Card>
-          </li>
-        ))}
+            <li key={revision.revision_id}>
+              <Card>
+                <CardHeader className="flex items-center justify-between text-sm">
+                  <span className="font-medium">{revision.changed_by ?? "autoria não registrada"}</span>
+                  <span className="text-xs text-(--color-muted)">{formatDateTime(revision.created_at)}</span>
+                </CardHeader>
+                <CardBody className="space-y-2">
+                  {revision.note ? <p className="text-sm italic text-(--color-muted)">{revision.note}</p> : null}
+                  <ul className="space-y-1">
+                    {Object.entries(revision.changes ?? {}).map(([field, change]) => {
+                      const pair = change as { old?: unknown; new?: unknown };
+                      return (
+                        <li key={field} className="text-xs">
+                          <code className="rounded bg-black/[0.05] px-1 font-medium">{field}</code>
+                          <span className="mx-2 text-(--color-danger) line-through">
+                            {JSON.stringify(pair?.old) ?? "—"}
+                          </span>
+                          <span className="text-(--color-ok)">{JSON.stringify(pair?.new) ?? "—"}</span>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </CardBody>
+              </Card>
+            </li>
+          ))}
         </ol>
       )}
 

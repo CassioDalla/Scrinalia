@@ -589,8 +589,7 @@ function MergeCard({ onMerged }: { onMerged: () => void }) {
         <div className="grid gap-1">
           <span className="text-sm font-semibold">Mesclar pelo nome</span>
           <span className="text-xs text-(--color-muted)">
-            Para o par que nenhuma lista aproxima: escreva as duas grafias e mescle. As caixas marcadas
-            na aba Relevância não entram aqui.
+            Mesclagem manual de termos que não apareceram nas sugestões automáticas. Digite as duas grafias para mesclá-las em um único termo. Itens selecionados na aba Relevância não são transferidos para cá.
           </span>
         </div>
       }

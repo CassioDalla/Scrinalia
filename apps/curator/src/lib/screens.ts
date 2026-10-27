@@ -82,7 +82,7 @@ export const SCREENS: Record<ScreenId, Screen> = {
     path: "/acervo/lista",
     label: "Lista e Busca",
     hint: "Facetas e Filtros",
-    description: "Busca lexical, semântica ou híbrida do acervo.",
+    description: "Busca por Palavra-chave, Significado ou Busca Combinada do acervo.",
   },
   tree: {
     path: "/acervo/arvore",
@@ -108,8 +108,8 @@ export const SCREENS: Record<ScreenId, Screen> = {
   tags: {
     path: "/assuntos/tags",
     label: "Tags",
-    hint: "Peso, Duplicatas e Mesclagem",
-    description: "Peso, duplicatas e a fila de mesclagem.",
+    hint: "Uso, Termos Duplicados, Mesclagem",
+    description: "Gerencie a relevância das etiquetas, identifique duplicidades e mescle termos semelhantes.",
   },
   categories: {
     path: "/assuntos/categorias",
@@ -133,11 +133,13 @@ export const SCREENS: Record<ScreenId, Screen> = {
     path: "/entidades/lista",
     label: "Entidades Nomeadas (NER)",
     hint: "Relevância, Tipo e Mesclagem",
+    description: "Revise a relevância dos termos, defina a categoria (pessoa, local ou instituição) e junte nomes repetidos."
   },
   nerExclusions: {
     path: "/entidades/excecoes",
-    label: "Exclusões de NER",
+    label: "Remover de Entidades",
     hint: "Isto é assunto, não nome",
+    description: "Classificar como termo temático (assunto) em vez de pessoa, local ou entidade coletiva."
   },
   conflicts: {
     path: "/entidades/conflitos",

@@ -76,8 +76,7 @@ export function DiscoverRoute() {
           <CardHeader className="text-sm font-semibold">Agrupar por tema</CardHeader>
           <CardBody className="grid gap-2">
             <p className="text-xs text-(--color-muted)">
-              O agrupamento roda quando você pede e leva alguns segundos. Os agrupamentos abaixo são só{" "}
-              <strong>propostas</strong> — nada entra no vocabulário sem a sua aprovação.
+              O agrupamento é processado sob demanda e leva poucos segundos. As listas abaixo são apenas sugestões: nenhum termo é alterado no vocabulário sem a sua aprovação.
             </p>
             <div className="flex flex-wrap items-center gap-2">
               <Button

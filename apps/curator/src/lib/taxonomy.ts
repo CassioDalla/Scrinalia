@@ -141,10 +141,10 @@ export const CATALOG_STATE_LABEL: Record<string, string> = {
 };
 
 export const CATALOG_STATE_HINT: Record<string, string> = {
-  ALL: "O catálogo inteiro, mais pesado primeiro.",
-  PENDING: "Nenhuma pessoa decidiu ainda, e o classificador também não: é a fila que o Início conta.",
+  ALL: "Lista completa de termos, ordenados por frequência de uso.",
+  PENDING: "Termos pendentes de avaliação manual e automática.",
   NOT_SUBJECT:
-    "Uma pessoa declarou que a tag não é assunto: o classificador para de adivinhar e a grafia não volta a virar tag. A tag atual fica no acervo, alcançável pela busca.",
+    "Termo marcado manualmente como não sendo assunto. O termo fica bloqueado para novas etiquetas, mas as ocorrências atuais continuam no acervo e localizáveis na busca.",
   LOW_CONFIDENCE:
-    "O classificador rodou e não teve confiança suficiente para decidir; a tag continua sem decisão. A nota dele aparece na linha.",
+    "Classificação automática inconclusiva. A etiqueta aguarda validação humana, com a pontuação sugerida pelo sistema exibida na linha.",
 };
