@@ -52,14 +52,19 @@ whenToUse: "When changing anything under apps/curator."
 
 The person on this screen catalogues a collection; they never read this code and do not run the
 system. A sentence earns its place by saying what to do, what will happen, or what they are looking
-at — never how the pipeline is built. The canon below was measured on the copy pass of 2026-10-27
-(commit `05b51ee`) and is the rule for the next one.
+at — never how the pipeline is built. The canon below was measured on the two copy passes of
+2026-10-27 — `05b51ee` for nine files, `7e9a5b3` for the remaining fifty — and is the rule for the
+next one.
 
 - **The system's internals are not copy.** `staging`, the AI queue, a worker's name, `PENDING_AI`,
   the run ledger, a table or a column, `apply`/`dry-run`, a scoring method ("Reciprocal Rank
   Fusion"), an ADR or an issue number — those describe the machinery to whoever maintains it. Say
   the thing the person sees: "importar", "enviar para revisão", "salvo", "busca combinada". A
-  benchmark and a link to the guide belong in `docs/guides/`, never on the screen.
+  benchmark and a link to the guide belong in `docs/guides/`, never on the screen. The one exception
+  is the operations panel, where `worker` names the object the operations guide, the run ledger and
+  the screen share: there it stays a name, and the sentences around it still avoid explaining the
+  machinery to the archivist who never opens that screen. `Engine` is not that case — the label is
+  `Motor`, which is the word the hints already used.
 - **The archivist's own vocabulary stays.** `Fundo`, `Série`, `ISAD(G)`, `âmbito e conteúdo`,
   `pontos de acesso` are the words of their profession, and simplifying them is what makes a screen
   *harder* to use. The line this rule draws is engineering vocabulary versus archival vocabulary,
