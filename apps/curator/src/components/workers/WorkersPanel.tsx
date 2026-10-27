@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/Button";
 import { Card, CardBody } from "@/components/ui/Card";
 import { Disclosure } from "@/components/ui/Disclosure";
 import { ErrorState, Skeleton } from "@/components/ui/Feedback";
+import { Hint } from "@/components/ui/Hint";
 import { Input, Select, Textarea } from "@/components/ui/Input";
 import { Notice } from "@/components/ui/Notice";
 import { WorkerOptionsFields, initialOptionValues, optionsForRequest } from "@/components/workers/WorkerOptionsFields";
@@ -190,27 +191,32 @@ function WorkerCard({ worker }: { worker: WorkerStatus }) {
             </Button>
           </Link>
         ) : (
-          <Button
-            size="sm"
-            variant="primary"
-            onClick={() => openPanel("run")}
-            disabled={active}
-            title={
-              active
-                ? "Há uma execução em andamento"
+          <div className="flex items-center gap-1">
+            <Hint label={`Sobre a execução de ${worker.label}`} align="end">
+              {active
+                ? "Há uma execução em andamento; espere ela terminar para enfileirar outra."
                 : worker.runner_available
-                  ? "Enfileirar uma execução com a configuração efetiva"
-                  : "Nenhum runner online aceita este worker: a execução espera na fila"
-            }
-          >
-            {active ? RUN_STATUS_LABEL[worker.active_run!.status] : ACTION.run.label}
-          </Button>
+                  ? "Enfileira uma execução com a configuração efetiva. Um runner online a pega na fila."
+                  : "Nenhum runner online aceita este worker: a execução fica na fila até um aparecer."}
+            </Hint>
+            <Button size="sm" variant="primary" onClick={() => openPanel("run")} disabled={active}>
+              {active ? RUN_STATUS_LABEL[worker.active_run!.status] : ACTION.run.label}
+            </Button>
+          </div>
         )
       }
     >
       <div className="grid gap-4">
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <Fact label="Configuração efetiva">
+          <Fact
+            label="Configuração efetiva"
+            info={
+              <Hint label={`Sobre a configuração efetiva de ${worker.label}`} align="start">
+                Engine, preset e opções formam a configuração efetiva. "padrão alterado" quer dizer que
+                existe um padrão salvo para este worker; sem ele, vale o padrão do código.
+              </Hint>
+            }
+          >
             <span className="font-mono text-xs">{worker.settings.engine_name ?? "sem modelo"}</span>
             {worker.settings.preset ? <span className="text-(--color-muted)"> · {worker.settings.preset}</span> : null}
             <p className="mt-1 text-xs text-(--color-muted)">{describeConfig(worker.settings.config)}</p>
@@ -402,10 +408,13 @@ function WorkerHeader({ worker }: { worker: WorkerStatus }) {
   );
 }
 
-function Fact({ label, children }: { label: string; children: React.ReactNode }) {
+function Fact({ label, children, info }: { label: string; children: React.ReactNode; info?: React.ReactNode }) {
   return (
     <div className="rounded-md bg-black/[0.02] px-3 py-2 ring-1 ring-(--color-line)">
-      <p className="mb-1 text-[11px] font-semibold tracking-wide text-(--color-muted) uppercase">{label}</p>
+      <div className="mb-1 flex items-center gap-1 text-[11px] font-semibold tracking-wide text-(--color-muted) uppercase">
+        <span>{label}</span>
+        {info}
+      </div>
       {children}
     </div>
   );

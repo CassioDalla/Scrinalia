@@ -2670,3 +2670,45 @@ with short or full shas, and part of a `## <date> — <title>` entry.
   over time: the evidence that only one tab polls is structural (only the active tab is mounted),
   not a stopwatch. The ledger was rendered with one queued run, so the rich row (trial, retry,
   cancellation note) is the existing screen's behaviour, not this round's.
+
+## 2026-10-27 — one hint element for the explanations that do not deserve a paragraph (#208)
+
+- **Range:** `1c96177..7843d9e`
+- **Pages:**
+  - `guides/curate.md` — **no-change**: the routes, writes and flows the guide documents did not
+    move. The new `Hint` only changes how a secondary explanation is revealed on three screens —
+    the conflict threshold, the CSV column badge and the worker run/effective configuration — and
+    the guide never described those help affordances, only the actions they sit beside.
+  - `guides/curate.pt.md` — **no-change**: the same translation, for the same reason.
+  - `guides/operate.md` — **no-change**: `WorkersPanel.tsx` moved only to place the existing
+    explanations behind the shared hint; the other source in the range is the Dependabot bump of
+    `astral-sh/setup-uv` in `.github/workflows/ci.yml`, which changes no command, probe or worker
+    behaviour the operator guide describes.
+  - `guides/operate.pt.md` — **no-change**: the same two sources, the same reason.
+- **Why the round exists.** The same second sentence was rendered four ways and chosen per screen,
+  with the native `title` as the "discreet" default: hover-only, after a delay, never on focus,
+  absent on touch, and unreliable for assistive technology. #208 adds one `Hint` primitive — a real
+  button with `aria-describedby` and a `role="tooltip"` panel whose text stays in the DOM while
+  closed — and migrates the first three places. `Field.info` sits outside the `<label>`, because a
+  button inside a label is invalid HTML and pollutes the input's accessible name. `Tabs` uses the
+  primitive through `asChild`, so the tab itself is the trigger and the interim `title` plus
+  `sr-only` text from #220 is gone. The rule lives in the `curator-ui` skill.
+- **What the round measured.** `bun run --cwd apps/curator typecheck`, `lint` and `build` green
+  (2118 modules); `bun test` **26 pass** (20 CSV + 6 hint); `pytest testing/unit/curator` **24
+  passed**; `pre-commit run --all-files` green. Rendered at 1440×900 with the headless shell over
+  CDP against the Vite dev server and the dev API, with a disposable session row deleted after the
+  round: `208-conflicts-hint.png` is the threshold tooltip open with the focus on its button,
+  `208-conflicts-escape.png` is the same panel closed after Escape while the button keeps focus,
+  `208-tab-hint.png` is the *Pendentes* tab description from the tab itself,
+  `208-workers-run.png` is the run-button explanation, `208-workers-config.png` is the effective
+  configuration hint (and what caught the inherited `uppercase` before it shipped), and
+  `208-csv-badge.png` is the column badge after a real file was set on the CSV input. The page's
+  tooltip state was `open` on focus and `closed` after Escape; the text was read back from the
+  described panel, not assumed from the screenshot.
+- **Not verified, and said so.** The pointer hover was driven through the DOM test and not with a
+  physical mouse over the rendered screen; touch was exercised as a click in `happy-dom`, not on a
+  touch device. The other `title` attributes remain (180 in `src`, three fewer than before this
+  round), because the issue retires the pattern as uses migrate, not in one sweep. The tab hints remain inside the `tablist` in the accessibility tree as non-focusable
+  tooltip nodes; the tabs themselves are still the owned elements and the described text is read on
+  focus. No colour token, route, schema or contract changed.
+

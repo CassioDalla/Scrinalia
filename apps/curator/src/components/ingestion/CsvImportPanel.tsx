@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { ErrorState, Skeleton } from "@/components/ui/Feedback";
 import { Field } from "@/components/ui/Field";
+import { Hint } from "@/components/ui/Hint";
 import { Input, Select } from "@/components/ui/Input";
 import { Notice } from "@/components/ui/Notice";
 import { CsvParseError, decodeCsv, detectDelimiter, parseCsv, type CsvDelimiter } from "@/lib/csv";
@@ -173,14 +174,17 @@ export function CsvImportPanel() {
               <div className="grid gap-2">
                 <div className="flex flex-wrap gap-1">
                   {mapping.headers.map((header, index) => (
-                    <Badge
-                      key={`${index}-${header.header}`}
-                      tone={header.isId || header.field ? "ok" : "warn"}
-                      title={header.field?.help}
-                    >
-                      {header.header}
-                      {header.isId ? " · identificador" : header.field ? ` → ${header.field.label}` : " · fora do mapa"}
-                    </Badge>
+                    <span key={`${index}-${header.header}`} className="inline-flex items-center gap-1">
+                      <Badge tone={header.isId || header.field ? "ok" : "warn"}>
+                        {header.header}
+                        {header.isId ? " · identificador" : header.field ? ` → ${header.field.label}` : " · fora do mapa"}
+                      </Badge>
+                      {header.field?.help ? (
+                        <Hint label={`Sobre a coluna ${header.header}`} align="start">
+                          {header.field.help}
+                        </Hint>
+                      ) : null}
+                    </span>
                   ))}
                 </div>
 
