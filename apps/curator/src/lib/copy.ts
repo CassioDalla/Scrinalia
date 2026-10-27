@@ -137,7 +137,7 @@ export const ACTION = {
  * the document was attached. A control that says "not yet" is the honest version of that box.
  */
 export const DIGITAL_OBJECT = {
-  label: "Objeto digital",
-  hint: "Anexos (imagem, PDF, áudio) ainda não são enviados: o objeto digital é a issue #198. O registro guarda a descrição, não o arquivo.",
+  label: "Objeto Digital",
+  hint: "Anexos (imagem, PDF, áudio) ainda não são enviados: o objeto digital é a issue #198.",
   disabled: "Indisponível por enquanto",
 } as const;

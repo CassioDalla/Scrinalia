@@ -93,10 +93,10 @@ export const SCREENS: Record<ScreenId, Screen> = {
   },
   deletions: {
     path: "/acervo/excluidas",
-    label: "Excluídas",
-    hint: "A trilha do que foi excluído",
+    label: "Histórico de exclusões",
+    hint: "Registro de itens removidos",
     description:
-      "O retrato do que saiu — código, título, nível e o conteúdo ISAD(G) inteiro — porque a exclusão é definitiva e nada aqui restaura.",
+      "Consulta dos dados originais de registros excluídos em definitivo, preservados apenas para fins de histórico e auditoria.",
   },
   diagnostics: {
     path: "/arranjo/diagnostico",
@@ -191,14 +191,14 @@ export const SCREENS: Record<ScreenId, Screen> = {
     label: "Origens",
     hint: "Configurar, pausar e agendar",
     description:
-      "As fontes que esta instalação lê, com a fila, a agenda e a configuração de cada uma; a entrada manual e a importação CSV ficam no Acervo, em Nova descrição.",
+      "As fontes que esta instalação lê, com a fila, a agenda e a configuração de cada uma; a entrada manual e a importação CSV ficam no Acervo, em Nova Descrição.",
   },
   newDescription: {
     path: "/acervo/nova",
-    label: "Nova descrição",
+    label: "Nova Descrição",
     hint: "Digitar ou importar CSV",
     description:
-      "O registro entra no mesmo staging e na mesma fila de IA das demais origens — digitado campo a campo ou importado de um CSV — e não é uma aprovação: ele nasce pendente de revisão, e o dossiê é onde ele é aprovado.",
+      "Crie uma descrição manualmente ou importe um CSV.",
   },
   workerSettings: {
     path: "/configuracoes/workers",

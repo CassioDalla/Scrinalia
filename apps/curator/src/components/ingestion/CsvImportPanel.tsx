@@ -122,12 +122,17 @@ export function CsvImportPanel() {
     <Card>
       <CardHeader className="flex flex-wrap items-center justify-between gap-2 text-sm font-semibold">
         <span>Importação CSV</span>
-        <Badge tone="accent">PENDING_AI</Badge>
+        {/*
+          The template belongs to the card, not to the row of fields: beside them it was a third
+          control in a line of two, and `items-end` aligned it with the hint under the file input.
+        */}
+        <Button size="sm" variant="ghost" onClick={downloadTemplate} disabled={!spec.data}>
+          Baixar Modelo
+        </Button>
       </CardHeader>
       <CardBody className="grid gap-3">
         <p className="text-xs text-(--color-muted)">
-          O arquivo é lido aqui no navegador e enviado como linhas — <strong>nada vai para o storage</strong>.
-          A API revalida cada linha, e a transferência entra na fila depois delas.
+          Arraste ou selecione sua planilha. O sistema lê os dados na hora para conferir se está tudo certo antes de enviar para a sua central de revisão.
         </p>
 
         {spec.error ? <ErrorState error={spec.error} /> : null}
@@ -135,7 +140,12 @@ export function CsvImportPanel() {
 
         {spec.data ? (
           <>
-            <div className="flex flex-wrap items-end gap-3">
+            {/*
+              `items-start`, not `items-end`: the two fields have different heights by design — the
+              file input carries a hint and the separator does not — and bottom-aligning the columns
+              pushed the shorter one's label down, so the two controls sat on different lines.
+            */}
+            <div className="flex flex-wrap items-start gap-3">
               <Field
                 label="Arquivo CSV"
                 hint={`Até ${formatCount(spec.data.max_rows)} linhas e ${limitMb} MB. A primeira linha é o cabeçalho.`}
@@ -156,9 +166,6 @@ export function CsvImportPanel() {
                   <option value=";">Ponto e vírgula</option>
                 </Select>
               </Field>
-              <Button size="sm" variant="ghost" onClick={downloadTemplate}>
-                Baixar modelo
-              </Button>
             </div>
 
             {fileName ? (

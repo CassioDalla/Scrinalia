@@ -103,24 +103,24 @@ export function DeletionsRoute() {
         pending={page.isPending}
         status={
           page.data
-            ? `${formatCount(total)} exclusão(ões) registrada(s)${search.termo ? ` para “${search.termo}”` : ""}`
+            ? `${formatCount(total)} item(ns) no histórico de exclusões${search.termo ? ` para “${search.termo}”` : ""}`
             : undefined
         }
       />
 
       <PageBody>
         <Notice tone="warn">
-          <strong>Isto é uma trilha, não uma lixeira.</strong> A exclusão é definitiva e nada aqui
-          restaura. O que a tela guarda é o retrato do que saiu — código, título, nível e o conteúdo
-          ISAD(G) inteiro — para que a decisão possa ser explicada depois. O ledger de revisões não
-          serviria: ele cai junto com a descrição.
+          Histórico permanente de exclusões.
+          Os itens desta lista foram excluídos em definitivo e não podem ser restaurados.
+          Esta página preserva os dados originais e o responsável
+          pela ação apenas para fins de consulta e auditoria.
         </Notice>
 
         <div className="flex flex-wrap items-center gap-2">
           <SearchBox value={search.termo} onSearch={(termo) => patch({ termo })} />
           {search.termo ? (
             <Button size="sm" variant="ghost" onClick={() => patch({ termo: undefined })}>
-              limpar busca
+              Limpar busca
             </Button>
           ) : null}
         </div>
@@ -136,11 +136,11 @@ export function DeletionsRoute() {
 
         {page.data && total === 0 ? (
           <EmptyState
-            title={search.termo ? `Nenhuma exclusão para “${search.termo}”` : "Nenhuma descrição excluída"}
+            title={search.termo ? `Nenhum item excluído encontrado para “${search.termo}”` : "Nenhum item excluído até o momento"}
             hint={
               search.termo
-                ? "A busca cobre o código de referência, o título e o identificador da descrição."
-                : "Nada foi excluído do acervo ainda. Quando algo for, o retrato da descrição fica registrado aqui — e não há como desfazer."
+                ? "Tente pesquisar por outro termo, código de referência ou ID."
+                : "O acervo não possui registros de exclusão. Quando um item for removido, o histórico completo de dados aparecerá aqui para consulta."
             }
             action={
               search.termo ? (
@@ -161,7 +161,7 @@ export function DeletionsRoute() {
                     <div className="flex min-w-0 flex-wrap items-center gap-2">
                       <span className="truncate text-sm font-medium">{entry.title}</span>
                       {entry.level_name ? <Badge tone="neutral">{entry.level_name}</Badge> : null}
-                      <Badge tone="neutral" title="Identificador da descrição excluída">
+                      <Badge tone="neutral" title="ID do registro">
                         {entry.description_id}
                       </Badge>
                     </div>
@@ -172,11 +172,11 @@ export function DeletionsRoute() {
                     {entry.reference_code ? (
                       <code className="rounded bg-black/[0.05] px-1">{entry.reference_code}</code>
                     ) : (
-                      <span>sem código de referência</span>
+                      <span>Sem código de referência</span>
                     )}
-                    <span>· excluída por {entry.deleted_by ?? "autoria não registrada"}</span>
+                    <span>· Excluído por {entry.deleted_by ?? "usuário não identificado"}</span>
                     {entry.children_count > 0 ? (
-                      <span>· {formatCount(entry.children_count)} filho(s) na época</span>
+                      <span>· Continha {formatCount(entry.children_count)} item(ns) vinculado(s)</span>
                     ) : null}
                   </div>
 
@@ -189,15 +189,15 @@ export function DeletionsRoute() {
                   */}
                   <details className="text-xs">
                     <summary className="cursor-pointer text-(--color-muted)">
-                      ver o retrato da descrição ({formatCount(snapshotEntries(entry.snapshot ?? {}).length)} campo(s))
+                      Ver dados arquivados do item ({formatCount(snapshotEntries(entry.snapshot ?? {}).length)} campo(s))
                     </summary>
                     <ul className="mt-2 grid gap-1">
                       {snapshotEntries(entry.snapshot ?? {}).map(([field, value]) => (
-                          <li key={field} className="grid gap-0.5">
-                            <code className="text-[10px] text-(--color-muted)">{field}</code>
-                            <span className="break-words">{typeof value === "string" ? value : JSON.stringify(value)}</span>
-                          </li>
-                        ))}
+                        <li key={field} className="grid gap-0.5">
+                          <code className="text-[10px] text-(--color-muted)">{field}</code>
+                          <span className="break-words">{typeof value === "string" ? value : JSON.stringify(value)}</span>
+                        </li>
+                      ))}
                     </ul>
                   </details>
                 </CardBody>
@@ -264,7 +264,7 @@ function SearchBox({ value, onSearch }: { value: string | undefined; onSearch: (
     <Input
       value={term}
       className="max-w-md"
-      placeholder="buscar por código, título ou identificador…"
+      placeholder="Buscar por código, título ou ID..."
       onChange={(event) => setTerm(event.target.value)}
     />
   );

@@ -127,6 +127,11 @@ function ManualEntryForm({ canCurate }: { canCurate: boolean }) {
   const selectedLevel = levels.data?.find((level) => level.name === values.level);
   const needsParent = selectedLevel?.requires_parent === true && !values.parent_reference_code?.trim();
 
+  // The title is the one required field of the manual contract, and this is its single definition:
+  // the submit button and the sentence beside it both read it, so the red mark on the field and the
+  // greyed-out button cannot disagree about *why* the form cannot be sent.
+  const titleMissing = valueOf("title").trim().length === 0;
+
   const submit = useMutation({
     mutationFn: () => createManualIngestion(toBody(descriptionId, values)),
     onSuccess: () => {
@@ -152,15 +157,6 @@ function ManualEntryForm({ canCurate }: { canCurate: boolean }) {
 
   return (
     <>
-      <Card>
-        <CardBody className="grid gap-2">
-          <p className="text-xs text-(--color-muted)">
-            Só o título é obrigatório: uma descrição pode nascer incompleta e ser completada no
-            dossiê. O que ficar em branco continua em branco — nada é inventado.
-          </p>
-        </CardBody>
-      </Card>
-
       {submit.data ? (
         <Notice tone="ok" as="div" className="grid gap-2">
           <p className="font-medium">{routeMessage(submit.data)}</p>
@@ -204,23 +200,36 @@ function ManualEntryForm({ canCurate }: { canCurate: boolean }) {
           header={
             <span className="flex flex-wrap items-baseline gap-2">
               <span className="text-sm font-semibold">3.1 Identidade</span>
-              <span className="text-xs text-(--color-muted)">O que a descrição é.</span>
             </span>
           }
           defaultOpen
           toggleLabel="Abrir a área"
         >
           <div className="grid gap-3 sm:grid-cols-2">
-            <Field label="Título" hint="O título da descrição. É o único campo obrigatório.">
+            {/*
+              The asterisk is `aria-hidden` on purpose: the label already names the input, and the
+              mandatory-ness travels through `required` on the control, which every screen reader
+              announces — an asterisk read aloud would say "asterisk" and nothing more. Red is never
+              the only signal: the star, the attribute and the sentence beside the disabled button
+              say the same thing three ways.
+            */}
+            <Field
+              label={
+                <>
+                  Título <span aria-hidden="true" className="text-(--color-danger)">*</span>
+                </>
+              }
+              hint="Campo obrigatório."
+            >
               <Input
+                required
                 value={valueOf("title")}
                 maxLength={500}
                 autoFocus
                 onChange={(event) => setValue("title", event.target.value)}
               />
             </Field>
-
-            <Field label="Nível de descrição">
+            <Field label="Nível de Descrição">
               <Select value={valueOf("level")} onChange={(event) => setValue("level", event.target.value)}>
                 <option value="">— não classificado —</option>
                 {levels.data?.map((level) => (
@@ -232,13 +241,13 @@ function ManualEntryForm({ canCurate }: { canCurate: boolean }) {
             </Field>
 
             <Field
-              label="Unidade superior"
-              hint="O código da unidade que contém esta. Sem ela, um nível que exige pai entra pendente e pode ser ligado no dossiê."
+              label="Unidade Pai / Superior"
+              hint="Selecione o código da unidade à qual esta pertence."
             >
               <Input
                 value={valueOf("parent_reference_code")}
                 maxLength={500}
-                placeholder="BR PRPMC 001"
+                placeholder="BR PRADAP SMU"
                 onChange={(event) => setValue("parent_reference_code", event.target.value)}
               />
             </Field>
@@ -295,8 +304,8 @@ function ManualEntryForm({ canCurate }: { canCurate: boolean }) {
                 ))}
                 {area.id === "context" ? (
                   <Field
-                    label="URL da fonte"
-                    hint="A página de onde o registro veio, quando houver. Não é o objeto digital."
+                    label="URL da Fonte"
+                    hint="Página de onde o registro veio, quando houver."
                   >
                     <Input
                       value={valueOf("original_url")}
@@ -313,14 +322,19 @@ function ManualEntryForm({ canCurate }: { canCurate: boolean }) {
         <Disclosure
           header={
             <span className="flex flex-wrap items-baseline gap-2">
-              <span className="text-sm font-semibold">Pontos de acesso</span>
+              <span className="text-sm font-semibold">Pontos de Acesso</span>
               <span className="text-xs text-(--color-muted)">Os assuntos que viraram tags no acervo.</span>
             </span>
           }
           toggleLabel="Abrir a área"
         >
+          {/*
+            Free text today; the decision about a tag picker is issue #229. Whoever changes this
+            field reads that issue first: the same string is the CSV column and the scraper's mapped
+            key, so the wire shape is not this screen's to change on its own.
+          */}
           <Field
-            label="Pontos de acesso"
+            label="Pontos de Acesso"
             hint="Separados por vírgula. Eles viram tags, e as tags são o eixo de assunto da descrição."
           >
             <Input
@@ -350,7 +364,7 @@ function ManualEntryForm({ canCurate }: { canCurate: boolean }) {
               <p className="text-xs text-(--color-muted)">{DIGITAL_OBJECT.hint}</p>
             </div>
             <Field
-              label="URL da imagem"
+              label="URL da Imagem"
               hint="Se a imagem já está publicada em outro lugar, o worker de miniatura a copia para o acervo."
             >
               <Input
@@ -367,10 +381,15 @@ function ManualEntryForm({ canCurate }: { canCurate: boolean }) {
             <Button
               type="submit"
               variant="primary"
-              disabled={submit.isPending || valueOf("title").trim().length === 0 || !canCurate}
+              disabled={submit.isPending || titleMissing || !canCurate}
             >
-              {submit.isPending ? "Gravando…" : "Gravar e enviar para a fila"}
+              {submit.isPending ? "Salvando…" : "Salvar"}
             </Button>
+            {/* The reason the button is greyed out, where the archivist is looking when it happens:
+                the asterisk on the field is at the top of a form of ~30 controls. */}
+            {titleMissing && canCurate ? (
+              <span className="text-xs text-(--color-danger)">Falta preencher o título.</span>
+            ) : null}
             <span className="text-xs text-(--color-muted)">
               id do formulário: <span className="font-mono">{descriptionId}</span>
             </span>

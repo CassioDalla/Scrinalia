@@ -98,11 +98,6 @@ export function LoginForm() {
             {signIn.isPending ? "Entrando…" : "Entrar"}
           </Button>
 
-          <p className="pt-4 text-xs text-(--color-muted)">
-            Sem recuperação por e-mail. Quem esqueceu a senha pede a um administrador da instalação, que a
-            redefine na tela de contas.
-          </p>
-
           {/*
           A native `details`, like the deletion trail's snapshot: the copy is one small block that must
           not push the form down, it works without JavaScript state, and the summary is a real
@@ -114,11 +109,6 @@ export function LoginForm() {
               <p>
                 Nenhuma mensagem é enviada por esta tela. Um administrador redefine a sua senha em{" "}
                 <strong>Configurações → Usuários</strong>, na conta certa.
-              </p>
-              <p>
-                A senha que ele define é <strong>temporária</strong>: a conta a troca no primeiro acesso. A
-                redefinição também <strong>encerra todas as sessões</strong> dessa conta — o que a retira de
-                qualquer dispositivo aberto — e destrava a conta se ela estiver bloqueada por tentativas falhas.
               </p>
               <p>
                 Se a conta for a última de administrador ativa e ninguém conseguir entrar, o acesso é

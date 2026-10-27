@@ -26,9 +26,9 @@ const PAGE_SIZE = 25;
  * ``?mode=`` this screen does not know is discarded instead of being sent to the route.
  */
 const SEARCH_MODES: readonly { value: SearchMode; label: string }[] = [
-  { value: "lexical", label: "Lexical" },
-  { value: "semantic", label: "Semântica" },
-  { value: "hybrid", label: "Híbrida" },
+  { value: "lexical", label: "Palavra-chave" },
+  { value: "semantic", label: "Por Significado" },
+  { value: "hybrid", label: "Busca Combinada" },
 ];
 
 /**
@@ -360,17 +360,19 @@ export function CollectionRoute() {
             this note used to carry — it cited a Hit@10 that belonged to another experiment on
             another collection.
           */}
+          {search.mode === "lexical" ? (
+            <Notice tone="accent" className="mb-3">
+             <strong>Busca por Palavra-chave:</strong> Localiza exatamente as palavras digitadas. Ideal para quando você já sabe o título, código ou termo específico.
+            </Notice>
+          ) : null}
           {search.mode === "semantic" ? (
             <Notice tone="accent" className="mb-3">
-              A busca semântica ordena por significado: encontra o que o título não escreve e perde
-              para a lexical quando o termo é exato. Prefira o lexical quando souber o termo.
+              A <strong>Busca por Significado</strong> encontra documentos pelo contexto, mesmo que não tenham a palavra exata. Se você souber o termo exato, a busca por palavra-chave costuma ser mais rápida.
             </Notice>
           ) : null}
           {search.mode === "hybrid" ? (
             <Notice tone="accent" className="mb-3">
-              A busca híbrida funde a ordem lexical com a semântica (Reciprocal Rank Fusion) e foi a
-              melhor das três no conjunto rotulado, com o termo exato e com a frase inteira. É o modo
-              que não exige escolher — custa carregar o modelo.
+              A <strong>Busca Combinada</strong> une o melhor dos dois mundos: encontra termos exatos e entende o significado do texto. É a opção mais recomendada para encontrar o que você precisa sem se preocupar.
             </Notice>
           ) : null}
 
