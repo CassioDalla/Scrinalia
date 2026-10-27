@@ -2712,3 +2712,38 @@ with short or full shas, and part of a `## <date> — <title>` entry.
   tooltip nodes; the tabs themselves are still the owned elements and the described text is read on
   focus. No colour token, route, schema or contract changed.
 
+## 2026-10-27 — the copy sweep reaches the rest of the interface
+
+- **Range:** `b75d74e..7e9a5b3`
+- **Pages:**
+  - `guides/curate.md` — **updated**: the sweep renamed two screens the guide names by label —
+    `Excluídas` → `Histórico de exclusões`, `Nova descrição` → `Nova Descrição` — and the two purge
+    panels (`Ledger das purgas` → `Registro das purgas`, `Ledger dos expurgos` → `Histórico de
+    expurgos`). A reader sent to `Acervo › Excluídas` would not find the entry. No route, write or
+    flow changed.
+  - `guides/curate.pt.md` — **updated**: the same four names, in the translation.
+  - `guides/install.md` — **updated**: the backup section quotes the deletion screen by name and
+    calls it a trail; it is `Histórico de exclusões`, and it is a record. What the section explains
+    did not move: the snapshot row, no restore, a node with children refused.
+  - `guides/install.pt.md` — **updated**: the same paragraph, same reason.
+  - `guides/operate.md` — **no-change**: its only moved source is `SystemHealthRoute.tsx`, whose
+    copy said `dimensions` and `NER/parser` for the effective configuration the page already
+    describes. The page documents runs, queues, retries and the worker catalogue, and it names
+    `ledger` as the append-only table, not as a panel — the sweep renamed the screens, not the
+    mechanism.
+  - `guides/operate.pt.md` — **no-change**: the same source, the same reason.
+- **Why the round exists.** The first copy pass covered nine files; the second swept the remaining
+  fifty-three (commit `7e9a5b3`). It replaced the system's vocabulary with the task — `ledger` →
+  histórico, `staging`/AI queue out, rule kinds out of caps, `Engine` → `Motor` — and corrected
+  three sentences that were false rather than technical: the anomaly empty state, the "sem
+  categoria" badge, and the cleaning-rule preview's sample count. `worker` stays where it names the
+  operations object, which is the exception the `curator-ui` skill now records (`a0655d4`).
+- **What the round measured.** `bun run --cwd apps/curator typecheck`, `lint` and `test` green
+  (26 pass); `pytest testing/unit/curator testing/unit/docs` **53 passed** (the copy gate included);
+  `basedpyright` green on both commits through the pre-commit hook; `freshness.py` reports these
+  three pages and no other.
+- **Not verified, and said so.** No screen was rendered for this round: the evidence is the four
+  gates above and the diff, not pixels. The pages quote labels, not behaviour, and no route, schema
+  or contract changed.
+
+

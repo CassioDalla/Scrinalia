@@ -544,8 +544,8 @@ serves broken images. Back them up together and restore them together.
   archiving or WAL shipping; the recovery point is the dump.
 - **A deleted description.** `DELETE /api/v1/documents/{id}` is the one operation that removes a
   record. It snapshots the whole row into `archive_document_deletions` — reference code, title,
-  level, the full ISAD(G) payload, who deleted it and why — but the `Acervo › Excluídas` screen is a
-  trail, not a recycle bin: there is no restore. A node with children is refused outright, because
+  level, the full ISAD(G) payload, who deleted it and why — but the `Acervo › Histórico de exclusões`
+  screen is a record, not a recycle bin: there is no restore. A node with children is refused outright, because
   the self-referencing foreign key is `RESTRICT`.
 - **Thumbnails, if the bucket is lost.** The database still names them, and the worker could
   re-derive one from `original_thumbnail_url` while the origin site still serves the image — but it

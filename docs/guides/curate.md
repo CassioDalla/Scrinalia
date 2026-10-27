@@ -328,13 +328,13 @@ linking.
 
 | Screen | Decision | Reversible? |
 | --- | --- | --- |
-| Nova descrição — `/acervo/nova` | typing one description or importing a CSV (curator) | the record enters the pipeline as `PENDING_AI`; it is approved (or rejected) in the dossier, and only there |
+| Nova Descrição — `/acervo/nova` | typing one description or importing a CSV (curator) | the record enters the pipeline as `PENDING_AI`; it is approved (or rejected) in the dossier, and only there |
 | Lista e busca — `/acervo/lista` | how to slice the collection | yes (read only) |
 | Árvore — `/acervo/arvore` | where a description sits in the arrangement | yes, by moving it; removing the node means excluding the description |
-| Excluídas — `/acervo/excluidas` | none (the ledger of what left) | yes (read only) |
+| Histórico de exclusões — `/acervo/excluidas` | none (the record of what left) | yes (read only) |
 | Descrição — `/acervo/$descriptionId` | the record, its subjects and its place | mostly yes; the exclusion does not |
 
-### Nova descrição — `/acervo/nova`
+### Nova Descrição — `/acervo/nova`
 
 The way into the collection: one description typed in full, or a CSV imported. The two are tabs in
 the URL — **Digitar** (the default) and **Importar CSV** (`?modo=csv`) — because they are two input
@@ -396,7 +396,7 @@ moving the description; removing the node means excluding the description, which
     in the list and in the dossier; mixing them here would teach the archivist to "fix" a subject by
     dragging a description into another branch.
 
-### Excluídas — `/acervo/excluidas`
+### Histórico de exclusões — `/acervo/excluidas`
 
 The trail of the deletions, read-only (`GET /api/v1/documents/deletions`), with a server-side search
 and pagination because the trail has no ceiling. It is **not a recycle bin**: each entry is the
@@ -700,7 +700,7 @@ three things apart:
 
 Each deleted tag is written to a **ledger** (`archive_stopword_purge_log`) before it disappears: the
 snapshot of the row, the documents that carried it and the spellings that pointed at it. The purge
-response carries the `purge_ids`, the Stopwords tab shows them in **Ledger das purgas**, and
+response carries the `purge_ids`, the Stopwords tab shows them in **Registro das purgas**, and
 `DELETE /api/v1/taxonomy/tags/stopwords/purge-log/{purge_id}` (`CURATE`) restores the tag, its links
 and its spellings; an unknown id is **404** and a second attempt is **409**. The undo does **not**
 lift the ban — the term is still a stopword, and the next purge lists the restored tag again.
@@ -916,7 +916,7 @@ extracted from a banned spelling, with the descriptions that carry it, and the w
 plan. Each deleted entity is written to a **ledger** (`archive_ner_purge_log`) before it disappears:
 the snapshot of the row, the documents that carried it, the spellings that pointed at it and the
 `excluded_term` that justified it. The response carries the `purge_ids`, the screen shows them in
-**Ledger dos expurgos**, and `DELETE /api/v1/taxonomy/entities/ner-exclusions/purge-log/{purge_id}`
+**Histórico de expurgos**, and `DELETE /api/v1/taxonomy/entities/ner-exclusions/purge-log/{purge_id}`
 restores the entity, its links and its spellings — **without** lifting the veto, so the next purge
 lists the restored entity again. Use it to reverse the loss; use "remover veto" to re-open the term.
 
