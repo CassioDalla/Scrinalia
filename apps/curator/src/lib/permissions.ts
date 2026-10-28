@@ -31,12 +31,5 @@ export function can(role: AuthUser["role"], permission: Permission): boolean {
   return ROLE_PERMISSIONS[role].includes(permission);
 }
 
-/** How the role reads to the person holding it. Kept beside the map so the two move together. */
-export const ROLE_LABEL: Record<AuthUser["role"], string> = {
-  ADMIN: "Administrador",
-  CURATOR: "Curador",
-  VIEWER: "Leitor",
-};
-
 /** The roles a select offers, in the order of most to least reach. */
 export const ROLES: AuthUser["role"][] = ["ADMIN", "CURATOR", "VIEWER"];

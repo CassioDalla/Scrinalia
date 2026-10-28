@@ -22,9 +22,10 @@ import { Input, Select } from "@/components/ui/Input";
 import { Notice } from "@/components/ui/Notice";
 import { PageBody } from "@/components/layout/PageBody";
 import { ACTION } from "@/lib/copy";
+import { useCopy } from "@/i18n/context";
 import { formatDateTime } from "@/lib/format";
 import { routeMessage } from "@/lib/messages";
-import { ROLE_LABEL, ROLES } from "@/lib/permissions";
+import { ROLES } from "@/lib/permissions";
 
 /**
  * The accounts of the installation — the surface of `Permission.ADMIN`.
@@ -106,6 +107,7 @@ export function UsersRoute() {
 }
 
 function CreateUserCard({ onCreated }: { onCreated: () => void }) {
+  const copy = useCopy();
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
   const [role, setRole] = useState<AuthUser["role"]>("CURATOR");
@@ -156,7 +158,7 @@ function CreateUserCard({ onCreated }: { onCreated: () => void }) {
             <Select value={role} onChange={(event) => setRole(event.target.value as AuthUser["role"])}>
               {ROLES.map((value) => (
                 <option key={value} value={value}>
-                  {ROLE_LABEL[value]}
+                  {copy.roles[value]}
                 </option>
               ))}
             </Select>
@@ -185,6 +187,7 @@ function CreateUserCard({ onCreated }: { onCreated: () => void }) {
 }
 
 function UserCard({ user, isSelf, onChanged }: { user: AuthUser; isSelf: boolean; onChanged: () => void }) {
+  const copy = useCopy();
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState(user.name);
@@ -243,7 +246,7 @@ function UserCard({ user, isSelf, onChanged }: { user: AuthUser; isSelf: boolean
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-sm font-medium">{user.name}</span>
           <span className="text-xs text-(--color-muted)">{user.email}</span>
-          <Badge tone="accent">{ROLE_LABEL[user.role]}</Badge>
+          <Badge tone="accent">{copy.roles[user.role]}</Badge>
           {user.is_active ? <Badge tone="ok">ativa</Badge> : <Badge tone="neutral">desativada</Badge>}
           {isSelf ? <Badge tone="neutral">você</Badge> : null}
           {user.must_change_password ? (
@@ -298,7 +301,7 @@ function UserCard({ user, isSelf, onChanged }: { user: AuthUser; isSelf: boolean
             <Select value={role} onChange={(event) => setRole(event.target.value as AuthUser["role"])}>
               {ROLES.map((value) => (
                 <option key={value} value={value}>
-                  {ROLE_LABEL[value]}
+                  {copy.roles[value]}
                 </option>
               ))}
             </Select>

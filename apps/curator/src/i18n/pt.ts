@@ -9,7 +9,157 @@
  * placeholder carries. The screens hold keys, never copy.
  */
 
+import type { ScreenId } from "@/lib/screens";
+import { ATTRIBUTION } from "@/lib/attribution";
+
+/** The copy of one screen: the menu entry, the header's subtitle and, where it has one, the sentence. */
+type ScreenCopy = {
+  label: string;
+  hint: string;
+  description?: string;
+};
+
+const screens: Record<ScreenId, ScreenCopy> = {
+    inbox: {
+      label: "Início",
+      hint: "O que precisa de mim hoje",
+      description: "Cada cartão leva à tela que resolve a pendência, já filtrada.",
+    },
+    collection: {
+      label: "Lista e Busca",
+      hint: "Facetas e Filtros",
+      description: "Busca por Palavra-chave, Significado ou Busca Combinada do acervo.",
+    },
+    tree: {
+      label: "Árvore",
+      hint: "Hierarquia do Acervo",
+      description:
+        "Navegação pelo arranjo materializado. Escolher um nó mostra o ramo e as descrições que ele contém.",
+    },
+    deletions: {
+      label: "Histórico de exclusões",
+      hint: "Registro de itens removidos",
+      description:
+        "Consulta dos dados originais de registros excluídos em definitivo, preservados apenas para fins de histórico e auditoria.",
+    },
+    diagnostics: {
+      label: "Diagnóstico do Arranjo",
+      hint: "Onde está incoerente",
+      description:
+        "Onde o acervo está incoerente. Nenhuma correção acontece sozinha: cada linha mostra a evidência e leva ao lugar onde se decide.",
+    },
+    tags: {
+      label: "Tags",
+      hint: "Uso, Termos Duplicados, Mesclagem",
+      description: "Gerencie a relevância das etiquetas, identifique duplicidades e mescle termos semelhantes.",
+    },
+    categories: {
+      label: "Categorias",
+      hint: "Organização dos Assuntos",
+    },
+    discover: {
+      label: "Descobrir Categorias",
+      hint: "Agrupamentos por tema",
+      description: "Agrupa o vocabulário por tema para achar o assunto que ainda não foi classificado.",
+    },
+    subjectExclusions: {
+      label: "Não é Assunto",
+      hint: "O que a regra não considera",
+      description:
+        "Os termos que a classificação de assunto não deve adivinhar. Marcar não exclui a Tag — ela continua no acervo e alcançável pela busca — mas bane a grafia de voltar a virar tag.",
+    },
+    entities: {
+      label: "Entidades Nomeadas (NER)",
+      hint: "Relevância, Tipo e Mesclagem",
+      description:
+        "Revise a relevância dos termos, defina a categoria (pessoa, local ou instituição) e junte nomes repetidos.",
+    },
+    nerExclusions: {
+      label: "Remover de Entidades",
+      hint: "Isto é assunto, não nome",
+      description: "Classificar como termo temático (assunto) em vez de pessoa, local ou entidade coletiva.",
+    },
+    conflicts: {
+      label: "Conflitos",
+      hint: "Assunto x Nome Próprio",
+    },
+    textTemplates: {
+      label: "Trechos",
+      hint: "Boilerplate e escopo",
+    },
+    cleaningRules: {
+      label: "Regras",
+      hint: "Reescrever ou sinalizar",
+    },
+    anomalies: {
+      label: "Anomalias",
+      hint: "O que o validador marcou",
+    },
+    plan: {
+      label: "Plano de arranjo",
+      hint: "Decidir os níveis",
+    },
+    levels: {
+      label: "Níveis de descrição",
+      hint: "A escada NOBRADE",
+    },
+    typologies: {
+      label: "Tipologias",
+      hint: "A forma diplomática",
+    },
+    vocabulary: {
+      label: "Vocabulário do acervo",
+      hint: "Nomes e lugares deste acervo",
+    },
+    workers: {
+      label: "Workers e execuções",
+      hint: "O que roda e o que rodou",
+      description:
+        "O painel do que está rodando agora — preset, modelo, fila, última e execução ativa — e o histórico do que já rodou, na aba ao lado.",
+    },
+    origins: {
+      label: "Origens",
+      hint: "Configurar, pausar e agendar",
+      description:
+        "As fontes que esta instalação lê, com a fila, a agenda e a configuração de cada uma; a entrada manual e a importação CSV ficam no Acervo, em Nova Descrição.",
+    },
+    newDescription: {
+      label: "Nova Descrição",
+      hint: "Digitar ou importar CSV",
+      description: "Crie uma descrição manualmente ou importe um CSV.",
+    },
+    workerSettings: {
+      label: "Configuração dos Workers",
+      hint: "Motor, preset e o histórico",
+      description:
+        "O padrão salvo de cada worker — motor, preset, lote e opções — e quem alterou o quê, execução após execução.",
+    },
+    health: {
+      label: "Saúde do sistema",
+      hint: "Banco, modelos, storage e origens",
+      description:
+        "Banco, modelos do Ollama, storage de miniaturas, origens da ingestão e a configuração efetiva do processo.",
+    },
+    settings: {
+      label: "Configurações",
+      hint: "Contas, catálogos e operação",
+      description: "As telas que se decidem uma vez, longe da curadoria do dia a dia.",
+    },
+    users: {
+      label: "Usuários",
+      hint: "Contas, papéis e sessões",
+    },
+    dossier: {
+      label: "Descrição",
+      hint: "O dossiê de uma descrição",
+    },
+};
+
 export const pt = {
+  product: {
+    tagline: "Curadoria do acervo",
+    documentTitle: `${ATTRIBUTION.name} — Curadoria`,
+  },
   format: {
     /** `formatDate`'s answer for a record that has no date. */
     noDate: "sem data",
@@ -26,6 +176,34 @@ export const pt = {
     source: "Código-fonte",
     version: "Versão da instalação",
   },
+  roles: {
+    ADMIN: "Administrador",
+    CURATOR: "Curador",
+    VIEWER: "Leitor",
+  },
+  shell: {
+    expandMenu: "Expandir o menu",
+    collapseMenu: "Recolher o menu",
+    mainMenu: "Menu principal",
+    changePassword: "Trocar senha",
+    close: "Fechar",
+    signOut: "Sair",
+    signingOut: "Saindo…",
+  },
+  nav: {
+    sections: {
+      acervo: "Acervo",
+      assuntos: "Assuntos",
+      entidades: "Entidades",
+      qualidade: "Qualidade",
+    },
+  },
+  settingsTabs: {
+    arranjo: "Arranjo e catálogos",
+    operacao: "Operação",
+    acesso: "Acesso",
+  },
+  screens,
   auth: {
     login: {
       email: "E-mail",

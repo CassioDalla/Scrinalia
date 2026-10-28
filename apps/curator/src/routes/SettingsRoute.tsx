@@ -6,6 +6,7 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { Card, CardBody } from "@/components/ui/Card";
 import { EmptyState, Skeleton } from "@/components/ui/Feedback";
 import { Tabs } from "@/components/ui/Tabs";
+import { useCopy } from "@/i18n/context";
 import { asEnum } from "@/lib/search";
 import { SETTINGS_TAB_IDS, visibleSettingsTabs, type ResolvedSettingsCard } from "@/lib/settings";
 
@@ -31,11 +32,12 @@ export function validateSettingsSearch(search: Record<string, unknown>): Setting
  * somewhere honest.
  */
 export function SettingsRoute() {
+  const copy = useCopy();
   const current = useQuery({ queryKey: ["current-user"], queryFn: fetchCurrentUser, retry: false });
   const search = routeApi.useSearch();
   const navigate = useNavigate();
 
-  const tabs = visibleSettingsTabs(current.data?.role ?? "VIEWER");
+  const tabs = visibleSettingsTabs(current.data?.role ?? "VIEWER", copy);
   // The URL's tab only wins when it survived the permission filter; otherwise the first visible one.
   const active = tabs.find((tab) => tab.id === search.aba) ?? tabs[0];
   const cards = active?.cards ?? [];

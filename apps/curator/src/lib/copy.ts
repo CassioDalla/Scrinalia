@@ -37,10 +37,6 @@ import { ATTRIBUTION } from "@/lib/attribution";
 export const PRODUCT = {
   /** The display name. Re-exported, never re-typed. */
   name: ATTRIBUTION.name,
-  /** What this build of the product is, for the person using it. The rail's second line. */
-  tagline: "Curadoria do acervo",
-  /** The browser tab. `index.html` boots with the neutral `Curadoria` and `main.tsx` replaces it. */
-  documentTitle: `${ATTRIBUTION.name} — Curadoria`,
   /**
    * The system's version, injected at build time from `pyproject.toml` by `vite.config.ts`.
    *

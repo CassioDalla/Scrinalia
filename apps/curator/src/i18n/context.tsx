@@ -27,6 +27,7 @@ export function LocaleProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     document.documentElement.lang = locale;
+    document.title = messagesFor(locale).product.documentTitle;
   }, [locale]);
 
   const value = useMemo(() => ({ locale, setLocale }), [locale, setLocale]);

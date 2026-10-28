@@ -53,6 +53,10 @@ SOURCES = sorted(
     path for pattern in ("*.ts", "*.tsx", "*.css") for path in SRC.rglob(pattern) if path.name != "schema.d.ts"
 )
 
+#: The Portuguese catalogue: where the copy lives now (ADR 0020 §1), and what the extractor's own
+#: sanity check reads instead of `lib/screens.ts`.
+CATALOGUE = SRC / "i18n" / "pt.ts"
+
 #: The words this interface retired, and what it says instead. Each one was in the tree when the
 #: canon landed, and each one is now at zero — the gate is what keeps it there.
 #:
@@ -161,8 +165,8 @@ def test_the_extractor_sees_strings(tmp_path: Path) -> None:
         "the extractor no longer reads a template literal; every word inside one is ungated."
     )
 
-    seen = visible_strings(SCREENS)
-    assert len(seen) > 20, f"the extractor found {len(seen)} strings in `lib/screens.ts`; the pattern is broken."
+    seen = visible_strings(CATALOGUE)
+    assert len(seen) > 20, f"the extractor found {len(seen)} strings in `src/i18n/pt.ts`; the pattern is broken."
 
 
 def test_the_extractor_joins_a_wrapped_text_node(tmp_path: Path) -> None:
@@ -278,7 +282,7 @@ def _screen_records() -> dict[str, tuple[str, bool]]:
     body = text(SCREENS).split("export const SCREENS", 1)
     assert len(body) == 2, "`lib/screens.ts` no longer exports `SCREENS`."
     records: dict[str, tuple[str, bool]] = {}
-    for block in re.finditer(r"\n  (\w+): \{(.*?)\n  \},", body[1], re.S):
+    for block in re.finditer(r"\n  (\w+): \{([^}]*)\}", body[1], re.S):
         identifier, entry = block.group(1), block.group(2)
         path = re.search(r'path:\s*"([^"]+)"', entry)
         assert path, f"`SCREENS.{identifier}` has no path, so no route can be matched to it."

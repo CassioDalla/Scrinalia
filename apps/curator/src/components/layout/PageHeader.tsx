@@ -1,7 +1,8 @@
 import type { ReactNode } from "react";
 
 import { Skeleton } from "@/components/ui/Feedback";
-import { SCREENS, screenSubtitle, type ScreenId } from "@/lib/screens";
+import { useCopy } from "@/i18n/context";
+import type { ScreenId } from "@/lib/screens";
 
 /**
  * The head of every screen, with the same four slots in the same order.
@@ -38,11 +39,12 @@ type PageHeaderProps = PageHeaderSlots &
   );
 
 export function PageHeader(props: PageHeaderProps) {
+  const copy = useCopy();
   const { status, pending = false, actions } = props;
-  const { title, subtitle } =
-    props.screen !== undefined
-      ? { title: SCREENS[props.screen].label, subtitle: screenSubtitle(props.screen) }
-      : { title: props.title, subtitle: props.subtitle };
+  const screen = props.screen !== undefined ? copy.screens[props.screen] : undefined;
+  const { title, subtitle } = screen
+    ? { title: screen.label, subtitle: screen.description ?? screen.hint }
+    : { title: props.title, subtitle: props.subtitle };
 
   return (
     <header

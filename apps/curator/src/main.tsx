@@ -4,13 +4,13 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 
 import { LocaleProvider } from "@/i18n/context";
-import { PRODUCT } from "@/lib/copy";
+import { activeMessages } from "@/i18n/locale";
 import { router } from "@/router";
 import "@/styles.css";
 
-// The tab's title, from the one definition of the product's name. `index.html` boots neutral on
-// purpose, so a rename is still a change to `lib/attribution.ts` and nothing else.
-document.title = PRODUCT.documentTitle;
+// The tab's title, from the catalogue. `index.html` boots neutral on purpose, so a rename is still a
+// change to `lib/attribution.ts` and nothing else.
+document.title = activeMessages().product.documentTitle;
 
 const queryClient = new QueryClient({
   defaultOptions: {
