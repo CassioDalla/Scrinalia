@@ -233,7 +233,6 @@ PENDING = {
     "src/routes/EntitiesRoute.tsx",
     "src/routes/NerExclusionsRoute.tsx",
     "src/routes/NewDescriptionRoute.tsx",
-    "src/routes/OriginsRoute.tsx",
     "src/routes/PlanRoute.tsx",
     "src/routes/SubjectExclusionsRoute.tsx",
     "src/routes/TagsRoute.tsx",
