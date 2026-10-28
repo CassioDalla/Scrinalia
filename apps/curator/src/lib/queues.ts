@@ -1,4 +1,6 @@
 import type { components } from "@/api/schema";
+import { activeMessages } from "@/i18n/locale";
+import type { Messages } from "@/i18n/pt";
 
 /** The stable identity of a home-screen queue, generated from the contract. */
 export type QueueKey = components["schemas"]["QueueKey"];
@@ -18,41 +20,14 @@ type QueueCopy = {
  * it. The `Record<QueueKey, QueueCopy>` is the gate — a queue added to the contract without an
  * entry here fails `tsc`, instead of rendering a blank card.
  */
-export const QUEUE_COPY: Record<QueueKey, QueueCopy> = {
-  hierarchy_orphans: {
-    label: "Arranjo não materializado",
-    description: "Descrições que o arranjo ainda não consegue colocar numa cadeia.",
+export const QUEUE_COPY = new Proxy({} as Record<QueueKey, QueueCopy>, {
+  get(_target, key) {
+    return activeMessages().queues[key as QueueKey];
   },
-  hierarchy_plans: {
-    label: "Níveis aguardando decisão",
-    description: "Níveis que a leitura dos códigos de referência propôs.",
-  },
-  tag_merge_proposals: {
-    label: "Propostas de mesclagem de tags",
-    description: "Tags com grafias parecidas que aguardam a decisão de mesclar.",
-  },
-  cross_domain_conflicts: {
-    label: "Conflitos entre assunto e entidade",
-    description: "Termos que colidem: o mesmo nome é assunto e nome próprio.",
-  },
-  subject_low_confidence: {
-    label: "Assunto com confiança baixa",
-    description: "Tags que o classificador não teve confiança para arquivar numa categoria.",
-  },
-  orphan_subject_tags: {
-    label: "Tags sem categoria de assunto",
-    description: "Tags sem categoria: nenhum selo de assunto pode ser mostrado para elas.",
-  },
-  typology_low_confidence: {
-    label: "Tipologia com confiança baixa",
-    description: "Descrições cuja tipologia o classificador não conseguiu decidir.",
-  },
-  anomalies: {
-    label: "Anomalias detectadas",
-    description: "Descrições que o validador de qualidade marcou.",
-  },
-  unreviewed_documents: {
-    label: "Descrições não revisadas",
-    description: "Descrições que nenhuma pessoa revisou ainda.",
-  },
-};
+});
+
+// The catalogue is the definition; this fails `tsc` when the contract grows a queue the catalogue
+// does not carry yet, which the old explicit Record did by construction.
+type CatalogueIsExhaustive = QueueKey extends keyof Messages["queues"] ? true : never;
+const _catalogueIsExhaustive: CatalogueIsExhaustive = true;
+void _catalogueIsExhaustive;

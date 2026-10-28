@@ -12,6 +12,146 @@ export const en: typeof pt = {
     tagline: "Collection curation",
     documentTitle: `${ATTRIBUTION.name} — Curation`,
   },
+  system: {
+    runStatus: {
+      QUEUED: "Queued",
+      RUNNING: "Running",
+      SUCCESS: "Succeeded",
+      FAILED: "Failed",
+      INTERRUPTED: "Interrupted",
+      CANCELLED: "Cancelled",
+    },
+    failureSource: { WORKER: "worker run", API: "request" },
+    trigger: { API: "panel", CLI: "command line", SCHEDULE: "schedule" },
+    unit: {
+      origin: "origins",
+      staging: "imported records",
+      document: "descriptions",
+      tag: "tags",
+      pair: "pairs",
+    },
+    noModel: "no model",
+    batch: "batch {size}",
+    dimensions: "{count} dimensions",
+    stepsOff: "with steps disabled",
+    noParameters: "no parameters",
+    optionsNotRecorded: "options not recorded in this run",
+    optionsExample: 'Pass the options as a JSON object, for example {"force": true}.',
+    invalidJson: "Invalid JSON.",
+  },
+  queues: {
+    hierarchy_orphans: {
+      label: "Unmaterialised arrangement",
+      description: "Descriptions the arrangement cannot place in a chain yet.",
+    },
+    hierarchy_plans: {
+      label: "Levels awaiting a decision",
+      description: "Levels proposed by reading the reference codes.",
+    },
+    tag_merge_proposals: {
+      label: "Tag merge proposals",
+      description: "Tags with similar spellings awaiting the merge decision.",
+    },
+    cross_domain_conflicts: {
+      label: "Subject and entity conflicts",
+      description: "Terms that collide: the same name is a subject and a proper name.",
+    },
+    subject_low_confidence: {
+      label: "Subject with low confidence",
+      description: "Tags the classifier was not confident enough to file in a category.",
+    },
+    orphan_subject_tags: {
+      label: "Tags without a subject category",
+      description: "Tags without a category: no subject badge can be shown for them.",
+    },
+    typology_low_confidence: {
+      label: "Typology with low confidence",
+      description: "Descriptions whose typology the classifier could not decide.",
+    },
+    anomalies: {
+      label: "Detected anomalies",
+      description: "Descriptions the quality validator flagged.",
+    },
+    unreviewed_documents: {
+      label: "Unreviewed descriptions",
+      description: "Descriptions no person has reviewed yet.",
+    },
+  },
+  vocabulary: {
+    termKind: {
+      DISTRICT: {
+        label: "Neighbourhood",
+        hint: "A neighbourhood: the finest place the collection distinguishes. The entity axis carries it.",
+      },
+      MUNICIPALITY: {
+        label: "Municipality",
+        hint: "A municipality, including a foreign city. The entity axis carries it.",
+      },
+      STATE: { label: "State", hint: "A state or province. The entity axis carries it." },
+      REGION: {
+        label: "Region",
+        hint: "A region broader than a municipality. The entity axis carries it.",
+      },
+      COUNTRY: {
+        label: "Country",
+        hint: "A country the collection's records reach. The entity axis carries it.",
+      },
+      PERSON: {
+        label: "Person",
+        hint: "A person's name: the producer or the person depicted, never a subject.",
+      },
+    },
+  },
+  entities: {
+    type: {
+      PER: { label: "Person", hint: "People's names, including a document's author." },
+      ORG: { label: "Organisation", hint: "Institutions, companies and producing bodies." },
+      LOC: { label: "Place", hint: "Places: streets, neighbourhoods, rivers and buildings." },
+    },
+    origin: {
+      HUMAN: { label: "confirmed", hint: "A person associated or confirmed this entity." },
+      AI: {
+        label: "AI",
+        hint: "The extractor proposed this entity and nobody has reviewed it yet.",
+      },
+      UNKNOWN: {
+        label: "not traced",
+        hint: "Link written before the system recorded who created it: it cannot be attributed to anyone.",
+      },
+    },
+    mergeFlag: {
+      MEMBER_WITH_DIGITS: {
+        label: "member with digits",
+        hint: "A member has a number in its name. It may be the same name with and without the number, or another name: the number does not decide.",
+      },
+      MIXED_TYPES: {
+        label: "different types",
+        hint: "A member has a type different from the canonical one. Absorbed spellings start resolving with the canonical type.",
+      },
+      MEMBER_IS_SYNONYM: {
+        label: "member is an absorbed spelling",
+        hint: "A member is a spelling already absorbed by an earlier merge — the grouping may reflect an old decision.",
+      },
+      ORPHAN_MEMBER: {
+        label: "member without a description",
+        hint: "A member is not linked to any description. Absorbing it loses no link, but it is the kind of record the orphan purge deletes.",
+      },
+    },
+    exclusionSource: {
+      JUDGE: {
+        label: "conflict judge",
+        hint: "The conflict judge concluded the spelling belongs to the subject axis, not to proper names.",
+      },
+      HUMAN: {
+        label: "curation",
+        hint: "An archivist decided the term is a subject; the tag that justifies the decision is recorded.",
+      },
+    },
+    conflictWinner: {
+      TAG: { label: "the subject (tag)", hint: "The spelling is a subject. The term enters the entity exclusions with the tag that justifies it, and the extractor stops returning it as a proper name." },
+      ENTITY: { label: "the entity", hint: "The spelling is a proper name. The tag's name is banned from the subject axis, and that tag's classification is lost." },
+    },
+  },
   format: {
     reviewStatus: {
       PENDING_AI: "Waiting for AI",

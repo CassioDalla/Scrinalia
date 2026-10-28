@@ -166,6 +166,152 @@ export const pt = {
     tagline: "Curadoria do acervo",
     documentTitle: `${ATTRIBUTION.name} — Curadoria`,
   },
+  system: {
+    runStatus: {
+      QUEUED: "Na fila",
+      RUNNING: "Em execução",
+      SUCCESS: "Concluída",
+      FAILED: "Falhou",
+      INTERRUPTED: "Interrompida",
+      CANCELLED: "Cancelada",
+    },
+    failureSource: { WORKER: "execução", API: "requisição" },
+    trigger: { API: "painel", CLI: "linha de comando", SCHEDULE: "agenda" },
+    unit: {
+      origin: "origens",
+      staging: "registros importados",
+      document: "descrições",
+      tag: "tags",
+      pair: "pares",
+    },
+    noModel: "sem modelo",
+    batch: "lote {size}",
+    dimensions: "{count} dimensões",
+    stepsOff: "com etapas desligadas",
+    noParameters: "sem parâmetros",
+    optionsNotRecorded: "opções não registradas nesta execução",
+    optionsExample: 'Informe as opções como um objeto JSON, por exemplo {"force": true}.',
+    invalidJson: "JSON inválido.",
+  },
+  queues: {
+    hierarchy_orphans: {
+      label: "Arranjo não materializado",
+      description: "Descrições que o arranjo ainda não consegue colocar numa cadeia.",
+    },
+    hierarchy_plans: {
+      label: "Níveis aguardando decisão",
+      description: "Níveis que a leitura dos códigos de referência propôs.",
+    },
+    tag_merge_proposals: {
+      label: "Propostas de mesclagem de tags",
+      description: "Tags com grafias parecidas que aguardam a decisão de mesclar.",
+    },
+    cross_domain_conflicts: {
+      label: "Conflitos entre assunto e entidade",
+      description: "Termos que colidem: o mesmo nome é assunto e nome próprio.",
+    },
+    subject_low_confidence: {
+      label: "Assunto com confiança baixa",
+      description: "Tags que o classificador não teve confiança para arquivar numa categoria.",
+    },
+    orphan_subject_tags: {
+      label: "Tags sem categoria de assunto",
+      description: "Tags sem categoria: nenhum selo de assunto pode ser mostrado para elas.",
+    },
+    typology_low_confidence: {
+      label: "Tipologia com confiança baixa",
+      description: "Descrições cuja tipologia o classificador não conseguiu decidir.",
+    },
+    anomalies: {
+      label: "Anomalias detectadas",
+      description: "Descrições que o validador de qualidade marcou.",
+    },
+    unreviewed_documents: {
+      label: "Descrições não revisadas",
+      description: "Descrições que nenhuma pessoa revisou ainda.",
+    },
+  },
+  vocabulary: {
+    termKind: {
+      DISTRICT: {
+        label: "Bairro",
+        hint: "Um bairro: o lugar mais fino que a coleção distingue. O eixo de entidades o carrega.",
+      },
+      MUNICIPALITY: {
+        label: "Município",
+        hint: "Um município, inclusive uma cidade estrangeira. O eixo de entidades o carrega.",
+      },
+      STATE: {
+        label: "Estado",
+        hint: "Um estado ou província. O eixo de entidades o carrega.",
+      },
+      REGION: {
+        label: "Região",
+        hint: "Uma região mais ampla que um município. O eixo de entidades o carrega.",
+      },
+      COUNTRY: {
+        label: "País",
+        hint: "Um país que os registros do acervo alcançam. O eixo de entidades o carrega.",
+      },
+      PERSON: {
+        label: "Pessoa",
+        hint: "Um nome de pessoa: o produtor ou a pessoa retratada, nunca um assunto.",
+      },
+    },
+  },
+  entities: {
+    type: {
+      PER: { label: "Pessoa", hint: "Nomes de pessoas, inclusive o autor de um documento." },
+      ORG: { label: "Organização", hint: "Instituições, empresas e órgãos produtores." },
+      LOC: { label: "Local", hint: "Lugares: logradouros, bairros, rios e edificações." },
+    },
+    origin: {
+      HUMAN: {
+        label: "confirmada",
+        hint: "Uma pessoa associou ou confirmou esta entidade.",
+      },
+      AI: {
+        label: "IA",
+        hint: "O extrator propôs esta entidade e ninguém a revisou ainda.",
+      },
+      UNKNOWN: {
+        label: "não rastreada",
+        hint: "Vínculo escrito antes de o sistema registrar quem o criou: não dá para atribuir a ninguém.",
+      },
+    },
+    mergeFlag: {
+      MEMBER_WITH_DIGITS: {
+        label: "membro com número",
+        hint: "Algum membro tem número no nome. Pode ser o mesmo nome escrito com e sem o número, ou outro nome: o número não decide.",
+      },
+      MIXED_TYPES: {
+        label: "tipos diferentes",
+        hint: "Algum membro tem tipo diferente da canônica. As grafias absorvidas passam a resolver com o tipo da canônica.",
+      },
+      MEMBER_IS_SYNONYM: {
+        label: "membro é grafia absorvida",
+        hint: "Algum membro é uma grafia que já foi absorvida por uma mesclagem anterior — o agrupamento pode ser reflexo de uma decisão antiga.",
+      },
+      ORPHAN_MEMBER: {
+        label: "membro sem descrição",
+        hint: "Algum membro não está ligado a nenhuma descrição. Absorvê-lo não perde vínculo, mas é o tipo de registro que a purga de órfãs exclui.",
+      },
+    },
+    exclusionSource: {
+      JUDGE: {
+        label: "juiz de conflitos",
+        hint: "O juiz de conflitos concluiu que a grafia pertence ao eixo de assunto, não a nomes próprios.",
+      },
+      HUMAN: {
+        label: "curadoria",
+        hint: "Um arquivista decidiu que o termo é assunto; a tag que justifica a decisão fica registrada.",
+      },
+    },
+    conflictWinner: {
+      TAG: { label: "o assunto (tag)", hint: "A grafia é assunto. O termo entra nas exclusões de entidades com a tag que o justifica, e o extrator para de devolvê-lo como nome próprio." },
+      ENTITY: { label: "a entidade", hint: "A grafia é um nome próprio. O nome da tag é banido do eixo de assunto, e a classificação daquela tag se perde." },
+    },
+  },
   format: {
     reviewStatus: {
       PENDING_AI: "Aguardando IA",
