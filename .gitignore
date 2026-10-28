@@ -38,3 +38,5 @@ node_modules/
 
 # MkDocs output: the site is built, never committed
 site/
+# Agent worktrees for parallel extraction
+.worktrees/

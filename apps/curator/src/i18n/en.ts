@@ -3,6 +3,10 @@
  * (ADR 0020 §1).
  */
 
+import { en as tagsEn } from "@/i18n/pages/tags";
+import { en as documentEn } from "@/i18n/pages/document";
+import { en as entitiesEn } from "@/i18n/pages/entities";
+import { en as conflictsEn } from "@/i18n/pages/conflicts";
 import { ATTRIBUTION } from "@/lib/attribution";
 
 import type { pt } from "./pt";
@@ -25,6 +29,10 @@ export const en: typeof pt = {
     notInformed: "— not informed —",
   },
   pages: {
+    ...tagsEn,
+    ...documentEn,
+    ...entitiesEn,
+    ...conflictsEn,
     anomalies: {
       fixHint:
         "Corrigir é revisar a ficha: a edição fica no histórico e marca a descrição como revisada por humano; a partir daí a IA não a sobrescreve.",

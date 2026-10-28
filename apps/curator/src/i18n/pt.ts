@@ -10,6 +10,10 @@
  */
 
 import type { ScreenId } from "@/lib/screens";
+import { pt as tagsPt } from "@/i18n/pages/tags";
+import { pt as documentPt } from "@/i18n/pages/document";
+import { pt as entitiesPt } from "@/i18n/pages/entities";
+import { pt as conflictsPt } from "@/i18n/pages/conflicts";
 import { ATTRIBUTION } from "@/lib/attribution";
 
 /** The copy of one screen: the menu entry, the header's subtitle and, where it has one, the sentence. */
@@ -179,6 +183,10 @@ export const pt = {
     notInformed: "— não informado —",
   },
   pages: {
+    ...tagsPt,
+    ...documentPt,
+    ...entitiesPt,
+    ...conflictsPt,
     anomalies: {
       fixHint:
         "Corrigir é revisar a ficha: a edição fica no histórico e marca a descrição como revisada por humano; a partir daí a IA não a sobrescreve.",
