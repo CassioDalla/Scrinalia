@@ -131,6 +131,10 @@ def test_no_retired_word_is_visible() -> None:
     offenders: list[str] = []
     for path in SOURCES:
         relative = path.relative_to(CURATOR).as_posix()
+        # The canon is about the Portuguese interface: the English catalogue is allowed to say
+        # "Apply" and "Undo", which are the correct English for `Aplicar` and `Desfazer`.
+        if relative == "src/i18n/en.ts":
+            continue
         for value in visible_strings(path):
             if any(relative == file and allowed in value for file, allowed, _ in ALLOWED):
                 continue
