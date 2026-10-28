@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/Input";
 import { LedgerList } from "@/components/ui/LedgerList";
 import { PageBody } from "@/components/layout/PageBody";
 import { useCopy } from "@/i18n/context";
+import { fill } from "@/i18n/maps";
 import { Trans } from "@/i18n/trans";
 import { ACTION } from "@/lib/copy";
 import { descricoes, formatCount } from "@/lib/format";
@@ -66,7 +67,7 @@ export function validateSubjectExclusionsSearch(search: Record<string, unknown>)
 
 export function SubjectExclusionsRoute() {
   const queryClient = useQueryClient();
-  const copy = useCopy();
+  const messages = useCopy();
   const search = routeApi.useSearch();
   const exclusions = useQuery(queries.subjectExclusions());
   const [showRecorded, setShowRecorded] = useState(false);
@@ -155,7 +156,11 @@ export function SubjectExclusionsRoute() {
       <PageHeader
         screen="subjectExclusions"
         pending={exclusions.isPending}
-        status={exclusions.data ? `${formatCount(words.length)} termos fora do eixo de assunto` : undefined}
+        status={
+          exclusions.data
+            ? fill(messages.pages.subjectExclusions.status, { count: formatCount(words.length) })
+            : undefined
+        }
         actions={
           /*
             The reciprocal of the blocked-spellings screen's notice: this is the screen that says a
@@ -164,7 +169,7 @@ export function SubjectExclusionsRoute() {
             says what this screen alone does.
           */
           <Link to="/assuntos/grafias">
-            <Button size="sm">{copy.screens.blockedSpellings.label}</Button>
+            <Button size="sm">{messages.screens.blockedSpellings.label}</Button>
           </Link>
         }
       />
@@ -182,14 +187,19 @@ export function SubjectExclusionsRoute() {
           <section className="grid gap-2">
             <div className="flex flex-wrap items-end justify-between gap-2">
               <div className="grid gap-1">
-                <span className="text-sm font-semibold">A regra já recusa estes termos</span>
+                <span className="text-sm font-semibold">{messages.pages.subjectExclusions.candidates.title}</span>
                 <span className="text-xs text-(--color-muted)">
-                  {formatCount(suggestions.data.candidate_count)} candidatos ·{" "}
+                  {fill(messages.pages.subjectExclusions.candidates.count, {
+                    count: formatCount(suggestions.data.candidate_count),
+                  })}{" "}
+                  ·{" "}
                   {Object.entries(suggestions.data.by_signal ?? {})
                     .map(([signal, count]) => `${SIGNAL_LABEL[signal] ?? signal} ${formatCount(count)}`)
                     .join(" · ")}
                   {suggestions.data.place_count > 0
-                    ? ` · ${formatCount(suggestions.data.place_count)} são lugares (o eixo de entidades os carrega)`
+                    ? fill(messages.pages.subjectExclusions.candidates.places, {
+                        count: formatCount(suggestions.data.place_count),
+                      })
                     : ""}
                 </span>
               </div>
@@ -197,30 +207,34 @@ export function SubjectExclusionsRoute() {
                 <Button
                   size="sm"
                   variant={showRecorded ? "primary" : "ghost"}
-                  title="Inclui os termos que já estão registrados como não-assunto, marcados como tais."
+                  title={messages.pages.subjectExclusions.candidates.toggleTitle}
                   onClick={() => {
                     setShowRecorded((current) => !current);
                     setOffset(0);
                   }}
                 >
-                  {showRecorded ? "esconder os já registrados" : "mostrar os já registrados"}
+                  {showRecorded
+                    ? messages.pages.subjectExclusions.candidates.hideRecorded
+                    : messages.pages.subjectExclusions.candidates.showRecorded}
                 </Button>
                 <Button
                   size="sm"
                   variant="secondary"
                   disabled={suggestions.data.candidate_count === 0 || ban.isPending}
-                  title="Registra de uma vez todos os candidatos que a regra recusa."
+                  title={messages.pages.subjectExclusions.candidates.registerAllTitle}
                   onClick={() =>
                     ban.mutate({
                       words: (suggestions.data?.items ?? [])
                         .filter((item) => !item.already_excluded)
                         .map((item) => item.term),
                       source: "RULE",
-                      reason: "forma reconhecida por regra (ano, placeholder, medida, logradouro ou nome de pessoa)",
+                      reason: messages.pages.subjectExclusions.candidates.reasonRule,
                     })
                   }
                 >
-                  registrar os {formatCount(suggestions.data.candidate_count)} candidatos
+                  {fill(messages.pages.subjectExclusions.candidates.registerAll, {
+                    count: formatCount(suggestions.data.candidate_count),
+                  })}
                 </Button>
               </div>
             </div>
@@ -236,29 +250,38 @@ export function SubjectExclusionsRoute() {
                           <Badge tone="warn">{SIGNAL_LABEL[item.signal] ?? item.signal}</Badge>
                           <Badge tone="neutral">{descricoes(item.document_count)}</Badge>
                           {item.is_place_term ? (
-                            <Badge tone="accent" title="A regra recusa como assunto, mas é um lugar: quem o carrega é o eixo de entidades. Recusar como assunto não exclui o termo.">
-                              é lugar
+                            <Badge tone="accent" title={messages.pages.subjectExclusions.candidates.placeBadgeTitle}>
+                              {messages.pages.subjectExclusions.candidates.placeBadge}
                             </Badge>
                           ) : null}
                           {item.also_an_entity ? (
-                            <Badge tone="ok" title="A mesma grafia existe como entidade nomeada: isso é a tela de conflitos, não esta.">
-                              também é entidade
+                            <Badge tone="ok" title={messages.pages.subjectExclusions.candidates.entityBadgeTitle}>
+                              {messages.pages.subjectExclusions.candidates.entityBadge}
                             </Badge>
                           ) : null}
                           {item.macro_category_name ? (
                             <Badge
                               tone="danger"
-                              title="Esta tag já está numa categoria de assunto: o registro é recusado aqui. Tire-a da categoria na aba Classificar."
+                              title={messages.pages.subjectExclusions.candidates.drawerBadgeTitle}
                             >
-                              está em {item.macro_category_name}
+                              {fill(messages.pages.subjectExclusions.candidates.drawerBadge, {
+                                category: item.macro_category_name,
+                              })}
                             </Badge>
                           ) : null}
                           {item.already_banned ? (
-                            <Badge tone="neutral" title="A grafia já está banida de voltar a virar tag.">
-                              grafia banida
+                            <Badge
+                              tone="neutral"
+                              title={messages.pages.subjectExclusions.candidates.bannedBadgeTitle}
+                            >
+                              {messages.pages.subjectExclusions.candidates.bannedBadge}
                             </Badge>
                           ) : null}
-                          {item.already_excluded ? <Badge tone="neutral">já registrado</Badge> : null}
+                          {item.already_excluded ? (
+                            <Badge tone="neutral">
+                              {messages.pages.subjectExclusions.candidates.recordedBadge}
+                            </Badge>
+                          ) : null}
                         </span>
                         {SIGNAL_HINT[item.signal] ? (
                           <span className="text-xs text-(--color-muted)">{SIGNAL_HINT[item.signal]}</span>
@@ -270,18 +293,22 @@ export function SubjectExclusionsRoute() {
                         disabled={item.already_excluded || Boolean(item.macro_category_name) || ban.isPending}
                         title={
                           item.macro_category_name
-                            ? `Está em ${item.macro_category_name}: tire a tag da categoria na aba Classificar antes.`
-                            : "O classificador para de adivinhar e a grafia não volta a virar tag."
+                            ? fill(messages.pages.subjectExclusions.candidates.markBlockedTitle, {
+                                category: item.macro_category_name,
+                              })
+                            : messages.pages.subjectExclusions.candidates.markTitle
                         }
                         onClick={() =>
                           ban.mutate({
                             words: [item.term],
                             source: "RULE",
-                            reason: `forma reconhecida por regra: ${item.signal}`,
+                            reason: fill(messages.pages.subjectExclusions.candidates.reasonRuleSignal, {
+                              signal: item.signal,
+                            }),
                           })
                         }
                       >
-                        Marcar como não-assunto
+                        {messages.pages.subjectExclusions.candidates.mark}
                       </Button>
                     </CardBody>
                   </Card>
@@ -292,31 +319,39 @@ export function SubjectExclusionsRoute() {
             {suggestions.data.total > SUBJECT_SUGGESTIONS_PAGE_SIZE ? (
               <div className="flex items-center justify-between text-sm">
                 <Button size="sm" disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - SUBJECT_SUGGESTIONS_PAGE_SIZE))}>
-                  ← Anterior
+                  {messages.common.previous}
                 </Button>
                 <span className="text-xs text-(--color-muted)">
-                  página {formatCount(Math.floor(offset / SUBJECT_SUGGESTIONS_PAGE_SIZE) + 1)} de{" "}
-                  {formatCount(Math.ceil(suggestions.data.total / SUBJECT_SUGGESTIONS_PAGE_SIZE))}
+                  {fill(messages.pages.subjectExclusions.candidates.page, {
+                    page: formatCount(Math.floor(offset / SUBJECT_SUGGESTIONS_PAGE_SIZE) + 1),
+                    pages: formatCount(Math.ceil(suggestions.data.total / SUBJECT_SUGGESTIONS_PAGE_SIZE)),
+                  })}
                 </span>
                 <Button
                   size="sm"
                   disabled={offset + SUBJECT_SUGGESTIONS_PAGE_SIZE >= suggestions.data.total}
                   onClick={() => setOffset(offset + SUBJECT_SUGGESTIONS_PAGE_SIZE)}
                 >
-                  Próxima →
+                  {messages.common.next}
                 </Button>
               </div>
             ) : null}
 
             <p className="text-xs text-(--color-muted)">
-              Os casos que nenhuma regra pega não são sugeridos aqui de propósito — só uma decisão
-              humana os registra. Entre eles: <code>pessoas</code>, <code>vista aérea</code> e <code>capanema</code>.
+              <Trans
+                text={messages.pages.subjectExclusions.candidates.footer}
+                values={{
+                  first: <code>{messages.pages.subjectExclusions.candidates.footerFirst}</code>,
+                  second: <code>{messages.pages.subjectExclusions.candidates.footerSecond}</code>,
+                  third: <code>{messages.pages.subjectExclusions.candidates.footerThird}</code>,
+                }}
+              />
             </p>
           </section>
         ) : null}
 
         {suggestions.error ? <ErrorState error={suggestions.error} /> : null}
-        {suggestions.isPending ? <Spinner label="Conferindo o vocabulário do acervo…" /> : null}
+        {suggestions.isPending ? <Spinner label={messages.pages.subjectExclusions.reading} /> : null}
 
         {exclusions.error ? <ErrorState error={exclusions.error} /> : null}
         {exclusions.isPending ? <Spinner /> : null}
@@ -328,23 +363,22 @@ export function SubjectExclusionsRoute() {
           findable.
         */}
         <Disclosure
-          triggerLabel="+ Vetar termos"
-          toggleLabel="Vetar termos"
+          triggerLabel={messages.pages.subjectExclusions.form.trigger}
+          toggleLabel={messages.pages.subjectExclusions.form.toggle}
           header={
             <div className="grid gap-1">
-              <span className="text-sm font-semibold">Vetar termos</span>
+              <span className="text-sm font-semibold">{messages.pages.subjectExclusions.form.title}</span>
               <span className="text-xs text-(--color-muted)">
-                Marcar como não-assunto não exclui nada: a tag continua no acervo, a classificação de
-                assunto para de adivinhar e a grafia não volta a virar tag.{" "}
+                {messages.pages.subjectExclusions.form.hint}{" "}
                 <Trans
-                  text={copy.spellings.verdictDeleteHint}
+                  text={messages.spellings.verdictDeleteHint}
                   values={{
                     blocked: (
                       <Link
                         to="/assuntos/grafias"
                         className="font-medium underline underline-offset-2"
                       >
-                        {copy.screens.blockedSpellings.label}
+                        {messages.screens.blockedSpellings.label}
                       </Link>
                     ),
                   }}
@@ -355,33 +389,37 @@ export function SubjectExclusionsRoute() {
         >
           <div className="grid gap-2">
             <p className="text-xs text-(--color-muted)">
-              Para os termos que <strong>nenhuma regra alcança</strong> — os julgamentos semânticos. Os
-              que a regra já recusa estão na lista acima e entram por ela, com o motivo declarado.
+              <Trans
+                text={messages.pages.subjectExclusions.form.lead}
+                values={{ strong: <strong>{messages.pages.subjectExclusions.form.leadStrong}</strong> }}
+              />
             </p>
             <Input
               value={draft}
               onChange={(event) => setDraft(event.target.value)}
-              placeholder="termos, separados por vírgula"
+              placeholder={messages.pages.subjectExclusions.form.placeholder}
             />
             <Input
               value={reason}
               onChange={(event) => setReason(event.target.value)}
-              placeholder="motivo (guardado para auditoria)"
+              placeholder={messages.pages.subjectExclusions.form.reasonPlaceholder}
             />
             {preview.isError ? <ErrorState error={preview.error} /> : null}
             {blocked.length > 0 ? (
               <p className="text-xs text-(--color-danger)">
-                {formatCount(blocked.length)} termo(s) já estão numa categoria de assunto e não serão
-                registrados:{" "}
-                {blocked
-                  .map((item) => `${item.term} (${item.macro_category_name ?? `#${item.macro_category_id}`})`)
-                  .join(", ")}
-                . Tire a tag da categoria na aba Classificar e volte aqui.
+                {fill(messages.pages.subjectExclusions.form.blocked, {
+                  count: formatCount(blocked.length),
+                  list: blocked
+                    .map((item) => `${item.term} (${item.macro_category_name ?? `#${item.macro_category_id}`})`)
+                    .join(", "),
+                })}
               </p>
             ) : null}
             {applicable.length > 0 ? (
               <p className="text-xs text-(--color-muted)">
-                {formatCount(applicable.length)} termo(s) serão registrados e banidos de voltar a virar tag.
+                {fill(messages.pages.subjectExclusions.form.applicable, {
+                  count: formatCount(applicable.length),
+                })}
               </p>
             ) : null}
             <div>
@@ -396,23 +434,29 @@ export function SubjectExclusionsRoute() {
                   })
                 }
               >
-                {ban.isPending ? "Registrando…" : "Marcar como não-assunto"}
+                {ban.isPending
+                  ? messages.pages.subjectExclusions.form.registering
+                  : messages.pages.subjectExclusions.candidates.mark}
               </Button>
             </div>
             {ban.error ? <ErrorState error={ban.error} /> : null}
             {report ? (
               <div className="grid gap-1 text-xs text-(--color-muted)">
                 <span>
-                  {routeMessage(report)} {formatCount(report.created)} termo(s) registrado(s),{" "}
-                  {formatCount(report.banned)} grafia(s) banida(s) de voltar.
+                  {routeMessage(report)}{" "}
+                  {fill(messages.pages.subjectExclusions.form.report, {
+                    created: formatCount(report.created),
+                    banned: formatCount(report.banned),
+                  })}
                 </span>
                 {(report.blocked ?? []).length > 0 ? (
                   <span className="text-(--color-danger)">
-                    {formatCount((report.blocked ?? []).length)} recusado(s) por já estar numa categoria de assunto:{" "}
-                    {(report.blocked ?? [])
-                      .map((item) => `${item.term} (${item.macro_category_name ?? `#${item.macro_category_id}`})`)
-                      .join(", ")}
-                    . Tire a tag da categoria na aba Classificar e volte aqui.
+                    {fill(messages.pages.subjectExclusions.form.reportBlocked, {
+                      count: formatCount((report.blocked ?? []).length),
+                      list: (report.blocked ?? [])
+                        .map((item) => `${item.term} (${item.macro_category_name ?? `#${item.macro_category_id}`})`)
+                        .join(", "),
+                    })}
                   </span>
                 ) : null}
               </div>
@@ -423,15 +467,17 @@ export function SubjectExclusionsRoute() {
 
         {exclusions.data && words.length === 0 ? (
           <EmptyState
-            title="Nenhum termo fora do eixo de assunto"
-            hint="A lista nasce vazia: é feita de decisões humanas sobre os casos que nenhuma regra pega. Enquanto o classificador não rodar no acervo, também não há erro a corrigir."
+            title={messages.pages.subjectExclusions.emptyTitle}
+            hint={messages.pages.subjectExclusions.emptyHint}
           />
         ) : null}
 
         {words.length > 0 ? (
           <div ref={ledgerRef}>
             <Card>
-              <CardHeader className="text-sm font-semibold">Termos vetados</CardHeader>
+              <CardHeader className="text-sm font-semibold">
+                {messages.pages.subjectExclusions.ledgerTitle}
+              </CardHeader>
               <CardBody>
                 {/*
                   A list with a search and not a cloud of chips: the chips read well at twenty and become a
@@ -442,10 +488,10 @@ export function SubjectExclusionsRoute() {
                   items={words}
                   keyOf={(word) => word}
                   termOf={(word) => [word]}
-                  searchPlaceholder="buscar termo vetado…"
-                  nounSingular="termo vetado"
-                  nounPlural="termos vetados"
-                  emptyTitle="Nenhum termo vetado"
+                  searchPlaceholder={messages.pages.subjectExclusions.searchPlaceholder}
+                  nounSingular={messages.pages.subjectExclusions.nounSingular}
+                  nounPlural={messages.pages.subjectExclusions.nounPlural}
+                  emptyTitle={messages.pages.subjectExclusions.emptyTitleVetoed}
                   initialTerm={search.termo}
                   renderItem={(word) => (
                     <div className="flex items-center justify-between gap-3 py-1.5">
@@ -454,7 +500,7 @@ export function SubjectExclusionsRoute() {
                         size="sm"
                         variant="ghost"
                         disabled={restore.isPending}
-                        title="O classificador volta a considerar o termo, e a grafia volta a poder virar tag. Só o banimento que esta decisão criou sai; uma grafia banida em Grafias bloqueadas continua."
+                        title={messages.pages.subjectExclusions.restoreTitle}
                         onClick={() => restore.mutate(word)}
                       >
                         {ACTION.remove.label}

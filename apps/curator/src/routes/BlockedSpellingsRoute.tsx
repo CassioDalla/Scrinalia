@@ -25,6 +25,7 @@ import { Input, Select } from "@/components/ui/Input";
 import { LedgerList } from "@/components/ui/LedgerList";
 import { Notice } from "@/components/ui/Notice";
 import { useCopy } from "@/i18n/context";
+import { fill } from "@/i18n/maps";
 import { Trans } from "@/i18n/trans";
 import { ACTION } from "@/lib/copy";
 import { formatCount, formatDateTime } from "@/lib/format";
@@ -81,7 +82,7 @@ function splitWords(text: string): string[] {
 export function BlockedSpellingsRoute() {
   const search = routeApi.useSearch();
   const navigate = useNavigate();
-  const copy = useCopy();
+  const messages = useCopy();
 
   const patch = (changes: Partial<BlockedSpellingsSearch>) =>
     navigate({ to: "/assuntos/grafias", search: { ...search, ...changes } });
@@ -92,7 +93,7 @@ export function BlockedSpellingsRoute() {
         screen="blockedSpellings"
         actions={
           <Link to="/assuntos/excecoes">
-            <Button size="sm">{copy.screens.subjectExclusions.label}</Button>
+            <Button size="sm">{messages.screens.subjectExclusions.label}</Button>
           </Link>
         }
       />
@@ -110,7 +111,7 @@ function BlockedSpellingsBody({
   search: BlockedSpellingsSearch;
   patch: (changes: Partial<BlockedSpellingsSearch>) => void;
 }) {
-  const copy = useCopy();
+  const messages = useCopy();
   const queryClient = useQueryClient();
   const [draft, setDraft] = useState("");
   const [draftScope, setDraftScope] = useState<StopwordsScope>("TAG");
@@ -193,17 +194,17 @@ function BlockedSpellingsBody({
       */}
       <Notice tone="neutral" className="max-w-3xl">
         <Trans
-          text={copy.spellings.notice}
+          text={messages.spellings.notice}
           values={{
-            verdict: <Link to="/assuntos/excecoes">{copy.screens.subjectExclusions.label}</Link>,
-            purge: <strong>{copy.spellings.purgeCard}</strong>,
+            verdict: <Link to="/assuntos/excecoes">{messages.screens.subjectExclusions.label}</Link>,
+            purge: <strong>{messages.spellings.purgeCard}</strong>,
           }}
         />
       </Notice>
 
       <div className="flex flex-wrap items-center gap-2">
         <Button size="sm" variant={search.escopo ? "secondary" : "primary"} onClick={() => patch({ escopo: undefined })}>
-          Todas as grafias ({formatCount(words.length)})
+          {fill(messages.pages.blockedSpellings.allSpellings, { count: formatCount(words.length) })}
         </Button>
         {SCOPE_VALUES.map((scope) => (
           <Button
@@ -219,24 +220,26 @@ function BlockedSpellingsBody({
       </div>
 
       <Card>
-        <CardHeader className="text-sm font-semibold">Banir grafias</CardHeader>
+        <CardHeader className="text-sm font-semibold">{messages.pages.blockedSpellings.banCard}</CardHeader>
         <CardBody className="grid gap-2">
           <div className="flex flex-wrap items-end gap-2">
             <label className="flex-1">
               <span className="mb-1 block text-xs font-medium text-(--color-muted)">
-                Grafias, Separadas por Vírgula ou Linha
+                {messages.pages.blockedSpellings.banField}
               </span>
               <Input
                 value={draft}
                 onChange={(event) => setDraft(event.target.value)}
-                placeholder="ex.: pessoas, vista aérea"
+                placeholder={messages.pages.blockedSpellings.banPlaceholder}
                 onKeyDown={(event) => {
                   if (event.key === "Enter" && splitWords(draft).length > 0) ban.mutate();
                 }}
               />
             </label>
             <label className="w-56">
-              <span className="mb-1 block text-xs font-medium text-(--color-muted)">Eixo</span>
+              <span className="mb-1 block text-xs font-medium text-(--color-muted)">
+                {messages.pages.blockedSpellings.scopeField}
+              </span>
               <Select value={draftScope} onChange={(event) => setDraftScope(event.target.value as StopwordsScope)}>
                 {SCOPE_VALUES.map((scope) => (
                   <option key={scope} value={scope}>
@@ -251,7 +254,9 @@ function BlockedSpellingsBody({
             */}
             {draftScope !== "TAG" ? (
               <label className="w-64">
-                <span className="mb-1 block text-xs font-medium text-(--color-muted)">Casamento</span>
+                <span className="mb-1 block text-xs font-medium text-(--color-muted)">
+                  {messages.pages.blockedSpellings.matchField}
+                </span>
                 <Select value={draftMatch} onChange={(event) => setDraftMatch(event.target.value as StopwordMatch)}>
                   {MATCH_VALUES.map((mode) => (
                     <option key={mode} value={mode}>
@@ -279,18 +284,18 @@ function BlockedSpellingsBody({
       </Card>
 
       {stopwords.error ? <ErrorState error={stopwords.error} /> : null}
-      {stopwords.isPending ? <Spinner label="Lendo as grafias bloqueadas…" /> : null}
+      {stopwords.isPending ? <Spinner label={messages.pages.blockedSpellings.reading} /> : null}
 
       {stopwords.data && words.length === 0 ? (
         <EmptyState
-          title="Nenhuma grafia bloqueada"
-          hint="Banir uma grafia a tira do eixo escolhido. Nada é excluído por banir: a exclusão das tags é um passo separado, abaixo."
+          title={messages.pages.blockedSpellings.emptyTitle}
+          hint={messages.pages.blockedSpellings.emptyHint}
         />
       ) : null}
 
       {words.length > 0 ? (
         <Card>
-          <CardHeader className="text-sm font-semibold">Grafias bloqueadas</CardHeader>
+          <CardHeader className="text-sm font-semibold">{messages.screens.blockedSpellings.label}</CardHeader>
           <CardBody>
             {/*
               A searchable ledger and not a flat column: 200 blocked spellings is already past the
@@ -304,11 +309,11 @@ function BlockedSpellingsBody({
                 labelOf(STOPWORD_SCOPE_LABEL, item.scope),
                 labelOf(STOPWORD_SOURCE_LABEL, item.source),
               ]}
-              searchPlaceholder="Buscar grafia bloqueada…"
-              nounSingular="grafia bloqueada"
-              nounPlural="grafias bloqueadas"
-              emptyTitle="Nenhuma grafia bloqueada"
-              emptyHint="Banir uma grafia a tira do eixo escolhido. Nada é excluído por banir: a exclusão das tags é um passo separado, abaixo."
+              searchPlaceholder={messages.pages.blockedSpellings.searchPlaceholder}
+              nounSingular={messages.pages.blockedSpellings.nounSingular}
+              nounPlural={messages.pages.blockedSpellings.nounPlural}
+              emptyTitle={messages.pages.blockedSpellings.emptyTitle}
+              emptyHint={messages.pages.blockedSpellings.emptyHint}
               renderItem={(item) => (
                 <div className="flex items-center justify-between gap-3 py-1.5">
                   <span className="flex min-w-0 items-center gap-2">
@@ -364,7 +369,9 @@ function BlockedSpellingsBody({
                         title={STOPWORD_SOURCE_HINT.EXCLUSION}
                         className="text-xs text-(--color-muted) underline-offset-2 hover:text-(--color-ink) hover:underline"
                       >
-                        ver em {copy.screens.subjectExclusions.label}
+                        {fill(messages.pages.blockedSpellings.seeIn, {
+                          place: messages.screens.subjectExclusions.label,
+                        })}
                       </Link>
                     ) : null}
                     <Button
@@ -384,14 +391,9 @@ function BlockedSpellingsBody({
       ) : null}
 
       <Card className="ring-(--color-danger)/30">
-        <CardHeader className="text-sm font-semibold text-(--color-danger)">{copy.spellings.purgeCard}</CardHeader>
+        <CardHeader className="text-sm font-semibold text-(--color-danger)">{messages.spellings.purgeCard}</CardHeader>
         <CardBody className="grid gap-3">
-          <p className="text-xs text-(--color-muted)">
-            A exclusão remove todas as etiquetas identificadas como termos bloqueados (no eixo de assunto ou em ambos).
-            Os vínculos com os documentos e as classificações são desfeitos, mas uma cópia de segurança é criada antes da
-            exclusão. Caso precise reverter, o botão Desfazer restaura a etiqueta, suas grafias e seus vínculos com os
-            itens — porém o termo continua na lista de bloqueados.
-          </p>
+          <p className="text-xs text-(--color-muted)">{messages.pages.blockedSpellings.purge.body}</p>
 
           <div className="flex flex-wrap items-center gap-2">
             <Button disabled={dryRun.isPending || purge.isPending} onClick={() => dryRun.mutate()}>
@@ -400,14 +402,16 @@ function BlockedSpellingsBody({
             <Button
               variant="danger"
               disabled={!preview || preview.total_tags === 0 || purge.isPending}
-              title={preview ? undefined : "O impacto é obrigatório: confira o que seria excluído primeiro."}
+              title={preview ? undefined : messages.pages.blockedSpellings.purge.previewRequired}
               onClick={() => purge.mutate()}
             >
               {purge.isPending
                 ? ACTION.exclude.pending
                 : preview
-                  ? `Excluir ${formatCount(preview.total_tags)} tag(s)`
-                  : "Excluir (confira antes)"}
+                  ? fill(messages.pages.blockedSpellings.purge.excludeCount, {
+                      count: formatCount(preview.total_tags),
+                    })
+                  : messages.pages.blockedSpellings.purge.excludeFirst}
             </Button>
           </div>
 
@@ -417,18 +421,34 @@ function BlockedSpellingsBody({
           {preview ? (
             <Notice tone="danger" as="div" className="grid gap-2">
               <p>
-                Nada foi excluído ainda. Seriam <strong>{formatCount(preview.total_tags)} tag(s)</strong> em{" "}
-                <strong>{formatCount(preview.total_documents)} descrição(ões)</strong>.
+                <Trans
+                  text={messages.pages.blockedSpellings.purge.previewLead}
+                  values={{
+                    tags: (
+                      <strong>
+                        {fill(messages.pages.blockedSpellings.purge.previewTags, {
+                          count: formatCount(preview.total_tags),
+                        })}
+                      </strong>
+                    ),
+                    documents: (
+                      <strong>
+                        {fill(messages.pages.blockedSpellings.purge.previewDocuments, {
+                          count: formatCount(preview.total_documents),
+                        })}
+                      </strong>
+                    ),
+                  }}
+                />
               </p>
               {(preview.stopwords ?? []).length > 0 ? (
                 <p className="text-(--color-muted)">
-                  grafias que a exclusão alcança: <code>{(preview.stopwords ?? []).join(", ")}</code>
+                  {messages.pages.blockedSpellings.purge.reached}{" "}
+                  <code>{(preview.stopwords ?? []).join(", ")}</code>
                 </p>
               ) : null}
               {preview.total_tags === 0 ? (
-                <p className="text-(--color-muted)">
-                  Nenhuma tag do acervo tem um desses nomes — não há o que excluir.
-                </p>
+                <p className="text-(--color-muted)">{messages.pages.blockedSpellings.purge.nothingToExclude}</p>
               ) : (
                 <ul className="max-h-64 overflow-y-auto">
                   {(preview.tags ?? []).map((tag) => (
@@ -442,7 +462,9 @@ function BlockedSpellingsBody({
                         ) : null}
                       </span>
                       <span className="shrink-0 tabular-nums text-(--color-muted)">
-                        {formatCount(tag.document_count)} doc
+                        {fill(messages.pages.blockedSpellings.purge.docCount, {
+                          count: formatCount(tag.document_count),
+                        })}
                         {tag.macro_category_name ? ` · ${tag.macro_category_name}` : ""}
                       </span>
                     </li>
@@ -455,7 +477,7 @@ function BlockedSpellingsBody({
           {purged !== null ? (
             <Notice tone="ok" as="div" className="grid gap-2">
               <p>
-                {formatCount(purged)} tag(s) excluída(s) e registrada(s) no registro das exclusões.
+                {fill(messages.pages.blockedSpellings.purge.purged, { count: formatCount(purged) })}
               </p>
               {purgeIds.length > 0 ? (
                 <div className="flex flex-wrap items-center gap-2">
@@ -463,16 +485,16 @@ function BlockedSpellingsBody({
                     size="sm"
                     variant="ghost"
                     disabled={revertPurge.isPending}
-                    title="Restaura as tags, os vínculos e as grafias desta exclusão. O bloqueio continua."
+                    title={messages.pages.blockedSpellings.purge.undoTitle}
                     onClick={() => {
                       const [first] = purgeIds;
                       if (first !== undefined) revertPurge.mutate(first);
                     }}
                   >
-                    desfazer esta exclusão
+                    {messages.pages.blockedSpellings.purge.undo}
                   </Button>
                   <span className="text-(--color-muted)">
-                    entradas no registro: <code>{purgeIds.join(", ")}</code>
+                    {messages.pages.blockedSpellings.purge.entries} <code>{purgeIds.join(", ")}</code>
                   </span>
                 </div>
               ) : null}
@@ -484,10 +506,15 @@ function BlockedSpellingsBody({
 
       <Card>
         <CardHeader className="text-sm font-semibold">
-          Registro das exclusões
-          <Hint label="Registro das exclusões" className="text-xs text-(--color-muted)">
-            Cada linha é uma tag excluída, com o estado anterior guardado: nome, vínculos, grafias e classificação. O
-            desfazer restaura a tag — e <strong>não</strong> desbane o termo, que continua bloqueado.
+          {messages.pages.blockedSpellings.log.title}
+          <Hint
+            label={messages.pages.blockedSpellings.log.title}
+            className="text-xs text-(--color-muted)"
+          >
+            <Trans
+              text={messages.pages.blockedSpellings.log.hint}
+              values={{ strong: <strong>{messages.pages.blockedSpellings.log.hintStrong}</strong> }}
+            />
           </Hint>
         </CardHeader>
         <CardBody className="grid gap-2">
@@ -498,18 +525,22 @@ function BlockedSpellingsBody({
           <Input
             className="max-w-xs"
             value={logTerm}
-            placeholder="Buscar por tag excluída…"
+            placeholder={messages.pages.blockedSpellings.log.searchPlaceholder}
             onChange={(event) => setLogTerm(event.target.value)}
           />
-          {log.isPending ? <Spinner label="Lendo o registro…" /> : null}
+          {log.isPending ? <Spinner label={messages.pages.blockedSpellings.log.reading} /> : null}
           {log.error ? <ErrorState error={log.error} /> : null}
           {log.data && (log.data.items ?? []).length === 0 ? (
             <EmptyState
-              title={logTerm.trim() ? `Nenhuma exclusão para “${logTerm.trim()}”` : "Nenhuma exclusão registrada ainda"}
+              title={
+                logTerm.trim()
+                  ? fill(messages.pages.blockedSpellings.log.emptyTerm, { term: logTerm.trim() })
+                  : messages.pages.blockedSpellings.log.empty
+              }
               hint={
                 logTerm.trim()
-                  ? "A busca cobre o nome da tag excluída."
-                  : "O registro guarda cada tag excluída, com o estado anterior."
+                  ? messages.pages.blockedSpellings.log.emptyTermHint
+                  : messages.pages.blockedSpellings.log.emptyHint
               }
             />
           ) : null}
@@ -520,22 +551,31 @@ function BlockedSpellingsBody({
                   <span className="font-medium">{entry.purged_name}</span>
                   <span className="text-(--color-muted)">
                     {" "}
-                    · {formatCount(entry.document_count)} doc(s) · {formatDateTime(entry.changed_at)}
-                    {entry.changed_by ? ` · por ${entry.changed_by}` : ""}
+                    {fill(messages.pages.blockedSpellings.log.row, {
+                      documents: formatCount(entry.document_count),
+                      date: formatDateTime(entry.changed_at),
+                    })}
+                    {entry.changed_by
+                      ? ` ${fill(messages.pages.blockedSpellings.log.by, { name: entry.changed_by })}`
+                      : ""}
                     {entry.macro_category_name ? ` · ${entry.macro_category_name}` : ""}
                   </span>
                 </span>
                 {entry.undone_at ? (
-                  <Badge tone="neutral">restaurada em {formatDateTime(entry.undone_at)}</Badge>
+                  <Badge tone="neutral">
+                    {fill(messages.pages.blockedSpellings.log.restored, {
+                      date: formatDateTime(entry.undone_at),
+                    })}
+                  </Badge>
                 ) : (
                   <Button
                     size="sm"
                     variant="ghost"
                     disabled={revertPurge.isPending}
-                    title="Restaura a tag, os vínculos e as grafias. O bloqueio do termo continua."
+                    title={messages.pages.blockedSpellings.log.undoTitle}
                     onClick={() => revertPurge.mutate(entry.purge_id)}
                   >
-                    desfazer
+                    {messages.pages.blockedSpellings.log.undo}
                   </Button>
                 )}
               </li>
@@ -549,12 +589,19 @@ function BlockedSpellingsBody({
             <div className="flex items-center gap-2">
               {log.data.total > (log.data.items ?? []).length ? (
                 <Button size="sm" variant="ghost" onClick={() => setLogLimit((current) => current + MERGE_LOG_PAGE_SIZE)}>
-                  ver mais
+                  {messages.pages.blockedSpellings.log.seeMore}
                 </Button>
               ) : null}
               <span className="text-xs text-(--color-muted)">
-                mostrando {formatCount((log.data.items ?? []).length)} de {formatCount(log.data.total)}{" "}
-                {settledLogTerm.trim() ? "exclusão(ões) que a busca encontrou" : "exclusão(ões) registrada(s)"}
+                {fill(
+                  settledLogTerm.trim()
+                    ? messages.pages.blockedSpellings.log.showingFiltered
+                    : messages.pages.blockedSpellings.log.showing,
+                  {
+                    shown: formatCount((log.data.items ?? []).length),
+                    total: formatCount(log.data.total),
+                  },
+                )}
               </span>
             </div>
           ) : null}

@@ -223,9 +223,6 @@ PORTUGUESE = re.compile(
 PENDING = {
     "src/components/workers/WorkerTrialCard.tsx",
     "src/components/workers/WorkersPanel.tsx",
-    "src/routes/BlockedSpellingsRoute.tsx",
-    "src/routes/NerExclusionsRoute.tsx",
-    "src/routes/SubjectExclusionsRoute.tsx",
     "src/routes/WorkerSettingsRoute.tsx",
 }
 
