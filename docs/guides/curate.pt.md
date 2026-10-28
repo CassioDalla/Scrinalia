@@ -495,8 +495,9 @@ por último:
 
 Os degraus aparecem como a árvore que os códigos implicam, não como uma lista recuada. A caixa à
 esquerda de uma linha recolhe aquele ramo — a linha passa a dizer quantos degraus e quantas decisões
-ele esconde —, enquanto o chevron do cartão abre o corpo da decisão; recolher o ramo não fecha os
-cartões que estão dentro dele. Os filtros de status, aviso e código mantêm os pais e o ramo de cada
+ele esconde —, enquanto o chevron do cartão abre o corpo da decisão; recolher o ramo não reinicia os
+cartões que estão dentro dele: expandir devolve cada um como estava. Os filtros de status, aviso e
+código mantêm os pais e o ramo de cada
 degrau que casa, e um pai de um degrau que casa não pode ser recolhido. **Recolher os decididos**
 fecha os ramos que não têm nenhum degrau ainda `SUGGESTED`. A URL guarda só o topo de cada ramo
 recolhido, então o colega abre a mesma vista.

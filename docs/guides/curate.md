@@ -520,8 +520,9 @@ form last:
 
 The rungs are drawn as the tree their codes imply, not as one indented list. The box at the left of
 a row closes that branch — the row then says how many rungs and how many pending decisions it hides
-— while the card's own chevron opens the decision body; closing a branch never closes the cards
-inside it. The status, flag and code filters keep a match's ancestors and its branch, and an
+— while the card's own chevron opens the decision body; closing a branch does not reset the cards
+inside it: expanding restores each one as it was. The status, flag and code filters keep a match's
+ancestors and its branch, and an
 ancestor of a match cannot be closed. **Recolher os decididos** closes the branches with no rung
 still `SUGGESTED`. The URL records the top of each closed branch, so a colleague opens the same
 view.
