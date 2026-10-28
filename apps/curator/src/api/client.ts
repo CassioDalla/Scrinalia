@@ -154,6 +154,10 @@ export type PlanStatus = PlanDecision["status"];
 
 // --- The vocabulary of the dossier: tags, entities and the drawers of subject ------------------
 export type TagSearchResult = components["schemas"]["TagSearchResult"];
+export type AccessPointPreviewItem = components["schemas"]["AccessPointResolution"];
+export type AccessPointPreviewResponse = components["schemas"]["AccessPointPreviewResponse"];
+/** The preview body, derived from the model the route declares; never retyped here. */
+export type PreviewAccessPointsBody = components["schemas"]["AccessPointPreviewRequest"];
 export type TagCurationRequest = components["schemas"]["TagCurationRequest"];
 export type TagCurationResult = components["schemas"]["TagCurationResult"];
 export type TagCatalogState = components["schemas"]["TagCatalogState"];
@@ -737,6 +741,19 @@ export async function moveHierarchyNode(
 export async function searchTags(term: string, limit = 10): Promise<TagSearchResult[]> {
   return unwrap<TagSearchResult[]>(
     await client.GET("/api/v1/taxonomy/tags", { params: { query: { term, limit } } }),
+  );
+}
+
+/**
+ * Reads a raw access-point string into what the transfer will create, map or discard.
+ *
+ * Read-only: an unknown spelling is ``NEW``, not a row. The transfer is still the only writer, and
+ * the same classifier answers, so the summary the form shows cannot promise a spelling the archive
+ * will not carry.
+ */
+export async function previewAccessPoints(body: PreviewAccessPointsBody): Promise<AccessPointPreviewResponse> {
+  return unwrap<AccessPointPreviewResponse>(
+    await client.POST("/api/v1/taxonomy/tags/preview", { body }),
   );
 }
 

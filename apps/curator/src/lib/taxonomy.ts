@@ -6,6 +6,7 @@
  * Portuguese).
  */
 
+import type { AccessPointPreviewItem } from "@/api/client";
 import type { BadgeTone } from "@/lib/hierarchy";
 
 export const MERGE_REASON_LABEL: Record<string, string> = {
@@ -148,3 +149,30 @@ export const CATALOG_STATE_HINT: Record<string, string> = {
   LOW_CONFIDENCE:
     "Classificação automática inconclusiva. A etiqueta aguarda validação humana, com a pontuação sugerida pelo sistema exibida na linha.",
 };
+
+/**
+ * The four groups the creation form's access-point summary reads.
+ *
+ * The server answers one status per entry; the summary only has something to say about the
+ * spellings the transfer will create, the ones it will drop, the ones it will map to a synonym, and
+ * an existing tag whose stored spelling differs from what was typed. An exact existing tag is the
+ * common case and produces no line at all.
+ */
+export type AccessPointPreviewGroups = {
+  created: AccessPointPreviewItem[];
+  dropped: AccessPointPreviewItem[];
+  synonyms: AccessPointPreviewItem[];
+  respelled: AccessPointPreviewItem[];
+};
+
+export function groupAccessPointPreview(items: AccessPointPreviewItem[]): AccessPointPreviewGroups {
+  return {
+    created: items.filter((item) => item.status === "NEW"),
+    dropped: items.filter(
+      (item) => item.status === "STOPWORD" || item.status === "TOO_SHORT" || item.status === "TOO_LONG",
+    ),
+    synonyms: items.filter((item) => item.status === "SYNONYM"),
+    respelled: items.filter((item) => item.status === "EXISTING" && item.name !== null && item.name !== item.input),
+  };
+}
+

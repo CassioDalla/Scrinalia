@@ -69,3 +69,17 @@ body {
   outline: 2px solid var(--color-accent);
   outline-offset: 2px;
 }
+
+/*
+ * The access-point chips are one composite control: the ring belongs to the box, not to the text
+ * field inside it. The input's own outline would highlight a rectangle after the chips and read as
+ * a second control. The box keeps the same visible outline, so focus is moved, never removed.
+ */
+.access-points-box:focus-within {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.access-points-input:focus-visible {
+  outline: none;
+}
