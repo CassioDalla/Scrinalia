@@ -23,6 +23,9 @@ import { Field } from "@/components/ui/Field";
 import { Input, Select } from "@/components/ui/Input";
 import { Notice } from "@/components/ui/Notice";
 import { PageBody } from "@/components/layout/PageBody";
+import { useCopy } from "@/i18n/context";
+import { activeMessages } from "@/i18n/locale";
+import { fill } from "@/i18n/maps";
 import { ACTION } from "@/lib/copy";
 import { formatCount } from "@/lib/format";
 import { labelOf } from "@/lib/hierarchy";
@@ -50,10 +53,13 @@ function presetLabel(preset: CleaningRulePreset): string {
 }
 
 function subtitleOf(active: number, retired: number): string {
-  const activeLabel = active === 1 ? "1 regra ativa" : `${formatCount(active)} regras ativas`;
-  if (retired === 0) return active === 0 ? "Nenhuma regra ativa" : activeLabel;
-  const retiredLabel = retired === 1 ? "1 aposentada" : `${formatCount(retired)} aposentadas`;
-  return `${active === 0 ? "Nenhuma regra ativa" : activeLabel} · ${retiredLabel}`;
+  const copy = activeMessages().pages.cleaningRules;
+  const activeLabel =
+    active === 1 ? copy.activeOne : fill(copy.activeMany, { count: formatCount(active) });
+  if (retired === 0) return active === 0 ? copy.none : activeLabel;
+  const retiredLabel =
+    retired === 1 ? copy.retiredOne : fill(copy.retiredMany, { count: formatCount(retired) });
+  return `${active === 0 ? copy.none : activeLabel} · ${retiredLabel}`;
 }
 
 /**
@@ -70,6 +76,7 @@ function subtitleOf(active: number, retired: number): string {
  * active rule is the loudest thing on the screen, and nothing is saved before the preview.
  */
 export function CleaningRulesRoute() {
+  const messages = useCopy();
   const queryClient = useQueryClient();
   const rules = useQuery(queries.cleaningRules());
 
@@ -101,20 +108,15 @@ export function CleaningRulesRoute() {
       <PageHeader screen="cleaningRules" pending={rules.isPending} status={rules.data ? subtitleOf(activeCount, retiredCount) : undefined} />
 
       <PageBody>
-        <Notice tone="warn">
-          <strong>O tipo da regra é o que separa limpar de destruir.</strong> Uma regra que reescreve o
-          texto substitui cada ocorrência no acervo; uma que só sinaliza, ou que consulta o modelo,
-          apenas aponta o problema, sem tocar no texto. Regras nunca são excluídas: as aposentadas
-          continuam nesta tela, com o botão de reativar.
-        </Notice>
+        <Notice tone="warn">{messages.pages.cleaningRules.notice}</Notice>
 
         {rules.error ? <ErrorState error={rules.error} /> : null}
         {rules.isPending ? <Spinner /> : null}
 
         {rules.data && activeCount === 0 ? (
           <EmptyState
-            title="Nenhuma regra ativa"
-            hint="Sem nenhuma regra ativa que reescreva o texto, nada no acervo é reescrito. Sem nenhuma regra ativa que sinalize, nenhuma ocorrência é marcada pelas suas regras; as anomalias que o sistema aponta por conta própria — sem data, título vazio — continuam aparecendo. As aposentadas ficam abaixo, com o botão de reativar."
+            title={messages.pages.cleaningRules.emptyTitle}
+            hint={messages.pages.cleaningRules.emptyHint}
           />
         ) : null}
 
@@ -139,7 +141,7 @@ export function CleaningRulesRoute() {
                       </Badge>
                       <Badge tone="neutral">{labelOf(TARGET_COLUMN_LABEL, rule.target_column)}</Badge>
                       <Badge tone={rule.is_active ? "ok" : "neutral"}>
-                        {rule.is_active ? "ativa" : "aposentada"}
+                        {rule.is_active ? messages.pages.cleaningRules.activeBadge : messages.pages.cleaningRules.retiredBadge}
                       </Badge>
                     </div>
                     {rule.is_active ? (
@@ -165,30 +167,35 @@ export function CleaningRulesRoute() {
 
                   <div className="flex flex-wrap items-center gap-3 text-xs text-(--color-muted)">
                     <span>
-                      expressão: <code className="rounded bg-black/[0.05] px-1">{rule.regex_pattern}</code>
+                      {messages.pages.cleaningRules.expression} <code className="rounded bg-black/[0.05] px-1">{rule.regex_pattern}</code>
                     </span>
                     <span>
-                      substitui por:{" "}
+                      {messages.pages.cleaningRules.replacesBy}{" "}
                       <code className="rounded bg-black/[0.05] px-1">
-                        {rule.replacement_string === "" ? "(vazio)" : rule.replacement_string}
+                        {rule.replacement_string === "" ? messages.pages.cleaningRules.emptyValue : rule.replacement_string}
                       </code>
                     </span>
-                    {rule.anomaly_reason ? <span>motivo da anomalia: {rule.anomaly_reason}</span> : null}
-                    {rule.engine_name ? <span>engine: {rule.engine_name}</span> : null}
+                    {rule.anomaly_reason ? (
+                      <span>
+                        {messages.pages.cleaningRules.anomalyReason} {rule.anomaly_reason}
+                      </span>
+                    ) : null}
+                    {rule.engine_name ? (
+                      <span>
+                        {messages.pages.cleaningRules.engine} {rule.engine_name}
+                      </span>
+                    ) : null}
                   </div>
 
                   {rule.is_active && rule.rule_kind === "REWRITE" ? (
                     <p className="text-xs text-(--color-warn)">
-                      Esta regra reescreve o acervo: cada ocorrência em{" "}
-                      {labelOf(TARGET_COLUMN_LABEL, rule.target_column)} será substituída na próxima
-                      varredura. As descrições aprovadas por uma pessoa não são tocadas.
+                      {fill(messages.pages.cleaningRules.rewriteWarning, {
+                        column: labelOf(TARGET_COLUMN_LABEL, rule.target_column),
+                      })}
                     </p>
                   ) : null}
                   {!rule.is_active ? (
-                    <p className="text-xs text-(--color-muted)">
-                      Aposentada: esta regra não é aplicada ao acervo. Reativar devolve a mesma regra —
-                      nada foi excluído.
-                    </p>
+                    <p className="text-xs text-(--color-muted)">{messages.pages.cleaningRules.retiredNote}</p>
                   ) : null}
                 </CardBody>
               </Card>
@@ -201,6 +208,7 @@ export function CleaningRulesRoute() {
 }
 
 function CreateRuleCard({ onCreated }: { onCreated: () => void }) {
+  const messages = useCopy();
   const engines = useQuery(queries.cleaningRuleEngines());
   const [draft, setDraft] = useState<CreateCleaningRuleRequest>({
     rule_name: "",
@@ -260,29 +268,26 @@ function CreateRuleCard({ onCreated }: { onCreated: () => void }) {
 
   return (
     <Disclosure
-      triggerLabel="+ Nova regra"
-      toggleLabel="Nova regra"
+      triggerLabel={messages.pages.cleaningRules.newRule}
+      toggleLabel={messages.pages.cleaningRules.newRuleTitle}
       header={
         <div className="grid gap-1">
-          <span className="text-sm font-semibold">Nova regra</span>
-          <span className="text-xs text-(--color-muted)">
-            Uma regra que reescreve substitui cada ocorrência no acervo inteiro e só é salva depois de
-            conferir o impacto.
-          </span>
+          <span className="text-sm font-semibold">{messages.pages.cleaningRules.newRuleTitle}</span>
+          <span className="text-xs text-(--color-muted)">{messages.pages.cleaningRules.newRuleHint}</span>
         </div>
       }
     >
       <div className="grid gap-2">
         <div className="grid gap-2 sm:grid-cols-2">
-          <Field label="Nome">
+          <Field label={messages.pages.cleaningRules.nameField}>
             <Input
               value={draft.rule_name}
               onChange={(event) => patch({ rule_name: event.target.value })}
               maxLength={150}
-              placeholder="ex.: normaliza abreviação de logradouro"
+              placeholder={messages.pages.cleaningRules.namePlaceholder}
             />
           </Field>
-          <Field label="Campo da Descrição">
+          <Field label={messages.pages.cleaningRules.targetField}>
             <Select
               value={draft.target_column}
               onChange={(event) => patch({ target_column: event.target.value as CleaningTargetColumn })}
@@ -297,7 +302,7 @@ function CreateRuleCard({ onCreated }: { onCreated: () => void }) {
         </div>
 
         <div className="grid gap-2 sm:grid-cols-2">
-          <Field label="Expressão Regular (Python)">
+          <Field label={messages.pages.cleaningRules.regexField}>
             <Input
               value={draft.regex_pattern}
               onChange={(event) => patch({ regex_pattern: event.target.value })}
@@ -305,7 +310,7 @@ function CreateRuleCard({ onCreated }: { onCreated: () => void }) {
               className="font-mono"
             />
           </Field>
-          <Field label="Substituir por (vazio = remover o trecho)">
+          <Field label={messages.pages.cleaningRules.replacementField}>
             <Input
               value={draft.replacement_string ?? ""}
               onChange={(event) => patch({ replacement_string: event.target.value })}
@@ -314,7 +319,7 @@ function CreateRuleCard({ onCreated }: { onCreated: () => void }) {
           </Field>
         </div>
 
-        <Field label="Tipo">
+        <Field label={messages.pages.cleaningRules.kindField}>
           <Select value={draft.rule_kind} onChange={(event) => patch({ rule_kind: event.target.value as RuleKind })}>
             {KINDS.map((kind) => (
               <option key={kind} value={kind}>
@@ -326,25 +331,29 @@ function CreateRuleCard({ onCreated }: { onCreated: () => void }) {
         </Field>
 
         {draft.rule_kind === "VALIDATE" ? (
-          <Field label="Motivo Registrado no Documento quando Casar">
+          <Field label={messages.pages.cleaningRules.anomalyField}>
             <Input
               value={draft.anomaly_reason ?? ""}
               onChange={(event) => patch({ anomaly_reason: event.target.value || null })}
-              placeholder="ex.: título fora do padrão"
+              placeholder={messages.pages.cleaningRules.anomalyPlaceholder}
             />
           </Field>
         ) : null}
 
         {draft.rule_kind === "LLM_CHECK" ? (
           <div className="grid gap-2 sm:grid-cols-2">
-            <Field label="Motor">
+            <Field label={messages.pages.cleaningRules.engineField}>
               <Select
                 value={draft.engine_name ?? ""}
                 disabled={catalogue.length === 0}
                 onChange={(event) => patch({ engine_name: event.target.value || null, preset: null })}
               >
                 <option value="">
-                  {engines.isPending ? "carregando…" : `padrão (${catalogue[0]?.name ?? "nenhum motor"})`}
+                  {engines.isPending
+                    ? messages.pages.cleaningRules.loading
+                    : fill(messages.pages.cleaningRules.engineDefault, {
+                        engine: catalogue[0]?.name ?? messages.pages.cleaningRules.noEngine,
+                      })}
                 </option>
                 {catalogue.map((engine) => (
                   <option key={engine.name} value={engine.name}>
@@ -352,17 +361,15 @@ function CreateRuleCard({ onCreated }: { onCreated: () => void }) {
                   </option>
                 ))}
               </Select>
-              <span className="text-(--color-muted)">
-                Em branco, a regra usa o motor padrão. Só é possível salvar com um motor desta lista.
-              </span>
+              <span className="text-(--color-muted)">{messages.pages.cleaningRules.engineHint}</span>
             </Field>
-            <Field label="Preset">
+            <Field label={messages.pages.cleaningRules.presetField}>
               <Select
                 value={draft.preset ?? ""}
                 disabled={presets.length === 0}
                 onChange={(event) => patch({ preset: event.target.value || null })}
               >
-                <option value="">sem preset (o padrão do motor)</option>
+                <option value="">{messages.pages.cleaningRules.noPreset}</option>
                 {presets.map((preset) => (
                   <option key={preset.name} value={preset.name}>
                     {presetLabel(preset)}
@@ -386,15 +393,13 @@ function CreateRuleCard({ onCreated }: { onCreated: () => void }) {
             size="sm"
             variant="primary"
             disabled={!canSave}
-            title={rewriteNeedsPreview ? "Confira o impacto antes: esta regra reescreve o acervo" : undefined}
+            title={rewriteNeedsPreview ? messages.pages.cleaningRules.previewFirst : undefined}
             onClick={() => create.mutate()}
           >
-            {create.isPending ? ACTION.save.pending : "Salvar e ativar"}
+            {create.isPending ? ACTION.save.pending : messages.pages.cleaningRules.saveActivate}
           </Button>
           {rewriteNeedsPreview ? (
-            <span className="text-xs text-(--color-muted)">
-              uma regra que reescreve só é salva depois de conferir o impacto
-            </span>
+            <span className="text-xs text-(--color-muted)">{messages.pages.cleaningRules.previewHint}</span>
           ) : null}
         </div>
 
@@ -402,13 +407,16 @@ function CreateRuleCard({ onCreated }: { onCreated: () => void }) {
           <div className="rounded-md bg-black/[0.03] px-3 py-2 text-xs">
             {preview.is_valid_regex ? (
               <p>
-                A amostra encontrou{" "}
-                <strong>{formatCount(preview.matches_found)}</strong> descrições que mudariam em{" "}
-                {labelOf(TARGET_COLUMN_LABEL, draft.target_column)}.
+                {fill(messages.pages.cleaningRules.sampleFound, {
+                  count: formatCount(preview.matches_found),
+                  column: labelOf(TARGET_COLUMN_LABEL, draft.target_column),
+                })}
               </p>
             ) : (
               <p className="text-(--color-danger)">
-                Expressão inválida: {preview.error_message ?? "a expressão não pôde ser lida."}
+                {fill(messages.pages.cleaningRules.invalidRegex, {
+                  error: preview.error_message ?? messages.pages.cleaningRules.regexUnreadable,
+                })}
               </p>
             )}
             {preview.samples.length > 0 ? (

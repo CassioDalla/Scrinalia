@@ -3,6 +3,8 @@ import { useMemo, useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/Feedback";
 import { Input } from "@/components/ui/Input";
+import { useCopy } from "@/i18n/context";
+import { fill } from "@/i18n/maps";
 
 /**
  * A ledger: a growing list that has to stay searchable.
@@ -29,7 +31,7 @@ export function LedgerList<T>({
   termOf,
   renderItem,
   keyOf,
-  searchPlaceholder = "Buscar no histórico…",
+  searchPlaceholder,
   nounSingular,
   nounPlural,
   emptyTitle,
@@ -52,6 +54,7 @@ export function LedgerList<T>({
   pageSize?: number;
   initialTerm?: string;
 }) {
+  const messages = useCopy();
   const [term, setTerm] = useState(initialTerm ?? "");
   const [limit, setLimit] = useState(pageSize);
 
@@ -69,7 +72,7 @@ export function LedgerList<T>({
     <div className="grid gap-2">
       <Input
         value={term}
-        placeholder={searchPlaceholder}
+        placeholder={searchPlaceholder ?? messages.common.ledgerSearch}
         className="max-w-xs"
         onChange={(event) => {
           setTerm(event.target.value);
@@ -83,8 +86,11 @@ export function LedgerList<T>({
         <EmptyState title={emptyTitle} hint={emptyHint} />
       ) : matches.length === 0 ? (
         <EmptyState
-          title={`Nenhum resultado para “${term}”`}
-          hint={`Há ${items.length} ${items.length === 1 ? nounSingular : nounPlural} no histórico, mas nenhum corresponde ao termo.`}
+          title={fill(messages.common.ledgerEmpty, { term })}
+          hint={fill(messages.common.ledgerEmptyHint, {
+            count: String(items.length),
+            noun: items.length === 1 ? nounSingular : nounPlural,
+          })}
         />
       ) : (
         <>
@@ -96,18 +102,35 @@ export function LedgerList<T>({
           {hidden > 0 ? (
             <div className="flex flex-wrap items-center gap-2">
               <Button size="sm" variant="ghost" onClick={() => setLimit((current) => current + pageSize)}>
-                Ver mais {Math.min(hidden, pageSize)}
+                {fill(messages.common.seeMore, { count: String(Math.min(hidden, pageSize)) })}
               </Button>
               <span className="text-xs text-(--color-muted)">
-                Mostrando {visible.length} de {matches.length}
-                {searching ? ` que correspondem a “${term}”` : ""} ({items.length} no total)
+                {searching
+                  ? fill(messages.common.showingFiltered, {
+                      shown: String(visible.length),
+                      matched: String(matches.length),
+                      term,
+                      total: String(items.length),
+                    })
+                  : fill(messages.common.showing, {
+                      shown: String(visible.length),
+                      matched: String(matches.length),
+                      total: String(items.length),
+                    })}
               </span>
             </div>
           ) : (
             <p className="text-xs text-(--color-muted)">
               {searching
-                ? `${matches.length} de ${items.length} ${items.length === 1 ? nounSingular : nounPlural}`
-                : `${items.length} ${items.length === 1 ? nounSingular : nounPlural}`}
+                ? fill(messages.common.footerFiltered, {
+                    matched: String(matches.length),
+                    total: String(items.length),
+                    noun: items.length === 1 ? nounSingular : nounPlural,
+                  })
+                : fill(messages.common.footer, {
+                    total: String(items.length),
+                    noun: items.length === 1 ? nounSingular : nounPlural,
+                  })}
             </p>
           )}
         </>
