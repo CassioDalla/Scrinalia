@@ -13,6 +13,7 @@ import { formatCount, formatDate, REVIEW_STATUS_LABEL, REVIEW_STATUS_TONE } from
 import { ANOMALY_REASON_HINT, anomalyReasonCode, anomalyReasonLabel } from "@/lib/quality";
 import { asNumber } from "@/lib/search";
 import { useCopy } from "@/i18n/context";
+import { Trans } from "@/i18n/trans";
 
 const routeApi = getRouteApi("/qualidade/anomalias");
 
@@ -79,16 +80,18 @@ export function AnomaliesRoute() {
       <PageBody>
         {inbox.data && (queue?.count ?? 0) === 0 ? (
           <EmptyState
-            title="Nenhuma anomalia detectada"
+            title={messages.pages.anomalies.emptyTitle}
             hint={
-              <>
-                Pode ser que o acervo não tenha nenhum dos defeitos que a verificação procura, ou que
-                ela ainda não tenha rodado. Regras que só sinalizam acrescentam outros motivos. Veja as{" "}
-                <Link to="/qualidade/regras" className="underline">
-                  regras de limpeza
-                </Link>
-                .
-              </>
+              <Trans
+                text={messages.pages.anomalies.emptyHint}
+                values={{
+                  link: (
+                    <Link to="/qualidade/regras" className="underline">
+                      {messages.pages.anomalies.cleaningRulesLink}
+                    </Link>
+                  ),
+                }}
+              />
             }
           />
         ) : null}
