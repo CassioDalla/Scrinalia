@@ -2770,5 +2770,30 @@ with short or full shas, and part of a `## <date> — <title>` entry.
   these two pages and no other.
 - **Not verified, and said so.** No screen was rendered: the evidence is the gates and the diff.
 
+## 2026-10-28 — the plan becomes the tree it already was
+
+- **Range:** `ba1fb02..8f891d8`
+- **Pages:**
+  - `guides/curate.md` — **updated**: the plan section now describes the rungs as the tree
+    `parent_code` implies, the leading box that closes a whole branch and states the hidden rungs
+    and decisions, the filter that keeps a match's ancestors and branch, and the URL that records
+    the closed roots. No route, write or undo changed.
+  - `guides/curate.pt.md` — **updated**: the same paragraph in the translation.
+- **Why the round exists.** #233 replaced one flat list indented by `plan.depth` with nested lists
+  and two pure functions (`buildPlanTree`, `planRows`); a collapsed branch now hides its subtree
+  without unmounting it, so an open decision body and anything typed in its form survive. The
+  status filter moved to the client because a tab fetched alone has no ancestors to draw.
+- **What the round measured.** `tsc`, ESLint, the Vite build, 47 bun tests (18 new) and 25 pytest
+  (the copy gate) on the code commit; the full suite ran against the test database on port 5434
+  (2292 passed, 1 skipped). The screen was rendered against the real 41-rung catalogue with the
+  headless shell, and 29 CDP checks covered collapse/expand, the hidden counts, the status/flag/code
+  filters, forced ancestors, the URL, and the two global controls. `Recolher os decididos` was not
+  clicked against a real fully decided branch (the dev catalogue has none); its set is pinned by
+  three pure tests. The depth-cap title above six levels was not observed either: the deepest
+  rendered branch is five levels below the root.
+- **Not verified, and said so.** The API and the SPA ran against the development database; the
+  admin password was reset for the render and restored afterwards, and the full suite used the test
+  database, not the development one.
+
 
 

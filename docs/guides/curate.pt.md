@@ -493,6 +493,15 @@ por último:
   próxima proposta pode atualizar a evidência dela. A decisão nunca é sobrescrita por uma proposta
   nova.
 
+Os degraus aparecem como a árvore que os códigos implicam, não como uma lista recuada. A caixa à
+esquerda de uma linha recolhe aquele ramo — a linha passa a dizer quantos degraus e quantas decisões
+ele esconde —, enquanto o chevron do cartão abre o corpo da decisão; recolher o ramo não reinicia os
+cartões que estão dentro dele: expandir devolve cada um como estava. Os filtros de status, aviso e
+código mantêm os pais e o ramo de cada
+degrau que casa, e um pai de um degrau que casa não pode ser recolhido. **Recolher os decididos**
+fecha os ramos que não têm nenhum degrau ainda `SUGGESTED`. A URL guarda só o topo de cada ramo
+recolhido, então o colega abre a mesma vista.
+
 O painel lateral materializa a árvore: ele sempre oferece "Conferir impacto" primeiro, e o
 botão de aplicar fica desabilitado até a prévia existir. Só os degraus aprovados são materializados. A
 prévia e a aplicação compartilham um planejador, então o número aprovado é o número escrito. O que o
