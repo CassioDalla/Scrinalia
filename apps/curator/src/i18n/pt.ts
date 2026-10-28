@@ -64,9 +64,15 @@ const screens: Record<ScreenId, ScreenCopy> = {
     },
     subjectExclusions: {
       label: "Não é Assunto",
-      hint: "O que a regra não considera",
+      hint: "O que a classificação não deve adivinhar",
       description:
-        "Os termos que a classificação de assunto não deve adivinhar. Marcar não exclui a Tag — ela continua no acervo e alcançável pela busca — mas bane a grafia de voltar a virar tag.",
+        "O veredito de significado: a classificação de assunto deixa de adivinhar estes termos. Confirmar aqui também bane a grafia, mas não exclui a Tag do acervo.",
+    },
+    blockedSpellings: {
+      label: "Grafias bloqueadas",
+      hint: "O que não pode virar tag de novo",
+      description:
+        "As grafias que o extrator não pode recriar como tag, no eixo em que foram bloqueadas — e a exclusão das tags que já existem com esses nomes.",
     },
     entities: {
       label: "Entidades Nomeadas (NER)",
@@ -240,6 +246,24 @@ export const pt = {
     disabled: "Indisponível por enquanto",
   },
   screens,
+  /**
+   * The two screens that share a vocabulary, and the sentence that keeps them apart.
+   *
+   * `subjectExclusions` decides what a term **means** (it is not a subject, so the classifier stops
+   * guessing); `blockedSpellings` vetoes a **spelling** (it may not become a tag again). The reader
+   * arrives on the second expecting the first, so the notice names the difference and points at the
+   * screen that does it; the card that deletes is named here once and read twice — by the notice and
+   * by its own header. A message carries `{placeholders}` for the markup the screen supplies
+   * (ADR 0020 §2), which is how a link is part of a sentence instead of next to it.
+   */
+  spellings: {
+    notice:
+      "Bloquear uma grafia impede que ela volte a virar tag no eixo escolhido e não remove nada do acervo. Bloquear não é o mesmo que dizer que o termo não é assunto — o que faz a classificação parar é {verdict}. A exclusão das tags que já existem com esses nomes fica em {purge}, abaixo.",
+    /** The name of the destructive card: the notice above points at it by this same string. */
+    purgeCard: "Excluir as tags com esses nomes",
+    /** On the verdict screen, the pointer to where the tags are actually deleted. */
+    verdictDeleteHint: "A exclusão das tags fica em {blocked}.",
+  },
   auth: {
     login: {
       email: "E-mail",

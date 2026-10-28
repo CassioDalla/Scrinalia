@@ -34,6 +34,7 @@ export type ScreenId =
   | "categories"
   | "discover"
   | "subjectExclusions"
+  | "blockedSpellings"
   | "entities"
   | "nerExclusions"
   | "conflicts"
@@ -70,6 +71,7 @@ export const SCREENS: Record<ScreenId, Screen> = {
   categories: { path: "/assuntos/categorias" },
   discover: { path: "/assuntos/descobrir" },
   subjectExclusions: { path: "/assuntos/excecoes" },
+  blockedSpellings: { path: "/assuntos/grafias" },
   entities: { path: "/entidades/lista" },
   nerExclusions: { path: "/entidades/excecoes" },
   conflicts: { path: "/entidades/conflitos" },

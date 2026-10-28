@@ -134,9 +134,15 @@ export const en: typeof pt = {
     },
     subjectExclusions: {
       label: "Not a Subject",
-      hint: "What the rule does not consider",
+      hint: "What the classification must not guess",
       description:
-        "The terms the subject classification must not guess. Marking does not delete the tag — it stays in the collection and reachable by search — but bans the spelling from becoming a tag again.",
+        "The meaning verdict: the subject classification stops guessing these terms. Confirming here also bans the spelling, but does not remove the Tag from the collection.",
+    },
+    blockedSpellings: {
+      label: "Blocked spellings",
+      hint: "What must not become a tag again",
+      description:
+        "The spellings the extractor must not recreate as tags, on the axis where they were blocked — and the deletion of the tags that already exist with those names.",
     },
     entities: {
       label: "Named Entities (NER)",
@@ -223,6 +229,12 @@ export const en: typeof pt = {
       label: "Description",
       hint: "The dossier of one description",
     },
+  },
+  spellings: {
+    notice:
+      "Blocking a spelling stops it from becoming a tag again on the chosen axis and removes nothing from the collection. Blocking is not the same as saying the term is not a subject — what makes the classification stop is {verdict}. Deleting the tags that already exist with those names is under {purge}, below.",
+    purgeCard: "Delete the tags with these names",
+    verdictDeleteHint: "Deleting the tags is in {blocked}.",
   },
   auth: {
     login: {

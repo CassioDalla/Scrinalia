@@ -635,17 +635,23 @@ as a subject again on the next classifier run.
 
 | Screen | Decision | Reversible? |
 | --- | --- | --- |
-| Tags — `/assuntos/tags` | the weight, the duplicates, the merge queue, the banned terms **and the subject decision of each tag** | the merge yes (ledger); the purge yes (its own ledger); a subject decision yes (it can be taken back) |
+| Tags — `/assuntos/tags` | the weight, the duplicates, the merge queue **and the subject decision of each tag** | the merge yes (ledger); a subject decision yes (it can be taken back) |
 | Categorias — `/assuntos/categorias` | the subject categories the classifier reads, **and what is inside each one** | yes (retire and reactivate) |
 | Descobrir Categorias — `/assuntos/descobrir` | whether a proposed theme deserves a category | yes (the proposal writes nothing) |
 | Não é assunto — `/assuntos/excecoes` | which terms leave the subject axis and have their spelling banned from becoming a tag again | yes (the ban deletes nothing, and the undo lifts the ban this decision planted) |
+| Grafias bloqueadas — `/assuntos/grafias` | which spellings the extraction may not recreate, and the deletion of the tags that already carry them | the ban yes (unban); the deletion yes (one ledger row per tag, restoring the tag, its links and its spellings — never the ban) |
 
 ### Tags — `/assuntos/tags`
 
-One route, five questions, one conversation: the archivist sees that `alvenarias` weighs little,
-finds its near-duplicate and decides whether to absorb it. Four of the tabs are how they look; the
-fifth, **Classificar**, is where the subject decision is taken, and it is where the home screen's two
+One route, four questions, one conversation: the archivist sees that `alvenarias` weighs little,
+finds its near-duplicate and decides whether to absorb it. Three of the tabs are how they look; the
+fourth, **Classificar**, is where the subject decision is taken, and it is where the home screen's two
 subject cards land. The active tab is in the URL.
+
+The blocked spellings used to be the fifth tab, and they are **Grafias bloqueadas —
+`/assuntos/grafias`** since #232: a screen of their own, beside *Não é assunto*, because this page's
+description never mentioned that its tab held the only write that deletes a tag. `?aba=stopwords`
+still answers with the new screen.
 
 #### Relevância
 
@@ -676,9 +682,9 @@ also be marked across lines and unified as a cluster, which is how one merge spa
 A marked selection has a **second destination**, and it is the other kind of write: **Banir N
 marcadas** registers the spellings in `POST /api/v1/taxonomy/tags/stopwords` (`CURATE`), on the axis
 chosen beside the button. Banning **deletes nothing** — the tags stay in the collection, linked and
-reachable by search, and the step that removes them is the **purge** in the Stopwords tab, behind its
-own preview and with a ledger that restores each tag. The marks survive the ban: the merge they were
-made for is still possible.
+reachable by search, and the step that removes them is the exclusion of tags in **Grafias bloqueadas
+— `/assuntos/grafias`**, behind its own preview and with a ledger that restores each tag. The marks
+survive the ban: the merge they were made for is still possible.
 
 #### Propostas de merge
 
@@ -703,45 +709,6 @@ The **ledger** below lists only applied merges, each with the absorbed name, the
 document count, the author and the time. Its undo is the exact restoration described above, and the
 screen's "desfazer" is the same route. A merge made here also works through a proposal, so the
 ledger is the write's history and the status is the decision's.
-
-#### Stopwords
-
-The banned terms, and the destructive write in the taxonomy that keeps a ledger. The screen keeps
-three things apart:
-
-- **Banir** — `POST /api/v1/taxonomy/tags/stopwords` (`CURATE`) records that a term is not worth
-  considering on one axis: `TAG` (the subject axis), `ENTITY` (NER) or `ALL`. A word has exactly one
-  scope — re-banning it **moves** it — and banning **deletes nothing**. A ban typed here is recorded
-  with `source=HUMAN`; the ban the *Não é assunto* screen plants is `EXCLUSION`, and the one a
-  conflict resolution plants is `CONFLICT`. The list shows the scope on every term and the origin as
-  a badge when it is not `HUMAN` — a term typed here is the default, and the badge marks the ones
-  that arrived as a consequence of another decision.
-- **Desbanir** — `DELETE /api/v1/taxonomy/tags/stopwords` (`CURATE`). Reversible.
-- **Casamento** — `PATCH /api/v1/taxonomy/tags/stopwords` (`CURATE`) changes how an existing ban
-  matches without re-banning it: a re-ban would overwrite the origin a conflict or the *Não é
-  assunto* screen recorded. `TOKEN` blocks the word **and any name that contains it as a whole
-  word** — the merged span `IPTU do Exemplo` — and `EXACT` blocks the spelling alone, which is what a
-  generic word that starts a proper name needs: `alameda` blocks `alameda`, never `Alameda Cabral`.
-  Only the `ENTITY`/`ALL` axes read it. Every entry of `domain_ner_exclusions` matches the exact
-  spelling for the same reason: the conflict was about `casa`, not about `casa da memória` (#160).
-- **Purgar** — `POST /api/v1/taxonomy/tags/stopwords/purge` (`CURATE`), after
-  `POST /api/v1/taxonomy/tags/stopwords/purge/preview`. This is the write that deletes the tags. The
-  preview lists the tags that would die, with their document count, their category **and where the
-  ban came from** (`HUMAN`, `CONFLICT` or `EXCLUSION`), so a term banned with the archive in mind is
-  told apart from one typed by hand; the apply button is disabled until the preview exists.
-
-Each deleted tag is written to a **ledger** (`archive_stopword_purge_log`) before it disappears: the
-snapshot of the row, the documents that carried it and the spellings that pointed at it. The purge
-response carries the `purge_ids`, the Stopwords tab shows them in **Registro das purgas**, and
-`DELETE /api/v1/taxonomy/tags/stopwords/purge-log/{purge_id}` (`CURATE`) restores the tag, its links
-and its spellings; an unknown id is **404** and a second attempt is **409**. The undo does **not**
-lift the ban — the term is still a stopword, and the next purge lists the restored tag again.
-
-!!! warning "The scope protects the other axis"
-
-    The purge reads only `TAG`/`ALL`. A term banned on the `ENTITY` axis is a NER veto and can never
-    make the subject purge delete a tag the curator kept — the two are stored in different places on
-    purpose.
 
 #### Classificar
 
@@ -781,8 +748,61 @@ meaning. The measurement behind the removed state still holds — `alfa` reaches
 but the answer is now the entity and the exclusion, not a fourth state of the tag.
 
 The same two actions apply to a **selection**, one request per tag, and the batch reports how many
-tags it wrote and where. Nothing on this tab deletes: banning a spelling and purging the tags are in
-**Stopwords**, each behind its own step, and the purge keeps a ledger with the undo of each tag.
+tags it wrote and where. Nothing on this tab deletes: banning a spelling and excluding the tags are in
+**Grafias bloqueadas — `/assuntos/grafias`**, each behind its own step, and the exclusion keeps a
+ledger with the undo of each tag.
+
+### Grafias bloqueadas — `/assuntos/grafias`
+
+The spellings a ban keeps out of the vocabulary, and the one write in the taxonomy that deletes a
+tag. It was the fourth tab of **Tags** until #232, and it became a screen of its own because the page
+it lived under described relevance, duplicates and merge, and never said its tab held the only
+destructive write of the subject axis.
+
+It is **not** a second view of *Não é assunto*, and the screen says so in its first line: the verdict
+is about what a term **means** — and it is what stops the subject classification from guessing — while
+a ban is about a **spelling** — and it is what stops the next ingestion from recreating the tag.
+Confirming a verdict plants a `TAG` ban, which is why the same spelling appears in both lists: the
+list marks where each ban came from, and a ban the verdict planted links back to the screen that
+decided it. The two screens link to each other, and the gate
+`testing/unit/curator/test_curator_copy.py` fails if either link or the `?aba=stopwords` redirect
+disappears.
+
+The screen keeps three things apart:
+
+- **Banir** — `POST /api/v1/taxonomy/tags/stopwords` (`CURATE`) records that a term is not worth
+  considering on one axis: `TAG` (the subject axis), `ENTITY` (NER) or `ALL`. A word has exactly one
+  scope — re-banning it **moves** it — and banning **deletes nothing**. A ban typed here is recorded
+  with `source=HUMAN`; the ban the *Não é assunto* screen plants is `EXCLUSION`, and the one a
+  conflict resolution plants is `CONFLICT`. The list shows the scope on every term and the origin as
+  a badge when it is not `HUMAN` — a term typed here is the default, and the badge marks the ones
+  that arrived as a consequence of another decision.
+- **Desbanir** — `DELETE /api/v1/taxonomy/tags/stopwords` (`CURATE`). Reversible.
+- **Casamento** — `PATCH /api/v1/taxonomy/tags/stopwords` (`CURATE`) changes how an existing ban
+  matches without re-banning it: a re-ban would overwrite the origin a conflict or the *Não é
+  assunto* screen recorded. `TOKEN` blocks the word **and any name that contains it as a whole
+  word** — the merged span `IPTU do Exemplo` — and `EXACT` blocks the spelling alone, which is what a
+  generic word that starts a proper name needs: `alameda` blocks `alameda`, never `Alameda Cabral`.
+  Only the `ENTITY`/`ALL` axes read it. Every entry of `domain_ner_exclusions` matches the exact
+  spelling for the same reason: the conflict was about `casa`, not about `casa da memória` (#160).
+- **Excluir as tags** — `POST /api/v1/taxonomy/tags/stopwords/purge` (`CURATE`), after
+  `POST /api/v1/taxonomy/tags/stopwords/purge/preview`. This is the write that deletes the tags. The
+  preview lists the tags that would die, with their document count, their category **and where the
+  ban came from** (`HUMAN`, `CONFLICT` or `EXCLUSION`), so a term banned with the archive in mind is
+  told apart from one typed by hand; the apply button is disabled until the preview exists.
+
+Each deleted tag is written to a **ledger** (`archive_stopword_purge_log`) before it disappears: the
+snapshot of the row, the documents that carried it and the spellings that pointed at it. The purge
+response carries the `purge_ids`, the screen shows them in **Registro das exclusões**, and
+`DELETE /api/v1/taxonomy/tags/stopwords/purge-log/{purge_id}` (`CURATE`) restores the tag, its links
+and its spellings; an unknown id is **404** and a second attempt is **409**. The undo does **not**
+lift the ban — the term is still a stopword, and the next exclusion lists the restored tag again.
+
+!!! warning "The scope protects the other axis"
+
+    The purge reads only `TAG`/`ALL`. A term banned on the `ENTITY` axis is a NER veto and can never
+    make the subject purge delete a tag the curator kept — the two are stored in different places on
+    purpose.
 
 ### Categorias — `/assuntos/categorias`
 
@@ -849,9 +869,16 @@ The write is `POST /api/v1/taxonomy/tags/subject-exclusions` (`CURATE`), and it 
 once: it registers the term in `domain_subject_exclusions`, so the subject classifier stops guessing
 at it, **and it bans the spelling at `TAG` scope**, so the next ingestion does not recreate the tag
 that was just decided about. **The ban deletes nothing**: the tag stays in the collection, stays
-linked and stays reachable by search. Removing it is a separate act — the **purge**, in the Stopwords
-tab, behind its own preview and with a ledger that restores each tag — and the purge preview says
-which bans were planted here (`EXCLUSION`) and which by hand (`HUMAN`).
+linked and stays reachable by search. Removing it is a separate act — the exclusion of tags in
+**Grafias bloqueadas — `/assuntos/grafias`**, behind its own preview and with a ledger that restores
+each tag — and the preview says which bans were planted here (`EXCLUSION`) and which by hand
+(`HUMAN`).
+
+The screen and **Grafias bloqueadas** are two objects, not two filters, and each links to the other:
+this one decides what a term **means** and is what stops the classifier; that one vetoes a
+**spelling** and is what stops the extraction from recreating the tag. A verdict plants a `TAG` ban,
+so the same spelling is in both lists — the blocked list says which ban came from a verdict and links
+back here.
 
 Two answers the screen has to show:
 
@@ -866,7 +893,7 @@ Two answers the screen has to show:
 
 The reversal is `DELETE` (`CURATE`, the screen's "restaurar"). It answers `removed` and `unbanned`,
 and the lift is exact: only a ban this decision planted leaves with it. A spelling a person banned on
-the Stopwords screen, or one a conflict resolution planted first, survives.
+the **Grafias bloqueadas** screen, or one a conflict resolution planted first, survives.
 
 ## Entidades
 

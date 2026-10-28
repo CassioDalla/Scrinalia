@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
-import { useState } from "react";
+import { getRouteApi, Link } from "@tanstack/react-router";
+import { useEffect, useRef, useState } from "react";
 
 import { excludeFromSubjects, restoreToSubjects, type SubjectExclusionBanResponse } from "@/api/client";
 import { SUBJECT_SUGGESTIONS_PAGE_SIZE, queries } from "@/api/queries";
@@ -13,10 +13,13 @@ import { EmptyState, ErrorState, Spinner } from "@/components/ui/Feedback";
 import { Input } from "@/components/ui/Input";
 import { LedgerList } from "@/components/ui/LedgerList";
 import { PageBody } from "@/components/layout/PageBody";
+import { useCopy } from "@/i18n/context";
+import { Trans } from "@/i18n/trans";
 import { ACTION } from "@/lib/copy";
 import { descricoes, formatCount } from "@/lib/format";
 import { SIGNAL_HINT, SIGNAL_LABEL } from "@/lib/quality";
 import { routeMessage } from "@/lib/messages";
+import { asString } from "@/lib/search";
 import { useDebounced } from "@/lib/useDebounced";
 
 /**
@@ -30,8 +33,9 @@ import { useDebounced } from "@/lib/useDebounced";
  * Confirming a term is **one statement in two halves** (ADR 0013, issue #84): the classifier stops
  * guessing at it, and its spelling is banned from becoming a tag again, so the next ingestion does
  * not recreate the term and park it in the queue forever. The ban deletes nothing — the tag stays in
- * the collection and reachable by search, and purging the banned tags is a separate, previewed step
- * on the Stopwords tab. A term whose tag already sits in a subject **drawer** is refused and named
+ * the collection and reachable by search, and excluding the tags with that name is a separate,
+ * previewed step on the blocked-spellings screen (``/assuntos/grafias``, #232). A term whose tag
+ * already sits in a subject **drawer** is refused and named
  * instead (issue #83, option C): that drawer is a human verdict, and the write that settles a tag is
  * the tag catalogue's ``PATCH``. Since #175 that refusal is read **before** the click: the box asks
  * the preview route as it settles, so the drawer is named while the archivist can still change the
@@ -46,8 +50,24 @@ function draftWords(draft: string): string[] {
     .filter(Boolean);
 }
 
+const routeApi = getRouteApi("/assuntos/excecoes");
+
+/**
+ * One search key, and it exists for a link and not for the address bar.
+ *
+ * The blocked-spellings screen sends the archivist to the verdict that planted a ban, and it sends
+ * the term with it: landing on two hundred rows to find one would make the link useless.
+ */
+export type SubjectExclusionsSearch = { termo?: string };
+
+export function validateSubjectExclusionsSearch(search: Record<string, unknown>): SubjectExclusionsSearch {
+  return { termo: asString(search.termo) };
+}
+
 export function SubjectExclusionsRoute() {
   const queryClient = useQueryClient();
+  const copy = useCopy();
+  const search = routeApi.useSearch();
   const exclusions = useQuery(queries.subjectExclusions());
   const [showRecorded, setShowRecorded] = useState(false);
   const [offset, setOffset] = useState(0);
@@ -111,6 +131,25 @@ export function SubjectExclusionsRoute() {
 
   const words = exclusions.data ?? [];
 
+  /**
+   * The ledger a `?termo=` link points at, and the reason it is scrolled to.
+   *
+   * The screen opens with ~1,500 rule candidates and the decision list below them; the blocked-
+   * spellings screen sends the archivist here for one term, and a link that lands above a thousand
+   * irrelevant rows is a link that does not land. The candidates load in their own request, so the
+   * effect waits for it to settle: scrolling before them lands on a page that is about to grow, and
+   * the row ends up a thousand pixels lower than the one that was measured. The scroll happens once
+   * per term, so restoring a ban does not throw the page back down while the archivist is reading.
+   */
+  const ledgerRef = useRef<HTMLDivElement | null>(null);
+  const scrolledTo = useRef<string | null>(null);
+  useEffect(() => {
+    if (!search.termo || words.length === 0 || suggestions.isPending) return;
+    if (scrolledTo.current === search.termo) return;
+    scrolledTo.current = search.termo;
+    ledgerRef.current?.scrollIntoView({ block: "start" });
+  }, [search.termo, words.length, suggestions.isPending]);
+
   return (
     <>
       <PageHeader
@@ -118,8 +157,14 @@ export function SubjectExclusionsRoute() {
         pending={exclusions.isPending}
         status={exclusions.data ? `${formatCount(words.length)} termos fora do eixo de assunto` : undefined}
         actions={
-          <Link to="/assuntos/tags">
-            <Button size="sm">Tags</Button>
+          /*
+            The reciprocal of the blocked-spellings screen's notice: this is the screen that says a
+            term is not a subject, and the one place that deletes the tags is a different screen.
+            A button and not a sentence, because the header has one line and the subtitle already
+            says what this screen alone does.
+          */
+          <Link to="/assuntos/grafias">
+            <Button size="sm">{copy.screens.blockedSpellings.label}</Button>
           </Link>
         }
       />
@@ -277,9 +322,10 @@ export function SubjectExclusionsRoute() {
         {exclusions.isPending ? <Spinner /> : null}
 
         {/*
-          The write first, and the catalogue of decisions under it — the same order the tags screen
-          uses for its stopwords. Banning here deletes nothing, so the record below is the whole point
-          of the screen; the form stays collapsed and gets a labelled button to be findable.
+          The write first, and the catalogue of decisions under it — the same order the blocked-
+          spellings screen uses for its form. Banning here deletes nothing, so the record below is
+          the whole point of the screen; the form stays collapsed and gets a labelled button to be
+          findable.
         */}
         <Disclosure
           triggerLabel="+ Vetar termos"
@@ -288,8 +334,21 @@ export function SubjectExclusionsRoute() {
             <div className="grid gap-1">
               <span className="text-sm font-semibold">Vetar termos</span>
               <span className="text-xs text-(--color-muted)">
-                Marcar como não-assunto não exclui nada: a tag continua no acervo, o classificador para de adivinhar e
-                a grafia não volta a virar tag. Excluir as tags banidas é o passo separado da aba Stopwords.
+                Marcar como não-assunto não exclui nada: a tag continua no acervo, a classificação de
+                assunto para de adivinhar e a grafia não volta a virar tag.{" "}
+                <Trans
+                  text={copy.spellings.verdictDeleteHint}
+                  values={{
+                    blocked: (
+                      <Link
+                        to="/assuntos/grafias"
+                        className="font-medium underline underline-offset-2"
+                      >
+                        {copy.screens.blockedSpellings.label}
+                      </Link>
+                    ),
+                  }}
+                />
               </span>
             </div>
           }
@@ -370,39 +429,42 @@ export function SubjectExclusionsRoute() {
         ) : null}
 
         {words.length > 0 ? (
-          <Card>
-            <CardHeader className="text-sm font-semibold">Termos vetados</CardHeader>
-            <CardBody>
-              {/*
-                A list with a search and not a cloud of chips: the chips read well at twenty and become a
-                wall at two hundred, and finding the one term a colleague mentions is the whole reason
-                anyone opens this screen a second time.
-              */}
-              <LedgerList
-                items={words}
-                keyOf={(word) => word}
-                termOf={(word) => [word]}
-                searchPlaceholder="buscar termo vetado…"
-                nounSingular="termo vetado"
-                nounPlural="termos vetados"
-                emptyTitle="Nenhum termo vetado"
-                renderItem={(word) => (
-                  <div className="flex items-center justify-between gap-3 py-1.5">
-                    <span className="truncate">{word}</span>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      disabled={restore.isPending}
-                      title="O classificador volta a considerar o termo, e a grafia volta a poder virar tag. Só o banimento que esta decisão criou sai; um banimento digitado na aba Stopwords continua."
-                      onClick={() => restore.mutate(word)}
-                    >
-                      {ACTION.remove.label}
-                    </Button>
-                  </div>
-                )}
-              />
-            </CardBody>
-          </Card>
+          <div ref={ledgerRef}>
+            <Card>
+              <CardHeader className="text-sm font-semibold">Termos vetados</CardHeader>
+              <CardBody>
+                {/*
+                  A list with a search and not a cloud of chips: the chips read well at twenty and become a
+                  wall at two hundred, and finding the one term a colleague mentions is the whole reason
+                  anyone opens this screen a second time.
+                */}
+                <LedgerList
+                  items={words}
+                  keyOf={(word) => word}
+                  termOf={(word) => [word]}
+                  searchPlaceholder="buscar termo vetado…"
+                  nounSingular="termo vetado"
+                  nounPlural="termos vetados"
+                  emptyTitle="Nenhum termo vetado"
+                  initialTerm={search.termo}
+                  renderItem={(word) => (
+                    <div className="flex items-center justify-between gap-3 py-1.5">
+                      <span className="truncate">{word}</span>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        disabled={restore.isPending}
+                        title="O classificador volta a considerar o termo, e a grafia volta a poder virar tag. Só o banimento que esta decisão criou sai; uma grafia banida em Grafias bloqueadas continua."
+                        onClick={() => restore.mutate(word)}
+                      >
+                        {ACTION.remove.label}
+                      </Button>
+                    </div>
+                  )}
+                />
+              </CardBody>
+            </Card>
+          </div>
         ) : null}
 
         {restore.error ? <ErrorState error={restore.error} /> : null}

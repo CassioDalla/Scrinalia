@@ -1,6 +1,6 @@
 """The curator SPA's copy contract (issue #23).
 
-Four rules that no green gate could see before, each one the day after a defect that shipped:
+Five rules that no green gate could see before, each one the day after a defect that shipped:
 
 1. **A design token exists, and is written the way Tailwind v4 needs it.** `bg-[--color-surface]`
    compiles to `background-color: --color-surface` — invalid CSS the browser drops *silently*, which
@@ -19,11 +19,16 @@ Four rules that no green gate could see before, each one the day after a defect 
    `rung`, `apply` and `dry-run` through the whole review, because it is a **component and not a
    screen** — the per-screen pass never opened it, and nothing failed. This is the rule that makes
    the next one fail.
+5. **Two screens that share a vocabulary name each other, by the route and not by the tab.** #232
+   found `Não é Assunto` and `Termos Bloqueados` reading as one screen with two filters, and the one
+   link between them dropped the reader on the Tags screen's default tab. The link is now a source
+   fact: each route contains `to="<the other's path>"`, and the paths are read from `SCREENS`, so a
+   rename fails here instead of orphaning the referent again.
 
 The parser is deliberately textual. The SPA has no test runner of its own (there is no `vitest` and
-this is not the change that adds one), and the four rules are about *source text* — a token spelled
-wrong, a name typed twice, a heading written by hand, a word that should be gone — which is exactly
-what a text scan can decide.
+this is not the change that adds one), and the five rules are about *source text* — a token spelled
+wrong, a name typed twice, a heading written by hand, a word that should be gone, a link that points
+nowhere — which is exactly what a text scan can decide.
 """
 
 from __future__ import annotations
@@ -149,6 +154,32 @@ def test_no_retired_word_is_visible() -> None:
     )
 
 
+def test_the_blocked_spellings_are_named_one_way() -> None:
+    """#232: one place, three names — the tab's, the SPA's hint, and the guides' section.
+
+    The rename in `7e9a5b3` left `lib/taxonomy.ts` telling the reader "na aba Stopwords" and two
+    route strings promising the old tab, one rename later. The **name** is what this pins: the
+    proper noun the tab carried, not the code's word. `domain_stopwords`, `stopwords(axis)` and the
+    `STOPWORD` status code are identifiers and enum members, and retiring them from the source would
+    be a test that fails on the contract.
+
+    Case matters here: the label was `Termos Bloqueados`, the code is `stopwords`, and the two are
+    told apart by the capital letter that only copy has.
+    """
+    retired_names = re.compile(r"\bStopwords?\b|\bTermos Bloqueados\b")
+    offenders = [
+        f"{path.relative_to(CURATOR).as_posix()}: {value.strip()[:70]!r}"
+        for path in SOURCES
+        for value in visible_strings(path)
+        if retired_names.search(value)
+    ]
+    assert not offenders, (
+        "these user-visible strings still name the screen `Stopwords` or `Termos Bloqueados`: "
+        f"{offenders}. The name is `Grafias bloqueadas`, and a reference to the *place* is what "
+        "went stale twice; the label itself lives in `i18n/pt.ts` (`screens.blockedSpellings`)."
+    )
+
+
 def test_the_extractor_sees_strings(tmp_path: Path) -> None:
     """A sanity check on the scan itself, so a broken pattern fails instead of passing silently.
 
@@ -214,6 +245,7 @@ PENDING = {
     "src/components/workers/WorkerTrialCard.tsx",
     "src/components/workers/WorkersPanel.tsx",
     "src/routes/AnomaliesRoute.tsx",
+    "src/routes/BlockedSpellingsRoute.tsx",
     "src/routes/CategoriesRoute.tsx",
     "src/routes/CleaningRulesRoute.tsx",
     "src/routes/CollectionRoute.tsx",
@@ -472,4 +504,43 @@ def test_every_heading_comes_from_the_screens_catalogue() -> None:
         f"the page heading is not taken from `lib/screens.ts`: {failures}. The `<h1>` is the menu's "
         "label, resolved by `PageHeader` from the screen id — a heading typed in the route is a "
         "second definition, and it is the one that drifted."
+    )
+
+
+def test_the_verdict_and_the_spelling_screen_link_to_each_other() -> None:
+    """The two screens of #232 name each other, and by the route rather than by a tab.
+
+    They share a word — *bloqueado* — and half their data: confirming a verdict plants the ban the
+    other screen lists. The difference is the object (meaning vs spelling), and the only thing that
+    keeps it visible is each screen pointing at the other. The target is read from `SCREENS`, so a
+    route rename fails here instead of leaving a button that lands on the old tab — which is what the
+    single `Tags` link did before the copy passes: it opened `Relevância`.
+    """
+    screens = _screen_records()
+    verdict_path = screens["subjectExclusions"][0]
+    spellings_path = screens["blockedSpellings"][0]
+
+    verdict = SRC / "routes" / "SubjectExclusionsRoute.tsx"
+    spellings = SRC / "routes" / "BlockedSpellingsRoute.tsx"
+    for source, target, name in (
+        (verdict, spellings_path, "the blocked spellings"),
+        (spellings, verdict_path, "the verdict"),
+    ):
+        assert source.exists(), f"#232 moved a screen and `{source.name}` no longer exists."
+        assert f'to="{target}"' in text(source), (
+            f"`{source.name}` does not link to `{target}` ({name}). The two screens share a "
+            "vocabulary, and each one naming the other is what stops them reading as one list with "
+            "two filters."
+        )
+
+    # A bookmark on the old tab has to reach the new screen: the redirect is the second half of the
+    # link, and a validator that forgot the legacy id would answer `Relevância` instead.
+    assert re.search(
+        rf'path:\s*"{re.escape(screens["tags"][0])}".*?throw redirect\(\{{\s*to:\s*"{re.escape(spellings_path)}"',
+        text(ROUTER),
+        re.S,
+    ), (
+        "`?aba=stopwords` no longer reaches the blocked-spellings screen. The tags route redirects "
+        f"it to `{spellings_path}` in `beforeLoad`, and `LEGACY_ABAS` keeps the id accepted so the "
+        "redirect can see it."
     )
