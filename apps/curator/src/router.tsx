@@ -2,6 +2,7 @@ import { createRootRoute, createRoute, createRouter, redirect } from "@tanstack/
 
 import { AppShell } from "@/components/layout/AppShell";
 import { AnomaliesRoute, validateAnomaliesSearch } from "@/routes/AnomaliesRoute";
+import { BlockedSpellingsRoute, validateBlockedSpellingsSearch } from "@/routes/BlockedSpellingsRoute";
 import { CategoriesRoute, validateCategoriesSearch } from "@/routes/CategoriesRoute";
 import { CleaningRulesRoute } from "@/routes/CleaningRulesRoute";
 import { CollectionRoute, validateCollectionSearch } from "@/routes/CollectionRoute";
@@ -19,11 +20,11 @@ import { NotFoundRoute } from "@/routes/NotFoundRoute";
 import { OriginsRoute } from "@/routes/OriginsRoute";
 import { PlanRoute, validatePlanSearch } from "@/routes/PlanRoute";
 import { SettingsRoute, validateSettingsSearch } from "@/routes/SettingsRoute";
-import { SubjectExclusionsRoute } from "@/routes/SubjectExclusionsRoute";
+import { SubjectExclusionsRoute, validateSubjectExclusionsSearch } from "@/routes/SubjectExclusionsRoute";
 import { SystemHealthRoute } from "@/routes/SystemHealthRoute";
 import { SystemWorkersRoute, validateSystemWorkersSearch } from "@/routes/SystemWorkersRoute";
 import { validateSystemRunsSearch } from "@/components/workers/RunsLedger";
-import { TagsRoute, validateTagsSearch } from "@/routes/TagsRoute";
+import { LEGACY_STOPWORDS_ABA, TagsRoute, validateTagsSearch } from "@/routes/TagsRoute";
 import { TextTemplatesRoute, validateTextTemplatesSearch } from "@/routes/TextTemplatesRoute";
 import { TreeRoute, validateTreeSearch } from "@/routes/TreeRoute";
 import { TypologiesRoute, validateTypologiesSearch } from "@/routes/TypologiesRoute";
@@ -154,6 +155,26 @@ const tagsRoute = createRoute({
   path: "/assuntos/tags",
   component: TagsRoute,
   validateSearch: validateTagsSearch,
+  /**
+   * The tab that moved out (#232), and the bookmarks that still name it.
+   *
+   * `?aba=stopwords` used to open the blocked spellings inside this screen. It became a screen of
+   * its own because the only destructive write of the taxonomy was a sub-tab of a page whose
+   * description never mentioned it; the old address keeps working instead of landing on `Relevância`
+   * with no explanation, which is what the `Tags` button on the verdict screen used to do.
+   */
+  beforeLoad: ({ search }) => {
+    if (search.aba === LEGACY_STOPWORDS_ABA) {
+      throw redirect({ to: "/assuntos/grafias", replace: true });
+    }
+  },
+});
+
+const blockedSpellingsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/assuntos/grafias",
+  component: BlockedSpellingsRoute,
+  validateSearch: validateBlockedSpellingsSearch,
 });
 
 const categoriesRoute = createRoute({
@@ -173,6 +194,7 @@ const subjectExclusionsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/assuntos/excecoes",
   component: SubjectExclusionsRoute,
+  validateSearch: validateSubjectExclusionsSearch,
 });
 
 const entitiesRoute = createRoute({
@@ -330,6 +352,7 @@ export const router = createRouter({
     typologiesRoute,
     vocabularyRoute,
     tagsRoute,
+    blockedSpellingsRoute,
     categoriesRoute,
     discoverRoute,
     subjectExclusionsRoute,

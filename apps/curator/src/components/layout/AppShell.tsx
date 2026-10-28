@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, Outlet, useRouterState } from "@tanstack/react-router";
 import {
+  Ban,
   CircleSlash,
   FilePlus2,
   Flag,
@@ -151,6 +152,14 @@ const NAV: NavGroup[] = [
       { screen: "categories", icon: FolderTree, permission: "CATALOGUE" },
       { screen: "discover", icon: Sparkles, permission: "CURATE" },
       { screen: "subjectExclusions", icon: CircleSlash, permission: "CURATE" },
+      /*
+        The blocked spellings sit beside the verdict, and the two are one click each.
+
+        It was the fourth tab of `Tags` until #232, two clicks under a page whose description never
+        said it held the only write that deletes a tag; the pair of entries is what makes the two
+        objects — meaning and spelling — visible in the menu instead of only in a sentence.
+      */
+      { screen: "blockedSpellings", icon: Ban, permission: "CURATE" },
     ],
   },
   {

@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { getRouteApi, useNavigate } from "@tanstack/react-router";
+import { getRouteApi, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 
 import {
@@ -10,22 +10,15 @@ import {
   decideMergeProposal,
   mergeTags,
   previewMerge,
-  previewStopwordPurge,
   previewTagPair,
-  purgeStopwords,
   suggestMergeProposals,
-  setStopwordMatch,
-  unbanStopwords,
   undoMerge,
-  undoStopwordPurge,
   type BatchMergeResponse,
   type MacroCategory,
   type MergePreview,
   type MergeReason,
   type MergeResponse,
   type ProposalStatus,
-  type StopwordMatch,
-  type StopwordPurgePreview,
   type StopwordsScope,
   type TagCatalogRow,
   type TagCatalogState,
@@ -39,10 +32,10 @@ import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { EmptyState, ErrorState, Skeleton, Spinner } from "@/components/ui/Feedback";
 import { Input, Select } from "@/components/ui/Input";
-import { LedgerList } from "@/components/ui/LedgerList";
 import { Notice } from "@/components/ui/Notice";
 import { Tabs } from "@/components/ui/Tabs";
 import { PageBody } from "@/components/layout/PageBody";
+import { useCopy } from "@/i18n/context";
 import { ACTION } from "@/lib/copy";
 import { formatCount, formatDateTime } from "@/lib/format";
 import { asBoolean, asEnum, asNumber, asString } from "@/lib/search";
@@ -56,12 +49,8 @@ import {
   PROPOSAL_STATUS_TONE,
   REVIEW_FLAG_HINT,
   REVIEW_FLAG_LABEL,
-  STOPWORD_MATCH_HINT,
-  STOPWORD_MATCH_LABEL,
   STOPWORD_SCOPE_HINT,
   STOPWORD_SCOPE_LABEL,
-  STOPWORD_SOURCE_HINT,
-  STOPWORD_SOURCE_LABEL,
   labelOf,
 } from "@/lib/taxonomy";
 import { Hint } from "@/components/ui/Hint";
@@ -72,7 +61,6 @@ const TABS = [
   { id: "relevancia", label: "Relevância" },
   { id: "similaridade", label: "Similaridade" },
   { id: "propostas", label: "Propostas de Mesclagem" },
-  { id: "stopwords", label: "Termos Bloqueados" },
   /**
    * The decision queue, and the tab the home screen's cards open.
    *
@@ -82,10 +70,21 @@ const TABS = [
   { id: "classificar", label: "Classificar" },
 ];
 
+/**
+ * The tab id that moved out, defined once.
+ *
+ * `stopwords` left the strip in #232: the blocked spellings are `/assuntos/grafias`, a screen of
+ * their own beside *Não é Assunto*, because this screen's description never mentioned that its
+ * fourth tab held the only write that deletes a tag. The id stays accepted here so the route's
+ * `beforeLoad` can send a bookmark to the new screen instead of silently opening `Relevância`, which
+ * is exactly what the old `Tags` button on the verdict screen did.
+ */
+export const LEGACY_STOPWORDS_ABA = "stopwords";
+const LEGACY_ABAS = [LEGACY_STOPWORDS_ABA];
+const ABAS: string[] = [...TABS.map((tab) => tab.id), ...LEGACY_ABAS];
+
 const REASONS: MergeReason[] = ["TRIGRAM", "PLURAL", "MIXED"];
 const SCOPE_VALUES: StopwordsScope[] = ["TAG", "ENTITY", "ALL"];
-/** The two ways a ban matches, in the order the screen offers them (#160). */
-const MATCH_VALUES: StopwordMatch[] = ["TOKEN", "EXACT"];
 const CATALOG_STATES: TagCatalogState[] = ["ALL", "PENDING", "NOT_SUBJECT", "LOW_CONFIDENCE"];
 
 /**
@@ -112,7 +111,6 @@ export type TagsSearch = {
   min?: number;
   flag?: boolean;
   offset?: number;
-  escopo?: StopwordsScope;
   /** The catalogue's filter by the state of the subject decision. */
   subject_state?: TagCatalogState;
   /** The drawer the catalogue is restricted to, when the archivist picked one. */
@@ -123,7 +121,7 @@ export type TagsSearch = {
 
 export function validateTagsSearch(search: Record<string, unknown>): TagsSearch {
   return {
-    aba: asEnum(search.aba, TABS.map((tab) => tab.id)) ?? "relevancia",
+    aba: asEnum(search.aba, ABAS) ?? "relevancia",
     metodo: asEnum(search.metodo, ["count", "tfidf"]) ?? "count",
     limiar: asNumber(search.limiar) ?? 0.65,
     alvo: asString(search.alvo),
@@ -133,7 +131,6 @@ export function validateTagsSearch(search: Record<string, unknown>): TagsSearch 
     min: asNumber(search.min),
     flag: asBoolean(search.flag),
     offset: asNumber(search.offset),
-    escopo: asEnum(search.escopo, SCOPE_VALUES),
     // Only the decision tab has a state, and it opens on the queue the home screen counts; keeping
     // the key off the other four tabs is what stops the address bar from carrying a filter that
     // nothing on screen reads.
@@ -187,8 +184,6 @@ export function TagsRoute() {
           <SimilarityTab search={search} patch={patch} />
         ) : search.aba === "propostas" ? (
           <ProposalsTab search={search} patch={patch} />
-        ) : search.aba === "stopwords" ? (
-          <StopwordsTab search={search} patch={patch} />
         ) : search.aba === "classificar" ? (
           <ClassificarTab search={search} patch={patch} />
         ) : (
@@ -292,6 +287,7 @@ function SimilarityTab({
   search: TagsSearch;
   patch: (changes: Partial<TagsSearch>) => void;
 }) {
+  const copy = useCopy();
   const queryClient = useQueryClient();
   const threshold = search.limiar ?? 0.65;
   const [showAll, setShowAll] = useState(false);
@@ -443,8 +439,14 @@ function SimilarityTab({
             {labelOf(STOPWORD_SCOPE_LABEL, lastBan.scope).toLowerCase()}
           </strong>
           . Banir <strong>não exclui nada</strong>: as tags continuam no acervo e alcançáveis pela busca, e a marcação
-          segue de pé porque a mesclagem continua possível. O passo que exclui é a <strong>purga</strong>, na aba
-          Stopwords, depois da prévia.
+          segue de pé porque a mesclagem continua possível. O passo que exclui está em{" "}
+          <Link
+            to="/assuntos/grafias"
+            className="font-semibold underline underline-offset-2"
+          >
+            {copy.screens.blockedSpellings.label}
+          </Link>
+          , depois da prévia.
         </Notice>
       ) : null}
       {banMarked.error ? <ErrorState error={banMarked.error} /> : null}
@@ -587,7 +589,7 @@ function SimilarityTab({
               size="sm"
               variant="secondary"
               disabled={banMarked.isPending || marked.length === 0}
-              title="Banir uma grafia não exclui nada: a tag continua no acervo. O passo que exclui é a purga, na aba Stopwords."
+              title={`Banir uma grafia não exclui nada: a tag continua no acervo. A exclusão das tags fica em ${copy.screens.blockedSpellings.label}.`}
               onClick={() => banMarked.mutate()}
             >
               {banMarked.isPending ? ACTION.ban.pending : `Banir ${formatCount(marked.length)} marcadas`}
@@ -1544,6 +1546,7 @@ type BulkAction = { kind: "category"; categoryId: number } | { kind: "not-subjec
  * settles a spelling that is both. Banning and purging remain the destructive paths in Stopwords.
  */
 function ClassificarTab({ search, patch }: { search: TagsSearch; patch: (changes: Partial<TagsSearch>) => void }) {
+  const copy = useCopy();
   const queryClient = useQueryClient();
   const categories = useQuery(queries.macroCategories());
   const [selected, setSelected] = useState<number[]>([]);
@@ -1718,9 +1721,13 @@ function ClassificarTab({ search, patch }: { search: TagsSearch; patch: (changes
         A decisão tomada aqui afeta <strong>todo o sistema</strong>:
         ela atualiza a classificação em todos os documentos que
         contêm o termo. Ao marcar como <strong>Não assunto</strong>, a palavra
-        é incluída na lista de termos bloqueados para evitar
+        é incluída na lista de grafias bloqueadas para evitar
         novas ocorrências (os registros existentes continuam
-        intactos até a limpeza na aba Termos Bloqueados).
+        intactos até a exclusão, em{" "}
+        <Link to="/assuntos/grafias" className="font-medium underline underline-offset-2">
+          {copy.screens.blockedSpellings.label}
+        </Link>
+        ).
       </p>
 
       {curate.error ? <ErrorState error={curate.error} /> : null}
@@ -1973,451 +1980,5 @@ function CatalogSearchBox({
       placeholder="Buscar tag…"
       onChange={(event) => setTerm(event.target.value)}
     />
-  );
-}
-
-// =============================================================================================
-// Stopwords — os termos banidos, e a única escrita destrutiva sem undo
-// =============================================================================================
-
-/** "pessoas, vista aérea" → ["pessoas", "vista aérea"]. */
-function splitWords(text: string): string[] {
-  return text
-    .split(/[,\n;]/)
-    .map((word) => word.trim())
-    .filter((word) => word.length > 0);
-}
-
-/**
- * The banned terms, and the purge.
- *
- * The screen keeps three things apart that are easy to confuse, and each one is stated where it
- * matters: banning a word **deletes nothing**; the purge deletes the tags with that name and **has
- * no undo** (unlike the merge, which keeps a ledger); and the scope decides which of those is even
- * possible — a term banned from the NER axis never reaches the subject purge.
- */
-function StopwordsTab({ search, patch }: { search: TagsSearch; patch: (changes: Partial<TagsSearch>) => void }) {
-  const queryClient = useQueryClient();
-  const [draft, setDraft] = useState("");
-  const [draftScope, setDraftScope] = useState<StopwordsScope>("TAG");
-  /** Only the extraction axis reads it: a TAG ban never reaches the NER filter (#160). */
-  const [draftMatch, setDraftMatch] = useState<StopwordMatch>("TOKEN");
-  const [preview, setPreview] = useState<StopwordPurgePreview | null>(null);
-  const [purged, setPurged] = useState<number | null>(null);
-  const [purgeIds, setPurgeIds] = useState<number[]>([]);
-  const [logTerm, setLogTerm] = useState("");
-  const [logLimit, setLogLimit] = useState(MERGE_LOG_PAGE_SIZE);
-  const settledLogTerm = useDebounced(logTerm);
-
-  const stopwords = useQuery(queries.stopwords(search.escopo));
-  const log = useQuery(queries.stopwordPurgeLog(logLimit, settledLogTerm.trim() || undefined));
-
-  const invalidate = () => {
-    void queryClient.invalidateQueries({ queryKey: ["taxonomy", "stopwords"] });
-    void queryClient.invalidateQueries({ queryKey: ["taxonomy", "tags"] });
-    void queryClient.invalidateQueries({ queryKey: ["taxonomy", "stopword-purge-log"] });
-    void queryClient.invalidateQueries({ queryKey: ["documents"] });
-    void queryClient.invalidateQueries({ queryKey: ["curation", "inbox"] });
-  };
-
-  const ban = useMutation({
-    mutationFn: () => banStopwords({ words: splitWords(draft), scope: draftScope, match_mode: draftMatch }),
-    onSuccess: () => {
-      setDraft("");
-      invalidate();
-    },
-  });
-
-  const setMatch = useMutation({
-    mutationFn: (input: { word: string; match_mode: StopwordMatch }) =>
-      setStopwordMatch({ words: [input.word], match_mode: input.match_mode }),
-    onSuccess: invalidate,
-  });
-
-  const unban = useMutation({
-    mutationFn: (word: string) => unbanStopwords({ words: [word] }),
-    onSuccess: invalidate,
-  });
-
-  const dryRun = useMutation({
-    mutationFn: previewStopwordPurge,
-    onSuccess: (data) => {
-      setPreview(data);
-      setPurged(null);
-      setPurgeIds([]);
-    },
-  });
-
-  const purge = useMutation({
-    mutationFn: purgeStopwords,
-    onSuccess: (data) => {
-      setPurged(data.tags_deleted);
-      setPurgeIds(data.purge_ids ?? []);
-      setPreview(null);
-      invalidate();
-    },
-  });
-
-  const revertPurge = useMutation({
-    mutationFn: (purgeId: number) => undoStopwordPurge(purgeId),
-    onSuccess: () => {
-      setPurgeIds([]);
-      invalidate();
-    },
-  });
-
-  const words = stopwords.data ?? [];
-  const byScope = (scope: StopwordsScope) => words.filter((item) => item.scope === scope);
-
-  return (
-    <div className="grid gap-4">
-      <Notice tone="warn" className="max-w-3xl">
-        Banir apenas <strong>bloqueia</strong> o uso futuro do termo,
-        sem excluí-lo do acervo. Para remover definitivamente as
-        etiquetas com esse nome, aplique a <strong>limpeza (purga)</strong>.
-        Assim como nas mesclagens, o sistema guarda um histórico completo:
-        você pode restaurar qualquer termo excluído, com seus vínculos
-        e grafias, na seção de histórico ao final desta página.
-      </Notice>
-
-      <div className="flex flex-wrap items-center gap-2">
-        <Button size="sm" variant={search.escopo ? "secondary" : "primary"} onClick={() => patch({ escopo: undefined })}>
-          Todos os eixos ({formatCount(words.length)})
-        </Button>
-        {SCOPE_VALUES.map((scope) => (
-          <Button
-            key={scope}
-            size="sm"
-            variant={search.escopo === scope ? "primary" : "secondary"}
-            title={STOPWORD_SCOPE_HINT[scope]}
-            onClick={() => patch({ escopo: scope })}
-          >
-            {labelOf(STOPWORD_SCOPE_LABEL, scope)} ({formatCount(byScope(scope).length)})
-          </Button>
-        ))}
-      </div>
-
-      <Card>
-        <CardHeader className="text-sm font-semibold">Banir Termos</CardHeader>
-        <CardBody className="grid gap-2">
-          <div className="flex flex-wrap items-end gap-2">
-            <label className="flex-1">
-              <span className="mb-1 block text-xs font-medium text-(--color-muted)">
-                Termos, Separados por Vírgula ou Linha
-              </span>
-              <Input
-                value={draft}
-                onChange={(event) => setDraft(event.target.value)}
-                placeholder="ex.: pessoas, vista aérea"
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" && splitWords(draft).length > 0) ban.mutate();
-                }}
-              />
-            </label>
-            <label className="w-56">
-              <span className="mb-1 block text-xs font-medium text-(--color-muted)">Eixo</span>
-              <Select value={draftScope} onChange={(event) => setDraftScope(event.target.value as StopwordsScope)}>
-                {SCOPE_VALUES.map((scope) => (
-                  <option key={scope} value={scope}>
-                    {labelOf(STOPWORD_SCOPE_LABEL, scope)}
-                  </option>
-                ))}
-              </Select>
-            </label>
-            {/*
-              Only the extraction axis reads the mode: a TAG ban never reaches the NER filter, and
-              offering the choice there would imply it does.
-            */}
-            {draftScope !== "TAG" ? (
-              <label className="w-64">
-                <span className="mb-1 block text-xs font-medium text-(--color-muted)">Casamento</span>
-                <Select value={draftMatch} onChange={(event) => setDraftMatch(event.target.value as StopwordMatch)}>
-                  {MATCH_VALUES.map((mode) => (
-                    <option key={mode} value={mode}>
-                      {labelOf(STOPWORD_MATCH_LABEL, mode)}
-                    </option>
-                  ))}
-                </Select>
-              </label>
-            ) : null}
-            <Button
-              variant="primary"
-              disabled={splitWords(draft).length === 0 || ban.isPending}
-              onClick={() => ban.mutate()}
-            >
-              {ban.isPending ? ACTION.ban.pending : ACTION.ban.label}
-            </Button>
-          </div>
-          <p className="text-xs text-(--color-muted)">
-            {STOPWORD_SCOPE_HINT[draftScope]}
-            {draftScope !== "TAG" ? ` ${STOPWORD_MATCH_HINT[draftMatch]}` : ""}
-          </p>
-          {ban.error ? <ErrorState error={ban.error} /> : null}
-          {unban.error ? <ErrorState error={unban.error} /> : null}
-        </CardBody>
-      </Card>
-
-      {stopwords.error ? <ErrorState error={stopwords.error} /> : null}
-      {stopwords.isPending ? <Spinner label="Lendo os termos banidos…" /> : null}
-
-      {stopwords.data && words.length === 0 ? (
-        <EmptyState
-          title="Nenhum termo banido"
-          hint="Banir um termo o tira do eixo escolhido. Nada é excluído por banir: a purga é um passo separado, abaixo."
-        />
-      ) : null}
-
-      {words.length > 0 ? (
-        <Card>
-          <CardHeader className="text-sm font-semibold">Termos Banidos</CardHeader>
-          <CardBody>
-            {/*
-              A searchable ledger and not a flat column: 200 banned terms is already past the point
-              where scrolling to find one is reasonable, and the list only grows.
-            */}
-            <LedgerList
-              items={words}
-              keyOf={(item) => item.word}
-              termOf={(item) => [
-                item.word,
-                labelOf(STOPWORD_SCOPE_LABEL, item.scope),
-                labelOf(STOPWORD_SOURCE_LABEL, item.source),
-              ]}
-              searchPlaceholder="Buscar termo banido…"
-              nounSingular="termo banido"
-              nounPlural="termos banidos"
-              emptyTitle="Nenhum termo banido"
-              emptyHint="Banir um termo o tira do eixo escolhido. Nada é excluído por banir: a purga é um passo separado, abaixo."
-              renderItem={(item) => (
-                <div className="flex items-center justify-between gap-3 py-1.5">
-                  <span className="flex min-w-0 items-center gap-2">
-                    <span className="truncate">{item.word}</span>
-                    <Badge
-                      tone={item.scope === "ENTITY" ? "neutral" : "accent"}
-                      title={STOPWORD_SCOPE_HINT[item.scope]}
-                    >
-                      {labelOf(STOPWORD_SCOPE_LABEL, item.scope)}
-                    </Badge>
-                    {item.source !== "HUMAN" ? (
-                      <Badge tone="neutral" title={STOPWORD_SOURCE_HINT[item.source]}>
-                        {labelOf(STOPWORD_SOURCE_LABEL, item.source)}
-                      </Badge>
-                    ) : null}
-                    {/*
-                      The mode is a control, not a badge: it decides whether the ban swallows the
-                      names that contain the word, and changing it is one act on its own (#160).
-                      A TAG ban never reaches the NER filter, so it carries no mode here.
-                    */}
-                    {item.scope !== "TAG" ? (
-                      <Select
-                        className="h-7 w-64 text-xs"
-                        value={item.match_mode}
-                        title={STOPWORD_MATCH_HINT[item.match_mode]}
-                        disabled={setMatch.isPending}
-                        onChange={(event) =>
-                          setMatch.mutate({
-                            word: item.word,
-                            match_mode: event.target.value as StopwordMatch,
-                          })
-                        }
-                      >
-                        {MATCH_VALUES.map((mode) => (
-                          <option key={mode} value={mode}>
-                            {labelOf(STOPWORD_MATCH_LABEL, mode)}
-                          </option>
-                        ))}
-                      </Select>
-                    ) : null}
-                  </span>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    disabled={unban.isPending}
-                    onClick={() => unban.mutate(item.word)}
-                  >
-                    {ACTION.unban.label}
-                  </Button>
-                </div>
-              )}
-            />
-          </CardBody>
-        </Card>
-      ) : null}
-
-      <Card className="ring-(--color-danger)/30">
-        <CardHeader className="text-sm font-semibold text-(--color-danger)">Excluir as tags banidas</CardHeader>
-        <CardBody className="grid gap-3">
-          <p className="text-xs text-(--color-muted)">
-            A limpeza remove todas as etiquetas identificadas como termos bloqueados (no eixo de assunto ou em ambos). Os vínculos com os documentos e as classificações são desfeitos, mas uma cópia de segurança é criada antes da exclusão. Caso precise reverter, o botão Desfazer restaura a etiqueta, suas grafias e seus vínculos com os itens — porém o termo continua na lista de bloqueados.
-          </p>
-
-          <div className="flex flex-wrap items-center gap-2">
-            <Button disabled={dryRun.isPending || purge.isPending} onClick={() => dryRun.mutate()}>
-              {dryRun.isPending ? ACTION.preview.pending : ACTION.preview.label}
-            </Button>
-            <Button
-              variant="danger"
-              disabled={!preview || preview.total_tags === 0 || purge.isPending}
-              title={preview ? undefined : "O impacto é obrigatório: confira o que seria excluído primeiro."}
-              onClick={() => purge.mutate()}
-            >
-              {purge.isPending
-                ? ACTION.exclude.pending
-                : preview
-                  ? `Excluir ${formatCount(preview.total_tags)} tag(s)`
-                  : "Excluir (confira antes)"}
-            </Button>
-          </div>
-
-          {dryRun.error ? <ErrorState error={dryRun.error} /> : null}
-          {purge.error ? <ErrorState error={purge.error} /> : null}
-
-          {preview ? (
-            <Notice tone="danger" as="div" className="grid gap-2">
-              <p>
-                Nada foi excluído ainda. Seriam <strong>{formatCount(preview.total_tags)} tag(s)</strong> em{" "}
-                <strong>{formatCount(preview.total_documents)} descrição(ões)</strong>.
-              </p>
-              {(preview.stopwords ?? []).length > 0 ? (
-                <p className="text-(--color-muted)">
-                  termos que a purga alcança: <code>{(preview.stopwords ?? []).join(", ")}</code>
-                </p>
-              ) : null}
-              {preview.total_tags === 0 ? (
-                <p className="text-(--color-muted)">
-                  Nenhuma tag do acervo tem um desses nomes — não há o que excluir.
-                </p>
-              ) : (
-                <ul className="max-h-64 overflow-y-auto">
-                  {(preview.tags ?? []).map((tag) => (
-                    <li key={tag.tag_id} className="flex items-center justify-between gap-3 py-0.5">
-                      <span className="flex min-w-0 items-center gap-2">
-                        <span className="truncate">{tag.name}</span>
-                        {tag.source !== "HUMAN" ? (
-                          <Badge tone="neutral" title={STOPWORD_SOURCE_HINT[tag.source]}>
-                            {labelOf(STOPWORD_SOURCE_LABEL, tag.source)}
-                          </Badge>
-                        ) : null}
-                      </span>
-                      <span className="shrink-0 tabular-nums text-(--color-muted)">
-                        {formatCount(tag.document_count)} doc
-                        {tag.macro_category_name ? ` · ${tag.macro_category_name}` : ""}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </Notice>
-          ) : null}
-
-          {purged !== null ? (
-            <Notice tone="ok" as="div" className="grid gap-2">
-              <p>
-                {formatCount(purged)} tag(s) excluída(s) e registrada(s) no registro de purgas.
-              </p>
-              {purgeIds.length > 0 ? (
-                <div className="flex flex-wrap items-center gap-2">
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    disabled={revertPurge.isPending}
-                    title="Restaura as tags, os vínculos e as grafias desta purga. O banimento continua."
-                    onClick={() => {
-                      const [first] = purgeIds;
-                      if (first !== undefined) revertPurge.mutate(first);
-                    }}
-                  >
-                    desfazer esta purga
-                  </Button>
-                  <span className="text-(--color-muted)">
-                    entradas no registro: <code>{purgeIds.join(", ")}</code>
-                  </span>
-                </div>
-              ) : null}
-            </Notice>
-          ) : null}
-          {revertPurge.error ? <ErrorState error={revertPurge.error} /> : null}
-        </CardBody>
-      </Card>
-
-      <Card>
-        <CardHeader className="text-sm font-semibold">
-          Registro das Purgas
-          <Hint label="Registro das Purgas" className="text-xs text-(--color-muted)">
-            Cada linha é uma tag excluída pela purga, com o estado anterior guardado: nome, vínculos, grafias e
-            classificação. O desfazer restaura a tag — e <strong>não</strong> desbane o termo, que continua banido.
-          </Hint>
-        </CardHeader>
-        <CardBody className="grid gap-2">
-          {/*
-            The search is server-side: the ledger only grows, and a box that filtered the loaded page
-            would say "não está aqui" for a purge that happened.
-          */}
-          <Input
-            className="max-w-xs"
-            value={logTerm}
-            placeholder="Buscar por tag excluída…"
-            onChange={(event) => setLogTerm(event.target.value)}
-          />
-          {log.isPending ? <Spinner label="Lendo o registro…" /> : null}
-          {log.error ? <ErrorState error={log.error} /> : null}
-          {log.data && (log.data.items ?? []).length === 0 ? (
-            <EmptyState
-              title={logTerm.trim() ? `Nenhuma purga para “${logTerm.trim()}”` : "Nenhuma purga registrada ainda"}
-              hint={
-                logTerm.trim()
-                  ? "A busca cobre o nome da tag excluída."
-                  : "O registro guarda cada tag excluída, com o estado anterior."
-              }
-            />
-          ) : null}
-          <ul className="divide-y divide-(--color-line) text-xs">
-            {(log.data?.items ?? []).map((entry) => (
-              <li key={entry.purge_id} className="flex flex-wrap items-center justify-between gap-2 py-2">
-                <span className="min-w-0">
-                  <span className="font-medium">{entry.purged_name}</span>
-                  <span className="text-(--color-muted)">
-                    {" "}
-                    · {formatCount(entry.document_count)} doc(s) · {formatDateTime(entry.changed_at)}
-                    {entry.changed_by ? ` · por ${entry.changed_by}` : ""}
-                    {entry.macro_category_name ? ` · ${entry.macro_category_name}` : ""}
-                  </span>
-                </span>
-                {entry.undone_at ? (
-                  <Badge tone="neutral">restaurada em {formatDateTime(entry.undone_at)}</Badge>
-                ) : (
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    disabled={revertPurge.isPending}
-                    title="Restaura a tag, os vínculos e as grafias. O banimento do termo continua."
-                    onClick={() => revertPurge.mutate(entry.purge_id)}
-                  >
-                    desfazer
-                  </Button>
-                )}
-              </li>
-            ))}
-          </ul>
-          {/*
-            The footer appears whenever there is something to say: more rows below, or a search that
-            matched — the same rule the merge ledger follows.
-          */}
-          {log.data && (log.data.total > (log.data.items ?? []).length || settledLogTerm.trim()) ? (
-            <div className="flex items-center gap-2">
-              {log.data.total > (log.data.items ?? []).length ? (
-                <Button size="sm" variant="ghost" onClick={() => setLogLimit((current) => current + MERGE_LOG_PAGE_SIZE)}>
-                  ver mais
-                </Button>
-              ) : null}
-              <span className="text-xs text-(--color-muted)">
-                mostrando {formatCount((log.data.items ?? []).length)} de {formatCount(log.data.total)}{" "}
-                {settledLogTerm.trim() ? "purga(s) que a busca encontrou" : "purga(s) registrada(s)"}
-              </span>
-            </div>
-          ) : null}
-        </CardBody>
-      </Card>
-    </div>
   );
 }

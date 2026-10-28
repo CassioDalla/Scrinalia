@@ -19,7 +19,10 @@ import { Input } from "@/components/ui/Input";
  *
  * The term is **not** in the URL, unlike the filters of the collection list: a ledger search is a
  * spot check ("where is that term?"), not a view somebody sends to a colleague, and six routes
- * gaining a search key each is a cost with no reader.
+ * gaining a search key each is a cost with no reader. The one exception is `initialTerm`, and it
+ * exists for a link rather than for the address bar: the blocked-spellings screen sends the
+ * archivist to the verdict that planted a ban, and landing on two hundred rows would hide the one
+ * the link was about.
  */
 export function LedgerList<T>({
   items,
@@ -33,6 +36,8 @@ export function LedgerList<T>({
   emptyHint,
   /** How many rows are drawn before the archivist asks for the rest. */
   pageSize = 20,
+  /** The search the screen arrives with, when a link carried one. The archivist can clear it. */
+  initialTerm,
 }: {
   items: T[];
   /** The texts a term is matched against; several because a ledger row has a name on each side. */
@@ -45,8 +50,9 @@ export function LedgerList<T>({
   emptyTitle: string;
   emptyHint?: ReactNode;
   pageSize?: number;
+  initialTerm?: string;
 }) {
-  const [term, setTerm] = useState("");
+  const [term, setTerm] = useState(initialTerm ?? "");
   const [limit, setLimit] = useState(pageSize);
 
   const needle = normalize(term);
