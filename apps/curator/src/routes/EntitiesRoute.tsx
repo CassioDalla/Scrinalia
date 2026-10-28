@@ -1149,7 +1149,7 @@ function SimilarityTab({ onMerged }: { onMerged: () => void }) {
       {all.length > 0 ? (
         <p className="text-xs text-(--color-muted)">
           Veja também os <Link to="/entidades/conflitos" className="underline">conflitos com o eixo de assunto</Link>{" "}
-          e as <Link to="/entidades/excecoes" className="underline">exclusões de NER</Link>.
+          e a tela <Link to="/entidades/excecoes" className="underline">Remover de Entidades</Link>.
         </p>
       ) : null}
     </div>
