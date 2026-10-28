@@ -10,6 +10,7 @@ from litestar.params import FromPath, FromQuery
 
 from scrinalia.api.dependencies import provide_current_user, provide_entity_service, provide_tag_service
 from scrinalia.api.schemas.taxonomy import (
+    AccessPointPreviewRequest,
     ConflictBatchRequest,
     ConflictBatchResponse,
     ConflictPreviewRequest,
@@ -42,6 +43,7 @@ from scrinalia.api.security import Access, AuthenticatedUser
 from scrinalia.domains.archive.domain.text_quality import AI_TEXT_COLUMNS, CLUSTERING_TEXT_COLUMNS
 from scrinalia.domains.archive.models.enums import StopwordsScope, TagCatalogState
 from scrinalia.domains.archive.schemas import (
+    AccessPointPreviewResponse,
     ArchiveMacroCategoryEntityDTO,
     BatchMergeResponse,
     ClusteringColumnsResponse,
@@ -141,6 +143,22 @@ class TaxonomyController(Controller):
         list rather than an arbitrary slice of the catalogue.
         """
         return tag_service.search_tags(term, limit)
+
+    @post("/tags/preview", opt={"access": Access.AUTHENTICATED}, status_code=200, sync_to_thread=True)
+    def preview_access_points(
+        self,
+        tag_service: NamedDependency[TagService],
+        data: AccessPointPreviewRequest,
+    ) -> AccessPointPreviewResponse:
+        """
+        Reads a raw access-point string into what the transfer will create, map or discard.
+
+        Read-only: the creation form shows the consequence before the archivist saves, and the
+        transfer is still the only writer. The classifier is the one the transfer uses, so the
+        preview cannot promise a spelling the archive will not carry. An unknown spelling is
+        ``NEW``; it is not created here.
+        """
+        return tag_service.preview_access_points(data.indexing_points)
 
     @patch("/tags/{tag_id:int}", opt={"access": Access.CURATE}, sync_to_thread=True)
     def curate_tag(

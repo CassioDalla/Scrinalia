@@ -12,6 +12,7 @@ from scrinalia.domains.archive.schemas.entity_schema import (
     EntityKind,
 )
 from scrinalia.domains.archive.schemas.responses import RouteResponse
+from scrinalia.domains.ingestion.csv_import import MAX_CSV_FIELD_CHARS
 
 
 class MergeRequest(RequestModel):
@@ -80,6 +81,17 @@ class MergePreviewRequest(RequestModel):
         if self.proposal_id is not None and (self.canonical_id is not None or self.ids_to_merge):
             raise ValueError("'proposal_id' não pode ser combinado com 'canonical_id'/'ids_to_merge'")
         return self
+
+
+class AccessPointPreviewRequest(RequestModel):
+    """
+    The raw access-point string the creation form is about to send.
+
+    The same shape and the same ceiling as ``ManualIngestionRequest.indexing_points``: the preview
+    reads what the form will submit, not a slice of it.
+    """
+
+    indexing_points: str | None = Field(default=None, max_length=MAX_CSV_FIELD_CHARS)
 
 
 class StopwordCreateRequest(RequestModel):
