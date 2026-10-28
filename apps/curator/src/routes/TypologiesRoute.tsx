@@ -22,6 +22,9 @@ import { Input, Select } from "@/components/ui/Input";
 import { Notice } from "@/components/ui/Notice";
 import { PageBody } from "@/components/layout/PageBody";
 import { SectionTitle } from "@/components/ui/SectionTitle";
+import { useCopy } from "@/i18n/context";
+import { fill } from "@/i18n/maps";
+import { Trans } from "@/i18n/trans";
 import { ACTION } from "@/lib/copy";
 import { descricoes, formatCount, formatDate } from "@/lib/format";
 import { asNumber } from "@/lib/search";
@@ -58,6 +61,7 @@ export function validateTypologiesSearch(search: Record<string, unknown>): Typol
  * ``PATCH /documents/{id}``; this screen does not invent a second command.
  */
 export function TypologiesRoute() {
+  const messages = useCopy();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const search = routeApi.useSearch();
@@ -98,7 +102,11 @@ export function TypologiesRoute() {
         pending={catalog.isPending || refusals.isPending}
         status={
           catalog.data
-            ? `${rows.length} tipologias · ${activeRows.length} ativas · ${formatCount(classified)} descrições classificadas`
+            ? fill(messages.pages.typologies.status, {
+                total: rows.length,
+                active: activeRows.length,
+                classified: formatCount(classified),
+              })
             : undefined
         }
       />
@@ -115,13 +123,16 @@ export function TypologiesRoute() {
           onFiled={onFiled}
         />
 
-        <SectionTitle>Catálogo</SectionTitle>
+        <SectionTitle>{messages.pages.typologies.catalogTitle}</SectionTitle>
 
         <Notice tone="accent">
-          O nome é o rótulo que o classificador propõe; a descrição de contexto é{" "}
-          <strong>documentação para quem lê o catálogo</strong> e não chega à classificação.
-          Aposentar uma tipologia a retira das opções do classificador <strong>sem</strong> desclassificar
-          nenhuma descrição — por isso a contagem de cada uma continua visível.
+          <Trans
+            text={messages.pages.typologies.notice}
+            values={{
+              documentation: <strong>{messages.pages.typologies.noticeDocumentation}</strong>,
+              without: <strong>{messages.pages.typologies.noticeWithout}</strong>,
+            }}
+          />
         </Notice>
 
         {catalog.error ? <ErrorState error={catalog.error} /> : null}
@@ -166,23 +177,21 @@ function RefusalQueue({
   error: unknown;
   onFiled: () => void;
 }) {
+  const messages = useCopy();
   const navigate = useNavigate();
 
   return (
     <section className="grid gap-2">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <SectionTitle>Recusas do classificador</SectionTitle>
+        <SectionTitle>{messages.pages.typologies.queue.title}</SectionTitle>
         {total > 0 ? (
-          <span className="text-xs text-(--color-muted)">{descricoes(total)} aguardando tipologia</span>
+          <span className="text-xs text-(--color-muted)">
+            {fill(messages.pages.typologies.queue.waiting, { count: descricoes(total) })}
+          </span>
         ) : null}
       </div>
 
-      <p className="max-w-prose text-xs text-(--color-muted)">
-        O classificador examinou estas descrições e não teve confiança suficiente para escolher uma
-        tipologia. As que chegaram mais perto de ser classificadas vêm primeiro. Classificar aqui salva
-        a escolha, registra a revisão e marca a descrição como aprovada por uma pessoa — o classificador
-        não a altera depois. Se nenhuma tipologia serve, crie ou reative uma no catálogo abaixo.
-      </p>
+      <p className="max-w-prose text-xs text-(--color-muted)">{messages.pages.typologies.queue.hint}</p>
 
       {error ? <ErrorState error={error} /> : null}
 
@@ -190,15 +199,8 @@ function RefusalQueue({
 
       {!pending && !error && total === 0 ? (
         <EmptyState
-          title="Nenhuma recusa pendente"
-          hint={
-            <>
-              Isso não quer dizer que o catálogo cobre o acervo: quer dizer que nenhuma descrição tem
-              uma recusa aberta do classificador. Uma descrição que já recebeu tipologia sai daqui, e
-              uma que o classificador nunca examinou não entra — a recusa só é registrada quando a
-              classificação é feita e fica abaixo da confiança mínima.
-            </>
-          }
+          title={messages.pages.typologies.queue.emptyTitle}
+          hint={messages.pages.typologies.queue.emptyHint}
         />
       ) : null}
 
@@ -228,11 +230,14 @@ function RefusalQueue({
                   })
                 }
               >
-                ← Anterior
+                {messages.common.previous}
               </Button>
               <span className="text-xs text-(--color-muted)">
-                {formatCount(offset + 1)}–{formatCount(Math.min(offset + TYPOLOGY_REFUSALS_PAGE_SIZE, total))} de{" "}
-                {formatCount(total)}
+                {fill(messages.common.range, {
+                  from: formatCount(offset + 1),
+                  to: formatCount(Math.min(offset + TYPOLOGY_REFUSALS_PAGE_SIZE, total)),
+                  total: formatCount(total),
+                })}
               </span>
               <Button
                 size="sm"
@@ -244,7 +249,7 @@ function RefusalQueue({
                   })
                 }
               >
-                Próxima →
+                {messages.common.next}
               </Button>
             </div>
           ) : null}
@@ -266,6 +271,7 @@ function RefusalCard({
   catalog: Typology[];
   onFiled: () => void;
 }) {
+  const messages = useCopy();
   const [choice, setChoice] = useState("");
   const file = useMutation({
     mutationFn: (typologyId: number) => updateDocument(row.description_id, { typology_id: typologyId }),
@@ -293,9 +299,11 @@ function RefusalCard({
           </Link>
           <Badge
             tone={score === null || score === undefined ? "neutral" : "warn"}
-            title="A confiança que o classificador teve antes de recusar. Abaixo da confiança mínima, a decisão é sua."
+            title={messages.pages.typologies.refusal.confidenceTitle}
           >
-            {score === null || score === undefined ? "sem confiança registrada" : `confiança ${score.toFixed(2)}`}
+            {score === null || score === undefined
+              ? messages.pages.typologies.refusal.noConfidence
+              : fill(messages.pages.typologies.refusal.confidence, { score: score.toFixed(2) })}
           </Badge>
         </div>
 
@@ -304,23 +312,24 @@ function RefusalCard({
           <span>{formatDate(row.document_date)}</span>
           {row.guessed_label ? (
             <span>
-              palpite: <strong className="font-medium">{row.guessed_label}</strong>
-              {guessedRetired ? " (aposentada)" : ""}
+              {messages.pages.typologies.refusal.guess}{" "}
+              <strong className="font-medium">{row.guessed_label}</strong>
+              {guessedRetired ? messages.pages.typologies.refusal.retiredSuffix : ""}
             </span>
           ) : (
-            <span>sem palpite registrado</span>
+            <span>{messages.pages.typologies.refusal.noGuess}</span>
           )}
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
           <Select
             className="w-64"
-            aria-label={`Tipologia de ${title}`}
+            aria-label={fill(messages.pages.typologies.refusal.selectAria, { title })}
             value={choice}
             disabled={file.isPending}
             onChange={(event) => setChoice(event.target.value)}
           >
-            <option value="">Escolha uma tipologia…</option>
+            <option value="">{messages.pages.typologies.refusal.choose}</option>
             {active.map((typology) => (
               <option key={typology.typology_id} value={typology.typology_id}>
                 {typology.name}
@@ -333,11 +342,13 @@ function RefusalCard({
             disabled={!choice || file.isPending}
             onClick={() => file.mutate(Number(choice))}
           >
-            {file.isPending ? "Classificando…" : "Classificar"}
+            {file.isPending
+              ? messages.pages.typologies.refusal.classifying
+              : messages.pages.typologies.refusal.classify}
           </Button>
           <Link to="/acervo/$descriptionId" params={{ descriptionId: row.description_id }}>
             <Button size="sm" variant="ghost">
-              Abrir ficha
+              {messages.pages.typologies.refusal.open}
             </Button>
           </Link>
         </div>
@@ -349,6 +360,7 @@ function RefusalCard({
 }
 
 function TypologyCard({ typology, onChanged }: { typology: Typology; onChanged: () => void }) {
+  const messages = useCopy();
   const [name, setName] = useState(typology.name);
   const [context, setContext] = useState(typology.context_description ?? "");
 
@@ -365,13 +377,17 @@ function TypologyCard({ typology, onChanged }: { typology: Typology; onChanged: 
 
   return (
     <Disclosure
-      toggleLabel="Editar esta tipologia"
+      toggleLabel={messages.pages.typologies.card.editToggle}
       className={typology.is_active ? undefined : "opacity-80"}
       header={
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-sm font-medium">{typology.name}</span>
-          {typology.is_active ? <Badge tone="ok">ativa</Badge> : <Badge tone="neutral">aposentada</Badge>}
-          <Badge tone="neutral" title="Descrições classificadas com esta tipologia">
+          {typology.is_active ? (
+            <Badge tone="ok">{messages.pages.typologies.card.active}</Badge>
+          ) : (
+            <Badge tone="neutral">{messages.pages.typologies.card.retired}</Badge>
+          )}
+          <Badge tone="neutral" title={messages.pages.typologies.card.countTitle}>
             {descricoes(typology.document_count ?? 0)}
           </Badge>
           {typology.context_description ? (
@@ -386,8 +402,8 @@ function TypologyCard({ typology, onChanged }: { typology: Typology; onChanged: 
           disabled={save.isPending}
           title={
             typology.is_active
-              ? "Sai das opções do classificador; as descrições já classificadas mantêm a tipologia."
-              : "Volta a ser uma opção do classificador."
+              ? messages.pages.typologies.card.retireTitle
+              : messages.pages.typologies.card.reactivateTitle
           }
           onClick={() => save.mutate({ is_active: !typology.is_active })}
         >
@@ -396,11 +412,11 @@ function TypologyCard({ typology, onChanged }: { typology: Typology; onChanged: 
       }
     >
       <div className="grid gap-2">
-        <Field label="Nome (o rótulo do classificador)">
+        <Field label={messages.pages.typologies.card.nameField}>
           <Input value={name} onChange={(event) => setName(event.target.value)} maxLength={100} />
         </Field>
 
-        <Field label="Descrição de Contexto (o que entra nesta tipologia; só o arquivista lê)">
+        <Field label={messages.pages.typologies.card.contextField}>
           <Input value={context} onChange={(event) => setContext(event.target.value)} />
         </Field>
 
@@ -418,7 +434,7 @@ function TypologyCard({ typology, onChanged }: { typology: Typology; onChanged: 
           >
             {save.isPending ? ACTION.save.pending : ACTION.save.label}
           </Button>
-          {dirty ? <span className="text-xs text-(--color-muted)">alterações não salvas</span> : null}
+          {dirty ? <span className="text-xs text-(--color-muted)">{messages.pages.typologies.card.unsaved}</span> : null}
         </div>
         {save.error ? <ErrorState error={save.error} /> : null}
       </div>
@@ -427,6 +443,7 @@ function TypologyCard({ typology, onChanged }: { typology: Typology; onChanged: 
 }
 
 function CreateTypologyCard({ onCreated }: { onCreated: () => void }) {
+  const messages = useCopy();
   const empty: TypologyCreateRequest = { name: "", context_description: null };
   const [draft, setDraft] = useState<TypologyCreateRequest>(empty);
 
@@ -442,39 +459,36 @@ function CreateTypologyCard({ onCreated }: { onCreated: () => void }) {
 
   return (
     <Disclosure
-      triggerLabel="+ Nova tipologia"
-      toggleLabel="Criar uma tipologia"
+      triggerLabel={messages.pages.typologies.create.trigger}
+      toggleLabel={messages.pages.typologies.create.toggle}
       header={
         <div className="grid gap-1">
-          <span className="text-sm font-semibold">Criar uma tipologia</span>
-          <span className="text-xs text-(--color-muted)">
-            Serve quando o acervo tem uma forma documental que o classificador não propõe; o nome é o
-            rótulo que ele usa.
-          </span>
+          <span className="text-sm font-semibold">{messages.pages.typologies.create.toggle}</span>
+          <span className="text-xs text-(--color-muted)">{messages.pages.typologies.create.hint}</span>
         </div>
       }
     >
       <div className="grid gap-2">
         <p className="text-xs text-(--color-muted)">
-          O classificador recebe <strong>só o nome</strong>. Um nome comprido ou uma frase fazem a
-          classificação perder o vínculo com o texto e rotular tudo com a mesma tipologia: prefira a
-          forma diplomática curta (Ata de Reunião, Ofício, Planta) e deixe os exemplos na descrição de
-          contexto.
+          <Trans
+            text={messages.pages.typologies.create.warning}
+            values={{ onlyName: <strong>{messages.pages.typologies.create.onlyName}</strong> }}
+          />
         </p>
         <div className="grid gap-2 sm:grid-cols-2">
-          <Field label="Nome">
+          <Field label={messages.pages.typologies.create.name}>
             <Input
               value={draft.name}
               onChange={(event) => setDraft({ ...draft, name: event.target.value })}
-              placeholder="ex.: Ata de Reunião"
+              placeholder={messages.pages.typologies.create.namePlaceholder}
               maxLength={100}
             />
           </Field>
-          <Field label="Descrição de Contexto">
+          <Field label={messages.pages.typologies.create.context}>
             <Input
               value={draft.context_description ?? ""}
               onChange={(event) => setDraft({ ...draft, context_description: event.target.value || null })}
-              placeholder="ex.: registros de encontros e deliberações"
+              placeholder={messages.pages.typologies.create.contextPlaceholder}
             />
           </Field>
         </div>
@@ -484,7 +498,9 @@ function CreateTypologyCard({ onCreated }: { onCreated: () => void }) {
             disabled={!valid || create.isPending}
             onClick={() => create.mutate()}
           >
-            {create.isPending ? ACTION.create.pending : `${ACTION.create.label} tipologia`}
+            {create.isPending
+              ? ACTION.create.pending
+              : fill(messages.pages.typologies.create.submit, { verb: ACTION.create.label })}
           </Button>
         </div>
         {create.error ? <ErrorState error={create.error} /> : null}

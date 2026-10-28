@@ -221,15 +221,11 @@ PORTUGUESE = re.compile(
 #: extracted (ADR 0020 §7); a file outside it cannot gain a Portuguese literal, and a file inside it
 #: cannot become empty without leaving — the list only shrinks.
 PENDING = {
-    "src/components/workers/RunsLedger.tsx",
-    "src/components/workers/WorkerOptionsFields.tsx",
     "src/components/workers/WorkerTrialCard.tsx",
     "src/components/workers/WorkersPanel.tsx",
     "src/routes/BlockedSpellingsRoute.tsx",
-    "src/routes/CollectionRoute.tsx",
     "src/routes/NerExclusionsRoute.tsx",
     "src/routes/SubjectExclusionsRoute.tsx",
-    "src/routes/TypologiesRoute.tsx",
     "src/routes/WorkerSettingsRoute.tsx",
 }
 
