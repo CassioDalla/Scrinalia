@@ -3,8 +3,9 @@
 - **Status:** Accepted
 - **Date:** 2026-10-27
 - **Applies to:** the `apps/curator/src/i18n` catalogue, the `auth_users.locale` column and
-  `PATCH /api/v1/auth/me`, the server's message catalogue, and the two halves of the i18n work —
-  the infrastructure and the vertical slice (#45), and the sweep with its gate (#227).
+  `PATCH /api/v1/auth/me`, the server's message catalogue, the queue and worker labels that leave
+  the DTOs (#231), and the two halves of the i18n work — the infrastructure and the vertical slice
+  (#45), and the sweep with its gate (#227).
 
 ## Context
 
@@ -39,8 +40,9 @@ On the server:
 - 62 `DomainException` classes; only `DuplicateEntityNameError` carries facts in `details`, because
   it is the only refusal the SPA recomposes.
 - Four handler-level sentences (401, 403, 409, 500).
-- Twenty `label`/`description` strings of the worker catalogue served as **data** in
-  `WorkerStatusDTO`/`WorkerSettingsItemDTO` — a client-only catalogue cannot reach them.
+- Nine home cards and twenty worker `label`/`description` strings — 38 strings — are served as
+  **data** in `CurationQueue`, `WorkerStatusDTO` and `WorkerSettingsItemDTO` and rendered verbatim.
+  The copy gate scans `apps/curator/src`, so it cannot see any of them.
 
 The documentation site already ships English and Portuguese, with English canonical (ADR 0010). The
 interface does not, and the asymmetry has to be deliberate rather than accidental.
@@ -98,7 +100,27 @@ client that knows neither still gets a sentence.
 fallback for a code the server's catalogue does not know yet. What changes is who owns the
 sentence: the server, once.
 
-### 5. What is not translated
+### 5. A label is vocabulary; a sentence is a sentence
+
+The API carries two kinds of user-facing text, and they do not have the same owner:
+
+- **A sentence** reports what happened and carries facts a client cannot reconstruct — a route's
+  `message`, a refusal's `message`, a worker's `pending_reason`, the four handler sentences. It
+  lives on the server, keyed by code, rendered in the requested locale (§4).
+- **A label** names something the contract already identifies — a screen, a queue, a worker, an
+  enum member. Its stable identity travels in the payload (`ScreenId`, `queue.key`, `worker.name`,
+  the enum code), and the text lives in the SPA's catalogue keyed by that identity, beside the rest
+  of the interface's copy.
+
+So the nine home cards (eighteen strings) and the twenty worker labels leave `CurationQueue`,
+`WorkerStatusDTO` and `WorkerSettingsItemDTO`; the server keeps the identity, the count, the route
+and the sentences. A gate asserts that every `queue.key` and every worker `name` the contract
+declares has a label in every locale, so a new queue fails a test instead of rendering a blank card.
+
+A consumer that is not the SPA loses the ready-to-render label. That is accepted: the queue and the
+worker labels are curator and operator presentation, and the public surface does not read them.
+
+### 6. What is not translated
 
 - **LLM prompts.** They reason about Portuguese text; translating one changes the model's task.
 - **`SourceSchema` labels.** They are payload keys; translating one empties a column.
@@ -112,7 +134,7 @@ sentence: the server, once.
 
 Each exclusion is written where the extraction happens, not only here.
 
-### 6. The copy pass comes after the extraction, in the catalogue
+### 7. The copy pass comes after the extraction, in the catalogue
 
 The extraction is mechanical: the current Portuguese moves to `pt/` verbatim, keyed by domain and
 screen, with no editorial change. The manual copy pass then reviews `pt/` screen by screen and
@@ -121,12 +143,13 @@ the key is the same — so the rule is procedural: every edited value reopens it
 the same change. That blind spot is accepted and written down; a gate that reads git to detect a
 changed value would be fragile and would fail for the wrong reason.
 
-### 7. The gate, and the ratchet until the sweep ends
+### 8. The gate, and the ratchet until the sweep ends
 
 - No Portuguese literal outside `apps/curator/src/i18n/`.
 - The retired-word canon of `lib/copy.ts` keeps scanning the catalogue, because the strings are
   still there.
 - Every `RouteMessageCode` and every refusal class has an entry in every server locale.
+- Every `queue.key` and every worker `name` the contract declares has a label in every locale.
 - `format.ts` contains no locale literal.
 - Until the sweep ends, `test_curator_copy.py` keeps a `file → count` pending list that only
   shrinks; a new file with Portuguese fails immediately.
@@ -146,6 +169,9 @@ changed value would be fragile and would fail for the wrong reason.
   dimension to a surface with no anonymous pages.
 - **No dependency.** The type system already gives the parity a runtime library would give, and the
   copy pass needs the text in one reviewable place.
+- **One rule for text.** A label is looked up by the identity the payload already carries; a
+  sentence is rendered where its facts are. Keeping the labels on the server would put the home
+  screen's copy in Python while every other label lived in TypeScript.
 - **The split.** Infrastructure plus a vertical slice is one release's work; the sweep of 1,222
   strings and its gate is another, and mixing them would hide the copy edits inside a mechanical
   diff.
@@ -158,6 +184,8 @@ Positive:
   translated without editing the screens.
 - The copy of a screen lives in one file, and the copy pass can review it without opening 86
   components.
+- The first screen's copy is inside the copy pass and the gate, and a queue added to the service
+  cannot render an untranslated or blank card.
 - The seam `messages.ts` promised is proven end to end, including a server answer.
 - The gate makes re-accretion deliberate: a new Portuguese literal is a failing test, not a habit.
 
@@ -173,6 +201,9 @@ Negative, accepted:
   without a catalogue working, and a test pins that every code has an entry, not that the entry
   repeats `str(exc)`.
 - A third language with complex plurals would reopen the no-library decision.
+- Three DTOs lose `label`/`description` (`CurationQueue`, `WorkerStatusDTO`,
+  `WorkerSettingsItemDTO`), so a client that is not the SPA must carry its own labels. Accepted:
+  they are curator and operator presentation.
 
 ## Alternatives considered
 
@@ -189,6 +220,10 @@ Negative, accepted:
   route messages — and of the one refusal that carries them — would have to travel in `details`,
   the sentence would be defined twice, and the API would stay Portuguese-only for any other
   consumer.
+- **Keep the labels in the DTOs and translate them on the server too.** Rejected: it splits one
+  rule — screens and enum labels in the SPA, queues and workers in Python — and keeps the home
+  screen's copy outside the pass that reviews it, although the identity the client needs is already
+  in the payload.
 - **Browser-only locale.** Rejected: no durable preference across devices, and the account would
   remain monolingual.
 - **A locale prefix in the URL.** Rejected: a router dimension for an authenticated SPA with no
