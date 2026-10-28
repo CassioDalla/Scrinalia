@@ -16,6 +16,12 @@ export const en: typeof pt = {
     noDate: "no date",
     descriptions: { one: "description", other: "descriptions" },
   },
+  producers: {
+    placeholder: "Type the name or search an entity",
+    searching: "Searching entities…",
+    empty: "No entity with that fragment",
+    failed: "Could not search the entities now.",
+  },
   notFound: {
     title: "Screen not found",
     hint: "The address does not match any screen in the system.",

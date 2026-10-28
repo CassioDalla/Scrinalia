@@ -166,6 +166,12 @@ export const pt = {
     /** The two forms `descricoes` needs; the plural rule is `Intl.PluralRules`. */
     descriptions: { one: "descrição", other: "descrições" },
   },
+  producers: {
+    placeholder: "Digite o nome ou busque uma entidade",
+    searching: "Buscando entidades…",
+    empty: "Nenhuma entidade com esse trecho",
+    failed: "Não foi possível buscar as entidades agora.",
+  },
   notFound: {
     title: "Tela não encontrada",
     hint: "O endereço não corresponde a nenhuma tela do sistema.",

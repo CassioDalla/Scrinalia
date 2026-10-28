@@ -2830,3 +2830,34 @@ with short or full shas, and part of a `## <date> — <title>` entry.
   re-rendered, because its column, map and copy are unchanged.
 
 
+## 2026-10-28 — the producer field copies a name, it does not link
+
+- **Range:** `ee24d79..6ba1d64`
+- **Pages:**
+  - `guides/curate.md` — **updated**: the Nova Descrição section now describes `Produtor(es)` as a
+    name autocomplete over the entity catalogue: the fragment between separators that a pick
+    replaces, the verbatim copy (the catalogue stores names lowercased), the deliberate absence of an
+    entity-type filter, and the sentence that a copied name is not a link.
+  - `guides/curate.pt.md` — **updated**: the same paragraph in the translation.
+- **Why the round exists.** #230 was scoped down after the measurement that the producer variants in
+  this database are an ingestion shape (7 spellings for 5 creators, all 101 descriptions from the
+  `pmc` origin) and that the entity axis has no creator role. What shipped is the convenience half:
+  the copy. The relation — description ↔ creator, the entry normalisation, the list filter and a
+  producer worker — moved to #242, in the *Future Ideas* milestone.
+- **What the round measured.** `tsc`, ESLint, 72 bun tests (11 new in
+  `apps/curator/tests/entityNameField.test.tsx`) and 25 pytest in `testing/unit/curator` (the copy
+  and manual-form gates). The screen was rendered against the development database with the headless
+  shell: the creation form with the 3.2 Contexto area open and the dropdown for "prefeitura" (two
+  entities, `ORG · 23 descrições` and `LOC · 1 descrição`), the value after the pick with the caret
+  at its end, and the dossier of description 391, where typing ", gui" after the existing
+  "Prefeitura Municipal de Curitiba" searched only the fragment and the pick replaced only it. The
+  field sits inside the collapsed area on the creation screen, which is the form's default and not a
+  defect: the screenshot of the form before opening it shows no producer control, and that is the
+  screen the archivist meets.
+- **An observation, not a fix.** "gui" returned "rua assungui" (`LOC`, 3 descriptions) before "guido
+  ghilardi" (`PER`, 1): the endpoint orders by usage, which the dossier's entity picker already
+  inherited. Nothing in this change touches that ordering.
+- **Not verified, and said so.** The dossier pick was checked in the draft and the browser closed
+  without saving, so the write path is the existing one and was not exercised. The suggestion list was
+  not seen against an empty catalogue. Nothing in the CSV import, the public DTO or the API changed,
+  and none of them was re-rendered.

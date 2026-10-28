@@ -65,7 +65,7 @@ export const ISAD_AREAS: readonly IsadArea[] = [
 ];
 
 /** The control a field needs. A screen that does not know the kind falls back to a text input. */
-export type IsadControl = "text" | "long_text" | "date" | "language";
+export type IsadControl = "text" | "long_text" | "date" | "language" | "entity";
 
 export type IsadField = {
   /** The API's field name, spelled exactly as the contract spells it. */
@@ -111,8 +111,8 @@ export const ISAD_FIELDS: readonly IsadField[] = [
     name: "producers",
     label: "Produtor(es)",
     area: "context",
-    control: "text",
-    help: "Quem produziu o conjunto: a instituição ou a pessoa.",
+    control: "entity",
+    help: "Quem produziu o conjunto: a instituição ou a pessoa. A lista sugere nomes das entidades; escolher um copia o nome, sem criar vínculo.",
   },
   {
     name: "admin_bio_history",

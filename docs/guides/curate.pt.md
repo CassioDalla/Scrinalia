@@ -334,6 +334,18 @@ de cem caracteres — e aponta as entradas cuja grafia guardada difere da digita
 arquivista. O campo continua opcional, e a string que ele envia é a mesma da coluna do CSV e da chave
 mapeada do scraper.
 
+**Produtor(es)** sugere nomes a partir do catálogo de entidades. Digitar no campo consulta `GET
+/api/v1/taxonomy/entities?term=` — a mesma busca que o dossiê usa para associar uma entidade — e
+escolher uma sugestão copia o nome para o texto, **nunca o `entity_id`**. A cópia é literal (o catálogo
+guarda os nomes das entidades em minúsculas) e substitui só o trecho entre dois separadores, então as
+vírgulas, os espaços e os outros nomes do arquivista continuam como estavam; o cursor fica depois do
+nome copiado e o campo segue editável. É uma cópia e não um vínculo: uma mesclagem ou renomeação
+posterior da entidade não alcança a descrição, e a ajuda embaixo do campo diz isso. A lista não é
+filtrada por tipo de entidade, porque o NER classifica o mesmo órgão como `ORG`, `LOC` ou `PER` e
+qualquer filtro esconderia um produtor real; o tipo vai como dica da sugestão. Um nome que o catálogo
+não tem continua digitável, e o campo continua sendo a string que o contrato carrega. A relação, com os
+filtros que ela destravaria, está na #242.
+
 **Importar CSV** é a origem `csv` (#191, ADR 0019). O arquivo é interpretado **no navegador** (vírgula
 ou ponto e vírgula, campos entre aspas, CRLF, UTF-8 com queda para Windows-1252); a tela mostra os
 cabeçalhos detectados, uma prévia e as conferências locais, e envia só uma lista limitada de linhas

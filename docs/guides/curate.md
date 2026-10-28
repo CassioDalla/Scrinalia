@@ -360,6 +360,18 @@ hundred — and points at the entries whose stored spelling differs from the typ
 archivist's decision. The field stays optional, and the string it sends is the same one the CSV column
 and the scraper's mapped key carry.
 
+**Produtor(es)** suggests names from the entity catalogue. Typing in the field asks `GET
+/api/v1/taxonomy/entities?term=` — the same search the dossier uses to attach an entity — and picking
+a suggestion copies the name into the text, **never the `entity_id`**. The copy is verbatim (the
+catalogue stores entity names lowercased) and replaces only the fragment between two separators, so
+the archivist's commas, spacing and other names survive; the caret lands after the copied name and
+the field stays editable. It is a copy and not a link: a later merge or rename of the entity does not
+reach the description, and the help under the field says so. The list is not filtered by entity type,
+because the NER types the same administrative body as `ORG`, `LOC` or `PER` and any filter would hide
+a real producer; the type travels as the suggestion's hint. A name the catalogue does not know stays
+typeable, and the field is still the string the contract carries. The relation, with the filters it
+would unlock, is #242.
+
 **Importar CSV** is the `csv` origin (#191, ADR 0019). The file is parsed **in the browser** (comma or
 semicolon, quoted fields, CRLF, UTF-8 with a Windows-1252 fallback); the screen shows the detected
 headers, a preview and the local checks, and sends only a bounded list of rows as JSON — nothing is
