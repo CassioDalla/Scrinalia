@@ -2053,6 +2053,32 @@ class TagRepository:
         obj = self.db.scalar(select(ArchiveTag).where(ArchiveTag.tag_id == tag_id))
         return TagIdentity.model_validate(obj) if obj else None
 
+    def get_tag_identities_by_names(self, names: Sequence[str]) -> dict[str, TagIdentity]:
+        """
+        Exact tag identities by normalized spelling, in one read.
+
+        The lookup uses the same ``lower(btrim(name))`` expression as the unique index, so a legacy
+        row that still carries capitals is found by the key the ingestion would create for it. The
+        map is keyed by that normalized spelling, not by the stored text: the caller already has the
+        normalized name and must not build the pair by hand.
+        """
+        if not names:
+            return {}
+
+        keys = [normalize_tag(name) for name in names]
+        stmt = select(ArchiveTag).where(func.lower(func.btrim(ArchiveTag.name)).in_(keys))
+        rows = self.db.scalars(stmt).all()
+        return {normalize_tag(row.name): TagIdentity.model_validate(row) for row in rows}
+
+    def get_tag_identities_by_ids(self, tag_ids: Sequence[int]) -> dict[int, TagIdentity]:
+        """Tag identities by id, in one read (the canonical name behind a synonym)."""
+        if not tag_ids:
+            return {}
+
+        stmt = select(ArchiveTag).where(ArchiveTag.tag_id.in_(list(tag_ids)))
+        rows = self.db.scalars(stmt).all()
+        return {row.tag_id: TagIdentity.model_validate(row) for row in rows}
+
     def get_document_ids_grouped_by_tags(self, tag_ids: Sequence[int]) -> dict[int, list[str]]:
         """Which documents carry each tag, in one query (the ledger needs the per-tag links)."""
         if not tag_ids:

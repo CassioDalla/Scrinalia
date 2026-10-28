@@ -241,6 +241,12 @@ class TagRepositoryPort(Protocol):
     def get_by_id(self, tag_id: int) -> TagIdentity | None:
         raise NotImplementedError
 
+    def get_tag_identities_by_names(self, names: Sequence[str]) -> dict[str, TagIdentity]:
+        raise NotImplementedError
+
+    def get_tag_identities_by_ids(self, tag_ids: Sequence[int]) -> dict[int, TagIdentity]:
+        raise NotImplementedError
+
     def get_document_ids_grouped_by_tags(self, tag_ids: Sequence[int]) -> dict[int, list[str]]:
         raise NotImplementedError
 

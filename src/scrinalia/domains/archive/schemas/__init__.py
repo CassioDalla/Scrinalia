@@ -108,6 +108,8 @@ from .system_schema import (
     WorkerUnit,
 )
 from .tag_schema import (
+    AccessPointPreviewResponse,
+    AccessPointResolution,
     ArchiveMacroCategoryEntityDTO,
     ArchiveTagDTO,
     BatchMergeResponse,
@@ -179,6 +181,8 @@ from .typology_schema import (
 )
 
 __all__ = [
+    "AccessPointPreviewResponse",
+    "AccessPointResolution",
     "ArchiveDocumentDTO",
     "ArchiveEntityDTO",
     "ArchiveMacroCategoryEntityDTO",

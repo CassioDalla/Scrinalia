@@ -350,6 +350,16 @@ until #198. The form generates a `manual-<uuid>` id, so a retried submit is the 
 duplicate `description_id` is refused before the write. Only the title is required — a description
 can be born incomplete and completed in the dossier.
 
+**Pontos de acesso** are chips over the tag catalogue, not a comma-separated string. The type-ahead
+picks an existing spelling; typing a term and choosing *Adicionar* keeps the archivist's spelling. A
+summary under the control names what the transfer will do with the string — create a new spelling, map
+it to a synonym, or discard it because it is banned, shorter than three characters or longer than a
+hundred — and points at the entries whose stored spelling differs from the typed one. The summary is
+`POST /api/v1/taxonomy/tags/preview`, a read: an unknown spelling is `NEW` and is created only by the
+`transfer` at archiving. Nothing is removed or rewritten by the preview; removing a term is the
+archivist's decision. The field stays optional, and the string it sends is the same one the CSV column
+and the scraper's mapped key carry.
+
 **Importar CSV** is the `csv` origin (#191, ADR 0019). The file is parsed **in the browser** (comma or
 semicolon, quoted fields, CRLF, UTF-8 with a Windows-1252 fallback); the screen shows the detected
 headers, a preview and the local checks, and sends only a bounded list of rows as JSON — nothing is

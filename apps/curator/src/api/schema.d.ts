@@ -1737,6 +1737,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/taxonomy/tags/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** PreviewAccessPoints */
+        post: operations["ApiV1TaxonomyTagsPreviewPreviewAccessPoints"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/taxonomy/tags/relevance/{method}": {
         parameters: {
             query?: never;
@@ -2191,6 +2208,30 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** AccessPointPreviewRequest */
+        AccessPointPreviewRequest: {
+            indexing_points?: string | null;
+        };
+        /** AccessPointPreviewResponse */
+        AccessPointPreviewResponse: {
+            items: components["schemas"]["AccessPointResolution"][];
+        };
+        /** AccessPointResolution */
+        AccessPointResolution: {
+            input: string;
+            name?: string | null;
+            status: components["schemas"]["AccessPointStatus"];
+            tag_id?: number | null;
+        };
+        /**
+         * AccessPointStatus
+         * @description What the transfer will do with one access point of the raw string.
+         *
+         *         ``EXISTING`` and ``SYNONYM`` link a tag that is already in the catalogue; ``NEW`` is a spelling
+         *         the transfer will create; the other four are entries it will drop, each for a different reason.
+         * @enum {string}
+         */
+        AccessPointStatus: "EXISTING" | "SYNONYM" | "NEW" | "STOPWORD" | "TOO_SHORT" | "TOO_LONG" | "DUPLICATE";
         /**
          * ArchiveEntityOrigin
          * @description Who wrote a document-entity link.
@@ -9499,6 +9540,45 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MergePreviewResponse"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                        status_code: number;
+                    };
+                };
+            };
+        };
+    };
+    ApiV1TaxonomyTagsPreviewPreviewAccessPoints: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AccessPointPreviewRequest"];
+            };
+        };
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccessPointPreviewResponse"];
                 };
             };
             /** @description Bad request syntax or unsupported method */

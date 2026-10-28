@@ -18,6 +18,12 @@ import { cn } from "@/lib/cn";
  * `info` is the discreet slot: it renders **outside** the `<label>`, because the `<button>` of a
  * `Hint` inside a label is invalid HTML and pollutes the input's accessible name with the trigger's
  * own label. `hint` stays visible; this slot never replaces it, it only carries what is secondary.
+ *
+ * `htmlFor` is for a **composite** control, whose chips carry their own remove buttons: a `<button>`
+ * inside a `<label>` is invalid HTML and clicking it would also activate the label. In that mode the
+ * label is a sibling pointing at the control's input by id, and `hintId` names the visible hint so
+ * the control can include it in `aria-describedby`. With no `htmlFor` the label still wraps the
+ * control, which is what every simple field wants.
  */
 export function Field({
   label,
@@ -25,19 +31,44 @@ export function Field({
   info,
   children,
   className,
+  htmlFor,
+  hintId,
 }: {
   label: ReactNode;
   hint?: ReactNode;
   info?: ReactNode;
   children: ReactNode;
   className?: string;
+  htmlFor?: string;
+  hintId?: string;
 }) {
+  const hintNode = hint ? (
+    <span id={hintId} className="text-(--color-muted)">
+      {hint}
+    </span>
+  ) : null;
+
+  if (htmlFor) {
+    return (
+      <div className={cn("flex items-start gap-1", className)}>
+        <div className="flex min-w-0 flex-1 flex-col gap-1 text-xs">
+          <label htmlFor={htmlFor} className="text-(--color-muted)">
+            {label}
+          </label>
+          {children}
+          {hintNode}
+        </div>
+        {info ? <span className="shrink-0">{info}</span> : null}
+      </div>
+    );
+  }
+
   return (
     <div className={cn("flex items-start gap-1", className)}>
       <label className="flex min-w-0 flex-1 flex-col gap-1 text-xs">
         <span className="text-(--color-muted)">{label}</span>
         {children}
-        {hint ? <span className="text-(--color-muted)">{hint}</span> : null}
+        {hintNode}
       </label>
       {info ? <span className="shrink-0">{info}</span> : null}
     </div>

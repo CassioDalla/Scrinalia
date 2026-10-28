@@ -1,11 +1,12 @@
-import re
 from collections.abc import Sequence
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Literal
 
 from scrinalia.core.author import Author
 from scrinalia.core.i18n import t
 from scrinalia.core.logger import logger
+from scrinalia.domains.archive.domain.access_points import AccessPointStatus, classify_indexing_points
 from scrinalia.domains.archive.domain.normalization import normalize_stopword, normalize_tag
 from scrinalia.domains.archive.domain.text_quality import AI_TEXT_COLUMNS, unknown_ai_columns
 from scrinalia.domains.archive.exceptions import (
@@ -20,6 +21,8 @@ from scrinalia.domains.archive.models.enums import StopwordMatch, StopwordsScope
 from scrinalia.domains.archive.ports.document import DocumentRepositoryPort
 from scrinalia.domains.archive.ports.taxonomy import StopwordSource, SubjectExclusionSource, TagRepositoryPort
 from scrinalia.domains.archive.schemas import (
+    AccessPointPreviewResponse,
+    AccessPointResolution,
     ArchiveMacroCategoryEntityDTO,
     ArchiveTagDTO,
     BatchMergeResponse,
@@ -91,6 +94,15 @@ MAX_MERGE_LOG_PAGE = 200
 MIN_SEARCH_TERM = 2
 
 
+@dataclass(frozen=True, slots=True)
+class TagResolution:
+    """What one spelling resolves to: the name the transfer links and whether it will create it."""
+
+    name: str
+    status: AccessPointStatus
+    tag_id: int | None
+
+
 class TagService:
     """
     Domain service responsible for auditing, sanitizing and unifying
@@ -117,37 +129,25 @@ class TagService:
 
     def extract_and_clean_tags(self, indexing_points: str | None) -> list[ArchiveTagDTO]:
         """
-        Reads the raw indexing points (comma-separated), applies
-        the stopwords dictionary from the database and returns the validated contracts.
+        Reads the raw access points into the DTOs the transfer links.
+
+        The reading is ``classify_indexing_points`` — the same one the creation form previews — so
+        the two cannot disagree about what a spelling becomes. A banned term is dropped only when it
+        is the whole tag, and the order of the string is preserved.
         """
         if not indexing_points:
             return []
 
-        # Fetches the active stopwords directly from the database
-        stopwords = self._get_stopwords()
+        candidates = classify_indexing_points(indexing_points, self._get_stopwords())
 
-        # The staging layer may join duplicate source keys with " | ", so both "|" and
-        # "," are treated as tag separators.
-        raw_tags = re.split(r"[,|]", indexing_points)
-        clean_tags = set()
-
-        for tag in raw_tags:
-            tag = tag.strip().lower()
-
-            # A stopword only removes the tag when it is the WHOLE tag. Removing it as a
-            # substring would destroy valid multi-word tags ("Rio Branco" -> "Branco").
-            if tag in stopwords:
-                continue
-
-            tag = re.sub(r"\s+", " ", tag)
-
-            if 2 < len(tag) <= 100:
-                clean_tags.add(tag)
-            elif len(tag) > 100:
-                logger.warning(f"⚠️ Tag ignored for being too long: '{tag[:50]}...'")
+        for candidate in candidates:
+            if candidate.dropped is AccessPointStatus.TOO_LONG:
+                logger.warning(f"⚠️ Tag ignored for being too long: '{candidate.normalized[:50]}...'")
 
         return [
-            ArchiveTagDTO(name=tag_name, macro_category_id=None, ai_confidence_score=None) for tag_name in clean_tags
+            ArchiveTagDTO(name=candidate.normalized, macro_category_id=None, ai_confidence_score=None)
+            for candidate in candidates
+            if candidate.dropped is None
         ]
 
     def process_worker_tags(self, dtos_from_worker: list[ArchiveTagDTO]) -> list[int]:
@@ -187,6 +187,80 @@ class TagService:
         # 5. Returns a set converted to a list to ensure the same document
         # does not receive the same tag ID twice (e.g. if "park" and "parks" come in the same document)
         return list(set(final_ids_for_document))
+
+    def resolve_tag_names(self, names: Sequence[str]) -> dict[str, TagResolution]:
+        """
+        What each spelling resolves to in the catalogue, without writing anything.
+
+        A synonym wins over the spelling itself, exactly as ``process_worker_tags`` decides; an
+        exact normalized name is ``EXISTING``; anything else is ``NEW``. The transfer's write path
+        is pinned to this reading by an integration test, so the preview cannot promise an outcome
+        the archive will not carry.
+        """
+        normalized = list(dict.fromkeys(normalize_tag(name) for name in names))
+        if not normalized:
+            return {}
+
+        synonyms = self.repo.get_synonyms_mapping(normalized)
+        existing = self.repo.get_tag_identities_by_names([name for name in normalized if name not in synonyms])
+        canonical = self.repo.get_tag_identities_by_ids(sorted(set(synonyms.values()))) if synonyms else {}
+
+        resolutions: dict[str, TagResolution] = {}
+        for name in normalized:
+            if name in synonyms:
+                canonical_id = synonyms[name]
+                identity = canonical.get(canonical_id)
+                if identity is None:
+                    # The foreign key makes a dangling synonym impossible; if one appears anyway,
+                    # treating it as new is better than promising to link a row that is not there.
+                    resolutions[name] = TagResolution(name=name, status=AccessPointStatus.NEW, tag_id=None)
+                else:
+                    resolutions[name] = TagResolution(
+                        name=identity.name, status=AccessPointStatus.SYNONYM, tag_id=canonical_id
+                    )
+            elif name in existing:
+                identity = existing[name]
+                resolutions[name] = TagResolution(
+                    name=identity.name, status=AccessPointStatus.EXISTING, tag_id=identity.tag_id
+                )
+            else:
+                resolutions[name] = TagResolution(name=name, status=AccessPointStatus.NEW, tag_id=None)
+
+        return resolutions
+
+    def preview_access_points(self, indexing_points: str | None) -> AccessPointPreviewResponse:
+        """
+        The reading the creation form shows under the field, before anything is written.
+
+        It is the classifier the transfer uses plus a read-only catalogue resolution: a term that is
+        already a tag, a synonym of one, or a spelling the transfer will create. A dropped entry
+        carries ``name=None`` and the reason in ``status``, so the form can quote what the archivist
+        typed and say what will happen to it.
+        """
+        if not indexing_points:
+            return AccessPointPreviewResponse(items=[])
+
+        candidates = classify_indexing_points(indexing_points, self._get_stopwords())
+        kept = [candidate for candidate in candidates if candidate.dropped is None]
+        resolutions = self.resolve_tag_names([candidate.normalized for candidate in kept])
+
+        items: list[AccessPointResolution] = []
+        for candidate in candidates:
+            if candidate.dropped is not None:
+                items.append(AccessPointResolution(input=candidate.input, status=candidate.dropped))
+                continue
+
+            resolution = resolutions[candidate.normalized]
+            items.append(
+                AccessPointResolution(
+                    input=candidate.input,
+                    name=resolution.name,
+                    status=resolution.status,
+                    tag_id=resolution.tag_id,
+                )
+            )
+
+        return AccessPointPreviewResponse(items=items)
 
     def save_new_stopwords(
         self,

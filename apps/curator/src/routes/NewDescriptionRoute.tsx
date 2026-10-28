@@ -1,9 +1,17 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { getRouteApi, Link, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 
-import { createManualIngestion, fetchCurrentUser, type ManualIngestionRequest } from "@/api/client";
+import {
+  createManualIngestion,
+  fetchCurrentUser,
+  previewAccessPoints,
+  searchTags,
+  type AccessPointPreviewItem,
+  type ManualIngestionRequest,
+} from "@/api/client";
 import { queries } from "@/api/queries";
+import { AccessPointsField, type AccessPointChip } from "@/components/description/AccessPointsField";
 import { IsadFieldControl } from "@/components/description/IsadFieldControl";
 import { CsvImportPanel } from "@/components/ingestion/CsvImportPanel";
 import { PageBody } from "@/components/layout/PageBody";
@@ -17,11 +25,12 @@ import { Input, Select } from "@/components/ui/Input";
 import { Notice } from "@/components/ui/Notice";
 import { Tabs } from "@/components/ui/Tabs";
 import { DIGITAL_OBJECT } from "@/lib/copy";
-import { formatCount, formatDate } from "@/lib/format";
+import { descricoes, formatCount, formatDate } from "@/lib/format";
 import { fieldsOfArea, ISAD_AREAS, type IsadAreaId } from "@/lib/isad";
 import { routeMessage } from "@/lib/messages";
 import { can } from "@/lib/permissions";
 import { asEnum } from "@/lib/search";
+import { groupAccessPointPreview } from "@/lib/taxonomy";
 
 const routeApi = getRouteApi("/acervo/nova");
 
@@ -38,6 +47,99 @@ const MODES: { id: NewDescriptionMode; label: string }[] = [
   { id: "digitar", label: "Digitar" },
   { id: "csv", label: "Importar CSV" },
 ];
+
+/**
+ * The type-ahead of the access points: the catalogue tags that match, with the weight and the
+ * drawer the dossier already shows. The floor of two characters belongs to the API.
+ */
+async function searchTagOptions(term: string) {
+  const results = await searchTags(term);
+  return results.map((result) => ({
+    tagId: result.tag_id,
+    name: result.name,
+    hint: `${descricoes(result.document_count)}${
+      result.macro_category_name ? ` · ${result.macro_category_name}` : " · sem categoria"
+    }`,
+  }));
+}
+
+/** One request for the settled string; the server reads it with the transfer's classifier. */
+async function previewAccessPointOptions(indexingPoints: string): Promise<AccessPointPreviewItem[]> {
+  const response = await previewAccessPoints({ indexing_points: indexingPoints });
+  return response.items;
+}
+
+const ACCESS_POINTS_COPY = {
+  placeholder: "Busque uma tag ou digite um termo novo",
+  add: (term: string) => `Adicionar “${term}”`,
+  remove: (name: string) => `Remover ${name}`,
+  searching: "Buscando…",
+  searchFailed: "Não foi possível buscar no catálogo. Pressione Enter para usar o termo digitado.",
+  duplicate: (term: string) => `“${term}” já está na lista.`,
+  previewFailed: "Não foi possível conferir os pontos de acesso; eles serão enviados como digitados.",
+};
+
+/**
+ * The one sentence the field says about the whole string.
+ *
+ * The summary is "news only": an existing tag in its canonical spelling produces no line. It says
+ * what the transfer will discard and why, what it will create, and what it will map to a synonym,
+ * so the archivist can remove a term before saving instead of discovering the loss in the dossier.
+ * The chips themselves are never rewritten or removed here; the decision stays with the person.
+ */
+function describeAccessPoints(items: AccessPointPreviewItem[]): ReactNode {
+  const groups = groupAccessPointPreview(items);
+  const lines: ReactNode[] = [];
+
+  // The warning first: a term that will be discarded is the one that asks for an action.
+  for (const item of groups.dropped) {
+    const reason =
+      item.status === "STOPWORD"
+        ? "é um termo bloqueado"
+        : item.status === "TOO_SHORT"
+          ? "é curto demais (mínimo de 3 caracteres)"
+          : "é longo demais (máximo de 100 caracteres)";
+    const label = item.status === "TOO_LONG" ? `“${item.input.slice(0, 30)}…”` : `“${item.input}”`;
+    lines.push(
+      <li key={`dropped-${item.status}-${item.input}`} className="text-(--color-warn)">
+        {label} {reason} e será descartado.
+      </li>,
+    );
+  }
+
+  if (groups.created.length > 0) {
+    const labels = groups.created.map((item) => {
+      const name = item.name ?? item.input;
+      return name === item.input ? `“${name}”` : `“${item.input}” → “${name}”`;
+    });
+    lines.push(
+      <li key="created" className="text-(--color-muted)">
+        {groups.created.length === 1
+          ? `${labels[0]} será criado no arquivamento.`
+          : `Serão criados no arquivamento: ${labels.join(", ")}.`}
+      </li>,
+    );
+  }
+
+  for (const item of groups.synonyms) {
+    lines.push(
+      <li key={`synonym-${item.input}`} className="text-(--color-muted)">
+        “{item.input}” será ligado a “{item.name ?? item.input}”.
+      </li>,
+    );
+  }
+
+  for (const item of groups.respelled) {
+    lines.push(
+      <li key={`respelled-${item.input}`} className="text-(--color-muted)">
+        “{item.input}” já está no catálogo como “{item.name}”.
+      </li>,
+    );
+  }
+
+  if (lines.length === 0) return null;
+  return <ul className="grid gap-1">{lines}</ul>;
+}
 
 /**
  * The entry paths into the collection: one description typed in full, or a CSV imported.
@@ -118,10 +220,18 @@ function ManualEntryForm({ canCurate }: { canCurate: boolean }) {
 
   const [descriptionId, setDescriptionId] = useState(() => `manual-${crypto.randomUUID()}`);
   const [values, setValues] = useState<Record<string, string>>({});
+  const [accessPoints, setAccessPoints] = useState<AccessPointChip[]>([]);
+  // The chips control owns the input text; a remount is the one clean way to clear it on reset.
+  const [formVersion, setFormVersion] = useState(0);
 
   const valueOf = (name: string) => values[name] ?? "";
   const setValue = (name: string, value: string) => {
     setValues((previous) => ({ ...previous, [name]: value }));
+  };
+
+  const changeAccessPoints = (next: AccessPointChip[]) => {
+    setAccessPoints(next);
+    setValue("indexing_points", next.map((chip) => chip.name).join(", "));
   };
 
   const selectedLevel = levels.data?.find((level) => level.name === values.level);
@@ -146,6 +256,8 @@ function ManualEntryForm({ canCurate }: { canCurate: boolean }) {
   const reset = () => {
     submit.reset();
     setValues({});
+    setAccessPoints([]);
+    setFormVersion((version) => version + 1);
     setDescriptionId(`manual-${crypto.randomUUID()}`);
   };
 
@@ -329,18 +441,28 @@ function ManualEntryForm({ canCurate }: { canCurate: boolean }) {
           toggleLabel="Abrir a área"
         >
           {/*
-            Free text today; the decision about a tag picker is issue #229. Whoever changes this
-            field reads that issue first: the same string is the CSV column and the scraper's mapped
-            key, so the wire shape is not this screen's to change on its own.
+            Access points are chips over the catalogue: the type-ahead brings what already exists,
+            the explicit "add" keeps the archivist's spelling, and the summary below the control
+            says what the transfer will create, map or discard. The wire is still
+            `indexing_points: str | None` — the same string the CSV column and the scraper's mapped
+            key carry — so this screen does not change the contract (#229).
           */}
           <Field
             label="Pontos de Acesso"
-            hint="Separados por vírgula. Eles viram tags, e as tags são o eixo de assunto da descrição."
+            hint="Escolha tags do catálogo ou digite termos novos. Termos novos viram tags quando a descrição for arquivada."
+            htmlFor="manual-access-points"
+            hintId="manual-access-points-hint"
           >
-            <Input
-              value={valueOf("indexing_points")}
-              placeholder="urbanismo, obras"
-              onChange={(event) => setValue("indexing_points", event.target.value)}
+            <AccessPointsField
+              key={formVersion}
+              id="manual-access-points"
+              chips={accessPoints}
+              onChange={changeAccessPoints}
+              search={searchTagOptions}
+              preview={previewAccessPointOptions}
+              describe={describeAccessPoints}
+              copy={ACCESS_POINTS_COPY}
+              describedBy="manual-access-points-hint"
             />
           </Field>
         </Disclosure>
