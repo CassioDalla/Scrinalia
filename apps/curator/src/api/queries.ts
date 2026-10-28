@@ -59,7 +59,6 @@ import {
   type ConflictPairKindFilter,
   type EntityType,
   type MergeProposalSearch,
-  type PlanStatus,
   type StopwordsScope,
   type TagCatalogSearch,
   type TemplateStatus,
@@ -297,15 +296,19 @@ export const queries = {
     }),
 
   /**
-   * One page of rungs. The whole catalogue is small enough to be read at once, so the screen can
-   * filter by flag and by code locally without a round trip per keystroke.
+   * The whole plan catalogue, in one read.
+   *
+   * The screen used to fetch one status tab at a time, which is exactly what a tree cannot do: a
+   * tab that selects only the children leaves the parent out, and the branch loses its root. At ~52
+   * rungs one request is cheaper than the round trip per tab, and the three filters are applied on
+   * the client so every one of them keeps the ancestors.
    */
-  plans: (status: PlanStatus | undefined) =>
+  plans: () =>
     queryOptions({
-      queryKey: ["hierarchy", "plans", status ?? "ALL"],
-      queryFn: () => fetchHierarchyPlans({ status, limit: PLANS_PAGE_SIZE, offset: 0 }),
+      queryKey: ["hierarchy", "plans"],
+      queryFn: () => fetchHierarchyPlans({ limit: PLANS_PAGE_SIZE, offset: 0 }),
       staleTime: 5_000,
-      // A status tab that blanks the list while it loads reads as a broken screen.
+      // A refresh that blanks the list reads as a broken screen.
       placeholderData: (previous) => previous,
     }),
 

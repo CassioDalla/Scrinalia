@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { getRouteApi, Link, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
 import {
   decideHierarchyPlan,
@@ -28,6 +28,7 @@ import {
   PLAN_STATUS_TONE,
   labelOf,
 } from "@/lib/hierarchy";
+import { buildPlanTree, decidedBranchCodes, planRows, type PlanNode, type PlanRow } from "@/lib/hierarchyTree";
 import { asEnum, asString } from "@/lib/search";
 
 const routeApi = getRouteApi("/arranjo/plano");
@@ -35,21 +36,29 @@ const routeApi = getRouteApi("/arranjo/plano");
 /**
  * How far a rung is indented before the indent stops growing.
  *
- * The indent is the hierarchy — a Dossiê under a Série under a Fundo used to render as three
+ * The tree is the hierarchy — a Dossiê under a Série under a Fundo used to render as three
  * identical cards — but the real catalogue reaches a dozen levels and an uncapped indent would push
  * the text off the screen. Past the cap the row keeps the depth in its metadata and says so on hover.
  */
 const MAX_INDENT_DEPTH = 6;
 
+/** How far one nested list shifts the next level. */
+const INDENT_STEP = 18;
+
+/** The branch toggle and the card's own toggle must not read alike. */
+const BRANCH_EXPAND_LABEL = "Expandir os degraus abaixo";
+const BRANCH_COLLAPSE_LABEL = "Recolher os degraus abaixo";
+
 /**
- * The URL is the state, as in the collection list: the tab, the flag filter and the code search all
- * live in the query string, so an archivist can send a colleague the exact slice of the plan they
- * are arguing about.
+ * The URL is the state, as in the collection list: the tab, the flag filter, the code search and the
+ * branches the archivist closed all live in the query string, so a colleague receives the exact
+ * slice of the plan under discussion — including which branches are out of the way.
  *
  * The search is applied locally because the whole catalogue is ~52 rungs and reading it once is
- * cheaper than a request per keystroke — but it is still the URL that holds it.
+ * cheaper than a request per keystroke — and because the tree needs the ancestors, which a status
+ * tab fetched alone would leave out.
  */
-export type PlanSearch = { status?: PlanStatus; flag?: string; q?: string };
+export type PlanSearch = { status?: PlanStatus; flag?: string; q?: string; recolhidos?: string };
 
 const STATUSES: PlanStatus[] = ["SUGGESTED", "APPROVED", "REJECTED"];
 
@@ -58,7 +67,64 @@ export function validatePlanSearch(search: Record<string, unknown>): PlanSearch 
     status: asEnum(search.status, STATUSES),
     flag: asString(search.flag),
     q: asString(search.q),
+    recolhidos: asString(search.recolhidos),
   };
+}
+
+/** The id the branch toggle points at with ``aria-controls``. */
+function childrenId(planId: number): string {
+  return `plan-children-${planId}`;
+}
+
+function splitCollapsed(value: string | undefined): Set<string> {
+  return new Set(
+    (value ?? "")
+      .split(",")
+      .map((code) => code.trim())
+      .filter(Boolean),
+  );
+}
+
+function collapsedParam(codes: ReadonlySet<string>, tree: readonly PlanNode[]): string | undefined {
+  const ordered = [...pruneNestedCodes(codes, tree)].sort((left, right) => left.localeCompare(right));
+  return ordered.length > 0 ? ordered.join(",") : undefined;
+}
+
+/**
+ * Only the top of each collapsed branch goes into the URL.
+ *
+ * "Recolher tudo" closes every branch; writing every code would put a kilobyte in the URL for a
+ * result the roots already describe. A code under another collapsed code is dropped.
+ */
+function pruneNestedCodes(codes: ReadonlySet<string>, tree: readonly PlanNode[]): Set<string> {
+  const parentOf = new Map<string, string | null>();
+  const collect = (node: PlanNode, parent: string | null) => {
+    parentOf.set(node.plan.code, parent);
+    for (const child of node.children) collect(child, node.plan.code);
+  };
+  for (const root of tree) collect(root, null);
+
+  const roots = new Set<string>();
+  for (const code of codes) {
+    let parent = parentOf.get(code) ?? null;
+    let covered = false;
+    while (parent !== null) {
+      if (codes.has(parent)) {
+        covered = true;
+        break;
+      }
+      parent = parentOf.get(parent) ?? null;
+    }
+    if (!covered) roots.add(code);
+  }
+  return roots;
+}
+
+/** "12 degraus ocultos · 4 aguardando decisão", with the singular for a branch of one. */
+function hiddenSentence(hidden: number, pending: number): string {
+  const rungs = hidden === 1 ? "1 degrau oculto" : `${formatCount(hidden)} degraus ocultos`;
+  const waiting = pending === 1 ? "1 aguardando decisão" : `${formatCount(pending)} aguardando decisão`;
+  return `${rungs} · ${waiting}`;
 }
 
 export function PlanRoute() {
@@ -66,7 +132,7 @@ export function PlanRoute() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
-  const plans = useQuery(queries.plans(search.status));
+  const plans = useQuery(queries.plans());
   const vocabulary = useQuery(queries.hierarchyVocabulary());
   const levels = useQuery(queries.levels());
 
@@ -80,13 +146,28 @@ export function PlanRoute() {
 
   const patch = (changes: Partial<PlanSearch>) => navigate({ to: "/arranjo/plano", search: { ...search, ...changes } });
 
-  const all = plans.data?.items ?? [];
-  const term = search.q?.toLowerCase();
-  const visible = all.filter((plan) => {
-    if (search.flag && !(plan.flags ?? []).includes(search.flag)) return false;
-    if (term && !plan.code.toLowerCase().includes(term)) return false;
-    return true;
-  });
+  const all = useMemo(() => plans.data?.items ?? [], [plans.data]);
+  const tree = useMemo(() => buildPlanTree(all), [all]);
+  const collapsed = useMemo(() => splitCollapsed(search.recolhidos), [search.recolhidos]);
+  const filters = useMemo(
+    () => ({ status: search.status, flag: search.flag, q: search.q }),
+    [search.status, search.flag, search.q],
+  );
+  const rows = useMemo(() => planRows(tree, collapsed, filters), [tree, collapsed, filters]);
+  const rowsByCode = useMemo(() => new Map(rows.map((row) => [row.node.plan.code, row])), [rows]);
+  const matching = rows.filter((row) => row.matches).length;
+  const filterActive = Boolean(search.status || search.flag || search.q);
+  const decided = useMemo(() => decidedBranchCodes(tree), [tree]);
+  const decidedVisible = useMemo(
+    () =>
+      new Set(
+        [...decided].filter((code) => {
+          const row = rowsByCode.get(code);
+          return row !== undefined && !row.forced;
+        }),
+      ),
+    [decided, rowsByCode],
+  );
 
   const statusCounts = plans.data?.status_counts ?? {};
   /**
@@ -100,6 +181,27 @@ export function PlanRoute() {
    */
   const catalogueTotal = Object.values(statusCounts).reduce((sum, count) => sum + count, 0);
   const flags = vocabulary.data?.plan_flags ?? [];
+  const allCodes = useMemo(() => all.map((item) => item.code), [all]);
+
+  const setCollapsedCodes = (codes: ReadonlySet<string>) =>
+    navigate({
+      to: "/arranjo/plano",
+      search: { ...search, recolhidos: collapsedParam(codes, tree) },
+      replace: true,
+    });
+
+  const toggleBranch = (code: string) => {
+    const next = new Set(collapsed);
+    if (next.has(code)) next.delete(code);
+    else next.add(code);
+    setCollapsedCodes(next);
+  };
+
+  const expandAll = () => setCollapsedCodes(new Set());
+  const collapseAll = () =>
+    setCollapsedCodes(new Set(rows.filter((row) => row.hasChildren && !row.forced).map((row) => row.node.plan.code)));
+  const collapseDecided = () => setCollapsedCodes(decidedVisible);
+  const clearFilters = () => navigate({ to: "/arranjo/plano", search: { recolhidos: search.recolhidos } });
 
   return (
     <>
@@ -109,7 +211,7 @@ export function PlanRoute() {
         status={
           plans.data ? (
             <>
-              {formatCount(visible.length)} de {formatCount(catalogueTotal)} degraus
+              {formatCount(matching)} de {formatCount(catalogueTotal)} degraus
               {search.status ? ` · ${labelOf(PLAN_STATUS_LABEL, search.status)}` : ""}
             </>
           ) : undefined
@@ -138,8 +240,8 @@ export function PlanRoute() {
         <div className="min-w-0 flex-1 px-6 py-5">
           <p className="mb-4 max-w-3xl text-sm text-(--color-muted)">
             A máquina lê os códigos de referência e propõe os degraus; a decisão é sua. Nada é criado no acervo até a
-            materialização — e uma decisão tomada nunca é sobrescrita por uma nova proposta. Cada degrau abre no clique:
-            recolhida, a lista mostra o que já foi decidido sem os formulários no meio.
+            materialização — e uma decisão tomada nunca é sobrescrita por uma nova proposta. O sinal à esquerda recolhe
+            o ramo; o cartão abre no clique para decidir o degrau.
           </p>
 
           {suggest.data ? (
@@ -151,7 +253,7 @@ export function PlanRoute() {
           ) : null}
           {suggest.error ? <ErrorState error={suggest.error} /> : null}
 
-          <div className="flex flex-wrap items-center gap-2 pb-4">
+          <div className="flex flex-wrap items-center gap-2 pb-2">
             <Button size="sm" variant={search.status ? "secondary" : "primary"} onClick={() => patch({ status: undefined })}>
               Todos {plans.data ? `(${formatCount(catalogueTotal)})` : ""}
             </Button>
@@ -185,6 +287,36 @@ export function PlanRoute() {
             />
           </div>
 
+          <div className="flex flex-wrap items-center gap-2 pb-3">
+            <span className="text-xs text-(--color-muted)">Ramos:</span>
+            <Button size="sm" variant="ghost" onClick={expandAll} disabled={collapsed.size === 0}>
+              Expandir tudo
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={collapseAll}
+              disabled={!rows.some((row) => row.hasChildren && !row.forced)}
+            >
+              Recolher tudo
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={collapseDecided}
+              disabled={decidedVisible.size === 0}
+              title="Fecha os ramos que não têm nenhum degrau aguardando decisão."
+            >
+              Recolher os decididos
+            </Button>
+          </div>
+
+          {filterActive ? (
+            <p className="pb-3 text-xs text-(--color-muted)">
+              O filtro mostra os degraus que casam, os pais e os ramos deles.
+            </p>
+          ) : null}
+
           {plans.error ? <ErrorState error={plans.error} /> : null}
           {plans.isPending ? (
             <div className="flex flex-col gap-2">
@@ -206,12 +338,12 @@ export function PlanRoute() {
             />
           ) : null}
 
-          {plans.data && catalogueTotal > 0 && visible.length === 0 ? (
+          {plans.data && catalogueTotal > 0 && matching === 0 ? (
             <EmptyState
               title="Nenhum degrau com este filtro"
               hint="Há degraus no catálogo, mas nenhum corresponde ao aviso ou ao código digitado."
               action={
-                <Button size="sm" onClick={() => navigate({ to: "/arranjo/plano", search: {} })}>
+                <Button size="sm" onClick={clearFilters}>
                   Limpar filtros
                 </Button>
               }
@@ -221,20 +353,20 @@ export function PlanRoute() {
           {/*
             The indentation is the hierarchy. A rung carries ``depth`` and ``parent_code``, and the
             flat list used to render a Dossiê and the Fundo above it as two identical cards — the
-            archivist could not see which one contains which. The indent is capped so the deepest
-            rungs do not run off the page, and the cap is stated in the title rather than silent.
+            archivist could not see which one contains which. Nested lists give the relation real
+            markup, and the indent is capped so the deepest rungs do not run off the page; the cap is
+            stated in the row's title rather than silent.
           */}
-          <ul className="flex flex-col gap-2">
-            {visible.map((plan) => (
-              <li
-                key={plan.plan_id}
-                style={{ paddingLeft: `${Math.min(plan.depth, MAX_INDENT_DEPTH) * 18}px` }}
-                title={plan.depth > MAX_INDENT_DEPTH ? `profundidade ${plan.depth} (recuada no limite)` : undefined}
-              >
-                <PlanCard plan={plan} levels={levels.data ?? []} allCodes={all.map((item) => item.code)} />
-              </li>
-            ))}
-          </ul>
+          {plans.data && matching > 0 ? (
+            <PlanBranch
+              nodes={tree}
+              rowsByCode={rowsByCode}
+              levels={levels.data ?? []}
+              allCodes={allCodes}
+              depth={0}
+              onToggle={toggleBranch}
+            />
+          ) : null}
         </div>
 
         <aside className="w-[380px] shrink-0 overflow-y-auto border-l border-(--color-line) bg-(--color-surface) px-4 py-5">
@@ -242,6 +374,96 @@ export function PlanRoute() {
         </aside>
       </div>
     </>
+  );
+}
+
+/**
+ * One level of the forest, as a real list.
+ *
+ * A collapsed branch is hidden with CSS rather than unmounted: the card's decision body and anything
+ * typed in its form are local state, and unmounting would throw them away the moment a sibling
+ * branch closes. The child ``<ul>`` keeps its id, so the toggle's ``aria-controls`` still points at
+ * it while it is out of sight.
+ */
+function PlanBranch({
+  nodes,
+  rowsByCode,
+  levels,
+  allCodes,
+  depth,
+  onToggle,
+  id,
+}: {
+  nodes: PlanNode[];
+  rowsByCode: ReadonlyMap<string, PlanRow>;
+  levels: DescriptionLevel[];
+  allCodes: string[];
+  depth: number;
+  onToggle: (code: string) => void;
+  id?: string;
+}) {
+  const shown = nodes.filter((node) => rowsByCode.has(node.plan.code));
+  if (shown.length === 0) return null;
+
+  const indent = depth > 0 && depth <= MAX_INDENT_DEPTH ? INDENT_STEP : 0;
+
+  return (
+    <ul
+      id={id}
+      className={indent > 0 ? "flex flex-col gap-2 border-l border-(--color-line)" : "flex flex-col gap-2"}
+      style={indent > 0 ? { paddingLeft: indent } : undefined}
+    >
+      {shown.map((node) => {
+        const row = rowsByCode.get(node.plan.code);
+        if (!row) return null;
+
+        return (
+          <li
+            key={node.plan.code}
+            title={depth > MAX_INDENT_DEPTH ? `profundidade ${node.plan.depth} (recuada no limite)` : undefined}
+          >
+            <div className="flex items-start gap-2">
+              <div className="w-5 shrink-0 pt-2.5">
+                {row.hasChildren && !row.forced ? (
+                  <button
+                    type="button"
+                    onClick={() => onToggle(node.plan.code)}
+                    aria-expanded={!row.collapsed}
+                    aria-controls={childrenId(node.plan.plan_id)}
+                    aria-label={row.collapsed ? BRANCH_EXPAND_LABEL : BRANCH_COLLAPSE_LABEL}
+                    title={row.collapsed ? BRANCH_EXPAND_LABEL : BRANCH_COLLAPSE_LABEL}
+                    className="grid size-5 place-items-center rounded border border-(--color-line) text-[11px] leading-none text-(--color-muted) hover:bg-black/[0.04]"
+                  >
+                    {row.collapsed ? "+" : "−"}
+                  </button>
+                ) : null}
+              </div>
+              <div className="min-w-0 flex-1">
+                <PlanCard
+                  plan={node.plan}
+                  levels={levels}
+                  allCodes={allCodes}
+                  branchCollapsed={row.collapsed}
+                  hidden={row.hidden}
+                  hiddenPending={row.hiddenPending}
+                />
+              </div>
+            </div>
+            <div className={row.collapsed ? "hidden" : undefined}>
+              <PlanBranch
+                nodes={node.children}
+                rowsByCode={rowsByCode}
+                levels={levels}
+                allCodes={allCodes}
+                depth={depth + 1}
+                onToggle={onToggle}
+                id={childrenId(node.plan.plan_id)}
+              />
+            </div>
+          </li>
+        );
+      })}
+    </ul>
   );
 }
 
@@ -256,15 +478,24 @@ export function PlanRoute() {
  * A suggested rung is ringed, so "what still needs me" reads at a glance in a catalogue of fifty; the
  * decided ones recede. Both collapse to the same shape — code, evidence, decision — because a screen
  * where the undecided rows are the tall ones makes the archivist scroll through forms to find work.
+ *
+ * The branch collapse and the card disclosure are two different gestures with two different glyphs:
+ * the leading gutter closes the rungs below this one, and the card's own chevron opens the decision.
  */
 function PlanCard({
   plan,
   levels,
   allCodes,
+  branchCollapsed,
+  hidden,
+  hiddenPending,
 }: {
   plan: HierarchyNodePlan;
   levels: DescriptionLevel[];
   allCodes: string[];
+  branchCollapsed: boolean;
+  hidden: number;
+  hiddenPending: number;
 }) {
   const queryClient = useQueryClient();
   const [levelId, setLevelId] = useState<number | null>(plan.level_id ?? null);
@@ -332,8 +563,13 @@ function PlanCard({
 
           {plan.collapse_into_code ? (
             <p className="text-xs text-(--color-accent)">
-              Este degrau <strong>é</strong> <code>{plan.collapse_into_code}</code>: a materialização segue o vínculo.
+              Este degrau <strong>é</strong> <code>{plan.collapse_into_code}</code>: na materialização, o ramo abaixo
+              sobe para ele.
             </p>
+          ) : null}
+
+          {branchCollapsed ? (
+            <span className="block text-xs text-(--color-muted)">{hiddenSentence(hidden, hiddenPending)}</span>
           ) : null}
         </div>
       }
