@@ -15,6 +15,9 @@ import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { EmptyState, ErrorState, Skeleton, Spinner } from "@/components/ui/Feedback";
 import { Field } from "@/components/ui/Field";
 import { Input, Select } from "@/components/ui/Input";
+import { useCopy } from "@/i18n/context";
+import { fill } from "@/i18n/maps";
+import { Trans } from "@/i18n/trans";
 import { cn } from "@/lib/cn";
 import { ACTION } from "@/lib/copy";
 import { formatCount, formatDate, REVIEW_STATUS_LABEL, REVIEW_STATUS_TONE } from "@/lib/format";
@@ -52,6 +55,7 @@ const BRANCH_DEPTH = 1;
  * broken tree.
  */
 export function TreeRoute() {
+  const messages = useCopy();
   const search = routeApi.useSearch();
   const navigate = useNavigate();
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -82,10 +86,10 @@ export function TreeRoute() {
               variant={creating ? "secondary" : "primary"}
               onClick={() => setCreating((current) => !current)}
             >
-              {creating ? ACTION.cancel.label : "Criar nó"}
+              {creating ? ACTION.cancel.label : messages.pages.tree.createNode}
             </Button>
             <Link to="/arranjo/plano">
-              <Button size="sm">Plano de arranjo</Button>
+              <Button size="sm">{messages.screens.plan.label}</Button>
             </Link>
           </div>
         }
@@ -93,10 +97,10 @@ export function TreeRoute() {
 
       {orphans > 0 ? (
         <div className="border-b border-(--color-warn)/20 bg-(--color-warn)/5 px-6 py-2 text-xs text-(--color-warn)">
-          <strong>{formatCount(orphans)} descrições ainda estão sem unidade superior.</strong>
-          Abaixo você vê apenas o que já foi organizado; o restante permanece na raiz aguardando definição.{" "}
+          <strong>{fill(messages.pages.tree.orphan.count, { count: formatCount(orphans) })}</strong>
+          {messages.pages.tree.orphan.body}{" "}
           <Link to="/arranjo/diagnostico" className="underline">
-            Ver o diagnóstico
+            {messages.pages.tree.orphan.link}
           </Link>
           .
         </div>
@@ -104,7 +108,7 @@ export function TreeRoute() {
 
       <div className="flex min-h-0">
         <aside className="w-96 shrink-0 overflow-y-auto border-r border-(--color-line) bg-(--color-surface)">
-          {roots.isPending ? <Spinner label="Lendo as raízes…" /> : null}
+          {roots.isPending ? <Spinner label={messages.pages.tree.roots.reading} /> : null}
           {roots.error ? (
             <div className="p-4">
               <ErrorState error={roots.error} />
@@ -114,8 +118,8 @@ export function TreeRoute() {
           {roots.data && (roots.data.items ?? []).length === 0 ? (
             <div className="p-4">
               <EmptyState
-                title="Nenhuma descrição na raiz"
-                hint="O acervo está vazio ou todas as descrições já foram devidamente organizadas sob uma unidade superior."
+                title={messages.pages.tree.roots.emptyTitle}
+                hint={messages.pages.tree.roots.emptyHint}
               />
             </div>
           ) : null}
@@ -136,8 +140,10 @@ export function TreeRoute() {
 
           {roots.data && (roots.data.total ?? 0) > (roots.data.items ?? []).length ? (
             <p className="px-4 py-2 text-xs text-(--color-muted)">
-              Mostrando {formatCount((roots.data.items ?? []).length)} de {formatCount(roots.data.total ?? 0)}{" "}
-              raízes.
+              {fill(messages.pages.tree.roots.showing, {
+                shown: formatCount((roots.data.items ?? []).length),
+                total: formatCount(roots.data.total ?? 0),
+              })}
             </p>
           ) : null}
         </aside>
@@ -171,13 +177,18 @@ export function TreeRoute() {
             />
           ) : (
             <EmptyState
-              title="Escolha um nó à esquerda"
+              title={messages.pages.tree.chooseNode.title}
               hint={
-                <>
-                  A árvore exibe a estrutura hierárquica do acervo:
-                  cada item em seu devido lugar. Se você prefere buscar por assunto
-                  ou termos específicos, utilize a <Link to="/acervo/lista" className="underline">lista</Link>.
-                </>
+                <Trans
+                  text={messages.pages.tree.chooseNode.hint}
+                  values={{
+                    list: (
+                      <Link to="/acervo/lista" className="underline">
+                        {messages.pages.tree.chooseNode.list}
+                      </Link>
+                    ),
+                  }}
+                />
               }
             />
           )}
@@ -208,6 +219,7 @@ function CreateNodePanel({
   onCreated: (node: HierarchyNodeSummary) => void;
   onClose: () => void;
 }) {
+  const messages = useCopy();
   const queryClient = useQueryClient();
   const levels = useQuery(queries.levels());
   const parent = useQuery({ ...queries.node(selectedId ?? ""), enabled: selectedId !== null });
@@ -244,18 +256,18 @@ function CreateNodePanel({
 
   return (
     <Card className="ring-(--color-accent)/40">
-      <CardHeader className="text-sm font-semibold">Criar nova Unidade de Descrição</CardHeader>
+      <CardHeader className="text-sm font-semibold">{messages.pages.tree.create.title}</CardHeader>
       <CardBody className="grid gap-3">
         <p className="text-xs text-(--color-muted)">
-          Utilize esta opção quando precisar inserir uma unidade (Fundo, Seção ou Série) que não veio nos dados originais. O novo item será criado como aprovado manualmente.
+          {messages.pages.tree.create.hint}
         </p>
 
         <div className="grid gap-2 text-xs">
-          <span className="text-(--color-muted)">Onde o nó entra</span>
+          <span className="text-(--color-muted)">{messages.pages.tree.create.parentLabel}</span>
           <div className="flex flex-wrap items-center gap-4">
             <label className="flex items-center gap-2">
               <input type="radio" name="create-node-parent" checked={atRoot} onChange={() => setAtRoot(true)} />
-              <span>na raiz</span>
+              <span>{messages.pages.tree.create.atRoot}</span>
             </label>
             <label className="flex items-center gap-2">
               <input
@@ -266,31 +278,34 @@ function CreateNodePanel({
                 onChange={() => setAtRoot(false)}
               />
               <span className={selectedId === null ? "text-(--color-muted)" : undefined}>
-                sob o nó selecionado
-                {parent.data?.node ? `: ${nodeLabel(parent.data.node)}` : selectedId === null ? " (escolha um nó na árvore)" : ""}
+                {parent.data?.node
+                  ? fill(messages.pages.tree.create.underSelectedNode, { label: nodeLabel(parent.data.node) })
+                  : selectedId === null
+                    ? messages.pages.tree.create.underSelectedNone
+                    : messages.pages.tree.create.underSelected}
               </span>
             </label>
           </div>
         </div>
 
         <div className="grid gap-2 sm:grid-cols-3">
-          <Field label="Código de Referência">
+          <Field label={messages.pages.tree.create.referenceCode}>
             <Input
               value={referenceCode}
               onChange={(event) => setReferenceCode(event.target.value)}
-              placeholder="ex.: BR PRADAP SMU ED"
+              placeholder={messages.pages.tree.create.referenceCodePlaceholder}
               maxLength={500}
             />
           </Field>
-          <Field label="Título">
+          <Field label={messages.pages.tree.create.titleField}>
             <Input value={title} onChange={(event) => setTitle(event.target.value)} maxLength={300} />
           </Field>
-          <Field label="Nível de Descrição">
+          <Field label={messages.pages.newDescription.levelLabel}>
             <Select
               value={levelId ?? ""}
               onChange={(event) => setLevelId(event.target.value ? Number(event.target.value) : null)}
             >
-              <option value="">— escolher —</option>
+              <option value="">{messages.pages.tree.create.choose}</option>
               {(levels.data ?? []).map((level) => (
                 <option key={level.level_id} value={level.level_id}>
                   {level.ordinal}. {level.name}
@@ -300,7 +315,7 @@ function CreateNodePanel({
           </Field>
         </div>
 
-        <Field label="Âmbito e conteúdo (opcional)">
+        <Field label={messages.pages.tree.create.scope}>
           <Input value={scopeContent} onChange={(event) => setScopeContent(event.target.value)} />
         </Field>
 
@@ -309,14 +324,14 @@ function CreateNodePanel({
 
         <div className="flex flex-wrap items-center gap-2">
           <Button variant="primary" disabled={!valid || create.isPending} onClick={() => create.mutate()}>
-            {create.isPending ? ACTION.create.pending : "Criar nó"}
+            {create.isPending ? ACTION.create.pending : messages.pages.tree.createNode}
           </Button>
           <Button variant="ghost" onClick={onClose}>
             {ACTION.cancel.label}
           </Button>
           {!valid ? (
             <span className="text-xs text-(--color-muted)">
-              Código, título e nível são obrigatórios.
+              {messages.pages.tree.create.required}
             </span>
           ) : null}
         </div>
@@ -349,6 +364,7 @@ function TreeNode({
   onSelect: (descriptionId: string) => void;
   onToggle: (descriptionId: string) => void;
 }) {
+  const messages = useCopy();
   const isOpen = expanded.has(node.description_id);
   const isSelected = selected === node.description_id;
   const hasChildren = (node.children_count ?? 0) > 0;
@@ -363,7 +379,7 @@ function TreeNode({
         style={{ paddingLeft: `${depth * 14 + 4}px` }}
       >
         <button
-          aria-label={isOpen ? "Recolher" : "Expandir"}
+          aria-label={isOpen ? messages.pages.tree.node.collapse : messages.pages.tree.node.expand}
           aria-expanded={isOpen}
           disabled={!hasChildren}
           onClick={() => onToggle(node.description_id)}
@@ -388,7 +404,7 @@ function TreeNode({
               {formatCount(node.children_count ?? 0)}
             </span>
           ) : null}
-          {node.is_orphan ? <Badge tone="warn">sem pai</Badge> : null}
+          {node.is_orphan ? <Badge tone="warn">{messages.pages.tree.node.orphanBadge}</Badge> : null}
         </button>
       </div>
 
@@ -413,6 +429,7 @@ function Branch({
   onSelect: (descriptionId: string) => void;
   onToggle: (descriptionId: string) => void;
 }) {
+  const messages = useCopy();
   const branch = useQuery(queries.tree(nodeId, BRANCH_DEPTH));
   const children = (branch.data?.items ?? []).filter((child) => child.description_id !== nodeId);
 
@@ -426,7 +443,7 @@ function Branch({
   if (branch.error) {
     return (
       <div style={{ paddingLeft: `${(depth + 1) * 14 + 8}px` }} className="py-1 text-xs text-(--color-danger)">
-        não foi possível ler este ramo
+        {messages.pages.tree.branch.readError}
       </div>
     );
   }
@@ -436,7 +453,7 @@ function Branch({
         style={{ paddingLeft: `${(depth + 1) * 14 + 8}px` }}
         className="py-1 text-xs text-(--color-muted)"
       >
-        sem filhos
+        {messages.pages.tree.branch.noChildren}
       </p>
     );
   }
@@ -473,12 +490,13 @@ function BranchPanel({
   term?: string;
   onTerm: (term: string) => void;
 }) {
+  const messages = useCopy();
   const node = useQuery(queries.node(descriptionId));
   const documents = useQuery(
     queries.documents({ ancestor_id: descriptionId, term, limit: 25 }),
   );
 
-  if (node.isPending) return <Spinner label="Lendo a descrição…" />;
+  if (node.isPending) return <Spinner label={messages.common.readingDescription} />;
   if (node.error) return <ErrorState error={node.error} />;
 
   const detail = node.data;
@@ -513,13 +531,13 @@ function BranchPanel({
             {summary ? nodeLabel(summary) : descriptionId}
           </h2>
           {summary?.level ? <Badge tone="neutral">{summary.level}</Badge> : null}
-          {summary?.is_orphan ? <Badge tone="warn">sem unidade superior</Badge> : null}
+          {summary?.is_orphan ? <Badge tone="warn">{messages.pages.tree.panel.noParent}</Badge> : null}
           <code className="text-xs text-(--color-muted)">{summary?.reference_code ?? "—"}</code>
         </div>
 
         <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-(--color-muted)">
           <span>
-            {formatCount(children.length)} {children.length === 1 ? "filho direto" : "filhos diretos"}
+            {formatCount(children.length)} {children.length === 1 ? messages.pages.tree.panel.childOne : messages.pages.tree.panel.childMany}
           </span>
           <span>·</span>
           <Link
@@ -528,7 +546,7 @@ function BranchPanel({
             search={{ aba: "arranjo" }}
             className="underline"
           >
-            abrir a descrição
+            {messages.pages.tree.panel.open}
           </Link>
         </div>
       </div>
@@ -556,12 +574,12 @@ function BranchPanel({
 
       <section className="grid gap-2">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h3 className="text-sm font-semibold">Descrições neste ramo</h3>
+          <h3 className="text-sm font-semibold">{messages.pages.tree.panel.title}</h3>
           <div className="w-72">
             <Input
               value={term ?? ""}
               onChange={(event) => onTerm(event.target.value)}
-              placeholder="buscar dentro do ramo…"
+              placeholder={messages.pages.tree.panel.searchPlaceholder}
             />
           </div>
         </div>
@@ -570,12 +588,8 @@ function BranchPanel({
         {documents.isPending ? <Spinner /> : null}
         {documents.data && documents.data.total === 0 ? (
           <EmptyState
-            title="Nenhuma descrição neste ramo"
-            hint={
-              term
-                ? "O termo não aparece em nenhuma descrição deste ramo. A busca não sai do ramo de propósito."
-                : "Este nó não tem descrições próprias; os filhos é que as carregam."
-            }
+            title={messages.pages.tree.panel.emptyTitle}
+            hint={term ? messages.pages.tree.panel.emptyTerm : messages.pages.tree.panel.emptyNoTerm}
           />
         ) : null}
 
@@ -611,11 +625,16 @@ function BranchPanel({
 
         {documents.data && documents.data.total > TREE_PAGE_SIZE ? (
           <p className="text-xs text-(--color-muted)">
-            Mostrando 25 de {formatCount(documents.data.total)}. Refine a busca ou use a{" "}
-            <Link to="/acervo/lista" search={{ ancestor_id: descriptionId }} className="underline">
-              lista facetada
-            </Link>
-            .
+            <Trans
+              text={fill(messages.pages.tree.panel.showing, { total: formatCount(documents.data.total) })}
+              values={{
+                list: (
+                  <Link to="/acervo/lista" search={{ ancestor_id: descriptionId }} className="underline">
+                    {messages.pages.tree.panel.list}
+                  </Link>
+                ),
+              }}
+            />
           </p>
         ) : null}
       </section>
