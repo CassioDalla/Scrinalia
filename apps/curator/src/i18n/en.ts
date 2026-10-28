@@ -152,6 +152,25 @@ export const en: typeof pt = {
       ENTITY: { label: "the entity", hint: "The spelling is a proper name. The tag's name is banned from the subject axis, and that tag's classification is lost." },
     },
   },
+  csv: {
+    parse: {
+      unclosedQuote: "One of the fields has an unclosed quote.",
+      empty: "The file has nothing to import.",
+      headerWithoutName: "One of the header columns has no name.",
+    },
+    import: {
+      headerOnly: "The file has only the header and no data rows.",
+      tooManyRows: "The file has {rows} rows and the limit is {limit}. Split the file into parts.",
+      missingRequired: "Required columns are missing: {columns}. Download the template to check the column names.",
+      duplicateFields: "More than one column fills the same field: {fields}. Leave only one column per field.",
+      columnCount: "Row {line} has {cells} columns, but the header has {headers}.",
+      idTooLong: "The identifier accepts at most 50 characters.",
+      duplicateId: "The identifier already appears on row {line}. Use a different identifier.",
+      required: "Field '{label}' is required and is blank.",
+      maxLength: "Field '{label}' accepts at most {max} characters.",
+      fileTooLarge: "The import is {mb} MB and the limit is {limit} MB. Split the file into parts.",
+    },
+  },
   format: {
     reviewStatus: {
       PENDING_AI: "Waiting for AI",

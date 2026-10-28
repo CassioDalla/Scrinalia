@@ -218,8 +218,6 @@ PORTUGUESE = re.compile(
 #: extracted (ADR 0020 §7); a file outside it cannot gain a Portuguese literal, and a file inside it
 #: cannot become empty without leaving — the list only shrinks.
 PENDING = {
-    "src/lib/csv.ts",
-    "src/lib/csvImport.ts",
     "src/lib/hierarchy.ts",
     "src/lib/isad.ts",
     "src/lib/quality.ts",

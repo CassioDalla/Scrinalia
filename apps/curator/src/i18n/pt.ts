@@ -312,6 +312,27 @@ export const pt = {
       ENTITY: { label: "a entidade", hint: "A grafia é um nome próprio. O nome da tag é banido do eixo de assunto, e a classificação daquela tag se perde." },
     },
   },
+  csv: {
+    parse: {
+      unclosedQuote: "As aspas de um dos campos não foram fechadas.",
+      empty: "O arquivo não tem nada para importar.",
+      headerWithoutName: "Uma das colunas do cabeçalho está sem nome.",
+    },
+    import: {
+      headerOnly: "O arquivo tem só o cabeçalho e nenhuma linha de dados.",
+      tooManyRows: "O arquivo tem {rows} linhas e o limite é {limit}. Divida o arquivo em partes.",
+      missingRequired:
+        "Faltam colunas obrigatórias: {columns}. Baixe o modelo para conferir os nomes das colunas.",
+      duplicateFields: "Mais de uma coluna preenche o mesmo campo: {fields}. Deixe só uma coluna para cada campo.",
+      columnCount: "A linha {line} tem {cells} colunas, mas o cabeçalho tem {headers}.",
+      idTooLong: "O identificador aceita no máximo 50 caracteres.",
+      duplicateId: "O identificador já aparece na linha {line}. Use um identificador diferente.",
+      required: "O campo '{label}' é obrigatório e está em branco.",
+      maxLength: "O campo '{label}' aceita no máximo {max} caracteres.",
+      fileTooLarge:
+        "A importação tem {mb} MB e o limite é {limit} MB. Divida o arquivo em partes.",
+    },
+  },
   format: {
     reviewStatus: {
       PENDING_AI: "Aguardando IA",
