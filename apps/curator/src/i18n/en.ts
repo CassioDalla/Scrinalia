@@ -382,6 +382,89 @@ export const en: typeof pt = {
       expected_path: "expected path",
     },
   },
+  taxonomy: {
+    mergeReason: { TRIGRAM: "similar spelling", PLURAL: "singular/plural", MIXED: "spelling and plural" },
+    reviewFlag: {
+      MEMBER_WITH_DIGITS: {
+        label: "member with digits",
+        hint: "A member has a number in its name. It may be the same thing (br-116 / br 116) or another (street / street 7): the number does not decide.",
+      },
+      WEAK_MEMBER: {
+        label: "weak member",
+        hint: "Some member's similarity to the canonical one is low; the grouping may be joining different things.",
+      },
+      CATEGORY_WOULD_BE_LOST: {
+        label: "category would be lost",
+        hint: "One of the members is in a subject category the canonical one does not have. Merging drops that classification.",
+      },
+      MEMBER_IS_SYNONYM: {
+        label: "member is an absorbed spelling",
+        hint: "A member is a spelling already absorbed by an earlier merge — the grouping may reflect an old decision.",
+      },
+    },
+    proposalStatus: {
+      SUGGESTED: "suggested",
+      APPROVED: "approved",
+      REJECTED: "rejected",
+      APPLIED: "applied",
+    },
+    stopwordScope: {
+      TAG: {
+        label: "subject (tags)",
+        hint: "The term leaves the subject axis. The exclusion of the tags with that name records each one, with an undo.",
+      },
+      ENTITY: {
+        label: "named entities",
+        hint: "The term leaves the proper-name extraction. It affects no tag.",
+      },
+      ALL: {
+        label: "both axes",
+        hint: "The term leaves both axes, and the tag exclusion reaches it.",
+      },
+    },
+    stopwordMatch: {
+      TOKEN: {
+        label: "the word and the names containing it",
+        hint: "Blocks the word and any name containing it as a whole word — what catches the name the extractor returns with it (IPTU do Exemplo).",
+      },
+      EXACT: {
+        label: "only the exact spelling",
+        hint: "Blocks only the whole word. A name that merely starts with or contains the word passes: alameda alone is noise, Alameda Cabral is a street.",
+      },
+    },
+    stopwordSource: {
+      HUMAN: {
+        label: "typed here",
+        hint: "Someone typed this spelling in Blocked spellings: it is a deliberate act.",
+      },
+      CONFLICT: {
+        label: "came from a tag × entity conflict",
+        hint: "The term was banned when a conflict between the tag and the entity with the same spelling was resolved.",
+      },
+      EXCLUSION: {
+        label: "came from “not a subject”",
+        hint: "The term was banned together with the “not a subject” decision. Undoing that decision lifts this ban.",
+      },
+    },
+    catalogState: {
+      ALL: {
+        label: "All",
+        hint: "Complete list of terms, ordered by frequency of use.",
+      },
+      PENDING: {
+        label: "No decision",
+        hint: "Terms awaiting manual and automatic evaluation.",
+      },
+      NOT_SUBJECT: {
+        label: "Not a subject",
+        hint: "Term manually marked as not being a subject. The term is blocked from new tags, but current occurrences stay in the collection and remain findable in search.",
+      },
+      LOW_CONFIDENCE: {
+        label: "Low confidence",
+        hint: "Inconclusive automatic classification. The tag awaits human validation, with the score suggested by the system shown on the row.",
+      },
+    },
+  },
   format: {
     reviewStatus: {
       PENDING_AI: "Waiting for AI",

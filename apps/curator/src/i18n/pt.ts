@@ -544,6 +544,89 @@ export const pt = {
       expected_path: "caminho esperado",
     },
   },
+  taxonomy: {
+    mergeReason: { TRIGRAM: "grafia parecida", PLURAL: "singular/plural", MIXED: "grafia e plural" },
+    reviewFlag: {
+      MEMBER_WITH_DIGITS: {
+        label: "membro com número",
+        hint: "Algum membro tem número no nome. Pode ser a mesma coisa (br-116 / br 116) ou outra (rua / rua 7): o número não decide.",
+      },
+      WEAK_MEMBER: {
+        label: "membro fraco",
+        hint: "A semelhança de algum membro com a canônica é baixa; o agrupamento pode estar juntando coisas diferentes.",
+      },
+      CATEGORY_WOULD_BE_LOST: {
+        label: "categoria seria perdida",
+        hint: "Um dos membros está numa categoria de assunto que a canônica não tem. Mesclar exclui essa classificação.",
+      },
+      MEMBER_IS_SYNONYM: {
+        label: "membro é grafia absorvida",
+        hint: "Algum membro é uma grafia que já foi absorvida por uma mesclagem anterior — o agrupamento pode ser reflexo de uma decisão antiga.",
+      },
+    },
+    proposalStatus: {
+      SUGGESTED: "sugerida",
+      APPROVED: "aprovada",
+      REJECTED: "rejeitada",
+      APPLIED: "aplicada",
+    },
+    stopwordScope: {
+      TAG: {
+        label: "assunto (tags)",
+        hint: "O termo sai do eixo de assunto. A exclusão das tags com esse nome guarda cada uma no registro, com desfazer.",
+      },
+      ENTITY: {
+        label: "entidades nomeadas",
+        hint: "O termo sai da extração de nomes próprios. Não afeta tag nenhuma.",
+      },
+      ALL: {
+        label: "os dois eixos",
+        hint: "O termo sai dos dois eixos, e a exclusão das tags o alcança.",
+      },
+    },
+    stopwordMatch: {
+      TOKEN: {
+        label: "a palavra e os nomes que a contêm",
+        hint: "Bloqueia a palavra e qualquer nome que a contenha como palavra inteira — é o que pega o nome que o extrator devolve junto com ela (IPTU do Exemplo).",
+      },
+      EXACT: {
+        label: "só a grafia exata",
+        hint: "Bloqueia só a palavra inteira. Um nome que apenas começa ou contém a palavra passa: alameda sozinho é ruído, Alameda Cabral é uma rua.",
+      },
+    },
+    stopwordSource: {
+      HUMAN: {
+        label: "digitado aqui",
+        hint: "Alguém digitou esta grafia em Grafias bloqueadas: é um ato deliberado.",
+      },
+      CONFLICT: {
+        label: "veio de um conflito tag × entidade",
+        hint: "O termo foi banido ao resolver um conflito entre a tag e a entidade de mesma grafia.",
+      },
+      EXCLUSION: {
+        label: "veio de “não é assunto”",
+        hint: "O termo foi banido junto com a decisão “não é assunto”. O desfazer daquela decisão levanta este ban.",
+      },
+    },
+    catalogState: {
+      ALL: {
+        label: "Todas",
+        hint: "Lista completa de termos, ordenados por frequência de uso.",
+      },
+      PENDING: {
+        label: "Sem decisão",
+        hint: "Termos pendentes de avaliação manual e automática.",
+      },
+      NOT_SUBJECT: {
+        label: "Não é assunto",
+        hint: "Termo marcado manualmente como não sendo assunto. O termo fica bloqueado para novas etiquetas, mas as ocorrências atuais continuam no acervo e localizáveis na busca.",
+      },
+      LOW_CONFIDENCE: {
+        label: "Confiança baixa",
+        hint: "Classificação automática inconclusiva. A etiqueta aguarda validação humana, com a pontuação sugerida pelo sistema exibida na linha.",
+      },
+    },
+  },
   format: {
     reviewStatus: {
       PENDING_AI: "Aguardando IA",

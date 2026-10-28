@@ -219,7 +219,6 @@ PORTUGUESE = re.compile(
 #: cannot become empty without leaving — the list only shrinks.
 PENDING = {
     "src/lib/quality.ts",
-    "src/lib/taxonomy.ts",
     "src/components/description/DescriptionExpansion.tsx",
     "src/components/description/DescriptionPreview.tsx",
     "src/components/description/IsadFieldControl.tsx",
