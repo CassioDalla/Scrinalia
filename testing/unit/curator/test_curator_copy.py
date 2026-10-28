@@ -241,7 +241,6 @@ PENDING = {
     "src/routes/TreeRoute.tsx",
     "src/routes/TypologiesRoute.tsx",
     "src/routes/UsersRoute.tsx",
-    "src/routes/VocabularyRoute.tsx",
     "src/routes/WorkerSettingsRoute.tsx",
 }
 

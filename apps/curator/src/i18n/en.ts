@@ -20,6 +20,7 @@ export const en: typeof pt = {
     range: "{from}–{to} of {total}",
     readingDescription: "Reading the description…",
     edit: "Edit",
+    close: "close",
     notInformed: "— not informed —",
   },
   pages: {
@@ -42,6 +43,41 @@ export const en: typeof pt = {
       emptyTitle: "Nothing to configure",
       emptyHint:
         "The cards on this page are the installation's configuration screens (accounts, catalogues, arrangement and operation), and your role reaches none of them. That is why the Settings entry does not appear in the menu.",
+    },
+    vocabulary: {
+      status: "{arrangement} arrangement names · {terms} collection terms ({active} active)",
+      notice:
+        "These two lists are collection data, not system rules. What belongs to the Portuguese language — rua, avenida, não identificado, 303 anos, a loose year — is not this curation's decision and does not appear here: changing it would change the meaning the system gives the word. Retiring a term does not delete it: it stops being refused and can be suggested as a subject again in the next classification.",
+      arrangementSection: "Arrangement vocabulary",
+      arrangementHint:
+        "The name the arrangement proposal suggests for a level of the reference code. The whole code takes precedence over the last segment: BR PRADAP can have its own name and SMU the secretariat's.",
+      collectionSection: "Collection terms",
+      collectionHint:
+        "What the collection carries and is not a subject. A place remains reachable through search, as an entity of type Place; a person's name is the producer or the person depicted, never a subject. That difference is what the type records.",
+      editName: "Edit this name",
+      retireName: "The proposal stops suggesting this name.",
+      reactivateName: "The proposal suggests this name again.",
+      suggestedName: "Suggested Name",
+      newName: "+ New name",
+      createArrangement: "Create an arrangement name",
+      segmentHint: "A code segment (SMU) or the whole code (BR PRADAP).",
+      segmentField: "Segment or Code",
+      segmentPlaceholder: "e.g. SMU",
+      namePlaceholder: "e.g. SMU - Municipal Secretariat of Urbanism",
+      createNameButton: "Create name",
+      editTerm: "Edit this term",
+      retireTerm: "The term stops being refused as a subject.",
+      reactivateTerm: "The term is refused as a subject again.",
+      tagsBadgeTitle: "Tags with exactly this spelling",
+      spellingField: "Spelling as It Appears in the Collection",
+      kindField: "Type",
+      newTerm: "+ New term",
+      createCollectionTerm: "Create a collection term",
+      termHint: "A spelling the collection carries and that is not a subject.",
+      spellingFieldShort: "Spelling",
+      spellingPlaceholder: "e.g. batel",
+      createTermButton: "Create term",
+      unsaved: "unsaved changes",
     },
     health: {
       verified:

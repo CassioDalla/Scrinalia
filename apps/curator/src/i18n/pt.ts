@@ -174,6 +174,7 @@ export const pt = {
     range: "{from}–{to} de {total}",
     readingDescription: "Lendo a descrição…",
     edit: "Editar",
+    close: "fechar",
     notInformed: "— não informado —",
   },
   pages: {
@@ -197,6 +198,41 @@ export const pt = {
       emptyTitle: "Nada para configurar",
       emptyHint:
         "Os cartões desta página são as telas de configuração da instalação (contas, catálogos, arranjo e operação), e o seu papel não alcança nenhuma delas. Por isso a entrada Configurações não aparece no menu.",
+    },
+    vocabulary: {
+      status: "{arrangement} nomes de arranjo · {terms} termos do acervo ({active} ativos)",
+      notice:
+        "Estas duas listas são dados do acervo, não regras do sistema. O que pertence à língua portuguesa — rua, avenida, não identificado, 303 anos, um ano solto — não é decisão desta curadoria e não aparece aqui: mudá-lo seria mudar o significado que o sistema dá à palavra. Aposentar um termo não o exclui: ele deixa de ser recusado e pode voltar a ser sugerido como assunto na próxima classificação.",
+      arrangementSection: "Vocabulário de arranjo",
+      arrangementHint:
+        "O nome que a proposta de arranjo sugere para um nível do código de referência. O código inteiro tem precedência sobre o último segmento: BR PRADAP pode ter um nome próprio e SMU o da secretaria.",
+      collectionSection: "Termos do acervo",
+      collectionHint:
+        "O que o acervo carrega e não é assunto. Um lugar continua alcançável pela busca, como entidade do tipo Local; um nome de pessoa é o produtor ou a pessoa retratada, nunca um assunto. É essa diferença que o tipo registra.",
+      editName: "Editar este nome",
+      retireName: "A proposta deixa de sugerir este nome.",
+      reactivateName: "A proposta volta a sugerir este nome.",
+      suggestedName: "Nome Sugerido",
+      newName: "+ Novo nome",
+      createArrangement: "Criar um nome de arranjo",
+      segmentHint: "Um segmento do código (SMU) ou o código inteiro (BR PRADAP).",
+      segmentField: "Segmento ou Código",
+      segmentPlaceholder: "ex.: SMU",
+      namePlaceholder: "ex.: SMU - Secretaria Municipal de Urbanismo",
+      createNameButton: "Criar nome",
+      editTerm: "Editar este termo",
+      retireTerm: "O termo deixa de ser recusado como assunto.",
+      reactivateTerm: "O termo volta a ser recusado como assunto.",
+      tagsBadgeTitle: "Tags com exatamente esta grafia",
+      spellingField: "Grafia como Aparece no Acervo",
+      kindField: "Tipo",
+      newTerm: "+ Novo termo",
+      createCollectionTerm: "Criar um termo do acervo",
+      termHint: "Uma grafia que o acervo carrega e que não é assunto.",
+      spellingFieldShort: "Grafia",
+      spellingPlaceholder: "ex.: batel",
+      createTermButton: "Criar termo",
+      unsaved: "alterações não salvas",
     },
     health: {
       verified:
