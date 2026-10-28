@@ -44,6 +44,50 @@ export const en: typeof pt = {
       emptyHint:
         "The cards on this page are the installation's configuration screens (accounts, catalogues, arrangement and operation), and your role reaches none of them. That is why the Settings entry does not appear in the menu.",
     },
+    textTemplates: {
+      statusEmpty: "No excerpt in the current filter",
+      statusCount: "{count} excerpts in the current filter",
+      notice:
+        "The scope is the decision that matters. Each excerpt says which text it leaves — vector, name extraction or suggested title. Approving everything the machine suggested made the search results worse: the title prefix helped the title and hurt the vector. That is why there is no approve-all button here.",
+      searchTrigger: "+ Find excerpts",
+      searchToggle: "Find repeated excerpts",
+      searchHint:
+        "The sweep looks for repeated blocks in the collection and records each one as a suggestion, without touching the documents.",
+      scanHint:
+        "The sweep records the candidates as inactive suggestions: nothing changes in the documents before you approve a scope.",
+      minRatio: "Minimum Share of the Collection",
+      minDocuments: "Minimum Documents",
+      scanning: "Scanning…",
+      search: "Find",
+      scannedLine: "{scanned} documents read · {persisted} candidates recorded.",
+      allStatuses: "All",
+      emptyTitle: "No excerpt in this filter",
+      emptyHint:
+        "Run the search above, or write an excerpt by hand. Excerpts appear here according to the chosen filter.",
+      documentsBadgeTitle: "Documents where the excerpt appears",
+      machineSuggested: "suggested by the machine",
+      humanWritten: "written by a human",
+      inactive: "inactive",
+      variants: "spellings: {list}",
+      removeFrom: "Remove from:",
+      saveScope: "Save scope",
+      approve: "Approve",
+      reject: "Reject",
+      removeTitle: "Removes from the catalogue and returns the affected documents to the queue",
+      requeued: "{count} documents returned to the queue.",
+      previewSummary: "{affected} of {scanned} documents would change.",
+      newTrigger: "+ Write excerpt",
+      newToggle: "Write an excerpt",
+      newHint: "Creating the excerpt applies it to the documents; the affected ones return to the queue.",
+      newExplain:
+        "Creating the excerpt applies it, and the affected documents return to the queue. That is why the create button only enables after checking the impact.",
+      textPlaceholder: "exact excerpt, as it appears in the documents",
+      actionField: "What to Do with It",
+      replaceWith: "Replace with",
+      replacementPlaceholder: "text that stays in its place",
+      createApply: "Create and apply",
+      queued: "{count} documents in the queue.",
+    },
     vocabulary: {
       status: "{arrangement} arrangement names · {terms} collection terms ({active} active)",
       notice:

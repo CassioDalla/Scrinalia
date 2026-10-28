@@ -199,6 +199,50 @@ export const pt = {
       emptyHint:
         "Os cartões desta página são as telas de configuração da instalação (contas, catálogos, arranjo e operação), e o seu papel não alcança nenhuma delas. Por isso a entrada Configurações não aparece no menu.",
     },
+    textTemplates: {
+      statusEmpty: "Nenhum trecho no filtro atual",
+      statusCount: "{count} trechos no filtro atual",
+      notice:
+        "O escopo é a decisão que importa. Cada trecho diz de qual texto ele sai — vetor, extração de nomes ou título sugerido. Aprovar tudo o que a máquina sugeriu piorou os resultados da busca: o prefixo de título ajudava o título e prejudicava o vetor. Por isso não existe botão de aprovar todos aqui.",
+      searchTrigger: "+ Procurar trechos",
+      searchToggle: "Procurar trechos repetidos",
+      searchHint:
+        "A varredura procura blocos repetidos no acervo e registra cada uma como sugestão, sem mexer nos documentos.",
+      scanHint:
+        "A varredura registra os candidatos como sugestões inativas: nada muda nos documentos antes de você aprovar um escopo.",
+      minRatio: "Fração Mínima do Acervo",
+      minDocuments: "Documentos Mínimos",
+      scanning: "Varrendo…",
+      search: "Procurar",
+      scannedLine: "{scanned} documentos lidos · {persisted} candidatos registrados.",
+      allStatuses: "Todos",
+      emptyTitle: "Nenhum trecho neste filtro",
+      emptyHint:
+        "Faça a procura acima, ou escreva um trecho à mão. Os trechos aparecem aqui conforme o filtro escolhido.",
+      documentsBadgeTitle: "Documentos em que o trecho aparece",
+      machineSuggested: "sugerido pela máquina",
+      humanWritten: "escrito por humano",
+      inactive: "inativo",
+      variants: "grafias: {list}",
+      removeFrom: "Remover de:",
+      saveScope: "Salvar escopo",
+      approve: "Aprovar",
+      reject: "Rejeitar",
+      removeTitle: "Remove do catálogo e devolve os documentos afetados à fila",
+      requeued: "{count} documentos voltaram à fila.",
+      previewSummary: "{affected} de {scanned} documentos mudariam.",
+      newTrigger: "+ Escrever trecho",
+      newToggle: "Escrever um trecho",
+      newHint: "Criar o trecho já o aplica aos documentos; os afetados voltam para a fila.",
+      newExplain:
+        "Criar o trecho já o aplica, e os documentos afetados voltam para a fila. Por isso o botão de criar só libera depois de conferir o impacto.",
+      textPlaceholder: "trecho exato, como aparece nos documentos",
+      actionField: "O Que Fazer com Ele",
+      replaceWith: "Substituir por",
+      replacementPlaceholder: "texto que fica no lugar",
+      createApply: "Criar e aplicar",
+      queued: "{count} documentos na fila.",
+    },
     vocabulary: {
       status: "{arrangement} nomes de arranjo · {terms} termos do acervo ({active} ativos)",
       notice:
