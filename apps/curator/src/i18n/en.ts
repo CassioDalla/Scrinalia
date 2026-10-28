@@ -43,6 +43,36 @@ export const en: typeof pt = {
       emptyHint:
         "The cards on this page are the installation's configuration screens (accounts, catalogues, arrangement and operation), and your role reaches none of them. That is why the Settings entry does not appear in the menu.",
     },
+    categories: {
+      tabDescriptions: "Descriptions",
+      newCategory: "+ New Category",
+      createTitle: "Create a Category",
+      createNote: "A new category only takes effect when the classifier runs again.",
+      classifierNote:
+        "The classifier notices on its own when the set of categories changes and classifies the tags again on the next run.",
+      namePlaceholder: "name, e.g. Health",
+      descriptionPlaceholder: "curator description (never goes to the model)",
+      activeSection: "Active",
+      retiredSection: "Retired",
+      retiredNote:
+        "They left the subject axis because they are provenance and geography, not subjects. They were never deleted: they stay marked as retired, because deleting a category would erase the record that it existed.",
+      seeDescriptions: "See this Category's descriptions",
+      activeBadge: "active",
+      retiredBadge: "retired",
+      descriptionsBadgeTitle: "Descriptions with at least one tag in this category",
+      descriptionsCount: "{count} descriptions",
+      nameField: "Name",
+      classifierLabelField: "Label the Model Reads (empty: uses the name)",
+      curatorDescriptionField: "Curator Description (never goes to the model)",
+      unsaved: "unsaved changes",
+      emptyActiveTitle: "No description in this category",
+      emptyActiveHint:
+        "No tag in this category is linked to a description yet. Tags without a subject category are on the Classify tab, in Tags.",
+      emptyRetiredTitle: "Retired and empty category",
+      emptyRetiredHint:
+        "It left the subject axis, and the classifier no longer proposes it — that is why no description carries it. It stays in the catalogue, retired: deleting a category would erase the record that it existed.",
+      status: "{active} active · {retired} retired · {documents} descriptions with a category",
+    },
     discover: {
       currentCategories: "Current Categories",
       groupByTheme: "Group by theme",

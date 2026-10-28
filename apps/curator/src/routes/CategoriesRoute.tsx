@@ -19,6 +19,7 @@ import { Tabs } from "@/components/ui/Tabs";
 import { ACTION } from "@/lib/copy";
 import { formatCount } from "@/lib/format";
 import { asNumber, asString } from "@/lib/search";
+import { useCopy } from "@/i18n/context";
 
 /**
  * ``getRouteApi`` instead of importing the route object: the route is declared in ``router.tsx`` and
@@ -50,10 +51,6 @@ export function validateCategoriesSearch(search: Record<string, unknown>): Categ
 }
 
 /** The two questions one card answers: what is inside it, and what it is called. */
-const CARD_TABS = [
-  { id: "descricoes", label: "Descrições" },
-  { id: "editar", label: "Editar" },
-];
 
 /**
  * The drawers the subject classifier reads.
@@ -79,6 +76,7 @@ export function CategoriesRoute() {
   const queryClient = useQueryClient();
   const search = routeApi.useSearch();
   const navigate = useNavigate();
+  const messages = useCopy();
   const categories = useQuery(queries.macroCategories());
 
   const [draftName, setDraftName] = useState("");
@@ -129,7 +127,10 @@ export function CategoriesRoute() {
         pending={categories.isPending}
         status={
           categories.data
-            ? `${active.length} ativas · ${retired.length} aposentadas · ${formatCount(totalDocuments)} descrições com categoria`
+            ? messages.pages.categories.status
+                .replace("{active}", String(active.length))
+                .replace("{retired}", String(retired.length))
+                .replace("{documents}", formatCount(totalDocuments))
             : undefined
         }
       />
@@ -147,32 +148,27 @@ export function CategoriesRoute() {
 
         {/* The write first, the catalogue after — and every drawer opens on demand. */}
         <Disclosure
-          triggerLabel="+ Nova Categoria"
-          toggleLabel="Criar uma Categoria"
+          triggerLabel={messages.pages.categories.newCategory}
+          toggleLabel={messages.pages.categories.createTitle}
           header={
             <div className="grid gap-1">
-              <span className="text-sm font-semibold">Criar uma Categoria</span>
-              <span className="text-xs text-(--color-muted)">
-                Uma categoria nova só passa a valer quando o classificador rodar de novo.
-              </span>
+              <span className="text-sm font-semibold">{messages.pages.categories.createTitle}</span>
+              <span className="text-xs text-(--color-muted)">{messages.pages.categories.createNote}</span>
             </div>
           }
         >
           <div className="grid gap-2">
-            <p className="text-xs text-(--color-muted)">
-              O classificador percebe sozinho quando o <strong>conjunto de categorias</strong> muda e
-              classifica as tags outra vez na execução seguinte.
-            </p>
+            <p className="text-xs text-(--color-muted)">{messages.pages.categories.classifierNote}</p>
             <Input
               value={draftName}
               onChange={(event) => setDraftName(event.target.value)}
-              placeholder="nome, ex.: Saúde"
+              placeholder={messages.pages.categories.namePlaceholder}
               maxLength={100}
             />
             <Textarea
               value={draftDescription}
               onChange={(event) => setDraftDescription(event.target.value)}
-              placeholder="descrição para o curador (nunca vai para o modelo)"
+              placeholder={messages.pages.categories.descriptionPlaceholder}
               rows={2}
             />
             <div>
@@ -190,7 +186,7 @@ export function CategoriesRoute() {
 
         {active.length > 0 ? (
           <section className="grid gap-2">
-            <SectionTitle>Ativas</SectionTitle>
+            <SectionTitle>{messages.pages.categories.activeSection}</SectionTitle>
             {active.map((category) => (
               <CategoryCard
                 key={category.category_id}
@@ -208,12 +204,8 @@ export function CategoriesRoute() {
 
         {retired.length > 0 ? (
           <section className="grid gap-2">
-            <SectionTitle>Aposentadas</SectionTitle>
-            <p className="text-xs text-(--color-muted)">
-              Saíram do eixo de assunto porque são proveniência e geografia, não assunto. Nunca foram
-              excluídas: ficam marcadas como <code>aposentada</code>, porque excluir uma categoria
-              excluiria o registro de que ela existiu.
-            </p>
+            <SectionTitle>{messages.pages.categories.retiredSection}</SectionTitle>
+            <p className="text-xs text-(--color-muted)">{messages.pages.categories.retiredNote}</p>
             {retired.map((category) => (
               <CategoryCard
                 key={category.category_id}
@@ -272,7 +264,12 @@ function CategoryCard({
   onPreview: (descriptionId: string) => void;
   onChanged: () => void;
 }) {
+  const messages = useCopy();
   const [tab, setTab] = useState<string>("descricoes");
+  const CARD_TABS = [
+    { id: "descricoes", label: messages.pages.categories.tabDescriptions },
+    { id: "editar", label: messages.common.edit },
+  ];
 
   const [name, setName] = useState(category.name);
   const [description, setDescription] = useState(category.description ?? "");
@@ -293,14 +290,18 @@ function CategoryCard({
     <Disclosure
       open={open}
       onOpenChange={onOpenChange}
-      toggleLabel="Ver as descrições desta Categoria"
+      toggleLabel={messages.pages.categories.seeDescriptions}
       className={category.is_active ? undefined : "opacity-80"}
       header={
         <div className="flex flex-wrap items-center gap-2">
           <span className="truncate text-sm font-medium">{category.name}</span>
-          {category.is_active ? <Badge tone="ok">ativa</Badge> : <Badge tone="neutral">aposentada</Badge>}
-          <Badge tone="accent" title="Descrições com pelo menos uma tag nesta categoria">
-            {formatCount(category.document_count ?? 0)} descrições
+          {category.is_active ? (
+            <Badge tone="ok">{messages.pages.categories.activeBadge}</Badge>
+          ) : (
+            <Badge tone="neutral">{messages.pages.categories.retiredBadge}</Badge>
+          )}
+          <Badge tone="accent" title={messages.pages.categories.descriptionsBadgeTitle}>
+            {messages.pages.categories.descriptionsCount.replace("{count}", formatCount(category.document_count ?? 0))}
           </Badge>
           {category.description ? (
             <span className="w-full text-xs text-(--color-muted)">{category.description}</span>
@@ -324,10 +325,10 @@ function CategoryCard({
         {tab === "editar" ? (
           <div className="grid gap-2">
             <div className="grid gap-2 sm:grid-cols-2">
-              <Field label="Nome">
+              <Field label={messages.pages.categories.nameField}>
                 <Input value={name} onChange={(event) => setName(event.target.value)} maxLength={100} />
               </Field>
-              <Field label="Rótulo que o Modelo Lê (vazio: usa o nome)">
+              <Field label={messages.pages.categories.classifierLabelField}>
                 <Input
                   value={label}
                   onChange={(event) => setLabel(event.target.value)}
@@ -336,7 +337,7 @@ function CategoryCard({
               </Field>
             </div>
 
-            <Field label="Descrição para o Curador (nunca vai ao modelo)">
+            <Field label={messages.pages.categories.curatorDescriptionField}>
               <Input value={description} onChange={(event) => setDescription(event.target.value)} />
             </Field>
 
@@ -355,7 +356,7 @@ function CategoryCard({
               >
                 {save.isPending ? ACTION.save.pending : ACTION.save.label}
               </Button>
-              {dirty ? <span className="text-xs text-(--color-muted)">alterações não salvas</span> : null}
+              {dirty ? <span className="text-xs text-(--color-muted)">{messages.pages.categories.unsaved}</span> : null}
             </div>
             {save.error ? <ErrorState error={save.error} /> : null}
           </div>
@@ -369,12 +370,12 @@ function CategoryCard({
             empty={
               category.is_active
                 ? {
-                  title: "Nenhuma descrição nesta categoria",
-                  hint: "Nenhuma tag desta categoria está ligada a uma descrição ainda. As tags sem categoria de assunto estão na aba Classificar, em Tags.",
+                  title: messages.pages.categories.emptyActiveTitle,
+                  hint: messages.pages.categories.emptyActiveHint,
                 }
                 : {
-                  title: "Categoria aposentada e vazia",
-                  hint: "Ela saiu do eixo de assunto, e o classificador não a propõe mais — por isso nenhuma descrição a carrega. Continua no catálogo, aposentada: excluir uma categoria excluiria o registro de que ela existiu.",
+                  title: messages.pages.categories.emptyRetiredTitle,
+                  hint: messages.pages.categories.emptyRetiredHint,
                 }
             }
           />

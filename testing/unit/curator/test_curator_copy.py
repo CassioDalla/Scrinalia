@@ -226,7 +226,6 @@ PENDING = {
     "src/components/workers/WorkerTrialCard.tsx",
     "src/components/workers/WorkersPanel.tsx",
     "src/routes/BlockedSpellingsRoute.tsx",
-    "src/routes/CategoriesRoute.tsx",
     "src/routes/CleaningRulesRoute.tsx",
     "src/routes/CollectionRoute.tsx",
     "src/routes/ConflictsRoute.tsx",

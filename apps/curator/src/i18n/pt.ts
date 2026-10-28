@@ -198,6 +198,36 @@ export const pt = {
       emptyHint:
         "Os cartões desta página são as telas de configuração da instalação (contas, catálogos, arranjo e operação), e o seu papel não alcança nenhuma delas. Por isso a entrada Configurações não aparece no menu.",
     },
+    categories: {
+      tabDescriptions: "Descrições",
+      newCategory: "+ Nova Categoria",
+      createTitle: "Criar uma Categoria",
+      createNote: "Uma categoria nova só passa a valer quando o classificador rodar de novo.",
+      classifierNote:
+        "O classificador percebe sozinho quando o conjunto de categorias muda e classifica as tags outra vez na execução seguinte.",
+      namePlaceholder: "nome, ex.: Saúde",
+      descriptionPlaceholder: "descrição para o curador (nunca vai para o modelo)",
+      activeSection: "Ativas",
+      retiredSection: "Aposentadas",
+      retiredNote:
+        "Saíram do eixo de assunto porque são proveniência e geografia, não assunto. Nunca foram excluídas: ficam marcadas como aposentada, porque excluir uma categoria excluiria o registro de que ela existiu.",
+      seeDescriptions: "Ver as descrições desta Categoria",
+      activeBadge: "ativa",
+      retiredBadge: "aposentada",
+      descriptionsBadgeTitle: "Descrições com pelo menos uma tag nesta categoria",
+      descriptionsCount: "{count} descrições",
+      nameField: "Nome",
+      classifierLabelField: "Rótulo que o Modelo Lê (vazio: usa o nome)",
+      curatorDescriptionField: "Descrição para o Curador (nunca vai ao modelo)",
+      unsaved: "alterações não salvas",
+      emptyActiveTitle: "Nenhuma descrição nesta categoria",
+      emptyActiveHint:
+        "Nenhuma tag desta categoria está ligada a uma descrição ainda. As tags sem categoria de assunto estão na aba Classificar, em Tags.",
+      emptyRetiredTitle: "Categoria aposentada e vazia",
+      emptyRetiredHint:
+        "Ela saiu do eixo de assunto, e o classificador não a propõe mais — por isso nenhuma descrição a carrega. Continua no catálogo, aposentada: excluir uma categoria excluiria o registro de que ela existiu.",
+      status: "{active} ativas · {retired} aposentadas · {documents} descrições com categoria",
+    },
     discover: {
       currentCategories: "Categorias Atuais",
       groupByTheme: "Agrupar por tema",
