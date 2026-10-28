@@ -467,6 +467,83 @@ export const pt = {
       },
     },
   },
+  hierarchy: {
+    planStatus: { SUGGESTED: "Sugerido", APPROVED: "Aprovado", REJECTED: "Rejeitado" },
+    planFlag: {
+      ORDINAL_INFERRED: {
+        label: "nível inferido",
+        hint: "O ordinal não veio de nenhum registro existente: é uma proposta, não uma declaração. Decida o nível olhando os níveis já declarados abaixo.",
+      },
+      RECORD_WITHOUT_DOCUMENTS: {
+        label: "registro sem documentos",
+        hint: "Existe um registro com este código e nenhuma descrição ligada a ele. Adotá-lo preserva a identidade que já está no acervo.",
+      },
+      DUPLICATE_REFERENCE_CODE: {
+        label: "código duplicado",
+        hint: "Mais de um registro usa este código, então não há uma unidade única a adotar: decida qual dos registros é a unidade.",
+      },
+      NEAR_DUPLICATE_NODE: {
+        label: "sósia de outro degrau",
+        hint: "Um irmão difere por uma letra (FOTOGRAFIA x FOTOGRAFIAS). A semelhança não decide nada: decida se este degrau existe ou se funde no outro.",
+      },
+      LEVEL_NOT_ALLOWED_AS_CHILD: {
+        label: "nível não cabe sob o pai",
+        hint: "O nível proposto não vem depois do nível do pai na escada, e a árvore não aceita criá-lo assim. Funda num degrau existente ou escolha outro nível.",
+      },
+      MID_CODE_IDENTIFIER: {
+        label: "identificador no meio do código",
+        hint: "Há um identificador antes do último termo de vocabulário do arranjo: a divisão do código é um palpite.",
+      },
+      UNPARSED_TAIL: {
+        label: "final do código ilegível",
+        hint: "O final do código não é só número (ex.: '(1)', '369B'). O código é listado como está, nunca adivinhado.",
+      },
+      NO_STRUCTURAL_TOKEN: {
+        label: "código sem vocabulário",
+        hint: "O código não traz nenhum termo do vocabulário de arranjo: não há degrau a propor.",
+      },
+    },
+    planAction: { CREATE: "criar", ADOPT: "adotar", ALREADY: "já está na árvore" },
+    issue: {
+      ORPHAN: {
+        label: "Sem unidade superior",
+        hint: "Descrição sem unidade superior cujo nível exige uma, mais as que não têm nível algum e por isso não podem ser julgadas. A correção é materializar o arranjo deste ramo — ou confirmar que ele não tem nenhum degrau aprovado.",
+        actionLabel: "Ir para o plano de arranjo",
+        actionHint: "O arranjo é materializado a partir dos degraus aprovados.",
+      },
+      DOSSIER_WITHOUT_PARENT: {
+        label: "Dossiê na raiz",
+        hint: "O caso nomeado e mais estreito do anterior: um Dossiê — nível que exige unidade superior — parado na raiz.",
+        actionLabel: "Ir para o plano de arranjo",
+        actionHint: "Um Dossiê exige uma unidade superior: aprove o degrau acima dele.",
+      },
+      UNKNOWN_LEVEL: {
+        label: "Nível não classificado",
+        hint: "A importação tolera nível desconhecido de propósito; o arquivista não. Corrija o nível na própria descrição.",
+        actionLabel: "Corrigir na descrição",
+        actionHint: "Abra a descrição e escolha o nível de descrição na aba Arranjo.",
+      },
+      PATH_DIVERGENCE: {
+        label: "Caminho divergente",
+        hint: "O caminho registrado não bate com o da unidade superior. Deve ser sempre zero: o caminho é reescrito por inteiro quando uma descrição muda de lugar. Se aparecer, o caminho foi alterado por fora da movimentação da descrição.",
+        actionLabel: "Corrigir na descrição",
+        actionHint: "O caminho é reescrito quando a descrição muda de lugar: confira a unidade superior.",
+      },
+      LEVEL_DEPTH_MISMATCH: {
+        label: "Nível e profundidade do código",
+        hint: "O nível declarado é minoria naquela profundidade de código. A norma vem da coleção, não do código: um código de cinco partes pode carregar Itens, uma Série e uma Seção ao mesmo tempo.",
+        actionLabel: "Corrigir na descrição",
+        actionHint: "Revise o nível declarado: ele é minoria naquela profundidade de código.",
+      },
+    },
+    detail: {
+      code_depth: "profundidade do código",
+      expected_ordinal: "ordinal esperado",
+      declared_ordinal: "ordinal declarado",
+      path: "caminho atual",
+      expected_path: "caminho esperado",
+    },
+  },
   format: {
     reviewStatus: {
       PENDING_AI: "Aguardando IA",

@@ -218,7 +218,6 @@ PORTUGUESE = re.compile(
 #: extracted (ADR 0020 §7); a file outside it cannot gain a Portuguese literal, and a file inside it
 #: cannot become empty without leaving — the list only shrinks.
 PENDING = {
-    "src/lib/hierarchy.ts",
     "src/lib/quality.ts",
     "src/lib/taxonomy.ts",
     "src/components/description/DescriptionExpansion.tsx",
@@ -264,12 +263,24 @@ PENDING = {
 }
 
 
+#: Strings that look Portuguese and are data, not copy. Each one needs its reason.
+ALLOWED_PORTUGUESE: dict[tuple[str, str], str] = {
+    (
+        "src/lib/hierarchy.ts",
+        "SEM TÍTULO",
+    ): "the staging parser's sentinel is stored data; translating it would stop matching the value",
+}
+
+
 def _portuguese_strings(path: Path) -> list[str]:
+    relative = path.relative_to(CURATOR).as_posix()
     return [
         value
         for value in visible_strings(path)
         # A URL is data, not copy: the attribution's repository address is not a Portuguese word.
-        if not value.startswith(("http://", "https://")) and PORTUGUESE.search(value)
+        if not value.startswith(("http://", "https://"))
+        and (relative, value) not in ALLOWED_PORTUGUESE
+        and PORTUGUESE.search(value)
     ]
 
 

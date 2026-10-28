@@ -305,6 +305,83 @@ export const en: typeof pt = {
       },
     },
   },
+  hierarchy: {
+    planStatus: { SUGGESTED: "Suggested", APPROVED: "Approved", REJECTED: "Rejected" },
+    planFlag: {
+      ORDINAL_INFERRED: {
+        label: "inferred level",
+        hint: "The ordinal came from no existing record: it is a proposal, not a declaration. Decide the level by looking at the levels already declared below.",
+      },
+      RECORD_WITHOUT_DOCUMENTS: {
+        label: "record without documents",
+        hint: "A record with this code exists and no description is linked to it. Adopting it preserves the identity already in the collection.",
+      },
+      DUPLICATE_REFERENCE_CODE: {
+        label: "duplicate code",
+        hint: "More than one record uses this code, so there is no single unit to adopt: decide which record is the unit.",
+      },
+      NEAR_DUPLICATE_NODE: {
+        label: "twin of another rung",
+        hint: "A sibling differs by one letter (PHOTOGRAPH x PHOTOGRAPHS). The similarity decides nothing: decide whether this rung exists or merges into the other.",
+      },
+      LEVEL_NOT_ALLOWED_AS_CHILD: {
+        label: "level does not fit under the parent",
+        hint: "The proposed level does not come after the parent's level on the ladder, and the tree does not accept creating it like that. Merge into an existing rung or choose another level.",
+      },
+      MID_CODE_IDENTIFIER: {
+        label: "identifier inside the code",
+        hint: "There is an identifier before the last arrangement vocabulary term: the code split is a guess.",
+      },
+      UNPARSED_TAIL: {
+        label: "unreadable code tail",
+        hint: "The code's tail is not only a number (e.g. '(1)', '369B'). The code is listed as it is, never guessed.",
+      },
+      NO_STRUCTURAL_TOKEN: {
+        label: "code without vocabulary",
+        hint: "The code carries no arrangement vocabulary term: there is no rung to propose.",
+      },
+    },
+    planAction: { CREATE: "create", ADOPT: "adopt", ALREADY: "already in the tree" },
+    issue: {
+      ORPHAN: {
+        label: "No parent unit",
+        hint: "A description without a parent unit whose level requires one, plus those with no level at all and therefore not judgeable. The fix is to materialise this branch's arrangement — or confirm it has no approved rung.",
+        actionLabel: "Go to the arrangement plan",
+        actionHint: "The arrangement is materialised from the approved rungs.",
+      },
+      DOSSIER_WITHOUT_PARENT: {
+        label: "Dossier at the root",
+        hint: "The narrower named case of the previous one: a Dossier — a level that requires a parent unit — stopped at the root.",
+        actionLabel: "Go to the arrangement plan",
+        actionHint: "A Dossier requires a parent: approve the rung above it.",
+      },
+      UNKNOWN_LEVEL: {
+        label: "Unclassified level",
+        hint: "The import tolerates an unknown level on purpose; the archivist does not. Fix the level in the description itself.",
+        actionLabel: "Fix it in the description",
+        actionHint: "Open the description and choose the description level on the Arrangement tab.",
+      },
+      PATH_DIVERGENCE: {
+        label: "Divergent path",
+        hint: "The recorded path does not match the parent's. It must always be zero: the path is fully rewritten when a description moves. If it appears, the path was changed outside the description's movement.",
+        actionLabel: "Fix it in the description",
+        actionHint: "The path is rewritten when the description moves: check the parent unit.",
+      },
+      LEVEL_DEPTH_MISMATCH: {
+        label: "Level and code depth",
+        hint: "The declared level is a minority at that code depth. The norm comes from the collection, not the code: a five-part code can carry Items, a Series and a Section at the same time.",
+        actionLabel: "Fix it in the description",
+        actionHint: "Review the declared level: it is a minority at that code depth.",
+      },
+    },
+    detail: {
+      code_depth: "code depth",
+      expected_ordinal: "expected ordinal",
+      declared_ordinal: "declared ordinal",
+      path: "current path",
+      expected_path: "expected path",
+    },
+  },
   format: {
     reviewStatus: {
       PENDING_AI: "Waiting for AI",
