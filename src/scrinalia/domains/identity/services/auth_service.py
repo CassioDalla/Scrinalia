@@ -14,6 +14,8 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 
 from scrinalia.core.config import get_settings
+from scrinalia.core.i18n import refusal
+from scrinalia.core.locale import Locale
 from scrinalia.domains.identity.domain.credentials import (
     check_password_policy,
     generate_session_token,
@@ -43,27 +45,6 @@ from scrinalia.domains.identity.schemas.setup_schema import SetupFirstAdminComma
 from scrinalia.domains.identity.schemas.user_schema import (
     CreateUserCommand,
     UpdateUserCommand,
-)
-
-#: The single sentence a failed sign-in gets, whatever the reason. See ``InvalidCredentialsError``:
-#: distinguishing "no such account" from "wrong password" is a user-enumeration oracle, and the person
-#: who needs the distinction has the account list to consult.
-INVALID_CREDENTIALS_MESSAGE = "E-mail ou senha inválidos."
-
-#: The one refusal that may name its reason, because it is only reached after the password verified:
-#: whoever reads it already knew the password, so it is not an enumeration oracle.
-ACCOUNT_LOCKED_MESSAGE = (
-    "Conta temporariamente bloqueada por tentativas de acesso. Tente novamente mais tarde "
-    "ou peça ao administrador uma nova senha."
-)
-
-
-#: The one refusal the first-run route has. One sentence for both paths that can reach it — the
-#: installation already has an account — because "somebody created it a second before you" and
-#: "somebody created it last month" are the same fact to the person reading it.
-SETUP_ALREADY_COMPLETE_MESSAGE = (
-    "Esta instalação já tem uma conta. O primeiro acesso só pode ser criado uma vez; "
-    "peça a quem administra que crie a sua conta."
 )
 
 
@@ -97,7 +78,7 @@ class AuthService:
         user = self.users.get_by_email(email)
         if user is None:
             verify_decoy(password)
-            raise InvalidCredentialsError(INVALID_CREDENTIALS_MESSAGE)
+            raise InvalidCredentialsError(refusal("auth.invalid_credentials"))
 
         locked = user.locked_until is not None and user.locked_until > datetime.now(UTC)
 
@@ -106,15 +87,15 @@ class AuthService:
                 # The write survives the rollback this raise is about to cause: it goes through its
                 # own committed session, and the counter is the lockout.
                 self.attempts.record_failure(user.user_id)
-            raise InvalidCredentialsError(INVALID_CREDENTIALS_MESSAGE)
+            raise InvalidCredentialsError(refusal("auth.invalid_credentials"))
 
         if locked:
-            raise AccountLockedError(ACCOUNT_LOCKED_MESSAGE)
+            raise AccountLockedError(refusal("auth.account_locked"))
 
         if not user.is_active:
             # Same sentence on purpose: a deactivated account is a fact about the installation, and
             # confirming it to an anonymous caller confirms that the address was once real.
-            raise InvalidCredentialsError(INVALID_CREDENTIALS_MESSAGE)
+            raise InvalidCredentialsError(refusal("auth.invalid_credentials"))
 
         return user
 
@@ -229,7 +210,7 @@ class AuthService:
         the locked insert is the guarantee underneath it.
         """
         if self.users.has_any():
-            raise SetupAlreadyCompleteError(SETUP_ALREADY_COMPLETE_MESSAGE)
+            raise SetupAlreadyCompleteError(refusal("auth.setup_complete"))
 
         email = normalize_email(command.email)
         check_password_policy(command.password, email=email)
@@ -241,7 +222,7 @@ class AuthService:
         if user is None:
             # The authoritative answer: the table lock was taken, the predicate was read under it, and
             # another request got there first. Same refusal as the cheap read, one transaction later.
-            raise SetupAlreadyCompleteError(SETUP_ALREADY_COMPLETE_MESSAGE)
+            raise SetupAlreadyCompleteError(refusal("auth.setup_complete"))
 
         return self.start_session(user, user_agent=user_agent, ip_address=ip_address), user
 
@@ -264,7 +245,7 @@ class AuthService:
         is not logged out of the screen they are standing on.
         """
         if not verify_password(current_password, user.password_hash):
-            raise InvalidCurrentPasswordError("A senha atual não confere.")
+            raise InvalidCurrentPasswordError(refusal("auth.invalid_current_password"))
 
         check_password_policy(new_password, email=user.email)
         user.password_hash = hash_password(new_password)
@@ -286,8 +267,20 @@ class AuthService:
     def get_user(self, user_id: int) -> AuthUser:
         user = self.users.get(user_id)
         if user is None:
-            raise UserNotFoundError(f"Conta {user_id} não encontrada.")
+            raise UserNotFoundError(refusal("auth.user_not_found", user_id=user_id))
         return user
+
+    def set_locale(self, user_id: int, locale: Locale | None) -> AuthUser:
+        """
+        Stores the account's interface language.
+
+        ``None`` is a choice, not an absence: it means automatic, follow the browser (ADR 0020 §3).
+        The value is the one the API speaks, so the column and the contract cannot disagree about
+        the spelling.
+        """
+        user = self.get_user(user_id)
+        user.locale = locale.value if locale is not None else None
+        return self.users.save(user)
 
     def list_sessions(self, user_id: int) -> list[AuthSession]:
         """
@@ -311,7 +304,7 @@ class AuthService:
         self.get_user(user_id)
         session = self.sessions.get(session_id)
         if session is None or session.user_id != user_id:
-            raise SessionNotFoundError(f"Sessão {session_id} não encontrada para esta conta.")
+            raise SessionNotFoundError(refusal("auth.session_not_found", session_id=session_id))
         self.sessions.revoke(session, datetime.now(UTC))
         return session
 
@@ -329,7 +322,7 @@ class AuthService:
         """
         email = normalize_email(command.email)
         if self.users.get_by_email(email) is not None:
-            raise DuplicateUserEmailError(f"Já existe uma conta com o e-mail {email}.")
+            raise DuplicateUserEmailError(refusal("auth.duplicate_email", email=email))
 
         check_password_policy(command.password, email=email)
         return self.users.create(
@@ -385,9 +378,7 @@ class AuthService:
         if not (user.role == Role.ADMIN and user.is_active and loses_admin):
             return
         if self.users.count_active_admins() <= 1:
-            raise LastAdminError(
-                "Esta é a última conta de administrador ativa; promova outra conta antes de alterar esta."
-            )
+            raise LastAdminError(refusal("auth.last_admin"))
 
     # --- Internals ------------------------------------------------------------------------------
 

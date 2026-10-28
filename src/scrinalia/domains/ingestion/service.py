@@ -24,12 +24,14 @@ from sqlalchemy.orm import Session
 
 from scrinalia.core.author import Author
 from scrinalia.core.config import get_settings
+from scrinalia.core.i18n import t
 from scrinalia.core.logger import logger
 from scrinalia.domains.archive.exceptions import WorkerRunAlreadyActiveError
 from scrinalia.domains.archive.models.document import ArchiveDocument
 from scrinalia.domains.archive.repository.worker_run_repo import WorkerRunRepository
 from scrinalia.domains.archive.repository.worker_runner_repo import WorkerRunnerRepository
 from scrinalia.domains.archive.schemas.responses import RouteMessageCode
+from scrinalia.domains.archive.schemas.route_messages import route_message
 from scrinalia.domains.archive.schemas.system_schema import WorkerRunDTO
 from scrinalia.domains.archive.workers.ledger import WorkerRunLedger
 from scrinalia.domains.archive.workers.schedule import (
@@ -95,7 +97,9 @@ def _config_of(summary: OriginSummary, origin: IngestionOrigin | None) -> dict[s
     try:
         return summary.config_model.model_validate(raw).model_dump(exclude_none=True)
     except ValidationError as exc:
-        raise InvalidOriginConfigError(f"Configuração inválida da origem '{summary.code}': {exc}") from exc
+        raise InvalidOriginConfigError(
+            t("Configuração inválida da origem '{code}': {exc}", code=summary.code, exc=exc)
+        ) from exc
 
 
 def _options_of(origin: IngestionOrigin | None) -> dict[str, Any]:
@@ -104,7 +108,7 @@ def _options_of(origin: IngestionOrigin | None) -> dict[str, Any]:
     try:
         return IngestionRunRequest.model_validate(raw).model_dump(exclude_none=True)
     except ValidationError as exc:
-        raise InvalidOriginConfigError(f"Opções de execução inválidas: {exc}") from exc
+        raise InvalidOriginConfigError(t("Opções de execução inválidas: {exc}", exc=exc)) from exc
 
 
 def _schedule_of(origin: IngestionOrigin | None) -> IngestionScheduleDTO | None:
@@ -266,7 +270,9 @@ class IngestionOriginService:
             config = summary.config_model.model_validate(request.config).model_dump(exclude_none=True)
             options = IngestionRunRequest.model_validate(request.options).model_dump(exclude_none=True)
         except ValidationError as exc:
-            raise InvalidOriginConfigError(f"Configuração inválida da origem '{code}': {exc}") from exc
+            raise InvalidOriginConfigError(
+                t("Configuração inválida da origem '{code}': {exc}", code=code, exc=exc)
+            ) from exc
 
         origin = self.origins.upsert_settings(
             code,
@@ -293,7 +299,7 @@ class IngestionOriginService:
         origin = self.origins.get(code)
         if origin is None:
             raise OriginNotFoundError(
-                f"A origem '{code}' ainda não está configurada. Salve a configuração antes da agenda."
+                t("A origem '{code}' ainda não está configurada. Salve a configuração antes da agenda.", code=code)
             )
 
         zone = request.timezone or get_settings().DEFAULT_TIMEZONE
@@ -302,10 +308,12 @@ class IngestionOriginService:
             timezone = validate_timezone(zone)
         except InvalidCronError as exc:
             raise InvalidOriginConfigError(
-                "Agenda inválida: o cron precisa de cinco campos (minuto, hora, dia do mês, mês e dia da semana)."
+                t("Agenda inválida: o cron precisa de cinco campos (minuto, hora, dia do mês, mês e dia da semana).")
             ) from exc
         except InvalidTimezoneError as exc:
-            raise InvalidOriginConfigError(f"Agenda inválida: '{zone}' não é um fuso IANA conhecido.") from exc
+            raise InvalidOriginConfigError(
+                t("Agenda inválida: '{zone}' não é um fuso IANA conhecido.", zone=zone)
+            ) from exc
 
         next_run_at = next_occurrence(cron, timezone, datetime.now(UTC)) if origin.enabled else None
         self.origins.set_schedule(code, cron=cron, timezone=timezone, next_run_at=next_run_at, author=author)
@@ -315,7 +323,7 @@ class IngestionOriginService:
     def clear_schedule(self, code: str, *, author: Author | None = None) -> IngestionOriginDTO:
         get_origin_summary(code)
         if self.origins.get(code) is None:
-            raise OriginNotFoundError(f"A origem '{code}' não está configurada.")
+            raise OriginNotFoundError(t("A origem '{code}' não está configurada.", code=code))
         self.origins.set_schedule(code, cron=None, timezone=None, next_run_at=None, author=author)
         self.db.flush()
         return self.get_origin(code)
@@ -330,15 +338,15 @@ class IngestionOriginService:
         get_origin_summary(code)
         origin = self.origins.get(code)
         if origin is None:
-            raise OriginNotFoundError(f"A origem '{code}' não está configurada.")
+            raise OriginNotFoundError(t("A origem '{code}' não está configurada.", code=code))
         if not origin.enabled:
-            raise OriginDisabledError(f"A origem '{code}' está pausada; habilite-a antes de executar.")
+            raise OriginDisabledError(t("A origem '{code}' está pausada; habilite-a antes de executar.", code=code))
 
         merged = {**_options_of(origin), **request.model_dump(exclude_none=True)}
         try:
             validated = IngestionRunRequest.model_validate(merged)
         except ValidationError as exc:
-            raise InvalidOriginConfigError(f"Opções de execução inválidas: {exc}") from exc
+            raise InvalidOriginConfigError(t("Opções de execução inválidas: {exc}", exc=exc)) from exc
 
         return self.ledger.enqueue(
             "ingestion",
@@ -365,23 +373,30 @@ class IngestionOriginService:
         """
         origin = self.origins.get("manual")
         if origin is None:
-            raise OriginNotFoundError("A origem manual não está configurada; rode a migração da #44.")
+            raise OriginNotFoundError(t("A origem manual não está configurada; rode a migração da #44."))
         if not origin.enabled:
-            raise OriginDisabledError("A entrada manual está pausada; habilite a origem antes de enviar.")
+            raise OriginDisabledError(t("A entrada manual está pausada; habilite a origem antes de enviar."))
 
         description_id = request.description_id or f"manual-{uuid4().hex}"
         if len(description_id) > 50:
-            raise InvalidOriginConfigError("O identificador da entrada manual tem no máximo 50 caracteres.")
+            raise InvalidOriginConfigError(t("O identificador da entrada manual tem no máximo 50 caracteres."))
         if self.db.scalar(select(RawData.description_id).where(RawData.description_id == description_id)) is not None:
-            raise DuplicateManualRecordError(f"Já existe um registro com o identificador '{description_id}'.")
+            raise DuplicateManualRecordError(
+                t("Já existe um registro com o identificador '{description_id}'.", description_id=description_id)
+            )
         if self.db.get(ArchiveDocument, description_id) is not None:
             raise DuplicateManualRecordError(
-                f"O identificador '{description_id}' já pertence a uma descrição do acervo."
+                t(
+                    "O identificador '{description_id}' já pertence a uma descrição do acervo.",
+                    description_id=description_id,
+                )
             )
 
         payload = self._manual_payload(request)
         if not self._write_record(description_id, payload, origin_code="manual", author=author):
-            raise DuplicateManualRecordError(f"Já existe um registro com o identificador '{description_id}'.")
+            raise DuplicateManualRecordError(
+                t("Já existe um registro com o identificador '{description_id}'.", description_id=description_id)
+            )
 
         # The staging pipeline commits the raw record and the staged row before the transfer can be
         # claimed: a runner that saw the queued transfer first would find no staging row to move.
@@ -405,9 +420,10 @@ class IngestionOriginService:
         except WorkerRunAlreadyActiveError:
             return ManualIngestionResponse(
                 code=RouteMessageCode.MANUAL_INGESTION_STAGED,
-                message=(
+                message=route_message(
+                    RouteMessageCode.MANUAL_INGESTION_STAGED,
                     "Descrição recebida e estruturada. Já existe uma transferência em andamento, "
-                    "então ela entra na próxima e segue para a IA depois."
+                    "então ela entra na próxima e segue para a IA depois.",
                 ),
                 data=ManualIngestionResultDTO(
                     description_id=description_id,
@@ -421,9 +437,10 @@ class IngestionOriginService:
 
         return ManualIngestionResponse(
             code=RouteMessageCode.MANUAL_INGESTION_QUEUED,
-            message=(
+            message=route_message(
+                RouteMessageCode.MANUAL_INGESTION_QUEUED,
                 "Descrição recebida e estruturada. A transferência foi enfileirada; a IA vai "
-                "enriquecê-la e o registro continua em revisão."
+                "enriquecê-la e o registro continua em revisão.",
             ),
             data=ManualIngestionResultDTO(
                 description_id=description_id,
@@ -470,21 +487,28 @@ class IngestionOriginService:
         """
         origin = self.origins.get("csv")
         if origin is None:
-            raise OriginNotFoundError("A origem CSV não está configurada; rode a migração da #191.")
+            raise OriginNotFoundError(t("A origem CSV não está configurada; rode a migração da #191."))
         if not origin.enabled:
-            raise OriginDisabledError("A importação CSV está pausada; habilite a origem antes de enviar.")
+            raise OriginDisabledError(t("A importação CSV está pausada; habilite a origem antes de enviar."))
 
         received = len(request.rows)
         if received > MAX_CSV_ROWS:
             raise CsvImportLimitError(
-                f"A importação aceita no máximo {MAX_CSV_ROWS} linhas por vez; o arquivo tem {received}."
+                t(
+                    "A importação aceita no máximo {max_csv_rows} linhas por vez; o arquivo tem {received}.",
+                    max_csv_rows=MAX_CSV_ROWS,
+                    received=received,
+                )
             )
         total_bytes = sum(row_bytes(row.fields) for row in request.rows)
         if total_bytes > MAX_CSV_BYTES:
             limit_mb = MAX_CSV_BYTES // (1024 * 1024)
             raise CsvImportLimitError(
-                f"A importação tem {total_bytes / (1024 * 1024):.1f} MB; o limite é {limit_mb} MB. "
-                "Divida o arquivo em partes."
+                t(
+                    "A importação tem {total_bytes} MB; o limite é {limit_mb} MB. Divida o arquivo em partes.",
+                    total_bytes=total_bytes / (1024 * 1024),
+                    limit_mb=limit_mb,
+                )
             )
 
         existing = self._existing_ids([row.description_id.strip() for row in request.rows])
@@ -719,17 +743,37 @@ class IngestionOriginService:
         if accepted == 0:
             return (
                 RouteMessageCode.CSV_IMPORT_REFUSED,
-                f"Nenhuma das {received} linhas entrou: {duplicated} duplicadas e {invalid} inválidas. "
-                "Corrija a prévia e envie de novo.",
+                route_message(
+                    RouteMessageCode.CSV_IMPORT_REFUSED,
+                    "Nenhuma das {received} linhas entrou: {duplicated} duplicadas e {invalid} inválidas. "
+                    "Corrija a prévia e envie de novo.",
+                    received=received,
+                    duplicated=duplicated,
+                    invalid=invalid,
+                ),
             )
-        counts = f"{accepted} de {received} linhas importadas ({duplicated} duplicadas, {invalid} inválidas)."
         if transfer_queued:
             return (
                 RouteMessageCode.CSV_IMPORT_QUEUED,
-                f"{counts} A transferência foi enfileirada; a IA vai enriquecê-las e elas continuam em revisão.",
+                route_message(
+                    RouteMessageCode.CSV_IMPORT_QUEUED,
+                    "{accepted} de {received} linhas importadas ({duplicated} duplicadas, {invalid} inválidas). "
+                    "A transferência foi enfileirada; a IA vai enriquecê-las e elas continuam em revisão.",
+                    accepted=accepted,
+                    received=received,
+                    duplicated=duplicated,
+                    invalid=invalid,
+                ),
             )
         return (
             RouteMessageCode.CSV_IMPORT_STAGED,
-            f"{counts} Já existe uma transferência em andamento, então elas entram na próxima e seguem "
-            "para a IA depois.",
+            route_message(
+                RouteMessageCode.CSV_IMPORT_STAGED,
+                "{accepted} de {received} linhas importadas ({duplicated} duplicadas, {invalid} inválidas). "
+                "Já existe uma transferência em andamento, então elas entram na próxima e seguem para a IA depois.",
+                accepted=accepted,
+                received=received,
+                duplicated=duplicated,
+                invalid=invalid,
+            ),
         )

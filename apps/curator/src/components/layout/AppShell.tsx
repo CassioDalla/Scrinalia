@@ -23,16 +23,18 @@ import {
   UserX,
   type LucideIcon,
 } from "lucide-react";
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
-import { fetchCurrentUser, fetchSetupStatus, logout, type AuthUser } from "@/api/client";
+import { fetchCurrentUser, fetchSetupStatus, logout, updateLocale, type AuthUser } from "@/api/client";
 import { Lockup } from "@/components/brand/Lockup";
 import { Mark } from "@/components/brand/Mark";
 import { Button } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/Feedback";
+import { useCopy, useLocale } from "@/i18n/context";
+import { detectLocale, LOCALE_LABEL, LOCALES, type Locale } from "@/i18n/locale";
+import type { Messages } from "@/i18n/pt";
 import { cn } from "@/lib/cn";
-import { PRODUCT } from "@/lib/copy";
-import { can, ROLE_LABEL, type Permission } from "@/lib/permissions";
+import { can, type Permission } from "@/lib/permissions";
 import { SCREENS, type Screen, type ScreenId } from "@/lib/screens";
 import { SETTINGS_PATHS, SETTINGS_PERMISSIONS } from "@/lib/settings";
 
@@ -102,7 +104,9 @@ type NavItem = {
 };
 
 /** ``section`` is optional: the landing at the foot of the menu stands on its own, with no heading. */
-type NavGroup = { id: string; section?: string; items: NavItem[] };
+type SectionId = keyof Messages["nav"]["sections"];
+
+type NavGroup = { id: string; section?: SectionId; items: NavItem[] };
 
 const NAV: NavGroup[] = [
   {
@@ -118,7 +122,7 @@ const NAV: NavGroup[] = [
   },
   {
     id: "acervo",
-    section: "Acervo",
+    section: "acervo",
     items: [
       /*
         Creating a description is the first thing the collection offers, and it belongs here rather
@@ -141,7 +145,7 @@ const NAV: NavGroup[] = [
   },
   {
     id: "assuntos",
-    section: "Assuntos",
+    section: "assuntos",
     items: [
       { screen: "tags", icon: Tags, permission: "CURATE" },
       { screen: "categories", icon: FolderTree, permission: "CATALOGUE" },
@@ -151,7 +155,7 @@ const NAV: NavGroup[] = [
   },
   {
     id: "entidades",
-    section: "Entidades",
+    section: "entidades",
     items: [
       { screen: "entities", icon: Users, permission: "CURATE" },
       { screen: "nerExclusions", icon: UserX, permission: "CURATE" },
@@ -160,7 +164,7 @@ const NAV: NavGroup[] = [
   },
   {
     id: "qualidade",
-    section: "Qualidade",
+    section: "qualidade",
     items: [
       { screen: "textTemplates", icon: Scissors, permission: "CATALOGUE" },
       { screen: "cleaningRules", icon: Ruler, permission: "CATALOGUE" },
@@ -190,7 +194,7 @@ const NAV: NavGroup[] = [
 ];
 
 /** An entry with the screen's own name resolved. What the render below reads. */
-type ResolvedNavItem = NavItem & Screen;
+type ResolvedNavItem = NavItem & Screen & { label: string; hint: string };
 
 /**
  * Whether the account sees an entry.
@@ -224,12 +228,15 @@ function reaches(role: AuthUser["role"], item: NavItem): boolean {
  * right when a group empties out, and it is the only place the two catalogues meet: `NAV` decides
  * what the rail offers, `SCREENS` says what each screen is called.
  */
-function visibleNav(role: AuthUser["role"]): (Omit<NavGroup, "items"> & { items: ResolvedNavItem[] })[] {
+function visibleNav(
+  role: AuthUser["role"],
+  copy: Messages,
+): (Omit<NavGroup, "items"> & { items: ResolvedNavItem[] })[] {
   return NAV.map((group) => ({
     ...group,
     items: group.items
       .filter((item) => reaches(role, item))
-      .map((item) => ({ ...item, ...SCREENS[item.screen] })),
+      .map((item) => ({ ...item, ...SCREENS[item.screen], ...copy.screens[item.screen] })),
   })).filter((group) => group.items.length > 0);
 }
 
@@ -262,6 +269,8 @@ function writeCollapsed(collapsed: boolean): void {
 }
 
 export function AppShell() {
+  const copy = useCopy();
+  const { setLocale } = useLocale();
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const [changingPassword, setChangingPassword] = useState(false);
   const [collapsed, setCollapsed] = useState(readCollapsed);
@@ -316,6 +325,18 @@ export function AppShell() {
     enabled: !needsSetup,
   });
 
+  /*
+    The account is the source of the choice once there is a session (ADR 0020 §3): ``null`` means
+    automatic, and the browser decides. It is stored per account and never per browser, so the next
+    person to sign in on this machine does not inherit the previous one's language.
+  */
+  const signedIn = session.data !== undefined;
+  const accountLocale = session.data?.locale ?? null;
+  useEffect(() => {
+    if (!signedIn) return;
+    setLocale(accountLocale ?? detectLocale(), { persist: false });
+  }, [accountLocale, signedIn, setLocale]);
+
   if (setup.isPending) {
     return (
       <div className="flex min-h-full items-center justify-center">
@@ -366,7 +387,7 @@ export function AppShell() {
     behind. `visibleNav` also resolves each entry against the screens catalogue here, so the render
     below reads one shape.
   */
-  const groups = visibleNav(user.role);
+  const groups = visibleNav(user.role, copy);
 
   /*
     The group the archivist is standing in, which is open by construction.
@@ -423,8 +444,8 @@ export function AppShell() {
               onClick={toggleSidebar}
               aria-expanded={false}
               aria-controls="app-nav"
-              aria-label="Expandir o menu"
-              title="Expandir o menu"
+              aria-label={copy.shell.expandMenu}
+              title={copy.shell.expandMenu}
               className="mx-auto grid size-9 place-items-center rounded-md transition hover:bg-(--color-rail-hover)"
             >
               <Mark className="h-7 w-auto text-(--color-rail-ink)" />
@@ -433,15 +454,15 @@ export function AppShell() {
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
                 <Lockup className="h-8 w-auto text-(--color-rail-ink)" />
-                <p className="truncate text-xs text-(--color-rail-muted)">{PRODUCT.tagline}</p>
+                <p className="truncate text-xs text-(--color-rail-muted)">{copy.product.tagline}</p>
               </div>
               <button
                 type="button"
                 onClick={toggleSidebar}
                 aria-expanded
                 aria-controls="app-nav"
-                aria-label="Recolher o menu"
-                title="Recolher o menu"
+                aria-label={copy.shell.collapseMenu}
+                title={copy.shell.collapseMenu}
                 className="grid size-8 shrink-0 place-items-center rounded-md text-(--color-rail-muted) transition hover:bg-(--color-rail-hover) hover:text-(--color-rail-ink)"
               >
                 <PanelLeftClose className="size-4" aria-hidden />
@@ -451,7 +472,7 @@ export function AppShell() {
         </div>
         <nav
           id="app-nav"
-          aria-label="Menu principal"
+          aria-label={copy.shell.mainMenu}
           className={cn("min-h-0 flex-1 overflow-y-auto py-3", collapsed ? "px-1.5" : "px-2")}
         >
           {groups.map((group, index) => {
@@ -487,7 +508,7 @@ export function AppShell() {
                     aria-controls={panelId}
                     className="flex w-full items-center justify-between rounded-md px-2 pb-1 text-[11px] font-semibold tracking-wide text-(--color-rail-muted) uppercase transition hover:text-(--color-rail-ink)"
                   >
-                    {group.section}
+                    {group.section ? copy.nav.sections[group.section] : null}
                     <span aria-hidden className="text-[9px]">
                       {open ? "▾" : "▸"}
                     </span>
@@ -606,6 +627,8 @@ function SessionFooter({
   changing: boolean;
   onTogglePassword: () => void;
 }) {
+  const copy = useCopy();
+  const { setLocale } = useLocale();
   const queryClient = useQueryClient();
   const signOut = useMutation({
     mutationFn: logout,
@@ -613,9 +636,16 @@ function SessionFooter({
     // the cached account is what draws the sign-in form.
     onSettled: () => queryClient.setQueryData(["current-user"], null),
   });
+  const saveLocale = useMutation({
+    mutationFn: (next: Locale | null) => updateLocale(next),
+    onSuccess: (account) => {
+      queryClient.setQueryData(["current-user"], account);
+      setLocale(account.locale ?? detectLocale(), { persist: false });
+    },
+  });
 
   if (collapsed) {
-    const identity = `${user.name} · ${ROLE_LABEL[user.role]} · ${user.email}`;
+    const identity = `${user.name} · ${copy.roles[user.role]} · ${user.email}`;
     return (
       <div className="flex shrink-0 flex-col items-center gap-2 border-t border-(--color-rail-line) px-1.5 py-3">
         <span
@@ -629,8 +659,8 @@ function SessionFooter({
           variant="ghost"
           size="sm"
           className="size-8 px-0 text-(--color-rail-muted) hover:bg-(--color-rail-hover) hover:text-(--color-rail-ink)"
-          title={changing ? "Fechar" : "Trocar senha"}
-          aria-label={changing ? "Fechar" : "Trocar senha"}
+          title={changing ? copy.shell.close : copy.shell.changePassword}
+          aria-label={changing ? copy.shell.close : copy.shell.changePassword}
           onClick={onTogglePassword}
         >
           <KeyRound className="size-4" aria-hidden />
@@ -639,8 +669,8 @@ function SessionFooter({
           variant="ghost"
           size="sm"
           className="size-8 px-0 text-(--color-rail-muted) hover:bg-(--color-rail-hover) hover:text-(--color-rail-ink)"
-          title={signOut.isPending ? "Saindo…" : "Sair"}
-          aria-label={signOut.isPending ? "Saindo…" : "Sair"}
+          title={signOut.isPending ? copy.shell.signingOut : copy.shell.signOut}
+          aria-label={signOut.isPending ? copy.shell.signingOut : copy.shell.signOut}
           disabled={signOut.isPending}
           onClick={() => signOut.mutate()}
         >
@@ -654,7 +684,7 @@ function SessionFooter({
     <div className="shrink-0 border-t border-(--color-rail-line) px-4 py-3">
       <p className="truncate text-sm font-medium text-(--color-rail-ink)">{user.name}</p>
       <p className="truncate text-xs text-(--color-rail-muted)">
-        {ROLE_LABEL[user.role]} · {user.email}
+        {copy.roles[user.role]} · {user.email}
       </p>
       <div className="flex items-center gap-1 pt-2">
         <Button
@@ -663,7 +693,7 @@ function SessionFooter({
           className="text-(--color-rail-muted) hover:bg-(--color-rail-hover) hover:text-(--color-rail-ink)"
           onClick={onTogglePassword}
         >
-          {changing ? "Fechar" : "Trocar senha"}
+          {changing ? copy.shell.close : copy.shell.changePassword}
         </Button>
         <Button
           variant="ghost"
@@ -672,9 +702,31 @@ function SessionFooter({
           disabled={signOut.isPending}
           onClick={() => signOut.mutate()}
         >
-          {signOut.isPending ? "Saindo…" : "Sair"}
+          {signOut.isPending ? copy.shell.signingOut : copy.shell.signOut}
         </Button>
       </div>
+      <label className="flex items-center gap-2 pt-2 text-xs text-(--color-rail-muted)">
+        <span>{copy.shell.language}</span>
+        <select
+          value={user.locale ?? "auto"}
+          disabled={saveLocale.isPending}
+          onChange={(event) => {
+            const value = event.target.value;
+            saveLocale.mutate(value === "auto" ? null : (value as Locale));
+          }}
+          className="rounded border border-(--color-rail-line) bg-(--color-rail) px-1 py-0.5 text-xs text-(--color-rail-ink)"
+        >
+          <option value="auto">{copy.shell.automatic}</option>
+          {LOCALES.map((value) => (
+            <option key={value} value={value}>
+              {LOCALE_LABEL[value]}
+            </option>
+          ))}
+        </select>
+      </label>
+      {saveLocale.isError ? (
+        <p className="pt-1 text-xs text-(--color-danger)">{copy.shell.localeFailed}</p>
+      ) : null}
     </div>
   );
 }

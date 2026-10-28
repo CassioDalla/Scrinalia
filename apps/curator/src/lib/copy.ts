@@ -23,6 +23,8 @@
  * be a false unification: the archivist reads them as different decisions because they are.
  */
 
+import { activeMessages } from "@/i18n/locale";
+import type { Messages } from "@/i18n/pt";
 import { ATTRIBUTION } from "@/lib/attribution";
 
 /**
@@ -37,10 +39,6 @@ import { ATTRIBUTION } from "@/lib/attribution";
 export const PRODUCT = {
   /** The display name. Re-exported, never re-typed. */
   name: ATTRIBUTION.name,
-  /** What this build of the product is, for the person using it. The rail's second line. */
-  tagline: "Curadoria do acervo",
-  /** The browser tab. `index.html` boots with the neutral `Curadoria` and `main.tsx` replaces it. */
-  documentTitle: `${ATTRIBUTION.name} — Curadoria`,
   /**
    * The system's version, injected at build time from `pyproject.toml` by `vite.config.ts`.
    *
@@ -69,60 +67,14 @@ export type Action = { readonly label: string; readonly pending?: string };
  * the fact that it existed. The second disables an **account**. A screen that used one word for both
  * would be telling the archivist that a catalogue row and a person leave the system the same way.
  */
-export const ACTION = {
-  /** Writes an edited row. */
-  save: { label: "Salvar", pending: "Salvando…" },
-  /** Brings a row into existence. The trigger beside it reads `+ Nova…`/`+ Novo…`. */
-  create: { label: "Criar", pending: "Criando…" },
-  /** Takes something off a list without destroying it — a veto, an exclusion, a term. */
-  remove: { label: "Remover", pending: "Removendo…" },
-  /** Agrees with something the AI proposed, turning it into a person's decision. */
-  confirm: { label: "Confirmar", pending: "Confirmando…" },
-  /** Destroys a record, always behind a preview or a typed confirmation. */
-  exclude: { label: "Excluir", pending: "Excluindo…" },
-  /** Flips `is_active` to false on a catalogue row. Reversible from the same row. */
-  retire: { label: "Aposentar", pending: "Aposentando…" },
-  /** Flips `is_active` back to true. Shared with `deactivate`, which is its own action. */
-  reactivate: { label: "Reativar", pending: "Reativando…" },
-  /** Disables an account. Not a catalogue row: see the note above. */
-  deactivate: { label: "Desativar", pending: "Desativando…" },
-  /** Enqueues one worker run; a runner outside the API executes it (ADR 0014). */
-  run: { label: "Enfileirar execução", pending: "Enfileirando…" },
-  /** Unifies two vocabulary entries into one. */
-  merge: { label: "Mesclar", pending: "Mesclando…" },
-  /**
-   * Corrects the spelling of one row's name, without absorbing anything.
-   *
-   * Its own verb and not `save`: `save` commits a form of fields, while a rename is a decision about
-   * the vocabulary — the previous spelling may stay anchored as a synonym — and it is the one action
-   * on this screen whose subject is a single name rather than a pair.
-   */
-  rename: { label: "Renomear", pending: "Renomeando…" },
-  /** Commits a computed plan — an arrangement proposal, a batch of clusters, a conflict verdict. */
-  apply: { label: "Aplicar", pending: "Aplicando…" },
-  /**
-   * Computes what a destructive write would do, without writing it.
-   *
-   * Its own entry because it is its own step: every irreversible write in this UI is gated behind a
-   * preview, and the screens spelled that gate three ways — `Conferir impacto`, `Conferir o que seria
-   * excluído`, `Conferir`. One button, one name.
-   */
-  preview: { label: "Conferir impacto", pending: "Conferindo…" },
-  /** Walks a ledger backwards. */
-  undo: { label: "Desfazer", pending: "Desfazendo…" },
-  /** Removes a term from an axis without touching the documents. */
-  ban: { label: "Banir", pending: "Banindo…" },
-  /** Puts a banned term back on its axis. */
-  unban: { label: "Desbanir", pending: "Desbanindo…" },
-  /** Drops a local draft without writing anything. */
-  discard: { label: "Descartar", pending: "Descartando…" },
-  /** Abandons a form or a preview. */
-  cancel: { label: "Cancelar" },
-  /** Closes a panel that is already open. */
-  close: { label: "Fechar" },
-  /** Re-runs a read-only probe. */
-  recheck: { label: "Verificar de novo", pending: "Verificando…" },
-} as const satisfies Record<string, Action>;
+export const ACTION = new Proxy({} as Record<ActionKey, Action>, {
+  get(_target, key) {
+    return activeMessages().actions[key as ActionKey];
+  },
+});
+
+/** The action keys the interface has; closed by the catalogue. */
+type ActionKey = keyof Messages["actions"];
 
 /**
  * The one sentence the two screens say about the file a description does not have yet.
@@ -137,7 +89,13 @@ export const ACTION = {
  * the document was attached. A control that says "not yet" is the honest version of that box.
  */
 export const DIGITAL_OBJECT = {
-  label: "Objeto Digital",
-  hint: "Anexos (imagem, PDF, áudio) ainda não são enviados; o registro guarda a descrição.",
-  disabled: "Indisponível por enquanto",
-} as const;
+  get label(): string {
+    return activeMessages().digitalObject.label;
+  },
+  get hint(): string {
+    return activeMessages().digitalObject.hint;
+  },
+  get disabled(): string {
+    return activeMessages().digitalObject.disabled;
+  },
+};

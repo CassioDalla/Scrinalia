@@ -19,9 +19,8 @@ from collections import defaultdict, deque
 from collections.abc import Callable
 
 from scrinalia.core.config import get_settings
+from scrinalia.core.i18n import refusal
 from scrinalia.domains.identity.exceptions import TooManyLoginAttemptsError
-
-TOO_MANY_ATTEMPTS_MESSAGE = "Muitas tentativas de acesso a partir deste endereço. Aguarde alguns minutos."
 
 
 class LoginRateLimiter:
@@ -51,7 +50,7 @@ class LoginRateLimiter:
             while hits and hits[0] <= cutoff:
                 hits.popleft()
             if len(hits) >= ceiling:
-                raise TooManyLoginAttemptsError(TOO_MANY_ATTEMPTS_MESSAGE)
+                raise TooManyLoginAttemptsError(refusal("auth.too_many_attempts"))
             hits.append(now)
 
     def reset(self) -> None:

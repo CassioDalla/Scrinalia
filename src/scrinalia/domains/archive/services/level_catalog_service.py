@@ -1,5 +1,6 @@
 """Level catalogue use cases (Fase 2.5, H1)."""
 
+from scrinalia.core.i18n import t
 from scrinalia.domains.archive.exceptions import (
     DescriptionLevelNotFoundError,
     DuplicateDescriptionLevelError,
@@ -47,7 +48,9 @@ class LevelCatalogService:
     def get_level(self, level_id: int) -> ArchiveDescriptionLevel:
         level = self.repo.get(level_id)
         if level is None:
-            raise DescriptionLevelNotFoundError(f"Nível de descrição {level_id} não existe no catálogo.")
+            raise DescriptionLevelNotFoundError(
+                t("Nível de descrição {level_id} não existe no catálogo.", level_id=level_id)
+            )
         return level
 
     def create_level(self, command: CreateDescriptionLevelCommand) -> DescriptionLevelDTO:
@@ -86,16 +89,21 @@ class LevelCatalogService:
         level_id = self.resolve(declared)
         if level_id is None:
             raise InvalidDescriptionLevelError(
-                f"O nível de descrição '{declared}' não existe no catálogo. Cadastre-o (ou uma grafia equivalente) antes."
+                t(
+                    "O nível de descrição '{declared}' não existe no catálogo. Cadastre-o (ou uma grafia equivalente) antes.",
+                    declared=declared,
+                )
             )
         return level_id
 
     def _reject_collisions(self, ordinal: int | None, code: str | None, name: str | None) -> None:
         if ordinal is not None and self.repo.get_by_ordinal(ordinal) is not None:
-            raise DuplicateDescriptionLevelError(f"Já existe um nível na posição {ordinal} da escada.")
+            raise DuplicateDescriptionLevelError(
+                t("Já existe um nível na posição {ordinal} da escada.", ordinal=ordinal)
+            )
         if code is not None and self.repo.get_by_code(code) is not None:
-            raise DuplicateDescriptionLevelError(f"Já existe um nível com o código '{code}'.")
+            raise DuplicateDescriptionLevelError(t("Já existe um nível com o código '{code}'.", code=code))
         if name is not None:
             for level in self.repo.list_levels():
                 if level.name.strip().lower() == name.strip().lower():
-                    raise DuplicateDescriptionLevelError(f"Já existe um nível chamado '{name}'.")
+                    raise DuplicateDescriptionLevelError(t("Já existe um nível chamado '{name}'.", name=name))

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { ApiError, changePassword } from "@/api/client";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { useCopy } from "@/i18n/context";
 
 /**
  * Replacing the account's own password.
@@ -23,6 +24,7 @@ export function PasswordChangeForm({
   forced?: boolean;
   onDone?: () => void;
 }) {
+  const copy = useCopy();
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmation, setConfirmation] = useState("");
@@ -49,15 +51,13 @@ export function PasswordChangeForm({
           change.mutate();
         }}
       >
-        <p className="text-base font-semibold">Trocar senha</p>
+        <p className="text-base font-semibold">{copy.auth.password.title}</p>
         <p className="pb-5 text-sm text-(--color-muted)">
-          {forced
-            ? "Esta conta ainda usa a senha temporária do primeiro acesso. Escolha uma senha sua para continuar."
-            : "As outras sessões desta conta serão encerradas."}
+          {forced ? copy.auth.password.forced : copy.auth.password.voluntary}
         </p>
 
         <label className="block pb-3 text-sm">
-          <span className="pb-1 block text-(--color-muted)">Senha Atual</span>
+          <span className="pb-1 block text-(--color-muted)">{copy.auth.password.current}</span>
           <Input
             type="password"
             value={currentPassword}
@@ -68,7 +68,7 @@ export function PasswordChangeForm({
         </label>
 
         <label className="block pb-3 text-sm">
-          <span className="pb-1 block text-(--color-muted)">Nova Senha</span>
+          <span className="pb-1 block text-(--color-muted)">{copy.auth.password.next}</span>
           <Input
             type="password"
             value={newPassword}
@@ -78,7 +78,7 @@ export function PasswordChangeForm({
         </label>
 
         <label className="block pb-5 text-sm">
-          <span className="pb-1 block text-(--color-muted)">Confirmação da Nova Senha</span>
+          <span className="pb-1 block text-(--color-muted)">{copy.auth.password.confirmation}</span>
           <Input
             type="password"
             value={confirmation}
@@ -87,10 +87,10 @@ export function PasswordChangeForm({
           />
         </label>
 
-        {mismatch ? <p className="pb-4 text-sm text-(--color-danger)">As duas senhas não coincidem.</p> : null}
+        {mismatch ? <p className="pb-4 text-sm text-(--color-danger)">{copy.auth.password.mismatch}</p> : null}
         {failure ? (
           <p className="pb-4 text-sm text-(--color-danger)">
-            {failure instanceof ApiError ? failure.message : "Não foi possível trocar a senha."}
+            {failure instanceof ApiError ? failure.message : copy.auth.password.failure}
           </p>
         ) : null}
 
@@ -100,11 +100,11 @@ export function PasswordChangeForm({
             variant="primary"
             disabled={change.isPending || !currentPassword || !newPassword || mismatch}
           >
-            {change.isPending ? "Trocando…" : "Trocar senha"}
+            {change.isPending ? copy.auth.password.changing : copy.auth.password.change}
           </Button>
           {!forced && onDone ? (
             <Button type="button" variant="ghost" onClick={onDone}>
-              Cancelar
+              {copy.auth.password.cancel}
             </Button>
           ) : null}
         </div>

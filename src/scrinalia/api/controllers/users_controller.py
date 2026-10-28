@@ -22,6 +22,7 @@ from scrinalia.api.dependencies import provide_auth_service, provide_current_use
 from scrinalia.api.security import Access, AuthenticatedUser
 from scrinalia.core.config import get_settings
 from scrinalia.domains.archive.schemas.responses import RouteMessageCode, RouteResponse
+from scrinalia.domains.archive.schemas.route_messages import route_message
 from scrinalia.domains.identity.domain.credentials import hash_session_token
 from scrinalia.domains.identity.schemas.user_schema import (
     AuthSessionDTO,
@@ -110,7 +111,9 @@ class UsersController(Controller):
         return Response(
             RouteResponse(
                 code=RouteMessageCode.USER_PASSWORD_RESET,
-                message="Senha redefinida. As sessões desta conta foram encerradas.",
+                message=route_message(
+                    RouteMessageCode.USER_PASSWORD_RESET, "Senha redefinida. As sessões desta conta foram encerradas."
+                ),
             )
         )
 
@@ -148,7 +151,9 @@ class UsersController(Controller):
         return Response(
             RouteResponse(
                 code=RouteMessageCode.USER_SESSIONS_REVOKED,
-                message=f"{ended} sessão(ões) encerrada(s).",
+                message=route_message(
+                    RouteMessageCode.USER_SESSIONS_REVOKED, "{ended} sessão(ões) encerrada(s).", ended=ended
+                ),
             )
         )
 
@@ -172,4 +177,9 @@ class UsersController(Controller):
         sign-ins.
         """
         auth_service.revoke_session(user_id, session_id)
-        return Response(RouteResponse(code=RouteMessageCode.SESSION_REVOKED, message="Sessão encerrada."))
+        return Response(
+            RouteResponse(
+                code=RouteMessageCode.SESSION_REVOKED,
+                message=route_message(RouteMessageCode.SESSION_REVOKED, "Sessão encerrada."),
+            )
+        )

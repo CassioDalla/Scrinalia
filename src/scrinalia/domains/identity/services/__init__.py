@@ -1,6 +1,5 @@
-from .auth_service import INVALID_CREDENTIALS_MESSAGE, AuthService
+from .auth_service import AuthService
 
 __all__ = [
-    "INVALID_CREDENTIALS_MESSAGE",
     "AuthService",
 ]

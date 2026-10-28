@@ -21,6 +21,7 @@ from __future__ import annotations
 from sqlalchemy.orm import Session
 
 from scrinalia.core.author import Author
+from scrinalia.core.i18n import t
 from scrinalia.domains.archive.exceptions import (
     InvalidWorkerSettingsError,
     WorkerNotFoundError,
@@ -31,6 +32,7 @@ from scrinalia.domains.archive.models.enums import ACTIVE_WORKER_RUN_STATUSES, W
 from scrinalia.domains.archive.repository.worker_run_repo import WorkerRunRepository
 from scrinalia.domains.archive.repository.worker_settings_repo import WorkerSettingsRepository
 from scrinalia.domains.archive.schemas.responses import RouteMessageCode
+from scrinalia.domains.archive.schemas.route_messages import route_message
 from scrinalia.domains.archive.schemas.system_schema import (
     WorkerRunCancelResponse,
     WorkerRunDetailDTO,
@@ -72,11 +74,18 @@ class WorkerRunService:
         """
         spec = WORKER_CATALOGUE.get(worker_name)
         if spec is None:
-            raise WorkerNotFoundError(f"Worker '{worker_name}' não existe. Opções: {sorted(WORKER_CATALOGUE)}.")
+            raise WorkerNotFoundError(
+                t(
+                    "Worker '{worker_name}' não existe. Opções: {worker_catalogue}.",
+                    worker_name=worker_name,
+                    worker_catalogue=sorted(WORKER_CATALOGUE),
+                )
+            )
         if spec.origin_axis:
             raise InvalidWorkerSettingsError(
-                "A ingestão é enfileirada pela origem, não pelo worker genérico: use a tela de "
-                "ingestão ou POST /api/v1/ingestion/origins/{code}/runs."
+                t(
+                    "A ingestão é enfileirada pela origem, não pelo worker genérico: use a tela de ingestão ou POST /api/v1/ingestion/origins/{code}/runs."
+                )
             )
 
         validate_engine_choice(spec, request.engine_name, request.preset)
@@ -118,27 +127,41 @@ class WorkerRunService:
         """
         spec = WORKER_CATALOGUE.get(worker_name)
         if spec is None:
-            raise WorkerNotFoundError(f"Worker '{worker_name}' não existe. Opções: {sorted(WORKER_CATALOGUE)}.")
+            raise WorkerNotFoundError(
+                t(
+                    "Worker '{worker_name}' não existe. Opções: {worker_catalogue}.",
+                    worker_name=worker_name,
+                    worker_catalogue=sorted(WORKER_CATALOGUE),
+                )
+            )
         if not spec.trial:
             raise InvalidWorkerSettingsError(
-                f"O worker '{worker_name}' não aceita ensaio: ele não tem uma comparação registrada. "
-                "Hoje aceitam: os workers com 'trial' no catálogo."
+                t(
+                    "O worker '{worker_name}' não aceita ensaio: ele não tem uma comparação registrada. Hoje aceitam: os workers com 'trial' no catálogo.",
+                    worker_name=worker_name,
+                )
             )
         if spec.origin_axis:
-            raise InvalidWorkerSettingsError("A ingestão não tem ensaio: a unidade dela é a origem.")
+            raise InvalidWorkerSettingsError(t("A ingestão não tem ensaio: a unidade dela é a origem."))
 
         for position, config in enumerate(request.configs, start=1):
             validate_engine_choice(spec, config.engine_name, config.preset)
             validate_options(spec, config.options)
             if config.engine_options:
                 raise InvalidWorkerSettingsError(
-                    f"Configuração {position}: 'engine_options' é um repasse de uma execução e não "
-                    "vira padrão; o ensaio compara o que a tela pode salvar."
+                    t(
+                        "Configuração {position}: 'engine_options' é um repasse de uma execução e não vira padrão; o ensaio compara o que a tela pode salvar.",
+                        position=position,
+                    )
                 )
             refused = sorted(set(config.options) & RUN_ONLY_OPTIONS)
             if refused:
                 raise InvalidWorkerSettingsError(
-                    f"Configuração {position}: o ensaio não aceita {refused}; o tamanho da amostra é o campo 'sample'."
+                    t(
+                        "Configuração {position}: o ensaio não aceita {refused}; o tamanho da amostra é o campo 'sample'.",
+                        position=position,
+                        refused=refused,
+                    )
                 )
 
         return self.ledger.enqueue(
@@ -168,38 +191,49 @@ class WorkerRunService:
             return self._cancel_answer(
                 run_id,
                 code=RouteMessageCode.WORKER_RUN_CANCELLED,
-                message="Execução cancelada: ela ainda não havia sido reivindicada por um runner.",
+                message=route_message(
+                    RouteMessageCode.WORKER_RUN_CANCELLED,
+                    "Execução cancelada: ela ainda não havia sido reivindicada por um runner.",
+                ),
             )
         if self.runs.request_cancel(run_id, requested_by=requested_by):
             return self._cancel_answer(
                 run_id,
                 code=RouteMessageCode.WORKER_RUN_CANCEL_REQUESTED,
-                message="Cancelamento pedido: a execução para no fim do lote atual.",
+                message=route_message(
+                    RouteMessageCode.WORKER_RUN_CANCEL_REQUESTED,
+                    "Cancelamento pedido: a execução para no fim do lote atual.",
+                ),
             )
 
         run = self.runs.get(run_id, populate_existing=True)
         if run is None:
-            raise WorkerRunNotFoundError(f"Execução {run_id} não existe no ledger.")
+            raise WorkerRunNotFoundError(t("Execução {run_id} não existe no ledger.", run_id=run_id))
         if run.cancel_requested_at is not None and run.status in ACTIVE_WORKER_RUN_STATUSES:
             return WorkerRunCancelResponse(
                 code=RouteMessageCode.WORKER_RUN_CANCEL_REQUESTED,
-                message="O cancelamento desta execução já havia sido pedido; ela para no fim do lote atual.",
+                message=route_message(
+                    RouteMessageCode.WORKER_RUN_CANCEL_ALREADY_REQUESTED,
+                    "O cancelamento desta execução já havia sido pedido; ela para no fim do lote atual.",
+                ),
                 data=run,
             )
-        raise WorkerRunNotCancellableError(f"A execução {run_id} já terminou ({run.status}); não há o que cancelar.")
+        raise WorkerRunNotCancellableError(
+            t("A execução {run_id} já terminou ({status}); não há o que cancelar.", run_id=run_id, status=run.status)
+        )
 
     def _cancel_answer(self, run_id: int, *, code: RouteMessageCode, message: str) -> WorkerRunCancelResponse:
         """The row as the write left it, re-read so the answer is not the state before the update."""
         run = self.runs.get(run_id, populate_existing=True)
         if run is None:
-            raise WorkerRunNotFoundError(f"Execução {run_id} não existe no ledger.")
+            raise WorkerRunNotFoundError(t("Execução {run_id} não existe no ledger.", run_id=run_id))
         return WorkerRunCancelResponse(code=code, message=message, data=run)
 
     def get_run(self, run_id: int) -> WorkerRunDetailDTO:
         """One execution with its trial result, when it is a trial (ADR 0018)."""
         run = self.runs.get_detail(run_id)
         if run is None:
-            raise WorkerRunNotFoundError(f"Execução {run_id} não existe no ledger.")
+            raise WorkerRunNotFoundError(t("Execução {run_id} não existe no ledger.", run_id=run_id))
         return run
 
     def list_runs(

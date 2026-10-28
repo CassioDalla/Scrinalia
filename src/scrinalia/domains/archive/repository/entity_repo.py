@@ -8,6 +8,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session, aliased
 
 from scrinalia.core.author import Author, assign_author, author_columns
+from scrinalia.core.i18n import t
 from scrinalia.domains.archive.domain.entity_merge import (
     KIND_MERGE,
     KIND_RENAME,
@@ -127,7 +128,7 @@ class EntityRepository:
         """
 
         if not target_name:
-            raise InvalidParam("O parametro 'target_name' é obrigatório")
+            raise InvalidParam(t("O parametro 'target_name' é obrigatório"))
 
         self.db.execute(text("SET LOCAL pg_trgm.similarity_threshold = :threshold"), {"threshold": threshold})
 
@@ -689,12 +690,12 @@ class EntityRepository:
         Returns what was written, including the ``resolution_id`` the screen needs to offer the undo.
         """
         if not plan.resolvable:
-            raise UnresolvableConflictError(plan.blocker or "Este par não pode mais ser resolvido.")
+            raise UnresolvableConflictError(t(plan.blocker or "Este par não pode mais ser resolvido."))
 
         if winner == "TAG" and not plan.entity_alive:
-            raise UnresolvableConflictError("A entidade deste par não existe mais.")
+            raise UnresolvableConflictError(t("A entidade deste par não existe mais."))
         if winner == "ENTITY" and not plan.tag_alive:
-            raise UnresolvableConflictError("A tag deste par não existe mais.")
+            raise UnresolvableConflictError(t("A tag deste par não existe mais."))
 
         if winner == "TAG":
             loser_docs = self._document_ids_by_entity(plan.entity_id)
@@ -855,10 +856,16 @@ class EntityRepository:
         """
         row = self.db.get(ArchiveConflictResolutionLog, resolution_id)
         if row is None:
-            raise ConflictResolutionNotFoundError(f"Resolução {resolution_id} não encontrada no ledger.")
+            raise ConflictResolutionNotFoundError(
+                t("Resolução {resolution_id} não encontrada no ledger.", resolution_id=resolution_id)
+            )
         if row.undone_at is not None:
             raise ConflictResolutionAlreadyUndoneError(
-                f"A resolução {resolution_id} já foi desfeita em {row.undone_at:%Y-%m-%d %H:%M:%S}."
+                t(
+                    "A resolução {resolution_id} já foi desfeita em {undone_at}.",
+                    resolution_id=resolution_id,
+                    undone_at=row.undone_at,
+                )
             )
 
         snapshot = row.loser_snapshot or {}
@@ -1225,10 +1232,16 @@ class EntityRepository:
         """
         row = self.db.get(ArchiveNerPurgeLog, purge_id)
         if row is None:
-            raise NerPurgeLogNotFoundError(f"Registro de purga de NER {purge_id} não encontrado no ledger.")
+            raise NerPurgeLogNotFoundError(
+                t("Registro de purga de NER {purge_id} não encontrado no ledger.", purge_id=purge_id)
+            )
         if row.undone_at is not None:
             raise NerPurgeAlreadyUndoneError(
-                f"A purga de NER {purge_id} já foi desfeita em {row.undone_at:%Y-%m-%d %H:%M:%S}."
+                t(
+                    "A purga de NER {purge_id} já foi desfeita em {undone_at}.",
+                    purge_id=purge_id,
+                    undone_at=row.undone_at,
+                )
             )
 
         snapshot = row.purged_snapshot or {}
@@ -1602,7 +1615,9 @@ class EntityRepository:
         catalog = self.get_entities_with_counts([canonical_id, *ids_to_merge])
         canonical = catalog.get(canonical_id)
         if canonical is None:
-            raise InvalidParam(f"A entidade canônica informada (ID {canonical_id}) não existe no acervo.")
+            raise InvalidParam(
+                t("A entidade canônica informada (ID {canonical_id}) não existe no acervo.", canonical_id=canonical_id)
+            )
 
         dead_ids = [
             entity_id for entity_id in dict.fromkeys(ids_to_merge) if entity_id != canonical_id and entity_id in catalog
@@ -1891,10 +1906,12 @@ class EntityRepository:
         """
         row = self.db.get(ArchiveEntityMergeLog, merge_id)
         if row is None:
-            raise MergeLogNotFoundError(f"Registro de mesclagem {merge_id} não encontrado no ledger.")
+            raise MergeLogNotFoundError(
+                t("Registro de mesclagem {merge_id} não encontrado no ledger.", merge_id=merge_id)
+            )
         if row.undone_at is not None:
             raise MergeAlreadyUndoneError(
-                f"A mesclagem {merge_id} já foi desfeita em {row.undone_at:%Y-%m-%d %H:%M:%S}."
+                t("A mesclagem {merge_id} já foi desfeita em {undone_at}.", merge_id=merge_id, undone_at=row.undone_at)
             )
 
         if row.kind == KIND_RENAME:
@@ -1909,7 +1926,9 @@ class EntityRepository:
             # A ``MERGE`` row always snapshots what it absorbed, so this is a row the write cannot
             # produce. Refusing beats guessing: restoring an id read out of a null would bring back
             # the wrong entity and the ledger would record an undo that never happened.
-            raise InvalidMergeError(f"O registro {merge_id} não guarda a entidade absorvida a restaurar.")
+            raise InvalidMergeError(
+                t("O registro {merge_id} não guarda a entidade absorvida a restaurar.", merge_id=merge_id)
+            )
         absorbed_entity_id = row.absorbed_entity_id
 
         restored = ArchiveEntity(

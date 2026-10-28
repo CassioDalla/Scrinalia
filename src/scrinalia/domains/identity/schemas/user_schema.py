@@ -10,6 +10,7 @@ from datetime import UTC, datetime
 
 from pydantic import BaseModel, ConfigDict, Field, computed_field
 
+from scrinalia.core.locale import Locale
 from scrinalia.core.schemas import RequestModel
 from scrinalia.domains.identity.domain.permissions import Role
 
@@ -26,6 +27,8 @@ class AuthUserDTO(BaseModel):
     email: str
     name: str
     role: Role
+    #: The interface language the person chose, or ``None`` for automatic (follow the browser).
+    locale: Locale | None = None
     is_active: bool
     #: True while the account still carries the temporary password the CLI printed.
     must_change_password: bool
@@ -104,6 +107,12 @@ class SetPasswordCommand(RequestModel):
     #: Whether the person must replace it at the next sign-in. The CLI's bootstrap sets it, because
     #: the password it prints to the terminal was chosen by nobody who will use it.
     must_change: bool = True
+
+
+class UpdateLocaleCommand(RequestModel):
+    """The account's own interface language; ``null`` means automatic (follow the browser)."""
+
+    locale: Locale | None
 
 
 class ChangePasswordCommand(RequestModel):

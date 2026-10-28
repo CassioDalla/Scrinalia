@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 
 import type { AuthUser } from "@/api/client";
+import type { Messages } from "@/i18n/pt";
 import { can, type Permission } from "@/lib/permissions";
 import { SCREENS, type Screen, type ScreenId } from "@/lib/screens";
 
@@ -75,11 +76,14 @@ export type SettingsScreenId = Extract<
   | "users"
 >;
 
-/** A card with its screen's name resolved. What the page renders. */
-export type ResolvedSettingsCard = SettingsCard & Screen;
+/** A card with its screen's path and its copy resolved. What the page renders. */
+export type ResolvedSettingsCard = SettingsCard & Screen & Messages["screens"][SettingsScreenId];
 
-export type SettingsTab = { id: string; label: string; cards: SettingsCard[] };
-export type ResolvedSettingsTab = { id: string; label: string; cards: ResolvedSettingsCard[] };
+/** The three tabs the URL may name; closed so a label cannot be added for a tab that does not exist. */
+export type SettingsTabId = "arranjo" | "operacao" | "acesso";
+
+export type SettingsTab = { id: SettingsTabId; cards: SettingsCard[] };
+export type ResolvedSettingsTab = { id: SettingsTabId; label: string; cards: ResolvedSettingsCard[] };
 
 /**
  * The tabs, in the order of the permission ladder they walk: the archivist's work first, then the
@@ -88,7 +92,6 @@ export type ResolvedSettingsTab = { id: string; label: string; cards: ResolvedSe
 export const SETTINGS_TABS: SettingsTab[] = [
   {
     id: "arranjo",
-    label: "Arranjo e catálogos",
     cards: [
       { screen: "plan", icon: Waypoints, permission: "CURATE" },
       { screen: "levels", icon: Layers, permission: "CATALOGUE" },
@@ -98,7 +101,6 @@ export const SETTINGS_TABS: SettingsTab[] = [
   },
   {
     id: "operacao",
-    label: "Operação",
     cards: [
       /*
         One card for the merged operations screen (#207). It opens on the panel and carries the
@@ -128,7 +130,6 @@ export const SETTINGS_TABS: SettingsTab[] = [
   },
   {
     id: "acesso",
-    label: "Acesso",
     cards: [{ screen: "users", icon: UserCog, permission: "ADMIN" }],
   },
 ];
@@ -166,11 +167,12 @@ export const SETTINGS_PATHS: readonly string[] = SETTINGS_TABS.flatMap((tab) =>
  * here, so the page reads `card.label`, `card.hint` and `card.path` the way it always read its own
  * fields.
  */
-export function visibleSettingsTabs(role: AuthUser["role"]): ResolvedSettingsTab[] {
+export function visibleSettingsTabs(role: AuthUser["role"], copy: Messages): ResolvedSettingsTab[] {
   return SETTINGS_TABS.map((tab) => ({
     ...tab,
+    label: copy.settingsTabs[tab.id],
     cards: tab.cards
       .filter((card) => can(role, card.permission))
-      .map((card) => ({ ...card, ...SCREENS[card.screen] })),
+      .map((card) => ({ ...card, ...SCREENS[card.screen], ...copy.screens[card.screen] })),
   })).filter((tab) => tab.cards.length > 0);
 }

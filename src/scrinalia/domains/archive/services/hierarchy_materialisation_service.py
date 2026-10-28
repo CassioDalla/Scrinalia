@@ -22,6 +22,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 
 from scrinalia.core.author import Author, assign_author
+from scrinalia.core.i18n import t
 from scrinalia.domains.archive.domain.hierarchy import (
     collapse_chain,
     resolve_rung,
@@ -179,7 +180,7 @@ class HierarchyMaterialisationService:
         """
         plan = self.repo.get_plan(plan_id)
         if plan is None:
-            raise HierarchyPlanNotFoundError(f"Plano de nó {plan_id} não existe no catálogo.")
+            raise HierarchyPlanNotFoundError(t("Plano de nó {plan_id} não existe no catálogo.", plan_id=plan_id))
 
         if command.collapse_into_code is not None:
             # An empty string is how a client undoes a collapse; ``None`` means "not sent".
@@ -189,7 +190,9 @@ class HierarchyMaterialisationService:
                 self._validate_collapse(plan, target)
 
         if command.level_id is not None and self.catalog.get(command.level_id) is None:
-            raise DescriptionLevelNotFoundError(f"Nível de descrição {command.level_id} não existe no catálogo.")
+            raise DescriptionLevelNotFoundError(
+                t("Nível de descrição {level_id} não existe no catálogo.", level_id=command.level_id)
+            )
 
         if command.title is not None:
             plan.title = command.title or None
@@ -200,7 +203,7 @@ class HierarchyMaterialisationService:
 
         if command.status == "APPROVED" and plan.level_id is None:
             raise InvalidHierarchyPlanError(
-                "Aprovar um nó exige escolher o nível de descrição: é a decisão que o código não sabe tomar."
+                t("Aprovar um nó exige escolher o nível de descrição: é a decisão que o código não sabe tomar.")
             )
 
         plan.status = str(command.status)
@@ -215,10 +218,13 @@ class HierarchyMaterialisationService:
 
     def _validate_collapse(self, plan: ArchiveHierarchyNodePlan, target: str) -> None:
         if target == plan.code:
-            raise InvalidHierarchyPlanError("Um nó não pode ser fundido nele mesmo.")
+            raise InvalidHierarchyPlanError(t("Um nó não pode ser fundido nele mesmo."))
         if self.repo.get_plan_by_code(target) is None:
             raise InvalidHierarchyPlanError(
-                f"O nó '{target}' não existe no catálogo: funda apenas em rungs que a proposta conhece."
+                t(
+                    "O nó '{target}' não existe no catálogo: funda apenas em rungs que a proposta conhece.",
+                    target=target,
+                )
             )
         # Walking from the target must not arrive back here.
         collapse_map = {
@@ -226,7 +232,7 @@ class HierarchyMaterialisationService:
         }
         collapse_map[plan.code] = target
         if collapse_chain(target, collapse_map) == plan.code:
-            raise InvalidHierarchyPlanError("Fundir assim criaria um ciclo entre rungs.")
+            raise InvalidHierarchyPlanError(t("Fundir assim criaria um ciclo entre rungs."))
 
     # =========================================================================
     # Preview and apply share this planner
@@ -255,7 +261,7 @@ class HierarchyMaterialisationService:
         plan = self._plan()
         if not plan.rungs:
             raise InvalidHierarchyPlanError(
-                "Nenhum nó aprovado: aprove ao menos uma rung antes de materializar a árvore."
+                t("Nenhum nó aprovado: aprove ao menos uma rung antes de materializar a árvore.")
             )
 
         created_nodes: list[dict] = []
@@ -290,7 +296,10 @@ class HierarchyMaterialisationService:
                 continue
             if rung.node_id is None:
                 raise InvalidHierarchyPlanError(
-                    f"O nó '{rung.code}' deveria existir e não existe: a árvore não pode ser materializada."
+                    t(
+                        "O nó '{code}' deveria existir e não existe: a árvore não pode ser materializada.",
+                        code=rung.code,
+                    )
                 )
             nodes[rung.code] = rung.node_id
             paths[rung.code] = rung.node_path or rung.node_id
@@ -375,10 +384,16 @@ class HierarchyMaterialisationService:
         """
         entry = self.repo.get_materialisation_log(materialisation_id)
         if entry is None:
-            raise MaterialisationNotFoundError(f"Materialização {materialisation_id} não existe no ledger.")
+            raise MaterialisationNotFoundError(
+                t("Materialização {materialisation_id} não existe no ledger.", materialisation_id=materialisation_id)
+            )
         if entry.undone_at is not None:
             raise MaterialisationAlreadyUndoneError(
-                f"A materialização {materialisation_id} já foi desfeita em {entry.undone_at:%d/%m/%Y %H:%M}."
+                t(
+                    "A materialização {materialisation_id} já foi desfeita em {undone_at}.",
+                    materialisation_id=materialisation_id,
+                    undone_at=entry.undone_at,
+                )
             )
 
         created_ids = [node["description_id"] for node in entry.created_nodes]
@@ -387,8 +402,11 @@ class HierarchyMaterialisationService:
             unknown = [child for child in children if child not in known]
             if unknown:
                 raise InvalidHierarchyPlanError(
-                    f"O nó {parent_id} recebeu descrições depois desta materialização ({len(unknown)}): "
-                    "desfazer agora as desligaria. Desfaça primeiro o que as colocou lá."
+                    t(
+                        "O nó {parent_id} recebeu descrições depois desta materialização ({unknown}): desfazer agora as desligaria. Desfaça primeiro o que as colocou lá.",
+                        parent_id=parent_id,
+                        unknown=len(unknown),
+                    )
                 )
 
         self.repo.restore_state(entry.previous_state)

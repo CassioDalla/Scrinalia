@@ -1,5 +1,7 @@
 import createClient from "openapi-fetch";
 
+import { activeLocale, type Locale } from "@/i18n/locale";
+
 import type { components, paths } from "./schema";
 
 /**
@@ -15,6 +17,20 @@ import type { components, paths } from "./schema";
  * environment variable to get wrong.
  */
 export const client = createClient<paths>({ baseUrl: "" });
+
+/**
+ * Every request says which language the interface is in.
+ *
+ * The API composes the sentence a screen shows — a route's confirmation, a refusal — and renders it
+ * from a catalogue keyed by code (ADR 0020 §4). The header is the only channel: the request that
+ * fails and the request that confirms are both answered in the language the person is reading.
+ */
+client.use({
+  onRequest({ request }) {
+    request.headers.set("Accept-Language", activeLocale());
+    return request;
+  },
+});
 
 export class ApiError extends Error {
   constructor(
@@ -1910,6 +1926,11 @@ export async function login(email: string, password: string): Promise<AuthUser> 
 /** Ends the session and clears the cookie. */
 export async function logout(): Promise<RouteResponse> {
   return unwrap<RouteResponse>(await client.POST("/api/v1/auth/logout"));
+}
+
+/** Stores the signed-in account's interface language; ``null`` follows the browser. */
+export async function updateLocale(locale: Locale | null): Promise<AuthUser> {
+  return unwrap<AuthUser>(await client.PATCH("/api/v1/auth/me", { body: { locale } }));
 }
 
 /** Replaces the signed-in account's own password, proving the current one. */

@@ -26,6 +26,7 @@ from sqlalchemy.orm import Session, selectinload
 from sqlalchemy.orm.attributes import flag_modified
 
 from scrinalia.core.author import Author, author_columns
+from scrinalia.core.i18n import t
 from scrinalia.core.language import get_language
 from scrinalia.core.types import Vector
 from scrinalia.domains.archive.domain.hierarchy_code import normalize_reference_code
@@ -1051,7 +1052,9 @@ class DocumentRepository:
             return None
         path = self.db.scalar(select(ArchiveDocument.path).where(ArchiveDocument.description_id == ancestor_id))
         if path is None:
-            raise HierarchyNodeNotFoundError(f"Descrição '{ancestor_id}' não encontrada no acervo.")
+            raise HierarchyNodeNotFoundError(
+                t("Descrição '{ancestor_id}' não encontrada no acervo.", ancestor_id=ancestor_id)
+            )
         return path
 
     def get_by_id(self, description_id: str) -> DocumentSummary | None:
@@ -1278,7 +1281,7 @@ class DocumentRepository:
 
         tag = self.db.get(ArchiveTag, command.tag_id)
         if tag is None:
-            raise TagNotFoundError(f"Tag '{command.tag_id}' não encontrada na taxonomia.")
+            raise TagNotFoundError(t("Tag '{tag_id}' não encontrada na taxonomia.", tag_id=command.tag_id))
 
         before = self._related_names(doc.tags)
         if command.tag_id not in {linked.tag_id for linked in doc.tags}:
@@ -1296,7 +1299,13 @@ class DocumentRepository:
 
         linked = next((tag for tag in doc.tags if tag.tag_id == command.tag_id), None)
         if linked is None:
-            raise TagNotFoundError(f"A descrição '{command.description_id}' não tem a tag '{command.tag_id}'.")
+            raise TagNotFoundError(
+                t(
+                    "A descrição '{description_id}' não tem a tag '{tag_id}'.",
+                    description_id=command.description_id,
+                    tag_id=command.tag_id,
+                )
+            )
 
         before = self._related_names(doc.tags)
         doc.tags.remove(linked)
@@ -1319,7 +1328,7 @@ class DocumentRepository:
 
         entity = self.db.get(ArchiveEntity, command.entity_id)
         if entity is None:
-            raise EntityNotFoundError(f"Entidade '{command.entity_id}' não encontrada.")
+            raise EntityNotFoundError(t("Entidade '{entity_id}' não encontrada.", entity_id=command.entity_id))
 
         before = self._related_names([link.entity for link in doc.entity_links])
         existing = next((link for link in doc.entity_links if link.entity_id == entity.entity_id), None)
@@ -1356,7 +1365,11 @@ class DocumentRepository:
         linked = next((link for link in doc.entity_links if link.entity_id == command.entity_id), None)
         if linked is None:
             raise EntityNotFoundError(
-                f"A descrição '{command.description_id}' não tem a entidade '{command.entity_id}'."
+                t(
+                    "A descrição '{description_id}' não tem a entidade '{entity_id}'.",
+                    description_id=command.description_id,
+                    entity_id=command.entity_id,
+                )
             )
 
         before = self._related_names([link.entity for link in doc.entity_links])

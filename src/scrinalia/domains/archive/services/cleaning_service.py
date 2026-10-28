@@ -1,6 +1,7 @@
 import re
 from typing import cast
 
+from scrinalia.core.i18n import t
 from scrinalia.domains.archive.exceptions import (
     CleaningRuleNotFoundError,
     InvalidLLMCheckEngineError,
@@ -26,7 +27,7 @@ class CleaningService:
         try:
             return re.compile(pattern, re.IGNORECASE)
         except re.error as e:
-            raise InvalidParam(f"Sintaxe de Regex inválida: {e!s}") from e
+            raise InvalidParam(t("Sintaxe de Regex inválida: {e}", e=e)) from e
 
     def _validate_engine(self, dto: CleaningRuleCreateDTO) -> None:
         """
@@ -57,7 +58,7 @@ class CleaningService:
         try:
             describe_config(cast("EngineName", engine_name), cast("PresetName | None", dto.preset))
         except ValueError as e:
-            raise InvalidLLMCheckEngineError(str(e)) from e
+            raise InvalidLLMCheckEngineError(t(str(e))) from e
 
     def create_cleaning_rule(self, dto: CleaningRuleCreateDTO) -> CleaningRuleDTO:
         # Early validation (Fail Fast)
@@ -113,7 +114,7 @@ class CleaningService:
         # the repository flushes and the use case never commits on its own.
         rule = self.repo.deactivate_rule(rule_id)
         if rule is None:
-            raise CleaningRuleNotFoundError(f"Regra {rule_id} não encontrada.")
+            raise CleaningRuleNotFoundError(t("Regra {rule_id} não encontrada.", rule_id=rule_id))
 
         return rule
 
@@ -125,6 +126,6 @@ class CleaningService:
         """
         rule = self.repo.activate_rule(rule_id)
         if rule is None:
-            raise CleaningRuleNotFoundError(f"Regra {rule_id} não encontrada.")
+            raise CleaningRuleNotFoundError(t("Regra {rule_id} não encontrada.", rule_id=rule_id))
 
         return rule

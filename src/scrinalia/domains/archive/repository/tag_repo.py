@@ -23,6 +23,7 @@ from sqlalchemy.orm import Session, aliased
 from sqlalchemy.orm.attributes import flag_modified
 
 from scrinalia.core.author import Author, assign_author, author_columns
+from scrinalia.core.i18n import t
 from scrinalia.domains.archive.domain.collection_vocabulary import CollectionVocabulary
 from scrinalia.domains.archive.domain.normalization import (
     LIKE_ESCAPE,
@@ -153,14 +154,14 @@ class TagRepository:
         insert_data = []
         names_to_search = []
 
-        for t in tags_list:
-            name_clean = normalize_tag(t.name)
+        for tag in tags_list:
+            name_clean = normalize_tag(tag.name)
             names_to_search.append(name_clean)
             insert_data.append(
                 {
                     "name": name_clean,
-                    "macro_category_id": t.macro_category_id,
-                    "ai_confidence_score": t.ai_confidence_score,
+                    "macro_category_id": tag.macro_category_id,
+                    "ai_confidence_score": tag.ai_confidence_score,
                 }
             )
 
@@ -1011,10 +1012,12 @@ class TagRepository:
         """
         row = self.db.get(ArchiveStopwordPurgeLog, purge_id)
         if row is None:
-            raise StopwordPurgeLogNotFoundError(f"Registro de purga {purge_id} não encontrado no ledger.")
+            raise StopwordPurgeLogNotFoundError(
+                t("Registro de purga {purge_id} não encontrado no ledger.", purge_id=purge_id)
+            )
         if row.undone_at is not None:
             raise StopwordPurgeAlreadyUndoneError(
-                f"A purga {purge_id} já foi desfeita em {row.undone_at:%Y-%m-%d %H:%M:%S}."
+                t("A purga {purge_id} já foi desfeita em {undone_at}.", purge_id=purge_id, undone_at=row.undone_at)
             )
 
         snapshot = row.purged_snapshot or {}
@@ -1600,7 +1603,9 @@ class TagRepository:
         catalog = {row.tag_id: row for row in self.get_all_tags_with_counts()}
         canonical = catalog.get(canonical_id)
         if canonical is None:
-            raise InvalidParam(f"A tag canônica informada (ID {canonical_id}) não existe no acervo.")
+            raise InvalidParam(
+                t("A tag canônica informada (ID {canonical_id}) não existe no acervo.", canonical_id=canonical_id)
+            )
 
         dead_ids = [tag_id for tag_id in dict.fromkeys(ids_to_merge) if tag_id != canonical_id and tag_id in catalog]
         impacted = [
@@ -1797,10 +1802,12 @@ class TagRepository:
         """
         row = self.db.get(ArchiveTaxonomyMergeLog, merge_id)
         if row is None:
-            raise MergeLogNotFoundError(f"Registro de mesclagem {merge_id} não encontrado no ledger.")
+            raise MergeLogNotFoundError(
+                t("Registro de mesclagem {merge_id} não encontrado no ledger.", merge_id=merge_id)
+            )
         if row.undone_at is not None:
             raise MergeAlreadyUndoneError(
-                f"A mesclagem {merge_id} já foi desfeita em {row.undone_at:%Y-%m-%d %H:%M:%S}."
+                t("A mesclagem {merge_id} já foi desfeita em {undone_at}.", merge_id=merge_id, undone_at=row.undone_at)
             )
 
         snapshot = row.absorbed_snapshot or {}

@@ -1,6 +1,7 @@
 from collections.abc import Callable
 
 from scrinalia.core.author import Author
+from scrinalia.core.i18n import t
 from scrinalia.domains.archive.engines.base import EmbeddingEngine
 from scrinalia.domains.archive.exceptions import DocumentHasChildrenError, DocumentNotFoundError
 from scrinalia.domains.archive.ports.document import DocumentRepositoryPort
@@ -71,7 +72,9 @@ class DocumentService:
     def get(self, description_id: str) -> DocumentSummary:
         doc = self.repo.get_by_id(description_id)
         if doc is None:
-            raise DocumentNotFoundError(f"Documento '{description_id}' não encontrado no acervo.")
+            raise DocumentNotFoundError(
+                t("Documento '{description_id}' não encontrado no acervo.", description_id=description_id)
+            )
         return doc
 
     def get_published(self, description_id: str) -> DocumentSummary:
@@ -84,7 +87,9 @@ class DocumentService:
         """
         doc = self.get(description_id)
         if not doc.is_published:
-            raise DocumentNotFoundError(f"Documento '{description_id}' não encontrado no acervo.")
+            raise DocumentNotFoundError(
+                t("Documento '{description_id}' não encontrado no acervo.", description_id=description_id)
+            )
         return doc
 
     def get_thumbnail_uri(self, description_id: str) -> str | None:
@@ -116,7 +121,9 @@ class DocumentService:
 
         doc = self.repo.update_review(command)
         if doc is None:
-            raise DocumentNotFoundError(f"Documento '{command.description_id}' não encontrado no acervo.")
+            raise DocumentNotFoundError(
+                t("Documento '{description_id}' não encontrado no acervo.", description_id=command.description_id)
+            )
         return doc
 
     # --- Local curation of one document's subjects -------------------------------------------
@@ -167,13 +174,18 @@ class DocumentService:
         children = self.repo.count_children(description_id)
         if children > 0:
             raise DocumentHasChildrenError(
-                f"'{description_id}' tem {children} descrição(ões) abaixo dela. Exclua ou mova os filhos "
-                "primeiro: a árvore não pode ficar apontando para um ramo que não existe."
+                t(
+                    "'{description_id}' tem {children} descrição(ões) abaixo dela. Exclua ou mova os filhos primeiro: a árvore não pode ficar apontando para um ramo que não existe.",
+                    description_id=description_id,
+                    children=children,
+                )
             )
 
         entry = self.repo.delete_document(description_id, changed_by=changed_by, note=note)
         if entry is None:
-            raise DocumentNotFoundError(f"Documento '{description_id}' não encontrado no acervo.")
+            raise DocumentNotFoundError(
+                t("Documento '{description_id}' não encontrado no acervo.", description_id=description_id)
+            )
         return entry
 
     def list_deletions(self, term: str | None = None, limit: int = 50, offset: int = 0) -> DocumentDeletionListResponse:
@@ -185,5 +197,7 @@ class DocumentService:
     def _require(doc: DocumentSummary | None, description_id: str) -> DocumentSummary:
         """Turns the repository's "no such document" into the business error the API maps to 404."""
         if doc is None:
-            raise DocumentNotFoundError(f"Documento '{description_id}' não encontrado no acervo.")
+            raise DocumentNotFoundError(
+                t("Documento '{description_id}' não encontrado no acervo.", description_id=description_id)
+            )
         return doc

@@ -53,6 +53,10 @@ SOURCES = sorted(
     path for pattern in ("*.ts", "*.tsx", "*.css") for path in SRC.rglob(pattern) if path.name != "schema.d.ts"
 )
 
+#: The Portuguese catalogue: where the copy lives now (ADR 0020 §1), and what the extractor's own
+#: sanity check reads instead of `lib/screens.ts`.
+CATALOGUE = SRC / "i18n" / "pt.ts"
+
 #: The words this interface retired, and what it says instead. Each one was in the tree when the
 #: canon landed, and each one is now at zero — the gate is what keeps it there.
 #:
@@ -127,6 +131,10 @@ def test_no_retired_word_is_visible() -> None:
     offenders: list[str] = []
     for path in SOURCES:
         relative = path.relative_to(CURATOR).as_posix()
+        # The canon is about the Portuguese interface: the English catalogue is allowed to say
+        # "Apply" and "Undo", which are the correct English for `Aplicar` and `Desfazer`.
+        if relative == "src/i18n/en.ts":
+            continue
         for value in visible_strings(path):
             if any(relative == file and allowed in value for file, allowed, _ in ALLOWED):
                 continue
@@ -161,8 +169,98 @@ def test_the_extractor_sees_strings(tmp_path: Path) -> None:
         "the extractor no longer reads a template literal; every word inside one is ungated."
     )
 
-    seen = visible_strings(SCREENS)
-    assert len(seen) > 20, f"the extractor found {len(seen)} strings in `lib/screens.ts`; the pattern is broken."
+    seen = visible_strings(CATALOGUE)
+    assert len(seen) > 20, f"the extractor found {len(seen)} strings in `src/i18n/pt.ts`; the pattern is broken."
+
+
+#: What a person reads as Portuguese. The catalogue is excluded: it *is* the Portuguese copy.
+PORTUGUESE = re.compile(
+    r"[áàâãéêíóôõúüçÁÀÂÃÉÊÍÓÔÕÚÜÇ]|"
+    r"\b(não|uma|com|para|que|das|dos|pela|pelo|sem|como|quando|também|já|ainda|só|ser|está|são|"
+    r"você|seu|sua|seus|suas|nesta|neste|deste|desta|após|até|entre|sobre|pode|podem|deve|devem|"
+    r"fazer|feito|vai|vão|tem|têm|nunca|sempre|nada|tudo|outro|outra|mais|menos|muito|pouco|aqui|"
+    r"onde|quem)\b",
+    re.I,
+)
+
+#: The files that still hold Portuguese, and the ratchet. A file leaves this list when its screen is
+#: extracted (ADR 0020 §7); a file outside it cannot gain a Portuguese literal, and a file inside it
+#: cannot become empty without leaving — the list only shrinks.
+PENDING = {
+    "src/api/client.ts",
+    "src/lib/attribution.ts",
+    "src/lib/csv.ts",
+    "src/lib/csvImport.ts",
+    "src/lib/entities.ts",
+    "src/lib/format.ts",
+    "src/lib/hierarchy.ts",
+    "src/lib/isad.ts",
+    "src/lib/messages.ts",
+    "src/lib/quality.ts",
+    "src/lib/queues.ts",
+    "src/lib/system.ts",
+    "src/lib/taxonomy.ts",
+    "src/lib/vocabulary.ts",
+    "src/components/description/DescriptionExpansion.tsx",
+    "src/components/description/DescriptionPreview.tsx",
+    "src/components/description/IsadFieldControl.tsx",
+    "src/components/description/Thumbnail.tsx",
+    "src/components/hierarchy/MaterialisationPanel.tsx",
+    "src/components/ingestion/CsvImportPanel.tsx",
+    "src/components/ui/LedgerList.tsx",
+    "src/components/ui/Typeahead.tsx",
+    "src/components/workers/RunsLedger.tsx",
+    "src/components/workers/WorkerOptionsFields.tsx",
+    "src/components/workers/WorkerTrialCard.tsx",
+    "src/components/workers/WorkersPanel.tsx",
+    "src/routes/AnomaliesRoute.tsx",
+    "src/routes/CategoriesRoute.tsx",
+    "src/routes/CleaningRulesRoute.tsx",
+    "src/routes/CollectionRoute.tsx",
+    "src/routes/ConflictsRoute.tsx",
+    "src/routes/DeletionsRoute.tsx",
+    "src/routes/DiagnosticsRoute.tsx",
+    "src/routes/DiscoverRoute.tsx",
+    "src/routes/DocumentRoute.tsx",
+    "src/routes/EntitiesRoute.tsx",
+    "src/routes/InboxRoute.tsx",
+    "src/routes/LevelsRoute.tsx",
+    "src/routes/NerExclusionsRoute.tsx",
+    "src/routes/NewDescriptionRoute.tsx",
+    "src/routes/OriginsRoute.tsx",
+    "src/routes/PlanRoute.tsx",
+    "src/routes/SettingsRoute.tsx",
+    "src/routes/SubjectExclusionsRoute.tsx",
+    "src/routes/SystemHealthRoute.tsx",
+    "src/routes/SystemWorkersRoute.tsx",
+    "src/routes/TagsRoute.tsx",
+    "src/routes/TextTemplatesRoute.tsx",
+    "src/routes/TreeRoute.tsx",
+    "src/routes/TypologiesRoute.tsx",
+    "src/routes/UsersRoute.tsx",
+    "src/routes/VocabularyRoute.tsx",
+    "src/routes/WorkerSettingsRoute.tsx",
+}
+
+
+def _portuguese_strings(path: Path) -> list[str]:
+    return [value for value in visible_strings(path) if PORTUGUESE.search(value)]
+
+
+def test_the_extracted_surface_says_no_portuguese() -> None:
+    """Everything the catalogue owns is out; the rest is the ratchet, one file at a time."""
+    failures: list[str] = []
+    for path in SOURCES:
+        relative = path.relative_to(CURATOR).as_posix()
+        if relative.startswith("src/i18n/") or relative == "src/api/schema.d.ts":
+            continue
+        values = _portuguese_strings(path)
+        if relative in PENDING:
+            if not values:
+                failures.append(f"{relative} is in PENDING but has no Portuguese left: remove it from the list")
+        elif values:
+            failures.append(f"{relative} is outside the catalogue and still says Portuguese: {values[:2]}")
+    assert not failures, "the interface is extracted file by file (ADR 0020 §7):\n  " + "\n  ".join(failures)
 
 
 def test_the_extractor_joins_a_wrapped_text_node(tmp_path: Path) -> None:
@@ -278,7 +376,7 @@ def _screen_records() -> dict[str, tuple[str, bool]]:
     body = text(SCREENS).split("export const SCREENS", 1)
     assert len(body) == 2, "`lib/screens.ts` no longer exports `SCREENS`."
     records: dict[str, tuple[str, bool]] = {}
-    for block in re.finditer(r"\n  (\w+): \{(.*?)\n  \},", body[1], re.S):
+    for block in re.finditer(r"\n  (\w+): \{([^}]*)\}", body[1], re.S):
         identifier, entry = block.group(1), block.group(2)
         path = re.search(r'path:\s*"([^"]+)"', entry)
         assert path, f"`SCREENS.{identifier}` has no path, so no route can be matched to it."

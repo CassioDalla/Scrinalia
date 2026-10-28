@@ -33,6 +33,7 @@ from scrinalia.api.handlers import (
     permission_denied_handler,
     unhandled_exception_handler,
 )
+from scrinalia.api.i18n import LocaleMiddleware
 from scrinalia.api.middleware import RequestContextMiddleware
 from scrinalia.api.openapi import openapi_config
 from scrinalia.api.security import access_guard, origin_guard
@@ -98,7 +99,7 @@ def create_app() -> Litestar:
         route_handlers=route_handlers,
         # The request id is minted before anything else, so the access line of a refused request
         # carries it too.
-        middleware=[RequestContextMiddleware()],
+        middleware=[RequestContextMiddleware(), LocaleMiddleware()],
         # Two guards for every route, and they answer different questions. ``origin_guard`` runs
         # first because it is the cheapest — it reads two headers and touches no database — and it
         # refuses a cross-origin mutation before the session is even resolved. ``access_guard`` then
