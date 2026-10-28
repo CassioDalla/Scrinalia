@@ -227,7 +227,6 @@ PENDING = {
     "src/routes/BlockedSpellingsRoute.tsx",
     "src/routes/CleaningRulesRoute.tsx",
     "src/routes/CollectionRoute.tsx",
-    "src/routes/EntitiesRoute.tsx",
     "src/routes/NerExclusionsRoute.tsx",
     "src/routes/PlanRoute.tsx",
     "src/routes/SubjectExclusionsRoute.tsx",
