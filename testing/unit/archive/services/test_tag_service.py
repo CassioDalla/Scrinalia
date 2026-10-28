@@ -4,6 +4,7 @@ import pytest
 from pytest_mock import MockerFixture
 
 from scrinalia.core.author import Author
+from scrinalia.domains.archive.domain.access_points import AccessPointStatus
 from scrinalia.domains.archive.exceptions import (
     InvalidMergeError,
     InvalidParam,
@@ -800,3 +801,90 @@ def test_update_macro_category_only_sends_declared_fields(mocker: MockerFixture)
     service.update_macro_category(1, UpdateMacroCategoryCommand(name="  Novo Nome "))
 
     mock_tag_repo.update_macro_category.assert_called_once_with(1, {"name": "Novo Nome"})
+
+
+# ==========================================
+# TESTS: preview_access_points
+# ==========================================
+
+
+def test_preview_access_points_reports_what_the_transfer_will_do(mocker: MockerFixture) -> None:
+    """The form sees the same statuses the transfer's two paths produce, with no write."""
+    mock_tag_repo = mocker.Mock(spec=TagRepository)
+    mock_doc_repo = mocker.Mock(spec=DocumentRepository)
+    mock_tag_repo.get_stopwords.return_value = {"obras"}
+    mock_tag_repo.get_synonyms_mapping.return_value = {"urbanismos": 7}
+    mock_tag_repo.get_tag_identities_by_names.return_value = {
+        "urbanismo": TagIdentity(tag_id=7, name="urbanismo"),
+        "habitação": TagIdentity(tag_id=9, name="habitação"),
+    }
+    mock_tag_repo.get_tag_identities_by_ids.return_value = {7: TagIdentity(tag_id=7, name="urbanismo")}
+
+    service = TagService(mock_tag_repo, mock_doc_repo)
+    result = service.preview_access_points("Urbanismo, urbanismos, obras, ab, Habitação, Novo Termo")
+
+    assert [(item.input, item.name, item.status, item.tag_id) for item in result.items] == [
+        ("Urbanismo", "urbanismo", AccessPointStatus.EXISTING, 7),
+        ("urbanismos", "urbanismo", AccessPointStatus.SYNONYM, 7),
+        ("obras", None, AccessPointStatus.STOPWORD, None),
+        ("ab", None, AccessPointStatus.TOO_SHORT, None),
+        ("Habitação", "habitação", AccessPointStatus.EXISTING, 9),
+        ("Novo Termo", "novo termo", AccessPointStatus.NEW, None),
+    ]
+    mock_tag_repo.get_or_create_tags.assert_not_called()
+    mock_tag_repo.get_tag_identities_by_names.assert_called_once_with(["urbanismo", "habitação", "novo termo"])
+    mock_tag_repo.get_tag_identities_by_ids.assert_called_once_with([7])
+
+
+def test_preview_access_points_treats_a_dangling_synonym_as_new(mocker: MockerFixture) -> None:
+    """A synonym whose canonical row is missing must not promise a link the archive cannot make."""
+    mock_tag_repo = mocker.Mock(spec=TagRepository)
+    mock_doc_repo = mocker.Mock(spec=DocumentRepository)
+    mock_tag_repo.get_stopwords.return_value = set()
+    mock_tag_repo.get_synonyms_mapping.return_value = {"velho": 99}
+    mock_tag_repo.get_tag_identities_by_names.return_value = {}
+    mock_tag_repo.get_tag_identities_by_ids.return_value = {}
+
+    service = TagService(mock_tag_repo, mock_doc_repo)
+    [item] = service.preview_access_points("velho").items
+
+    assert item.status is AccessPointStatus.NEW
+    assert item.name == "velho"
+    assert item.tag_id is None
+
+
+def test_preview_access_points_of_an_empty_string_does_not_touch_the_catalogue(mocker: MockerFixture) -> None:
+    """The form calls it with an empty field; the answer is no items, not a query."""
+    mock_tag_repo = mocker.Mock(spec=TagRepository)
+    mock_doc_repo = mocker.Mock(spec=DocumentRepository)
+
+    service = TagService(mock_tag_repo, mock_doc_repo)
+
+    assert service.preview_access_points("").items == []
+    mock_tag_repo.get_stopwords.assert_not_called()
+    mock_tag_repo.get_synonyms_mapping.assert_not_called()
+
+
+def test_preview_access_points_collapses_whitespace_before_the_stopword_check(mocker: MockerFixture) -> None:
+    """The ban on ``rio branco`` has to catch the spelling typed with two spaces."""
+    mock_tag_repo = mocker.Mock(spec=TagRepository)
+    mock_doc_repo = mocker.Mock(spec=DocumentRepository)
+    mock_tag_repo.get_stopwords.return_value = {"rio branco"}
+
+    service = TagService(mock_tag_repo, mock_doc_repo)
+    [item] = service.preview_access_points("rio  branco").items
+
+    assert item.input == "rio  branco"
+    assert item.status is AccessPointStatus.STOPWORD
+
+
+def test_extract_and_clean_tags_keeps_the_typed_order(mocker: MockerFixture) -> None:
+    """The transfer links the tags in the order the archivist typed them, not in set order."""
+    mock_tag_repo = mocker.Mock(spec=TagRepository)
+    mock_doc_repo = mocker.Mock(spec=DocumentRepository)
+    mock_tag_repo.get_stopwords.return_value = set()
+
+    service = TagService(mock_tag_repo, mock_doc_repo)
+    result = service.extract_and_clean_tags("zeta, alfa, meio")
+
+    assert [tag.name for tag in result] == ["zeta", "alfa", "meio"]

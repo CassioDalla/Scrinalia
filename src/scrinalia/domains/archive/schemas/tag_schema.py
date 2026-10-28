@@ -4,6 +4,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from scrinalia.core.author import Author
+from scrinalia.domains.archive.domain.access_points import AccessPointStatus
 from scrinalia.domains.archive.models.enums import StopwordMatch, StopwordsScope
 from scrinalia.domains.archive.schemas.responses import RouteMessageCode, RouteResponse
 from scrinalia.domains.archive.schemas.types import TagName
@@ -101,6 +102,27 @@ class TagSearchResult(BaseModel):
     document_count: int = 0
     macro_category_id: int | None = None
     macro_category_name: str | None = None
+
+
+class AccessPointResolution(BaseModel):
+    """
+    What one access point of the raw string becomes.
+
+    ``input`` is what the archivist typed; ``name`` is the spelling the transfer will link — the
+    canonical one for an existing tag or a synonym, the normalized one for a new term — and
+    ``tag_id`` is set only for the two that already exist in the catalogue.
+    """
+
+    input: str
+    name: str | None = None
+    status: AccessPointStatus
+    tag_id: int | None = None
+
+
+class AccessPointPreviewResponse(BaseModel):
+    """The reading of one raw access-point string, in the order the archivist typed it."""
+
+    items: list[AccessPointResolution]
 
 
 class TagCurationCommand(BaseModel):
