@@ -7,6 +7,11 @@ import { en as tagsEn } from "@/i18n/pages/tags";
 import { en as documentEn } from "@/i18n/pages/document";
 import { en as entitiesEn } from "@/i18n/pages/entities";
 import { en as conflictsEn } from "@/i18n/pages/conflicts";
+import { en as runsEn } from "@/i18n/pages/runs";
+import { en as workerPanelEn } from "@/i18n/pages/workerPanel";
+import { en as exclusionsEn } from "@/i18n/pages/exclusions";
+import { en as browseAEn } from "@/i18n/pages/browseA";
+import { en as browseBEn } from "@/i18n/pages/browseB";
 import { ATTRIBUTION } from "@/lib/attribution";
 
 import type { pt } from "./pt";
@@ -37,6 +42,11 @@ export const en: typeof pt = {
     notInformed: "— not informed —",
   },
   pages: {
+    ...runsEn,
+    ...workerPanelEn,
+    ...exclusionsEn,
+    ...browseAEn,
+    ...browseBEn,
     cleaningRules: {
       activeOne: "1 active rule",
       activeMany: "{count} active rules",

@@ -14,6 +14,11 @@ import { pt as tagsPt } from "@/i18n/pages/tags";
 import { pt as documentPt } from "@/i18n/pages/document";
 import { pt as entitiesPt } from "@/i18n/pages/entities";
 import { pt as conflictsPt } from "@/i18n/pages/conflicts";
+import { pt as runsPt } from "@/i18n/pages/runs";
+import { pt as workerPanelPt } from "@/i18n/pages/workerPanel";
+import { pt as exclusionsPt } from "@/i18n/pages/exclusions";
+import { pt as browseAPt } from "@/i18n/pages/browseA";
+import { pt as browseBPt } from "@/i18n/pages/browseB";
 import { ATTRIBUTION } from "@/lib/attribution";
 
 /** The copy of one screen: the menu entry, the header's subtitle and, where it has one, the sentence. */
@@ -191,6 +196,11 @@ export const pt = {
     notInformed: "— não informado —",
   },
   pages: {
+    ...runsPt,
+    ...workerPanelPt,
+    ...exclusionsPt,
+    ...browseAPt,
+    ...browseBPt,
     cleaningRules: {
       activeOne: "1 regra ativa",
       activeMany: "{count} regras ativas",
