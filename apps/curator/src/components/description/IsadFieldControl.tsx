@@ -1,4 +1,7 @@
+import { useId } from "react";
+
 import type { Language } from "@/api/client";
+import { EntityNameField } from "@/components/description/EntityNameField";
 import { Field } from "@/components/ui/Field";
 import { Input, Select, Textarea } from "@/components/ui/Input";
 import type { IsadField } from "@/lib/isad";
@@ -11,6 +14,10 @@ import type { IsadField } from "@/lib/isad";
  * screen chooses is *how* it edits a date — the dossier corrects the parsed ISO value, the form
  * accepts the spelling the archivist has in front of them ("Década de 1980"), which the API parses
  * with the language profile.
+ *
+ * ``control: "entity"`` is the one kind that reads the API: it is the entity-name autocomplete of
+ * #230, and it uses the labelled-field mode (``htmlFor``/``hintId``) because its suggestion list
+ * carries buttons, which are invalid inside a ``<label>``.
  */
 export function IsadFieldControl({
   field,
@@ -28,7 +35,21 @@ export function IsadFieldControl({
   hint?: string;
   dateAs?: "iso" | "expression";
 }) {
+  const fieldId = useId();
+  const hintId = `${fieldId}-hint`;
   const wide = field.control === "long_text" ? "sm:col-span-2" : "";
+
+  if (field.control === "entity") {
+    // The help always renders: what the picker does (copies a name, does not link) is the one
+    // sentence that keeps the widget from looking like a reference it is not.
+    const help = hint ?? field.help;
+
+    return (
+      <Field label={field.label} hint={help} htmlFor={fieldId} hintId={hintId} className={wide}>
+        <EntityNameField id={fieldId} value={value} onChange={onChange} describedBy={hintId} />
+      </Field>
+    );
+  }
 
   return (
     <Field label={field.label} hint={hint} className={wide}>
