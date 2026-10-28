@@ -12,16 +12,18 @@ import { Field } from "@/components/ui/Field";
 import { Hint } from "@/components/ui/Hint";
 import { Input, Select } from "@/components/ui/Input";
 import { Notice } from "@/components/ui/Notice";
+import { useCopy } from "@/i18n/context";
+import { fill, stringMap } from "@/i18n/maps";
 import { CsvParseError, decodeCsv, detectDelimiter, parseCsv, type CsvDelimiter } from "@/lib/csv";
 import { buildTemplate, mapCsv, toRequestBody, type CsvMapping } from "@/lib/csvImport";
 import { formatCount } from "@/lib/format";
 import { routeMessage } from "@/lib/messages";
 
-const CSV_STATUS_LABEL: Record<CsvRowStatus, string> = {
-  ACCEPTED: "Aceita",
-  DUPLICATED: "Duplicada",
-  INVALID: "Inválida",
-};
+const CSV_STATUS_LABEL = stringMap((m) => ({
+  ACCEPTED: m.pages.csvImport.accepted,
+  DUPLICATED: m.pages.csvImport.duplicated,
+  INVALID: m.pages.csvImport.invalid,
+}));
 
 const CSV_STATUS_TONE: Record<CsvRowStatus, "ok" | "warn" | "danger"> = {
   ACCEPTED: "ok",
@@ -39,6 +41,7 @@ const CSV_STATUS_TONE: Record<CsvRowStatus, "ok" | "warn" | "danger"> = {
  * da tela diz isso uma vez.
  */
 export function CsvImportPanel() {
+  const messages = useCopy();
   const queryClient = useQueryClient();
   const spec = useQuery({ ...queries.csvImportSpec() });
   const [fileName, setFileName] = useState<string | null>(null);
@@ -50,7 +53,7 @@ export function CsvImportPanel() {
 
   const submit = useMutation({
     mutationFn: () => {
-      if (!mapping) throw new Error("Nenhum arquivo preparado.");
+      if (!mapping) throw new Error(messages.pages.csvImport.noFile);
       return importCsv({ rows: toRequestBody(mapping) });
     },
     onSuccess: () => {
@@ -67,7 +70,7 @@ export function CsvImportPanel() {
       setParseError(null);
     } catch (error) {
       setMapping(null);
-      setParseError(error instanceof CsvParseError ? error.message : "Não foi possível ler o arquivo.");
+      setParseError(error instanceof CsvParseError ? error.message : messages.pages.csvImport.readError);
     }
   }
 
@@ -83,7 +86,10 @@ export function CsvImportPanel() {
     if (file.size > spec.data.max_bytes) {
       const limitMb = spec.data.max_bytes / (1024 * 1024);
       setParseError(
-        `O arquivo tem ${(file.size / (1024 * 1024)).toFixed(1)} MB; o limite é ${limitMb} MB. Divida-o em partes.`,
+        fill(messages.pages.csvImport.fileTooLarge, {
+          mb: (file.size / (1024 * 1024)).toFixed(1),
+          limit: String(limitMb),
+        }),
       );
       return;
     }
@@ -121,19 +127,17 @@ export function CsvImportPanel() {
   return (
     <Card>
       <CardHeader className="flex flex-wrap items-center justify-between gap-2 text-sm font-semibold">
-        <span>Importação CSV</span>
+        <span>{messages.pages.csvImport.title}</span>
         {/*
           The template belongs to the card, not to the row of fields: beside them it was a third
           control in a line of two, and `items-end` aligned it with the hint under the file input.
         */}
         <Button size="sm" variant="ghost" onClick={downloadTemplate} disabled={!spec.data}>
-          Baixar Modelo
+          {messages.pages.csvImport.downloadTemplate}
         </Button>
       </CardHeader>
       <CardBody className="grid gap-3">
-        <p className="text-xs text-(--color-muted)">
-          Arraste ou selecione sua planilha. O sistema lê os dados na hora para conferir se está tudo certo antes de enviar para a sua central de revisão.
-        </p>
+        <p className="text-xs text-(--color-muted)">{messages.pages.csvImport.intro}</p>
 
         {spec.error ? <ErrorState error={spec.error} /> : null}
         {spec.isPending ? <Skeleton className="h-24" /> : null}
@@ -147,8 +151,11 @@ export function CsvImportPanel() {
             */}
             <div className="flex flex-wrap items-start gap-3">
               <Field
-                label="Arquivo CSV"
-                hint={`Até ${formatCount(spec.data.max_rows)} linhas e ${limitMb} MB. A primeira linha é o cabeçalho.`}
+                label={messages.pages.csvImport.fileLabel}
+                hint={fill(messages.pages.csvImport.fileHint, {
+                  rows: formatCount(spec.data.max_rows),
+                  mb: String(limitMb),
+                })}
               >
                 <Input
                   type="file"
@@ -160,18 +167,27 @@ export function CsvImportPanel() {
                   }}
                 />
               </Field>
-              <Field label="Separador" className="w-44">
+              <Field label={messages.pages.csvImport.delimiter} className="w-44">
                 <Select value={delimiter} onChange={(event) => onDelimiterChange(event.target.value as CsvDelimiter)}>
-                  <option value=",">Vírgula</option>
-                  <option value=";">Ponto e vírgula</option>
+                  <option value=",">{messages.pages.csvImport.comma}</option>
+                  <option value=";">{messages.pages.csvImport.semicolon}</option>
                 </Select>
               </Field>
             </div>
 
             {fileName ? (
               <p className="text-xs text-(--color-muted)">
-                {fileName}
-                {encoding ? ` · ${encoding}` : ""} · separador {delimiter === "," ? "vírgula" : "ponto e vírgula"}
+                {fill(
+                  encoding ? messages.pages.csvImport.fileSummaryWithEncoding : messages.pages.csvImport.fileSummary,
+                  {
+                    file: fileName,
+                    encoding: encoding ?? "",
+                    delimiter:
+                      delimiter === ","
+                        ? messages.pages.csvImport.commaLower
+                        : messages.pages.csvImport.semicolonLower,
+                  },
+                )}
               </p>
             ) : null}
 
@@ -184,10 +200,14 @@ export function CsvImportPanel() {
                     <span key={`${index}-${header.header}`} className="inline-flex items-center gap-1">
                       <Badge tone={header.isId || header.field ? "ok" : "warn"}>
                         {header.header}
-                        {header.isId ? " · identificador" : header.field ? ` → ${header.field.label}` : " · fora do mapa"}
+                        {header.isId
+                          ? messages.pages.csvImport.idSuffix
+                          : header.field
+                            ? ` → ${header.field.label}`
+                            : messages.pages.csvImport.outsideMap}
                       </Badge>
                       {header.field?.help ? (
-                        <Hint label={`Sobre a coluna ${header.header}`} align="start">
+                        <Hint label={fill(messages.pages.csvImport.aboutColumn, { column: header.header })} align="start">
                           {header.field.help}
                         </Hint>
                       ) : null}
@@ -197,8 +217,9 @@ export function CsvImportPanel() {
 
                 {mapping.unknownHeaders.length > 0 ? (
                   <Notice tone="warn">
-                    Estas colunas não fazem parte do mapa e não serão importadas:{" "}
-                    <strong>{mapping.unknownHeaders.join(", ")}</strong>.
+                    {fill(messages.pages.csvImport.unknownColumns, {
+                      columns: mapping.unknownHeaders.join(", "),
+                    })}
                   </Notice>
                 ) : null}
 
@@ -208,7 +229,11 @@ export function CsvImportPanel() {
                   </Notice>
                 ))}
                 {mapping.blocking.length > 8 ? (
-                  <p className="text-xs text-(--color-danger)">e mais {mapping.blocking.length - 8} problemas no arquivo.</p>
+                  <p className="text-xs text-(--color-danger)">
+                    {fill(messages.pages.csvImport.moreProblems, {
+                      count: String(mapping.blocking.length - 8),
+                    })}
+                  </p>
                 ) : null}
 
                 {mapping.rows.length > 0 ? (
@@ -216,10 +241,10 @@ export function CsvImportPanel() {
                     <table className="w-full text-left text-xs">
                       <thead className="bg-black/[0.02] text-(--color-muted)">
                         <tr>
-                          <th className="px-2 py-1 font-medium">Linha</th>
-                          <th className="px-2 py-1 font-medium">Identificador</th>
-                          <th className="px-2 py-1 font-medium">Título</th>
-                          <th className="px-2 py-1 font-medium">Prévia local</th>
+                          <th className="px-2 py-1 font-medium">{messages.pages.csvImport.line}</th>
+                          <th className="px-2 py-1 font-medium">{messages.pages.csvImport.identifier}</th>
+                          <th className="px-2 py-1 font-medium">{messages.pages.csvImport.titleColumn}</th>
+                          <th className="px-2 py-1 font-medium">{messages.pages.csvImport.localPreview}</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -244,13 +269,13 @@ export function CsvImportPanel() {
 
                 {mapping.rows.length > 5 ? (
                   <p className="text-[11px] text-(--color-muted)">
-                    Prévia das 5 primeiras de {formatCount(mapping.rows.length)} linhas.
+                    {fill(messages.pages.csvImport.previewOf, { count: formatCount(mapping.rows.length) })}
                   </p>
                 ) : null}
 
                 {mapping.rows.length > 0 && warned > 0 ? (
                   <p className="text-xs text-(--color-warn)">
-                    {formatCount(warned)} linha(s) com aviso local; a API confirma o resultado de cada uma.
+                    {fill(messages.pages.csvImport.warnedLine, { count: formatCount(warned) })}
                   </p>
                 ) : null}
               </div>
@@ -263,13 +288,13 @@ export function CsvImportPanel() {
                 onClick={() => submit.mutate()}
               >
                 {submit.isPending
-                  ? "Importando…"
+                  ? messages.pages.csvImport.importing
                   : mapping
-                    ? `Importar ${formatCount(mapping.rows.length)} linhas`
-                    : "Importar"}
+                    ? fill(messages.pages.csvImport.importRows, { count: formatCount(mapping.rows.length) })
+                    : messages.pages.csvImport.importAction}
               </Button>
               {mapping && mapping.blocking.length > 0 ? (
-                <span className="text-xs text-(--color-muted)">Corrija o arquivo antes de enviar.</span>
+                <span className="text-xs text-(--color-muted)">{messages.pages.csvImport.fixBefore}</span>
               ) : null}
             </div>
 
@@ -278,19 +303,16 @@ export function CsvImportPanel() {
             {submit.data ? (
               <Notice tone={submit.data.data.accepted > 0 ? "ok" : "warn"} as="div" className="grid gap-2">
                 <p className="font-medium">{routeMessage(submit.data)}</p>
-                <p>
-                  O dossiê só encontra o registro depois que a transferência rodar; até lá, ele ainda
-                  não aparece no acervo e a revisão por IA não começou.
-                </p>
+                <p>{messages.pages.csvImport.dossierNote}</p>
                 <div className="overflow-x-auto rounded-md ring-1 ring-(--color-line)">
                   <table className="w-full text-left text-xs">
                     <thead className="bg-black/[0.02] text-(--color-muted)">
                       <tr>
                         <th className="px-2 py-1 font-medium">Linha</th>
                         <th className="px-2 py-1 font-medium">Identificador</th>
-                        <th className="px-2 py-1 font-medium">Título</th>
-                        <th className="px-2 py-1 font-medium">Resultado</th>
-                        <th className="px-2 py-1 font-medium">Motivo</th>
+                        <th className="px-2 py-1 font-medium">{messages.pages.csvImport.titleColumn}</th>
+                        <th className="px-2 py-1 font-medium">{messages.pages.csvImport.result}</th>
+                        <th className="px-2 py-1 font-medium">{messages.pages.csvImport.reason}</th>
                       </tr>
                     </thead>
                     <tbody>
