@@ -627,6 +627,88 @@ export const pt = {
       },
     },
   },
+  quality: {
+    ruleKind: {
+      REWRITE: {
+        label: "reescreve o texto",
+        hint: "A regra substitui cada ocorrência pelo texto de substituição. É a única espécie de regra que mexe no acervo.",
+      },
+      VALIDATE: {
+        label: "só sinaliza",
+        hint: "A regra não toca no texto: quando a expressão casa, a descrição ganha uma anomalia com o motivo declarado.",
+      },
+      LLM_CHECK: {
+        label: "consulta o modelo",
+        hint: "Um modelo de linguagem dá uma opinião sobre o título. Sem uma regra ativa deste tipo, o modelo não é carregado.",
+      },
+    },
+    targetColumn: {
+      original_title: "título original",
+      scope_content: "âmbito e conteúdo",
+      admin_bio_history: "história administrativa",
+      provenance: "proveniência",
+      archivist_notes: "notas do arquivista",
+    },
+    templateStatus: { SUGGESTED: "sugerido", APPROVED: "aprovado", REJECTED: "rejeitado" },
+    templateAction: { IGNORE: "tirar do texto", REPLACE: "substituir" },
+    templateScope: {
+      EMBEDDING: {
+        label: "busca por significado",
+        hint: "O trecho sai do texto usado na busca por significado. É onde o ganho é maior: mais da metade do acervo repetia o mesmo bloco.",
+      },
+      NER: {
+        label: "extração de nomes",
+        hint: "O trecho sai do texto que a extração de nomes e o classificador leem.",
+      },
+      TITLE: {
+        label: "título sugerido",
+        hint: "O trecho sai do título sugerido. O prefixo 'Registros Fotográficos -' ajuda aqui e atrapalha a busca por significado — por isso os escopos são separados.",
+      },
+    },
+    anomalyReason: {
+      MISSING_DATE: { label: "sem data", hint: "" },
+      FUTURE_DATE: { label: "data no futuro", hint: "" },
+      EMPTY_TITLE: { label: "título vazio", hint: "" },
+      ALL_CAPS_TITLE: { label: "título em caixa alta", hint: "" },
+      REPEATED_TITLE: { label: "título repetido", hint: "" },
+      TITLE_ONLY_TEMPLATE: { label: "título só com trecho de origem", hint: "" },
+      SCOPE_ONLY_BOILERPLATE: { label: "âmbito só com texto repetido", hint: "" },
+      NO_TAGS: { label: "sem assuntos", hint: "" },
+      NO_TYPOLOGY: { label: "sem tipologia", hint: "" },
+      NO_ENTITIES: { label: "sem entidades nomeadas", hint: "" },
+      RULE_MATCH: {
+        label: "regra do arquivista",
+        hint: "Uma regra ativa que só sinaliza ou que consulta o modelo casou. O nome da regra vem depois dos dois-pontos e é ele que o filtro usa.",
+      },
+      LLM_SUSPECT: {
+        label: "suspeita do modelo",
+        hint: "O modelo achou o título suspeito. O que ele escreveu fica na ficha, não no filtro: uma faceta sobre esse texto teria opções que nunca se repetem.",
+      },
+    },
+    signal: {
+      PLACEHOLDER: {
+        label: "texto de preenchimento",
+        hint: "A importação grava este texto quando o dado não veio: ele não fala de assunto nenhum.",
+      },
+      YEAR: {
+        label: "ano isolado",
+        hint: "Um ano solto é uma data, não um assunto — e o modelo chegava a classificá-lo como assunto.",
+      },
+      MEASURE: { label: "número com unidade", hint: "Número com unidade é medida, não conceito." },
+      STREET: {
+        label: "logradouro",
+        hint: "Logradouro é lugar: não é assunto, e o eixo de entidades carrega o lugar.",
+      },
+      PERSON: {
+        label: "nome de pessoa",
+        hint: "Nome de pessoa é produtor ou biografado, não assunto: o eixo de entidades o carrega.",
+      },
+      RECORDED: {
+        label: "decisão registrada",
+        hint: "Não segue um formato reconhecível: foi uma decisão de alguém, e essa decisão é o motivo.",
+      },
+    },
+  },
   format: {
     reviewStatus: {
       PENDING_AI: "Aguardando IA",

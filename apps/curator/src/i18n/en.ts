@@ -465,6 +465,88 @@ export const en: typeof pt = {
       },
     },
   },
+  quality: {
+    ruleKind: {
+      REWRITE: {
+        label: "rewrites the text",
+        hint: "The rule replaces every occurrence with the replacement text. It is the only kind of rule that touches the collection.",
+      },
+      VALIDATE: {
+        label: "only flags",
+        hint: "The rule does not touch the text: when the expression matches, the description gets an anomaly with the declared reason.",
+      },
+      LLM_CHECK: {
+        label: "asks the model",
+        hint: "A language model gives an opinion on the title. Without an active rule of this kind, the model is not loaded.",
+      },
+    },
+    targetColumn: {
+      original_title: "original title",
+      scope_content: "scope and content",
+      admin_bio_history: "administrative history",
+      provenance: "provenance",
+      archivist_notes: "archivist's notes",
+    },
+    templateStatus: { SUGGESTED: "suggested", APPROVED: "approved", REJECTED: "rejected" },
+    templateAction: { IGNORE: "remove from the text", REPLACE: "replace" },
+    templateScope: {
+      EMBEDDING: {
+        label: "meaning search",
+        hint: "The excerpt leaves the text used in the meaning search. It is where the gain is largest: more than half the collection repeated the same block.",
+      },
+      NER: {
+        label: "name extraction",
+        hint: "The excerpt leaves the text the name extraction and the classifier read.",
+      },
+      TITLE: {
+        label: "suggested title",
+        hint: "The excerpt leaves the suggested title. The prefix 'Registros Fotográficos -' helps here and hurts the meaning search — that is why the scopes are separate.",
+      },
+    },
+    anomalyReason: {
+      MISSING_DATE: { label: "no date", hint: "" },
+      FUTURE_DATE: { label: "future date", hint: "" },
+      EMPTY_TITLE: { label: "empty title", hint: "" },
+      ALL_CAPS_TITLE: { label: "all-caps title", hint: "" },
+      REPEATED_TITLE: { label: "repeated title", hint: "" },
+      TITLE_ONLY_TEMPLATE: { label: "title only from a source excerpt", hint: "" },
+      SCOPE_ONLY_BOILERPLATE: { label: "scope only repeated text", hint: "" },
+      NO_TAGS: { label: "no subjects", hint: "" },
+      NO_TYPOLOGY: { label: "no typology", hint: "" },
+      NO_ENTITIES: { label: "no named entities", hint: "" },
+      RULE_MATCH: {
+        label: "archivist rule",
+        hint: "An active rule that only flags or asks the model matched. The rule's name comes after the colon and is what the filter uses.",
+      },
+      LLM_SUSPECT: {
+        label: "model suspicion",
+        hint: "The model found the title suspicious. What it wrote stays on the record, not in the filter: a facet over that text would have options that never repeat.",
+      },
+    },
+    signal: {
+      PLACEHOLDER: {
+        label: "placeholder text",
+        hint: "The import writes this text when the data did not arrive: it is about no subject at all.",
+      },
+      YEAR: {
+        label: "isolated year",
+        hint: "A loose year is a date, not a subject — and the model used to classify it as a subject.",
+      },
+      MEASURE: { label: "number with unit", hint: "A number with a unit is a measure, not a concept." },
+      STREET: {
+        label: "street address",
+        hint: "A street address is a place: it is not a subject, and the entity axis carries the place.",
+      },
+      PERSON: {
+        label: "person name",
+        hint: "A person's name is a producer or a biographee, not a subject: the entity axis carries it.",
+      },
+      RECORDED: {
+        label: "recorded decision",
+        hint: "It does not follow a recognisable format: it was someone's decision, and that decision is the reason.",
+      },
+    },
+  },
   format: {
     reviewStatus: {
       PENDING_AI: "Waiting for AI",
