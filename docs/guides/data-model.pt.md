@@ -344,7 +344,7 @@ Uma colisão tag × entidade tem dois veredictos possíveis, e as duas direçõe
 | A favor da **tag** | `domain_ner_exclusions` | O termo é um assunto legítimo; uma extração NER dele é falso positivo |
 
 `domain_stopwords.word` é **único**, então um termo vive em exatamente um eixo. Banir de novo um termo
-na tela Stopwords o *move* (`save_stopwords` é um upsert em `word`) em vez de deixar a tela mostrando
+na tela Grafias bloqueadas o *move* (`save_stopwords` é um upsert em `word`) em vez de deixar a tela mostrando
 um eixo do qual o arquivista acabou de sair. `word_scope` é `TAG`, `ENTITY` ou `ALL`, e `source`
 (`HUMAN`, `CONFLICT` ou `EXCLUSION`) diz quem plantou o banimento — a origem que a prévia da purga lê
 para separar um termo banido com o acervo em mente de um digitado à mão.
@@ -402,7 +402,7 @@ existiam antes dele. `ban_created` cumpre o mesmo papel para as duas escritas qu
 — a resolução de conflito e a exclusão de assunto: o desfazer só pode remover o banimento quando esta
 linha é a que o plantou, senão reverter uma decisão levantaria um banimento que uma decisão anterior
 fez. A exclusão de assunto acrescenta um segundo guardião — o `source` do banimento precisa ainda
-nomeá-la (`EXCLUSION`), então uma grafia que uma pessoa rebaniu na tela Stopwords mantém o seu
+nomeá-la (`EXCLUSION`), então uma grafia que uma pessoa rebaniu na tela Grafias bloqueadas mantém o seu
 banimento — enquanto o desfazer da resolução de conflito se guarda apenas por `ban_created`. Para um
 merge, `synonym_created` e `synonym_previous_tag_id` (tag) / `synonym_previous_entity_id` (entidade)
 capturam o estado das grafias antes do merge, e `repointed_synonym_names` registra as grafias que

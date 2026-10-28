@@ -610,17 +610,22 @@ próxima execução do classificador.
 
 | Tela | Decisão | Reversível? |
 | --- | --- | --- |
-| Tags — `/assuntos/tags` | o peso, as duplicatas, a fila de merges, os termos banidos **e a decisão de assunto de cada tag** | o merge sim (ledger); a purga sim (ledger próprio); a decisão de assunto sim (dá para voltar atrás) |
+| Tags — `/assuntos/tags` | o peso, as duplicatas, a fila de merges **e a decisão de assunto de cada tag** | o merge sim (ledger); a decisão de assunto sim (dá para voltar atrás) |
 | Categorias — `/assuntos/categorias` | as categorias de assunto que o classificador lê, **e o que está dentro de cada uma** | sim (aposentar e reativar) |
 | Descobrir Categorias — `/assuntos/descobrir` | se um tema proposto merece uma categoria | sim (a proposta não escreve nada) |
 | Não é assunto — `/assuntos/excecoes` | quais termos saem do eixo de assunto e têm a grafia banida de voltar a ser tag | sim (o banimento não apaga nada, e o desfazer levanta o banimento que esta decisão plantou) |
+| Grafias bloqueadas — `/assuntos/grafias` | quais grafias a extração não pode recriar, e a exclusão das tags que já existem com elas | o bloqueio sim (desbanir); a exclusão sim (uma linha de ledger por tag, restaurando a tag, os vínculos e as grafias — nunca o bloqueio) |
 
 ### Tags — `/assuntos/tags`
 
-Uma rota, cinco perguntas, uma conversa só: o arquivista vê que `alvenarias` pesa pouco, encontra a
-quase-duplicata dela e decide se a absorve. Quatro das abas são o jeito de olhar; a quinta,
+Uma rota, quatro perguntas, uma conversa só: o arquivista vê que `alvenarias` pesa pouco, encontra a
+quase-duplicata dela e decide se a absorve. Três das abas são o jeito de olhar; a quarta,
 **Classificar**, é onde a decisão de assunto se toma, e é onde os dois cartões de assunto do Início
 caem. A aba ativa está na URL.
+
+As grafias bloqueadas eram a quinta aba, e são **Grafias bloqueadas — `/assuntos/grafias`** desde a
+#232: tela própria, ao lado de *Não é assunto*, porque a descrição desta página nunca dizia que a aba
+guardava a única escrita que apaga uma tag. `?aba=stopwords` continua respondendo com a tela nova.
 
 #### Relevância
 
@@ -651,8 +656,9 @@ podem ser marcadas entre si e unificadas como um conjunto, que é como um merge 
 Uma seleção marcada tem um **segundo destino**, e ele é o outro tipo de escrita: **Banir N marcadas**
 registra as grafias em `POST /api/v1/taxonomy/tags/stopwords` (`CURATE`), no eixo escolhido ao lado do
 botão. Banir **não apaga nada** — as tags continuam no acervo, vinculadas e alcançáveis pela busca, e o
-passo que as exclui é a **purga** na aba Stopwords, atrás da própria prévia e com um ledger que restaura cada tag. A marcação
-sobrevive ao banimento: a mesclagem para a qual ela foi feita continua possível.
+passo que as exclui é a exclusão das tags em **Grafias bloqueadas — `/assuntos/grafias`**, atrás da
+própria prévia e com um ledger que restaura cada tag. A marcação sobrevive ao banimento: a mesclagem
+para a qual ela foi feita continua possível.
 
 #### Propostas de merge
 
@@ -676,45 +682,6 @@ O **ledger** abaixo lista só merges aplicados, cada um com o nome absorvido, a 
 documentos, a autoria e o horário. O desfazer dele é a restauração exata descrita acima, e o
 "desfazer" da tela é a mesma rota. Um merge feito aqui também passa por uma proposta, então o ledger é
 a história da escrita e o status é a da decisão.
-
-#### Stopwords
-
-Os termos banidos, e a escrita destrutiva da taxonomia que guarda um ledger. A tela separa três
-coisas:
-
-- **Banir** — `POST /api/v1/taxonomy/tags/stopwords` (`CURATE`) registra que um termo não vale a pena
-  num eixo: `TAG` (o eixo de assunto), `ENTITY` (NER) ou `ALL`. Uma palavra tem exatamente um escopo
-  — banir de novo **move** — e banir **não apaga nada**. Um banimento digitado aqui é gravado com
-  `source=HUMAN`; o que a tela *Não é assunto* planta é `EXCLUSION`, e o que uma resolução de
-  conflito planta é `CONFLICT`. A lista mostra o escopo em todo termo e a origem como selo quando ela
-  não é `HUMAN` — um termo digitado aqui é o padrão, e o selo marca os que chegaram como consequência
-  de outra decisão.
-- **Desbanir** — `DELETE /api/v1/taxonomy/tags/stopwords` (`CURATE`). Reversível.
-- **Casamento** — `PATCH /api/v1/taxonomy/tags/stopwords` (`CURATE`) muda como um banimento existente
-  casa, sem banir de novo: banir de novo sobrescreveria a origem que um conflito ou a tela *Não é
-  assunto* registraram. `TOKEN` bloqueia a palavra **e qualquer nome que a contenha como palavra
-  inteira** — o span fundido `IPTU do Exemplo` — e `EXACT` bloqueia só a grafia, que é o que uma
-  palavra genérica que inicia um nome próprio precisa: `alameda` bloqueia `alameda`, nunca `Alameda
-  Cabral`. Só os eixos `ENTITY`/`ALL` leem isso. Toda entrada de `domain_ner_exclusions` casa pela
-  grafia exata pelo mesmo motivo: o conflito era sobre `casa`, não sobre `casa da memória` (#160).
-- **Purgar** — `POST /api/v1/taxonomy/tags/stopwords/purge` (`CURATE`), depois de
-  `POST /api/v1/taxonomy/tags/stopwords/purge/preview`. Esta é a escrita que apaga as tags. A prévia
-  lista as tags que morreriam, com a contagem de documentos, a categoria **e de onde veio o
-  banimento** (`HUMAN`, `CONFLICT` ou `EXCLUSION`), para um termo banido com o acervo em mente não se
-  confundir com um digitado à mão; o botão de aplicar fica desabilitado até a prévia existir.
-
-Cada tag apagada é gravada num **ledger** (`archive_stopword_purge_log`) antes de sumir: o retrato da
-linha, os documentos que a carregavam e as grafias que apontavam para ela. A resposta da purga traz os
-`purge_ids`, a aba Stopwords os mostra em **Registro das purgas**, e `DELETE
-/api/v1/taxonomy/tags/stopwords/purge-log/{purge_id}` (`CURATE`) restaura a tag, os vínculos e as
-grafias; um identificador desconhecido é **404** e uma segunda tentativa é **409**. O desfazer **não**
-levanta o banimento — o termo continua stopword, e a próxima purga lista a tag restaurada de novo.
-
-!!! warning "O escopo protege o outro eixo"
-
-    A purga lê apenas `TAG`/`ALL`. Um termo banido no eixo `ENTITY` é um veto de NER e nunca pode
-    fazer a purga de assunto excluir uma tag que o curador manteve — os dois são guardados em lugares
-    diferentes de propósito.
 
 #### Classificar
 
@@ -755,8 +722,60 @@ causa medida do defeito de classificação —, mas a resposta agora é a entida
 quarto estado da tag.
 
 As mesmas duas ações valem para uma **seleção**, uma requisição por tag, e o lote informa quantas tags
-escreveu e para onde. Nada nesta aba exclui: banir uma grafia e purgar as tags ficam em **Stopwords**,
-cada um no seu passo, e a purga guarda um ledger com o desfazer de cada tag.
+escreveu e para onde. Nada nesta aba exclui: banir uma grafia e excluir as tags ficam em **Grafias
+bloqueadas — `/assuntos/grafias`**, cada um no seu passo, e a exclusão guarda um ledger com o desfazer
+de cada tag.
+
+### Grafias bloqueadas — `/assuntos/grafias`
+
+As grafias que um bloqueio mantém fora do vocabulário, e a única escrita da taxonomia que apaga uma
+tag. Era a quarta aba de **Tags** até a #232, e virou tela própria porque a página em que ela morava
+descrevia relevância, duplicatas e mesclagem, e nunca dizia que a aba guardava a única escrita
+destrutiva do eixo de assunto.
+
+Não é uma segunda vista de *Não é assunto*, e a tela diz isso na primeira linha: o veredito é sobre o
+que o termo **significa** — e é o que faz a classificação de assunto parar de adivinhar —, enquanto o
+bloqueio é sobre a **grafia** — e é o que impede a próxima ingestão de recriar a tag. Confirmar um
+veredito planta um bloqueio no escopo `TAG`, e é por isso que a mesma grafia aparece nas duas listas: a
+lista diz de onde veio cada bloqueio, e o que veio de um veredito leva de volta à tela que decidiu. As
+duas telas se apontam, e o gate `testing/unit/curator/test_curator_copy.py` falha se um dos links ou o
+redirecionamento de `?aba=stopwords` desaparecer.
+
+A tela separa três coisas:
+
+- **Banir** — `POST /api/v1/taxonomy/tags/stopwords` (`CURATE`) registra que um termo não vale a pena
+  num eixo: `TAG` (o eixo de assunto), `ENTITY` (NER) ou `ALL`. Uma palavra tem exatamente um escopo
+  — banir de novo **move** — e banir **não apaga nada**. Um banimento digitado aqui é gravado com
+  `source=HUMAN`; o que a tela *Não é assunto* planta é `EXCLUSION`, e o que uma resolução de
+  conflito planta é `CONFLICT`. A lista mostra o escopo em todo termo e a origem como selo quando ela
+  não é `HUMAN` — um termo digitado aqui é o padrão, e o selo marca os que chegaram como consequência
+  de outra decisão.
+- **Desbanir** — `DELETE /api/v1/taxonomy/tags/stopwords` (`CURATE`). Reversível.
+- **Casamento** — `PATCH /api/v1/taxonomy/tags/stopwords` (`CURATE`) muda como um banimento existente
+  casa, sem banir de novo: banir de novo sobrescreveria a origem que um conflito ou a tela *Não é
+  assunto* registraram. `TOKEN` bloqueia a palavra **e qualquer nome que a contenha como palavra
+  inteira** — o span fundido `IPTU do Exemplo` — e `EXACT` bloqueia só a grafia, que é o que uma
+  palavra genérica que inicia um nome próprio precisa: `alameda` bloqueia `alameda`, nunca `Alameda
+  Cabral`. Só os eixos `ENTITY`/`ALL` leem isso. Toda entrada de `domain_ner_exclusions` casa pela
+  grafia exata pelo mesmo motivo: o conflito era sobre `casa`, não sobre `casa da memória` (#160).
+- **Excluir as tags** — `POST /api/v1/taxonomy/tags/stopwords/purge` (`CURATE`), depois de
+  `POST /api/v1/taxonomy/tags/stopwords/purge/preview`. Esta é a escrita que apaga as tags. A prévia
+  lista as tags que morreriam, com a contagem de documentos, a categoria **e de onde veio o
+  banimento** (`HUMAN`, `CONFLICT` ou `EXCLUSION`), para um termo banido com o acervo em mente não se
+  confundir com um digitado à mão; o botão de aplicar fica desabilitado até a prévia existir.
+
+Cada tag apagada é gravada num **ledger** (`archive_stopword_purge_log`) antes de sumir: o retrato da
+linha, os documentos que a carregavam e as grafias que apontavam para ela. A resposta da exclusão traz
+os `purge_ids`, a tela os mostra em **Registro das exclusões**, e `DELETE
+/api/v1/taxonomy/tags/stopwords/purge-log/{purge_id}` (`CURATE`) restaura a tag, os vínculos e as
+grafias; um identificador desconhecido é **404** e uma segunda tentativa é **409**. O desfazer **não**
+levanta o bloqueio — o termo continua bloqueado, e a próxima exclusão lista a tag restaurada de novo.
+
+!!! warning "O escopo protege o outro eixo"
+
+    A exclusão lê apenas `TAG`/`ALL`. Um termo bloqueado no eixo `ENTITY` é um veto de NER e nunca
+    pode fazer a exclusão de assunto apagar uma tag que o curador manteve — os dois são guardados em
+    lugares diferentes de propósito.
 
 ### Categorias — `/assuntos/categorias`
 
@@ -822,9 +841,15 @@ A escrita é `POST /api/v1/taxonomy/tags/subject-exclusions` (`CURATE`), e ela f
 vez: registra o termo em `domain_subject_exclusions`, para o classificador de assunto parar de
 adivinhar sobre ele, **e bane a grafia no escopo `TAG`**, para a próxima ingestão não recriar a tag
 que acabou de ser decidida. **O banimento não apaga nada**: a tag continua no acervo, continua
-vinculada e continua alcançável pela busca. Removê-la é um ato separado — a **purga**, na aba
-Stopwords, atrás da própria prévia e com um ledger que restaura cada tag — e a prévia da purga diz
-quais banimentos foram plantados aqui (`EXCLUSION`) e quais à mão (`HUMAN`).
+vinculada e continua alcançável pela busca. Removê-la é um ato separado — a exclusão das tags em
+**Grafias bloqueadas — `/assuntos/grafias`**, atrás da própria prévia e com um ledger que restaura
+cada tag — e a prévia diz quais banimentos foram plantados aqui (`EXCLUSION`) e quais à mão
+(`HUMAN`).
+
+A tela e **Grafias bloqueadas** são dois objetos, não dois filtros, e cada uma aponta para a outra:
+esta decide o que o termo **significa** e é o que para o classificador; aquela veta a **grafia** e é o
+que impede a extração de recriar a tag. Um veredito planta um bloqueio `TAG`, então a mesma grafia
+aparece nas duas listas — a lista de bloqueios diz qual veio de um veredito e leva de volta para cá.
 
 Duas respostas que a tela precisa mostrar:
 
@@ -839,7 +864,7 @@ Duas respostas que a tela precisa mostrar:
 
 A reversão é `DELETE` (`CURATE`, o "restaurar" da tela). Ela responde `removed` e `unbanned`, e o
 levantamento é exato: só um banimento que esta decisão plantou sai com ela. Uma grafia que uma pessoa
-baniu na tela Stopwords, ou que uma resolução de conflito plantou antes, sobrevive.
+baniu na tela **Grafias bloqueadas**, ou que uma resolução de conflito plantou antes, sobrevive.
 
 ## Entidades
 

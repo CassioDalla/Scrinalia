@@ -2861,3 +2861,39 @@ with short or full shas, and part of a `## <date> — <title>` entry.
   without saving, so the write path is the existing one and was not exercised. The suggestion list was
   not seen against an empty catalogue. Nothing in the CSV import, the public DTO or the API changed,
   and none of them was re-rendered.
+
+## 2026-10-28 — the blocked spellings are a screen
+
+- **Range:** `263d936..67f00ad`
+- **Pages:**
+  - `guides/curate.md` — **updated**: the Assuntos table gains `Grafias bloqueadas —
+    /assuntos/grafias` and Tags loses the banned terms; `#### Stopwords` moves out of the Tags
+    section and becomes its own `###` section, with the two objects stated (meaning × spelling), the
+    reciprocal link and the `?aba=stopwords` redirect; the Similaridade, Classificar and *Não é
+    assunto* paragraphs now name the screen instead of the tab, and the *Não é assunto* section says
+    which of the two each one is.
+  - `guides/curate.pt.md` — **updated**: the same translation, in the SPA's vocabulary.
+  - `guides/data-model.md` — **no-change** beyond the name: two sentences said "the Stopwords
+    screen" for `save_stopwords`, and the screen is now `Grafias bloqueadas`; the table, the columns
+    and the ledger paragraphs still hold.
+  - `guides/data-model.pt.md` — **updated**: the same two references.
+- **Why the round exists.** #232 found two screens sharing a vocabulary, a dataset and a verb, with
+  the only destructive write of the axis two clicks under a page that never mentioned it. The fix
+  moved the blocked spellings to their own screen, renamed the copy at the object (a *grafia*, not a
+  term), and made the two screens name each other.
+- **What the round measured.** `tsc`, ESLint, the Vite build, 72 bun tests, `basedpyright` (0 errors)
+  and 56 pytest across `testing/unit/curator` (27, including the three new copy rules) and
+  `testing/unit/docs` (29). The screens were rendered against `scrinalia_render` with the headless
+  shell: `/assuntos/grafias` with 208 blocked spellings in three axes, a ban whose origin is a
+  verdict (`veio de “não é assunto”`) carrying the `ver em Não é Assunto` link, the danger card
+  `Excluir as tags com esses nomes` disabled until the impact preview, and the ledger below it; the
+  verdict screen with the reciprocal `Grafias bloqueadas` button and the disclosure sentence naming
+  where the tags are deleted; and `/assuntos/excecoes?termo=…` opening its ledger filtered
+  (`1 de 6 termos vetados`) and scrolled to it, which is the landing the new link promises.
+  `/assuntos/tags?aba=stopwords` was followed and answered `/assuntos/grafias`.
+- **What was not verified.** The write path was exercised only to plant the fixture (`POST
+  /subject-exclusions` for a synthetic term, which created the `EXCLUSION` ban the link is drawn
+  from); the impact preview and the tag deletion were not run, and no tag was deleted. The mobile
+  viewport was not rendered. The render database is scratch (`scrinalia_render`) and was migrated to
+  `head` for the round; the synthetic term, its ban and the temporary account were left in it and
+  belong to nobody's collection.
