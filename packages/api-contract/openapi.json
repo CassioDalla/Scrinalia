@@ -233,6 +233,16 @@
               }
             ]
           },
+          "locale": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Locale"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "locked_until": {
             "oneOf": [
               {
@@ -5964,6 +5974,15 @@
         "title": "LanguageDTO",
         "type": "object"
       },
+      "Locale": {
+        "description": "A language the interface can be read in.",
+        "enum": [
+          "pt-BR",
+          "en"
+        ],
+        "title": "Locale",
+        "type": "string"
+      },
       "LoginCommand": {
         "properties": {
           "email": {
@@ -9931,6 +9950,25 @@
         "title": "TypologyUpdateRequest",
         "type": "object"
       },
+      "UpdateLocaleCommand": {
+        "properties": {
+          "locale": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Locale"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "locale"
+        ],
+        "title": "UpdateLocaleCommand",
+        "type": "object"
+      },
       "UpdateTextTemplateRequest": {
         "properties": {
           "action": {
@@ -11798,6 +11836,75 @@
           }
         },
         "summary": "Me",
+        "tags": [
+          "Auth"
+        ]
+      },
+      "patch": {
+        "deprecated": false,
+        "operationId": "ApiV1AuthMeUpdateMe",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateLocaleCommand"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthUserDTO"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "UpdateMe",
         "tags": [
           "Auth"
         ]

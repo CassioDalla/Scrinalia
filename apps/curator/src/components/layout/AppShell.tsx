@@ -23,14 +23,15 @@ import {
   UserX,
   type LucideIcon,
 } from "lucide-react";
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
-import { fetchCurrentUser, fetchSetupStatus, logout, type AuthUser } from "@/api/client";
+import { fetchCurrentUser, fetchSetupStatus, logout, updateLocale, type AuthUser } from "@/api/client";
 import { Lockup } from "@/components/brand/Lockup";
 import { Mark } from "@/components/brand/Mark";
 import { Button } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/Feedback";
-import { useCopy } from "@/i18n/context";
+import { useCopy, useLocale } from "@/i18n/context";
+import { detectLocale, LOCALE_LABEL, LOCALES, type Locale } from "@/i18n/locale";
 import type { Messages } from "@/i18n/pt";
 import { cn } from "@/lib/cn";
 import { can, type Permission } from "@/lib/permissions";
@@ -269,6 +270,7 @@ function writeCollapsed(collapsed: boolean): void {
 
 export function AppShell() {
   const copy = useCopy();
+  const { setLocale } = useLocale();
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const [changingPassword, setChangingPassword] = useState(false);
   const [collapsed, setCollapsed] = useState(readCollapsed);
@@ -322,6 +324,18 @@ export function AppShell() {
     retry: false,
     enabled: !needsSetup,
   });
+
+  /*
+    The account is the source of the choice once there is a session (ADR 0020 §3): ``null`` means
+    automatic, and the browser decides. It is stored per account and never per browser, so the next
+    person to sign in on this machine does not inherit the previous one's language.
+  */
+  const signedIn = session.data !== undefined;
+  const accountLocale = session.data?.locale ?? null;
+  useEffect(() => {
+    if (!signedIn) return;
+    setLocale(accountLocale ?? detectLocale(), { persist: false });
+  }, [accountLocale, signedIn, setLocale]);
 
   if (setup.isPending) {
     return (
@@ -614,12 +628,20 @@ function SessionFooter({
   onTogglePassword: () => void;
 }) {
   const copy = useCopy();
+  const { setLocale } = useLocale();
   const queryClient = useQueryClient();
   const signOut = useMutation({
     mutationFn: logout,
     // Whether the API answered or the session was already over, this browser is signed out: clearing
     // the cached account is what draws the sign-in form.
     onSettled: () => queryClient.setQueryData(["current-user"], null),
+  });
+  const saveLocale = useMutation({
+    mutationFn: (next: Locale | null) => updateLocale(next),
+    onSuccess: (account) => {
+      queryClient.setQueryData(["current-user"], account);
+      setLocale(account.locale ?? detectLocale(), { persist: false });
+    },
   });
 
   if (collapsed) {
@@ -683,6 +705,28 @@ function SessionFooter({
           {signOut.isPending ? copy.shell.signingOut : copy.shell.signOut}
         </Button>
       </div>
+      <label className="flex items-center gap-2 pt-2 text-xs text-(--color-rail-muted)">
+        <span>{copy.shell.language}</span>
+        <select
+          value={user.locale ?? "auto"}
+          disabled={saveLocale.isPending}
+          onChange={(event) => {
+            const value = event.target.value;
+            saveLocale.mutate(value === "auto" ? null : (value as Locale));
+          }}
+          className="rounded border border-(--color-rail-line) bg-(--color-rail) px-1 py-0.5 text-xs text-(--color-rail-ink)"
+        >
+          <option value="auto">{copy.shell.automatic}</option>
+          {LOCALES.map((value) => (
+            <option key={value} value={value}>
+              {LOCALE_LABEL[value]}
+            </option>
+          ))}
+        </select>
+      </label>
+      {saveLocale.isError ? (
+        <p className="pt-1 text-xs text-(--color-danger)">{copy.shell.localeFailed}</p>
+      ) : null}
     </div>
   );
 }

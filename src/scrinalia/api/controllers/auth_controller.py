@@ -11,7 +11,7 @@ session, which sessions end when a password changes), and this module is the tra
 policy and HTTP — a cookie in, a cookie out, and the sentences the screen shows.
 """
 
-from litestar import Controller, Request, Response, get, post
+from litestar import Controller, Request, Response, get, patch, post
 from litestar.di import NamedDependency, Provide
 
 from scrinalia.api.dependencies import (
@@ -25,7 +25,7 @@ from scrinalia.api.session_cookie import write_session_cookie
 from scrinalia.core.config import get_settings
 from scrinalia.domains.archive.schemas.responses import RouteMessageCode, RouteResponse
 from scrinalia.domains.identity.schemas.auth_schema import LoginCommand
-from scrinalia.domains.identity.schemas.user_schema import AuthUserDTO, ChangePasswordCommand
+from scrinalia.domains.identity.schemas.user_schema import AuthUserDTO, ChangePasswordCommand, UpdateLocaleCommand
 from scrinalia.domains.identity.services.auth_service import AuthService
 
 
@@ -117,6 +117,22 @@ class AuthController(Controller):
         forced: refusing it would leave the account with no way to reach the very change it owes.
         """
         return AuthUserDTO.model_validate(auth_service.get_user(current_user.user_id))
+
+    @patch("/me", opt={"access": Access.AUTHENTICATED}, sync_to_thread=True)
+    def update_me(
+        self,
+        auth_service: NamedDependency[AuthService],
+        current_user: NamedDependency[AuthenticatedUser],
+        data: UpdateLocaleCommand,
+    ) -> AuthUserDTO:
+        """
+        Stores the account's own interface language.
+
+        ``locale: null`` means automatic: the SPA follows the browser, exactly as it does before a
+        session exists. The answer is the account, so the shell can draw the choice it just made
+        without a second request.
+        """
+        return AuthUserDTO.model_validate(auth_service.set_locale(current_user.user_id, data.locale))
 
     @post(
         "/password",

@@ -52,7 +52,8 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        patch?: never;
+        /** UpdateMe */
+        patch: operations["ApiV1AuthMeUpdateMe"];
         trace?: never;
     };
     "/api/v1/auth/password": {
@@ -2268,6 +2269,7 @@ export interface components {
              */
             readonly is_locked: boolean;
             last_login_at?: string | null;
+            locale?: components["schemas"]["Locale"] | null;
             locked_until?: string | null;
             must_change_password: boolean;
             name: string;
@@ -3697,6 +3699,12 @@ export interface components {
             code: string;
             name: string;
         };
+        /**
+         * Locale
+         * @description A language the interface can be read in.
+         * @enum {string}
+         */
+        Locale: "pt-BR" | "en";
         /** LoginCommand */
         LoginCommand: {
             email: string;
@@ -4784,6 +4792,10 @@ export interface components {
             is_active?: boolean | null;
             name?: string | null;
         };
+        /** UpdateLocaleCommand */
+        UpdateLocaleCommand: {
+            locale: components["schemas"]["Locale"] | null;
+        };
         /** UpdateTextTemplateRequest */
         UpdateTextTemplateRequest: {
             /** @enum {null|string} */
@@ -5317,6 +5329,45 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AuthUserDTO"];
+                };
+            };
+        };
+    };
+    ApiV1AuthMeUpdateMe: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateLocaleCommand"];
+            };
+        };
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthUserDTO"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                        status_code: number;
+                    };
                 };
             };
         };

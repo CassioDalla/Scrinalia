@@ -1,10 +1,15 @@
+import type { components } from "@/api/schema";
+
 import { en } from "./en";
 import { pt, type Messages } from "./pt";
 
-/** The two locales of the interface (ADR 0020). */
-export type Locale = "pt-BR" | "en";
+/** The two locales of the interface (ADR 0020), generated from the contract. */
+export type Locale = components["schemas"]["Locale"];
 
 export const LOCALES: readonly Locale[] = ["pt-BR", "en"];
+
+/** A language names itself; "Automático"/"Automatic" is the only translatable one. */
+export const LOCALE_LABEL: Record<Locale, string> = { "pt-BR": "Português", en: "English" };
 
 /** What an unsupported browser language falls back to: the product's own voice. */
 export const DEFAULT_LOCALE: Locale = "pt-BR";
@@ -62,8 +67,14 @@ export function messagesFor(locale: Locale): Messages {
   return CATALOGUES[locale];
 }
 
-export function setActiveLocale(locale: Locale): void {
+/**
+ * Sets the module locale. `persist` is false when the account is the source of the choice: the
+ * storage belongs to the anonymous phase, and a signed-in account must not inherit the previous
+ * person's language from this browser (ADR 0020 §3).
+ */
+export function setActiveLocale(locale: Locale, persist = true): void {
   active = locale;
+  if (!persist) return;
   try {
     globalThis.localStorage?.setItem(STORAGE_KEY, locale);
   } catch {

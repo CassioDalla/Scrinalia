@@ -189,6 +189,9 @@ export const pt = {
     close: "Fechar",
     signOut: "Sair",
     signingOut: "Saindo…",
+    language: "Idioma",
+    automatic: "Automático",
+    localeFailed: "Não foi possível salvar o idioma.",
   },
   nav: {
     sections: {

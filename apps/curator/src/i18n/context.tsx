@@ -5,7 +5,8 @@ import type { Messages } from "@/i18n/pt";
 
 type LocaleContextValue = {
   locale: Locale;
-  setLocale: (locale: Locale) => void;
+  /** `persist: false` when the account is the source of the choice, not this browser. */
+  setLocale: (locale: Locale, options?: { persist?: boolean }) => void;
 };
 
 const LocaleContext = createContext<LocaleContextValue | null>(null);
@@ -20,8 +21,8 @@ const LocaleContext = createContext<LocaleContextValue | null>(null);
 export function LocaleProvider({ children }: { children: ReactNode }) {
   const [locale, setLocaleState] = useState<Locale>(() => activeLocale());
 
-  const setLocale = useCallback((next: Locale) => {
-    setActiveLocale(next);
+  const setLocale = useCallback((next: Locale, options?: { persist?: boolean }) => {
+    setActiveLocale(next, options?.persist ?? true);
     setLocaleState(next);
   }, []);
 

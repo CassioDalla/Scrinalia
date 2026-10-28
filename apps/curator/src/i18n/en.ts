@@ -39,6 +39,9 @@ export const en: typeof pt = {
     close: "Close",
     signOut: "Sign out",
     signingOut: "Signing out…",
+    language: "Language",
+    automatic: "Automatic",
+    localeFailed: "Could not save the language.",
   },
   nav: {
     sections: {

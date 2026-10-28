@@ -14,6 +14,7 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 
 from scrinalia.core.config import get_settings
+from scrinalia.core.locale import Locale
 from scrinalia.domains.identity.domain.credentials import (
     check_password_policy,
     generate_session_token,
@@ -288,6 +289,18 @@ class AuthService:
         if user is None:
             raise UserNotFoundError(f"Conta {user_id} não encontrada.")
         return user
+
+    def set_locale(self, user_id: int, locale: Locale | None) -> AuthUser:
+        """
+        Stores the account's interface language.
+
+        ``None`` is a choice, not an absence: it means automatic, follow the browser (ADR 0020 §3).
+        The value is the one the API speaks, so the column and the contract cannot disagree about
+        the spelling.
+        """
+        user = self.get_user(user_id)
+        user.locale = locale.value if locale is not None else None
+        return self.users.save(user)
 
     def list_sessions(self, user_id: int) -> list[AuthSession]:
         """
