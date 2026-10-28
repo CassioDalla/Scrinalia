@@ -37,6 +37,7 @@ from scrinalia.domains.archive.schemas.document_schema import (
     DocumentSummary,
 )
 from scrinalia.domains.archive.schemas.query_schema import DocumentSearchQuery, SearchMode
+from scrinalia.domains.archive.schemas.route_messages import route_message
 from scrinalia.domains.archive.services.document_service import DocumentService
 
 
@@ -289,6 +290,8 @@ class DocumentController(Controller):
         entry = document_service.delete(description_id, changed_by=current_user.author, note=note)
         return DocumentDeletionResponse(
             code=RouteMessageCode.DOCUMENT_DELETED,
-            message=f"Descrição '{entry.title}' excluída do acervo.",
+            message=route_message(
+                RouteMessageCode.DOCUMENT_DELETED, "Descrição '{title}' excluída do acervo.", title=entry.title
+            ),
             data=entry,
         )

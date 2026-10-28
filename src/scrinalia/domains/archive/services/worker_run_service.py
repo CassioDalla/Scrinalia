@@ -31,6 +31,7 @@ from scrinalia.domains.archive.models.enums import ACTIVE_WORKER_RUN_STATUSES, W
 from scrinalia.domains.archive.repository.worker_run_repo import WorkerRunRepository
 from scrinalia.domains.archive.repository.worker_settings_repo import WorkerSettingsRepository
 from scrinalia.domains.archive.schemas.responses import RouteMessageCode
+from scrinalia.domains.archive.schemas.route_messages import route_message
 from scrinalia.domains.archive.schemas.system_schema import (
     WorkerRunCancelResponse,
     WorkerRunDetailDTO,
@@ -168,13 +169,19 @@ class WorkerRunService:
             return self._cancel_answer(
                 run_id,
                 code=RouteMessageCode.WORKER_RUN_CANCELLED,
-                message="Execução cancelada: ela ainda não havia sido reivindicada por um runner.",
+                message=route_message(
+                    RouteMessageCode.WORKER_RUN_CANCELLED,
+                    "Execução cancelada: ela ainda não havia sido reivindicada por um runner.",
+                ),
             )
         if self.runs.request_cancel(run_id, requested_by=requested_by):
             return self._cancel_answer(
                 run_id,
                 code=RouteMessageCode.WORKER_RUN_CANCEL_REQUESTED,
-                message="Cancelamento pedido: a execução para no fim do lote atual.",
+                message=route_message(
+                    RouteMessageCode.WORKER_RUN_CANCEL_REQUESTED,
+                    "Cancelamento pedido: a execução para no fim do lote atual.",
+                ),
             )
 
         run = self.runs.get(run_id, populate_existing=True)
@@ -183,7 +190,10 @@ class WorkerRunService:
         if run.cancel_requested_at is not None and run.status in ACTIVE_WORKER_RUN_STATUSES:
             return WorkerRunCancelResponse(
                 code=RouteMessageCode.WORKER_RUN_CANCEL_REQUESTED,
-                message="O cancelamento desta execução já havia sido pedido; ela para no fim do lote atual.",
+                message=route_message(
+                    RouteMessageCode.WORKER_RUN_CANCEL_ALREADY_REQUESTED,
+                    "O cancelamento desta execução já havia sido pedido; ela para no fim do lote atual.",
+                ),
                 data=run,
             )
         raise WorkerRunNotCancellableError(f"A execução {run_id} já terminou ({run.status}); não há o que cancelar.")

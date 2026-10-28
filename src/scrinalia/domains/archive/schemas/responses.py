@@ -68,6 +68,8 @@ class RouteMessageCode(enum.StrEnum):
     #: The run is in flight: the request was recorded and the worker stops at the next batch
     #: boundary. The row stays ``QUEUED``/``RUNNING`` and keeps its slot until then.
     WORKER_RUN_CANCEL_REQUESTED = "WORKER_RUN_CANCEL_REQUESTED"
+    #: The request arrived after an earlier one: the stop is already scheduled.
+    WORKER_RUN_CANCEL_ALREADY_REQUESTED = "WORKER_RUN_CANCEL_ALREADY_REQUESTED"
 
     # --- The subject axis (tags and drawers) ---
     TAG_MERGE_PROPOSAL_DECIDED = "TAG_MERGE_PROPOSAL_DECIDED"

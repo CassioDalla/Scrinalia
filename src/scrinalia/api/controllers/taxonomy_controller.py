@@ -94,6 +94,7 @@ from scrinalia.domains.archive.schemas.entity_schema import (
     NerPurgeUndoResponse,
     OrphanEntityPurgeResponse,
 )
+from scrinalia.domains.archive.schemas.route_messages import route_message
 from scrinalia.domains.archive.schemas.tag_schema import (
     MacroCategoriesSuggestionResponse,
     MergeResponse,
@@ -312,7 +313,10 @@ class TaxonomyController(Controller):
         )
         return TagMergeProposalDecisionResponse(
             code=RouteMessageCode.TAG_MERGE_PROPOSAL_DECIDED,
-            message="Decisão registrada. A mesclagem só será aplicada quando o lote for executado.",
+            message=route_message(
+                RouteMessageCode.TAG_MERGE_PROPOSAL_DECIDED,
+                "Decisão registrada. A mesclagem só será aplicada quando o lote for executado.",
+            ),
             data=proposal,
         )
 
@@ -375,7 +379,11 @@ class TaxonomyController(Controller):
         entry = tag_service.undo_merge(merge_id, undone_by=current_user.author)
         return TagMergeUndoResponse(
             code=RouteMessageCode.TAG_MERGE_UNDONE,
-            message=f"Mesclagem desfeita: a tag '{entry.absorbed_name}' foi restaurada.",
+            message=route_message(
+                RouteMessageCode.TAG_MERGE_UNDONE,
+                "Mesclagem desfeita: a tag '{absorbed_name}' foi restaurada.",
+                absorbed_name=entry.absorbed_name,
+            ),
             data=entry,
         )
 
@@ -407,7 +415,12 @@ class TaxonomyController(Controller):
         created = tag_service.save_new_stopwords(data.words, data.scope, match_mode=data.match_mode)
         return StopwordBanResponse(
             code=RouteMessageCode.TAG_STOPWORDS_BANNED,
-            message=f"{created} stopword(s) registrada(s) no eixo {data.scope}.",
+            message=route_message(
+                RouteMessageCode.TAG_STOPWORDS_BANNED,
+                "{created} stopword(s) registrada(s) no eixo {scope}.",
+                created=created,
+                scope=data.scope,
+            ),
             created=created,
         )
 
@@ -426,7 +439,12 @@ class TaxonomyController(Controller):
         updated = tag_service.set_stopword_match(data.words, data.match_mode)
         return StopwordMatchResponse(
             code=RouteMessageCode.TAG_STOPWORDS_MATCH_UPDATED,
-            message=f"{updated} stopword(s) passam a casar por {data.match_mode}.",
+            message=route_message(
+                RouteMessageCode.TAG_STOPWORDS_MATCH_UPDATED,
+                "{updated} stopword(s) passam a casar por {match_mode}.",
+                updated=updated,
+                match_mode=data.match_mode,
+            ),
             updated=updated,
         )
 
@@ -440,7 +458,9 @@ class TaxonomyController(Controller):
         removed = tag_service.remove_stopwords(data.words, data.scope)
         return StopwordRemovalResponse(
             code=RouteMessageCode.TAG_STOPWORDS_REMOVED,
-            message=f"{removed} stopword(s) removida(s).",
+            message=route_message(
+                RouteMessageCode.TAG_STOPWORDS_REMOVED, "{removed} stopword(s) removida(s).", removed=removed
+            ),
             removed=removed,
         )
 
@@ -477,7 +497,7 @@ class TaxonomyController(Controller):
         result = tag_service.purge_stopwords(current_user.author)
         return StopwordPurgeResponse(
             code=RouteMessageCode.TAG_STOPWORD_PURGE_DONE,
-            message="Limpeza concluída com sucesso.",
+            message=route_message(RouteMessageCode.TAG_STOPWORD_PURGE_DONE, "Limpeza concluída com sucesso."),
             tags_deleted=result.tags_deleted,
             purge_ids=result.purge_ids,
         )
@@ -520,7 +540,11 @@ class TaxonomyController(Controller):
         entry = tag_service.undo_stopword_purge(purge_id, undone_by=current_user.author)
         return StopwordPurgeUndoResponse(
             code=RouteMessageCode.TAG_STOPWORD_PURGE_UNDONE,
-            message=f"Purga desfeita: a tag '{entry.purged_name}' foi restaurada.",
+            message=route_message(
+                RouteMessageCode.TAG_STOPWORD_PURGE_UNDONE,
+                "Purga desfeita: a tag '{purged_name}' foi restaurada.",
+                purged_name=entry.purged_name,
+            ),
             data=entry,
         )
 
@@ -562,7 +586,10 @@ class TaxonomyController(Controller):
                 total_suggestions=0,
                 categories=[],
                 code=RouteMessageCode.MACRO_CLUSTERING_INSUFFICIENT_TEXTS,
-                message="⚠️ Textos insuficientes para formar agrupamentos semânticos.",
+                message=route_message(
+                    RouteMessageCode.MACRO_CLUSTERING_INSUFFICIENT_TEXTS,
+                    "⚠️ Textos insuficientes para formar agrupamentos semânticos.",
+                ),
             )
 
         # anyio.to_process.run_sync receives the function and then its positional arguments.
@@ -639,8 +666,10 @@ class TaxonomyController(Controller):
             return SubjectExclusionBanResponse(
                 code=RouteMessageCode.SUBJECT_EXCLUSIONS_BLOCKED,
                 message=(
-                    "Nenhum termo foi marcado: as tags abaixo já estão numa categoria de assunto. "
-                    "Tire-as da categoria no catálogo de tags antes de declará-las não-assunto."
+                    route_message(
+                        RouteMessageCode.SUBJECT_EXCLUSIONS_BLOCKED,
+                        "Nenhum termo foi marcado: as tags abaixo já estão numa categoria de assunto. Tire-as da categoria no catálogo de tags antes de declará-las não-assunto.",
+                    )
                 ),
                 created=result.created,
                 banned=result.banned,
@@ -650,8 +679,12 @@ class TaxonomyController(Controller):
             return SubjectExclusionBanResponse(
                 code=RouteMessageCode.SUBJECT_EXCLUSIONS_PARTIAL,
                 message=(
-                    f"{result.created} termo(s) marcados como não-assunto e banidos de voltar; "
-                    f"{len(result.blocked)} recusado(s) por já estarem numa categoria de assunto."
+                    route_message(
+                        RouteMessageCode.SUBJECT_EXCLUSIONS_PARTIAL,
+                        "{created} termo(s) marcados como não-assunto e banidos de voltar; {blocked} recusado(s) por já estarem numa categoria de assunto.",
+                        created=result.created,
+                        blocked=len(result.blocked),
+                    )
                 ),
                 created=result.created,
                 banned=result.banned,
@@ -660,8 +693,10 @@ class TaxonomyController(Controller):
         return SubjectExclusionBanResponse(
             code=RouteMessageCode.SUBJECT_EXCLUSIONS_ADDED,
             message=(
-                "Termos marcados como não-assunto: o classificador de assuntos vai ignorá-los e as "
-                "grafias não voltam a virar tag."
+                route_message(
+                    RouteMessageCode.SUBJECT_EXCLUSIONS_ADDED,
+                    "Termos marcados como não-assunto: o classificador de assuntos vai ignorá-los e as grafias não voltam a virar tag.",
+                )
             ),
             created=result.created,
             banned=result.banned,
@@ -682,7 +717,10 @@ class TaxonomyController(Controller):
         result = tag_service.remove_subject_exclusions(data.words)
         return SubjectExclusionRemovalResponse(
             code=RouteMessageCode.SUBJECT_EXCLUSIONS_REMOVED,
-            message="Exclusões removidas: o classificador voltará a considerar esses termos.",
+            message=route_message(
+                RouteMessageCode.SUBJECT_EXCLUSIONS_REMOVED,
+                "Exclusões removidas: o classificador voltará a considerar esses termos.",
+            ),
             removed=result.removed,
             unbanned=result.unbanned,
         )
@@ -848,7 +886,11 @@ class TaxonomyController(Controller):
         entry = entity_service.undo_merge(merge_id, undone_by=current_user.author)
         return EntityMergeUndoResponse(
             code=RouteMessageCode.ENTITY_MERGE_UNDONE,
-            message=f"Mesclagem desfeita: a entidade '{entry.absorbed_name}' foi restaurada.",
+            message=route_message(
+                RouteMessageCode.ENTITY_MERGE_UNDONE,
+                "Mesclagem desfeita: a entidade '{absorbed_name}' foi restaurada.",
+                absorbed_name=entry.absorbed_name,
+            ),
             data=entry,
         )
 
@@ -857,7 +899,9 @@ class TaxonomyController(Controller):
         deleted_count = entity_service.purge_orphan_entities()
         return OrphanEntityPurgeResponse(
             code=RouteMessageCode.ORPHAN_ENTITIES_PURGED,
-            message="Limpeza de entidades órfãs concluída com sucesso.",
+            message=route_message(
+                RouteMessageCode.ORPHAN_ENTITIES_PURGED, "Limpeza de entidades órfãs concluída com sucesso."
+            ),
             entities_deleted=deleted_count,
         )
 
@@ -871,7 +915,10 @@ class TaxonomyController(Controller):
         entity_service.reclassify_entity(entity_id, data.new_type)
         return EntityReclassifyResponse(
             code=RouteMessageCode.ENTITY_RECLASSIFIED,
-            message="Entidade reclassificada com sucesso e sinônimo de ancoragem gerado.",
+            message=route_message(
+                RouteMessageCode.ENTITY_RECLASSIFIED,
+                "Entidade reclassificada com sucesso e sinônimo de ancoragem gerado.",
+            ),
             new_type=data.new_type,
         )
 
@@ -901,7 +948,7 @@ class TaxonomyController(Controller):
         )
         return EntityRenameResponse(
             code=RouteMessageCode.ENTITY_RENAMED,
-            message="Entidade renomeada com sucesso.",
+            message=route_message(RouteMessageCode.ENTITY_RENAMED, "Entidade renomeada com sucesso."),
             entity_id=renamed.entity_id,
             name=renamed.name,
             entity_type=renamed.entity_type,
@@ -918,7 +965,11 @@ class TaxonomyController(Controller):
 
         return EntityDeleteResponse(
             code=RouteMessageCode.ENTITY_DELETED,
-            message=f"Entidade {entity_id} excluída com sucesso da base de dados.",
+            message=route_message(
+                RouteMessageCode.ENTITY_DELETED,
+                "Entidade {entity_id} excluída com sucesso da base de dados.",
+                entity_id=entity_id,
+            ),
         )
 
     # ==========================================
@@ -943,7 +994,10 @@ class TaxonomyController(Controller):
 
         return NerExclusionBanResponse(
             code=RouteMessageCode.NER_EXCLUSIONS_ADDED,
-            message="Termos marcados como assunto: o extrator não os tratará mais como entidade.",
+            message=route_message(
+                RouteMessageCode.NER_EXCLUSIONS_ADDED,
+                "Termos marcados como assunto: o extrator não os tratará mais como entidade.",
+            ),
             created=created,
         )
 
@@ -962,8 +1016,10 @@ class TaxonomyController(Controller):
         return NerExclusionRemovalResponse(
             code=RouteMessageCode.NER_EXCLUSIONS_REMOVED,
             message=(
-                "Exclusões removidas: o extrator voltará a considerar esses termos. "
-                "As entidades já expurgadas voltam pelo desfazer da purga, não por aqui."
+                route_message(
+                    RouteMessageCode.NER_EXCLUSIONS_REMOVED,
+                    "Exclusões removidas: o extrator voltará a considerar esses termos. As entidades já expurgadas voltam pelo desfazer da purga, não por aqui.",
+                )
             ),
             removed=removed,
         )
@@ -998,7 +1054,10 @@ class TaxonomyController(Controller):
         result = entity_service.purge_ner_terms(current_user.author)
         return NerPurgeResponse(
             code=RouteMessageCode.NER_PURGE_DONE,
-            message="Expurgo concluído: as entidades já extraídas foram removidas e podem ser restauradas.",
+            message=route_message(
+                RouteMessageCode.NER_PURGE_DONE,
+                "Expurgo concluído: as entidades já extraídas foram removidas e podem ser restauradas.",
+            ),
             entities_deleted=result.entities_deleted,
             purge_ids=result.purge_ids,
         )
@@ -1039,7 +1098,11 @@ class TaxonomyController(Controller):
         entry = entity_service.undo_ner_purge(purge_id, undone_by=current_user.author)
         return NerPurgeUndoResponse(
             code=RouteMessageCode.NER_PURGE_UNDONE,
-            message=f"Expurgo desfeito: a entidade '{entry.purged_name}' foi restaurada.",
+            message=route_message(
+                RouteMessageCode.NER_PURGE_UNDONE,
+                "Expurgo desfeito: a entidade '{purged_name}' foi restaurada.",
+                purged_name=entry.purged_name,
+            ),
             data=entry,
         )
 
@@ -1126,8 +1189,12 @@ class TaxonomyController(Controller):
         return ConflictResolutionResponse(
             code=RouteMessageCode.CONFLICT_RESOLVED,
             message=(
-                f"Conflito resolvido a favor de {data.winner}: "
-                f"{result.documents_transferred} vínculo(s) transferido(s). A resolução pode ser desfeita."
+                route_message(
+                    RouteMessageCode.CONFLICT_RESOLVED,
+                    "Conflito resolvido a favor de {winner}: {documents_transferred} vínculo(s) transferido(s). A resolução pode ser desfeita.",
+                    winner=data.winner,
+                    documents_transferred=result.documents_transferred,
+                )
             ),
             data=result,
         )
@@ -1160,14 +1227,16 @@ class TaxonomyController(Controller):
             )
         )
 
-        message = (
-            f"{len(result.applied)} colisão(ões) resolvida(s) a favor de {data.winner} em lote; "
-            f"{result.remaining.total} continua(m) na seleção."
+        message = route_message(
+            RouteMessageCode.CONFLICT_BATCH_RESOLVED,
+            "{applied} colisão(ões) resolvida(s) a favor de {winner} em lote; {remaining} continua(m) na seleção; "
+            "{skipped} já não tinha(m) o que resolver; {failed} falhou(aram).",
+            applied=len(result.applied),
+            winner=data.winner,
+            remaining=result.remaining.total,
+            skipped=len(result.skipped),
+            failed=len(result.failed),
         )
-        if result.skipped:
-            message += f" {len(result.skipped)} já não tinha(m) o que resolver."
-        if result.failed:
-            message += f" {len(result.failed)} falhou(aram)."
 
         return ConflictBatchResponse(code=RouteMessageCode.CONFLICT_BATCH_RESOLVED, message=message, data=result)
 

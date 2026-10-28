@@ -19,12 +19,12 @@ from scrinalia.api.dependencies import (
     provide_current_user,
     provide_login_rate_limiter,
 )
-from scrinalia.api.i18n import route_message
 from scrinalia.api.login_rate_limit import LoginRateLimiter
 from scrinalia.api.security import PASSWORD_CHANGE_EXEMPT_OPT_KEY, Access, AuthenticatedUser
 from scrinalia.api.session_cookie import write_session_cookie
 from scrinalia.core.config import get_settings
 from scrinalia.domains.archive.schemas.responses import RouteMessageCode, RouteResponse
+from scrinalia.domains.archive.schemas.route_messages import route_message
 from scrinalia.domains.identity.schemas.auth_schema import LoginCommand
 from scrinalia.domains.identity.schemas.user_schema import AuthUserDTO, ChangePasswordCommand, UpdateLocaleCommand
 from scrinalia.domains.identity.services.auth_service import AuthService
@@ -96,7 +96,10 @@ class AuthController(Controller):
             auth_service.logout(token)
 
         response: Response[RouteResponse] = Response(
-            RouteResponse(code=RouteMessageCode.SESSION_ENDED, message=route_message(RouteMessageCode.SESSION_ENDED))
+            RouteResponse(
+                code=RouteMessageCode.SESSION_ENDED,
+                message=route_message(RouteMessageCode.SESSION_ENDED, "Sessão encerrada."),
+            )
         )
         response.delete_cookie(get_settings().AUTH_SESSION_COOKIE_NAME)
         return response
@@ -168,6 +171,8 @@ class AuthController(Controller):
         return Response(
             RouteResponse(
                 code=RouteMessageCode.PASSWORD_CHANGED,
-                message=route_message(RouteMessageCode.PASSWORD_CHANGED),
+                message=route_message(
+                    RouteMessageCode.PASSWORD_CHANGED, "Senha alterada. As outras sessões desta conta foram encerradas."
+                ),
             )
         )

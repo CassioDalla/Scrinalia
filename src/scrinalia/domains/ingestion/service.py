@@ -30,6 +30,7 @@ from scrinalia.domains.archive.models.document import ArchiveDocument
 from scrinalia.domains.archive.repository.worker_run_repo import WorkerRunRepository
 from scrinalia.domains.archive.repository.worker_runner_repo import WorkerRunnerRepository
 from scrinalia.domains.archive.schemas.responses import RouteMessageCode
+from scrinalia.domains.archive.schemas.route_messages import route_message
 from scrinalia.domains.archive.schemas.system_schema import WorkerRunDTO
 from scrinalia.domains.archive.workers.ledger import WorkerRunLedger
 from scrinalia.domains.archive.workers.schedule import (
@@ -405,9 +406,10 @@ class IngestionOriginService:
         except WorkerRunAlreadyActiveError:
             return ManualIngestionResponse(
                 code=RouteMessageCode.MANUAL_INGESTION_STAGED,
-                message=(
+                message=route_message(
+                    RouteMessageCode.MANUAL_INGESTION_STAGED,
                     "Descrição recebida e estruturada. Já existe uma transferência em andamento, "
-                    "então ela entra na próxima e segue para a IA depois."
+                    "então ela entra na próxima e segue para a IA depois.",
                 ),
                 data=ManualIngestionResultDTO(
                     description_id=description_id,
@@ -421,9 +423,10 @@ class IngestionOriginService:
 
         return ManualIngestionResponse(
             code=RouteMessageCode.MANUAL_INGESTION_QUEUED,
-            message=(
+            message=route_message(
+                RouteMessageCode.MANUAL_INGESTION_QUEUED,
                 "Descrição recebida e estruturada. A transferência foi enfileirada; a IA vai "
-                "enriquecê-la e o registro continua em revisão."
+                "enriquecê-la e o registro continua em revisão.",
             ),
             data=ManualIngestionResultDTO(
                 description_id=description_id,
@@ -719,17 +722,37 @@ class IngestionOriginService:
         if accepted == 0:
             return (
                 RouteMessageCode.CSV_IMPORT_REFUSED,
-                f"Nenhuma das {received} linhas entrou: {duplicated} duplicadas e {invalid} inválidas. "
-                "Corrija a prévia e envie de novo.",
+                route_message(
+                    RouteMessageCode.CSV_IMPORT_REFUSED,
+                    "Nenhuma das {received} linhas entrou: {duplicated} duplicadas e {invalid} inválidas. "
+                    "Corrija a prévia e envie de novo.",
+                    received=received,
+                    duplicated=duplicated,
+                    invalid=invalid,
+                ),
             )
-        counts = f"{accepted} de {received} linhas importadas ({duplicated} duplicadas, {invalid} inválidas)."
         if transfer_queued:
             return (
                 RouteMessageCode.CSV_IMPORT_QUEUED,
-                f"{counts} A transferência foi enfileirada; a IA vai enriquecê-las e elas continuam em revisão.",
+                route_message(
+                    RouteMessageCode.CSV_IMPORT_QUEUED,
+                    "{accepted} de {received} linhas importadas ({duplicated} duplicadas, {invalid} inválidas). "
+                    "A transferência foi enfileirada; a IA vai enriquecê-las e elas continuam em revisão.",
+                    accepted=accepted,
+                    received=received,
+                    duplicated=duplicated,
+                    invalid=invalid,
+                ),
             )
         return (
             RouteMessageCode.CSV_IMPORT_STAGED,
-            f"{counts} Já existe uma transferência em andamento, então elas entram na próxima e seguem "
-            "para a IA depois.",
+            route_message(
+                RouteMessageCode.CSV_IMPORT_STAGED,
+                "{accepted} de {received} linhas importadas ({duplicated} duplicadas, {invalid} inválidas). "
+                "Já existe uma transferência em andamento, então elas entram na próxima e seguem para a IA depois.",
+                accepted=accepted,
+                received=received,
+                duplicated=duplicated,
+                invalid=invalid,
+            ),
         )

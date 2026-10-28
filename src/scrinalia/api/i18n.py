@@ -13,9 +13,7 @@ from litestar.enums import ScopeType
 from litestar.middleware import ASGIMiddleware
 from litestar.types import ASGIApp, Receive, Scope, Send
 
-from scrinalia.core.i18n import bind_locale, current_locale, reset_locale
-from scrinalia.core.locale import Locale
-from scrinalia.domains.archive.schemas.responses import RouteMessageCode
+from scrinalia.core.i18n import bind_locale, reset_locale
 
 
 class LocaleMiddleware(ASGIMiddleware):
@@ -29,30 +27,3 @@ class LocaleMiddleware(ASGIMiddleware):
             await next_app(scope, receive, send)
         finally:
             reset_locale(token)
-
-
-#: The sentences a route answers, in the two languages. Additive by nature: a code without an entry
-#: is a code whose call site cannot call ``route_message`` yet.
-ROUTE_MESSAGES: dict[RouteMessageCode, dict[Locale, str]] = {
-    RouteMessageCode.SESSION_ENDED: {
-        Locale.PT_BR: "Sessão encerrada.",
-        Locale.EN: "Signed out.",
-    },
-    RouteMessageCode.PASSWORD_CHANGED: {
-        Locale.PT_BR: "Senha alterada. As outras sessões desta conta foram encerradas.",
-        Locale.EN: "Password changed. The account's other sessions were ended.",
-    },
-}
-
-
-def route_message(code: RouteMessageCode, **facts: object) -> str:
-    """
-    The sentence for a route answer, in the request's language.
-
-    A fact is interpolated from the template; a code with no entry fails loudly, because the call
-    site that asks for one is the call site whose translation was forgotten.
-    """
-    entry = ROUTE_MESSAGES.get(code)
-    if entry is None:
-        raise KeyError(f"no route message for {code}")
-    return entry[current_locale()].format(**facts)

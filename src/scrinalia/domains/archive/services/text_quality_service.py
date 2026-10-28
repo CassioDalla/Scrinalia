@@ -19,6 +19,7 @@ from scrinalia.domains.archive.exceptions import InvalidParam, TextTemplateNotFo
 from scrinalia.domains.archive.ports.text_quality import TextQualityRepositoryPort
 from scrinalia.domains.archive.repository.text_quality_repo import ExcerptRule
 from scrinalia.domains.archive.schemas.responses import RouteMessageCode
+from scrinalia.domains.archive.schemas.route_messages import route_message
 from scrinalia.domains.archive.schemas.text_quality_schema import (
     TemplateCreateCommand,
     TemplateDryRunRequest,
@@ -152,9 +153,12 @@ class TextQualityService:
             ],
             persisted=persisted,
             code=RouteMessageCode.TEXT_TEMPLATE_SUGGESTED,
-            message=(
-                f"{len(candidates)} trecho(s) repetido(s) encontrado(s) em {documents} documento(s). "
-                "Nada foi aplicado: aprove, edite ou rejeite cada candidato."
+            message=route_message(
+                RouteMessageCode.TEXT_TEMPLATE_SUGGESTED,
+                "{candidates} trecho(s) repetido(s) encontrado(s) em {documents} documento(s). "
+                "Nada foi aplicado: aprove, edite ou rejeite cada candidato.",
+                candidates=len(candidates),
+                documents=documents,
             ),
         )
 
