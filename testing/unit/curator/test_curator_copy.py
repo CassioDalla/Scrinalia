@@ -230,7 +230,6 @@ PENDING = {
     "src/routes/CleaningRulesRoute.tsx",
     "src/routes/CollectionRoute.tsx",
     "src/routes/ConflictsRoute.tsx",
-    "src/routes/DiscoverRoute.tsx",
     "src/routes/DocumentRoute.tsx",
     "src/routes/EntitiesRoute.tsx",
     "src/routes/LevelsRoute.tsx",

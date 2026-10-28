@@ -198,6 +198,28 @@ export const pt = {
       emptyHint:
         "Os cartões desta página são as telas de configuração da instalação (contas, catálogos, arranjo e operação), e o seu papel não alcança nenhuma delas. Por isso a entrada Configurações não aparece no menu.",
     },
+    discover: {
+      currentCategories: "Categorias Atuais",
+      groupByTheme: "Agrupar por tema",
+      intro:
+        "O agrupamento é processado sob demanda e leva poucos segundos. As listas abaixo são apenas sugestões: nenhum termo é alterado no vocabulário sem a sua aprovação.",
+      fromTags: "A partir das Tags",
+      fromDocuments: "A partir dos Documentos",
+      grouping: "Agrupando… (pode levar alguns segundos)",
+      propose: "Propor Categorias",
+      readColumns: "O agrupamento lê o texto destes campos.",
+      defaultColumn: "(padrão)",
+      chooseColumn: "Escolha ao menos um campo.",
+      emptyTitle: "Nenhuma proposta nova",
+      emptyHint: "O agrupamento não encontrou tema novo, ou as propostas já foram descartadas.",
+      seeSamples: "Ver as amostras do agrupamento",
+      estimates: "{count} estimativas",
+      topic: "tema #{id}",
+      created: "Criada",
+      createCategory: "Criar categoria",
+      categoryName: "Nome da Categoria",
+      usedOnNextRun: "A categoria só é usada quando a classificação rodar de novo.",
+    },
     deletions: {
       notice:
         "Histórico permanente de exclusões. Os itens desta lista foram excluídos em definitivo e não podem ser restaurados. Esta página preserva os dados originais e o responsável pela ação apenas para fins de consulta e auditoria.",

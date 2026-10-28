@@ -43,6 +43,28 @@ export const en: typeof pt = {
       emptyHint:
         "The cards on this page are the installation's configuration screens (accounts, catalogues, arrangement and operation), and your role reaches none of them. That is why the Settings entry does not appear in the menu.",
     },
+    discover: {
+      currentCategories: "Current Categories",
+      groupByTheme: "Group by theme",
+      intro:
+        "The grouping runs on demand and takes a few seconds. The lists below are only suggestions: no term in the vocabulary changes without your approval.",
+      fromTags: "From Tags",
+      fromDocuments: "From Documents",
+      grouping: "Grouping… (may take a few seconds)",
+      propose: "Propose Categories",
+      readColumns: "The grouping reads the text of these fields.",
+      defaultColumn: "(default)",
+      chooseColumn: "Choose at least one field.",
+      emptyTitle: "No new proposal",
+      emptyHint: "The grouping found no new theme, or the proposals were already dismissed.",
+      seeSamples: "See the grouping's samples",
+      estimates: "{count} estimates",
+      topic: "topic #{id}",
+      created: "Created",
+      createCategory: "Create category",
+      categoryName: "Category Name",
+      usedOnNextRun: "The category is only used when the classification runs again.",
+    },
     deletions: {
       notice:
         "Permanent deletion history. The items in this list were permanently deleted and cannot be restored. This page preserves the original data and the person responsible for the action for consultation and audit only.",
