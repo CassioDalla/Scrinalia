@@ -198,6 +198,36 @@ export const pt = {
       emptyHint:
         "Os cartões desta página são as telas de configuração da instalação (contas, catálogos, arranjo e operação), e o seu papel não alcança nenhuma delas. Por isso a entrada Configurações não aparece no menu.",
     },
+    deletions: {
+      notice:
+        "Histórico permanente de exclusões. Os itens desta lista foram excluídos em definitivo e não podem ser restaurados. Esta página preserva os dados originais e o responsável pela ação apenas para fins de consulta e auditoria.",
+      status: "{count} item(ns) no histórico de exclusões",
+      statusTerm: "{count} item(ns) no histórico de exclusões para “{term}”",
+      emptyTitleTerm: "Nenhum item excluído encontrado para “{term}”",
+      emptyTitleNone: "Nenhum item excluído até o momento",
+      emptyHintTerm: "Tente pesquisar por outro termo, código de referência ou ID.",
+      emptyHintNone:
+        "O acervo não possui registros de exclusão. Quando um item for removido, o histórico completo de dados aparecerá aqui para consulta.",
+      recordId: "ID do registro",
+      noReference: "Sem código de referência",
+      deletedBy: "· Excluído por {name}",
+      unknownUser: "usuário não identificado",
+      children: "· Continha {count} item(ns) vinculado(s)",
+      searchPlaceholder: "Buscar por código, título ou ID...",
+      clearSearch: "Limpar busca",
+    },
+    diagnostics: {
+      noLevel: "sem nível",
+      codeLabel: "código:",
+      counting: "Contando os problemas…",
+      emptyTitle: "Nenhuma descrição com este problema",
+      emptyHint:
+        "O diagnóstico foi feito e não encontrou nada deste tipo. Para o caminho divergente, este é o resultado esperado: quando uma descrição muda de lugar, o caminho de todo o ramo é reescrito de uma vez.",
+      openDescription: "Abrir a descrição",
+      openPlan: "Abrir o plano de arranjo",
+      overlap:
+        "As contagens se sobrepõem de propósito: a mesma descrição pode aparecer em mais de um problema — um Dossiê na raiz conta em “{orphan}” e em “{dossier}” — por isso não há um total geral.",
+    },
     thumbnail: {
       unavailable: "Imagem indisponível",
       none: "Sem imagem",

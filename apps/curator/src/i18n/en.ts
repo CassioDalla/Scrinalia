@@ -43,6 +43,36 @@ export const en: typeof pt = {
       emptyHint:
         "The cards on this page are the installation's configuration screens (accounts, catalogues, arrangement and operation), and your role reaches none of them. That is why the Settings entry does not appear in the menu.",
     },
+    deletions: {
+      notice:
+        "Permanent deletion history. The items in this list were permanently deleted and cannot be restored. This page preserves the original data and the person responsible for the action for consultation and audit only.",
+      status: "{count} item(s) in the deletion history",
+      statusTerm: "{count} item(s) in the deletion history for “{term}”",
+      emptyTitleTerm: "No deleted item found for “{term}”",
+      emptyTitleNone: "No deleted item yet",
+      emptyHintTerm: "Try another term, reference code or ID.",
+      emptyHintNone:
+        "The collection has no deletion records. When an item is removed, the complete data history will appear here for consultation.",
+      recordId: "Record ID",
+      noReference: "No reference code",
+      deletedBy: "· Deleted by {name}",
+      unknownUser: "unidentified user",
+      children: "· Contained {count} linked item(s)",
+      searchPlaceholder: "Search by code, title or ID...",
+      clearSearch: "Clear search",
+    },
+    diagnostics: {
+      noLevel: "no level",
+      codeLabel: "code:",
+      counting: "Counting the problems…",
+      emptyTitle: "No description with this problem",
+      emptyHint:
+        "The diagnosis ran and found nothing of this kind. For the divergent path, this is the expected result: when a description moves, the whole branch's path is rewritten at once.",
+      openDescription: "Open the description",
+      openPlan: "Open the arrangement plan",
+      overlap:
+        "The counts overlap on purpose: the same description can appear under more than one problem — a Dossier at the root counts under “{orphan}” and under “{dossier}” — so there is no grand total.",
+    },
     thumbnail: {
       unavailable: "Image unavailable",
       none: "No image",
