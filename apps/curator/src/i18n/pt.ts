@@ -167,6 +167,13 @@ export const pt = {
     documentTitle: `${ATTRIBUTION.name} — Curadoria`,
   },
   format: {
+    reviewStatus: {
+      PENDING_AI: "Aguardando IA",
+      AI_APPROVED: "Aprovado pela IA",
+      NEEDS_REVIEW: "Precisa de revisão",
+      HUMAN_APPROVED: "Revisado por pessoa",
+      REJECTED: "Rejeitado",
+    },
     /** `formatDate`'s answer for a record that has no date. */
     noDate: "sem data",
     /** The two forms `descricoes` needs; the plural rule is `Intl.PluralRules`. */
@@ -217,6 +224,9 @@ export const pt = {
     arranjo: "Arranjo e catálogos",
     operacao: "Operação",
     acesso: "Acesso",
+  },
+  errors: {
+    requestFailed: "Não foi possível concluir a operação (erro {status}).",
   },
   actions: {
     save: { label: "Salvar", pending: "Salvando…" },

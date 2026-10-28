@@ -64,18 +64,17 @@ export function descricoes(value: number): string {
 }
 
 /**
- * Human labels for the review states.
+ * Human labels for the review states, read from the catalogue at render time.
  *
- * The API speaks the enum; the archivist reads Portuguese. Keeping the mapping here and not in the
- * database is what lets the contract stay in English (see AGENTS.md).
+ * The API speaks the enum; the archivist reads a sentence in their language. The proxy keeps the
+ * call sites as ``REVIEW_STATUS_LABEL[status]`` and lets the provider re-render them on a language
+ * change.
  */
-export const REVIEW_STATUS_LABEL: Record<ArchiveReviewStatus, string> = {
-  PENDING_AI: "Aguardando IA",
-  AI_APPROVED: "Aprovado pela IA",
-  NEEDS_REVIEW: "Precisa de revisão",
-  HUMAN_APPROVED: "Revisado por pessoa",
-  REJECTED: "Rejeitado",
-};
+export const REVIEW_STATUS_LABEL = new Proxy({} as Record<ArchiveReviewStatus, string>, {
+  get(_target, key) {
+    return activeMessages().format.reviewStatus[key as ArchiveReviewStatus];
+  },
+});
 
 export const REVIEW_STATUS_TONE: Record<ArchiveReviewStatus, "neutral" | "ok" | "warn" | "danger"> = {
   PENDING_AI: "neutral",

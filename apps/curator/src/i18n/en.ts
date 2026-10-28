@@ -13,6 +13,13 @@ export const en: typeof pt = {
     documentTitle: `${ATTRIBUTION.name} — Curation`,
   },
   format: {
+    reviewStatus: {
+      PENDING_AI: "Waiting for AI",
+      AI_APPROVED: "Approved by AI",
+      NEEDS_REVIEW: "Needs review",
+      HUMAN_APPROVED: "Reviewed by a person",
+      REJECTED: "Rejected",
+    },
     noDate: "no date",
     descriptions: { one: "description", other: "descriptions" },
   },
@@ -61,6 +68,9 @@ export const en: typeof pt = {
     arranjo: "Arrangement and catalogues",
     operacao: "Operation",
     acesso: "Access",
+  },
+  errors: {
+    requestFailed: "Could not complete the operation (error {status}).",
   },
   actions: {
     save: { label: "Save", pending: "Saving…" },

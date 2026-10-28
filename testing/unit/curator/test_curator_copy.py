@@ -218,15 +218,11 @@ PORTUGUESE = re.compile(
 #: extracted (ADR 0020 §7); a file outside it cannot gain a Portuguese literal, and a file inside it
 #: cannot become empty without leaving — the list only shrinks.
 PENDING = {
-    "src/api/client.ts",
-    "src/lib/attribution.ts",
     "src/lib/csv.ts",
     "src/lib/csvImport.ts",
     "src/lib/entities.ts",
-    "src/lib/format.ts",
     "src/lib/hierarchy.ts",
     "src/lib/isad.ts",
-    "src/lib/messages.ts",
     "src/lib/quality.ts",
     "src/lib/queues.ts",
     "src/lib/system.ts",
@@ -276,7 +272,12 @@ PENDING = {
 
 
 def _portuguese_strings(path: Path) -> list[str]:
-    return [value for value in visible_strings(path) if PORTUGUESE.search(value)]
+    return [
+        value
+        for value in visible_strings(path)
+        # A URL is data, not copy: the attribution's repository address is not a Portuguese word.
+        if not value.startswith(("http://", "https://")) and PORTUGUESE.search(value)
+    ]
 
 
 def test_the_extracted_surface_says_no_portuguese() -> None:
