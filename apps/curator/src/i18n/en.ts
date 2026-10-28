@@ -12,6 +12,37 @@ export const en: typeof pt = {
     tagline: "Collection curation",
     documentTitle: `${ATTRIBUTION.name} — Curation`,
   },
+  common: {
+    nothingFound: "Nothing found",
+    readingDescriptions: "Reading the descriptions…",
+    next: "Next →",
+    previous: "← Previous",
+    range: "{from}–{to} of {total}",
+    notInformed: "— not informed —",
+  },
+  pages: {
+    anomalies: {
+      fixHint:
+        "Corrigir é revisar a ficha: a edição fica no histórico e marca a descrição como revisada por humano; a partir daí a IA não a sobrescreve.",
+      status: "{count} descriptions with an anomaly",
+      reasonHint: "Reason recorded by the quality validator",
+      rules: "Rules",
+    },
+    inbox: {
+      notReadyTitle: "This screen is not ready for use yet.",
+      notReady: "screen in preparation",
+      empty: "nothing pending",
+      open: "open →",
+      emptyTitle: "No pending item received",
+      emptyHint: "Nothing arrived, which does not mean the collection is in order. Tell whoever administers the installation.",
+    },
+    settings: {
+      emptyTitle: "Nothing to configure",
+      emptyHint:
+        "The cards on this page are the installation's configuration screens (accounts, catalogues, arrangement and operation), and your role reaches none of them. That is why the Settings entry does not appear in the menu.",
+    },
+    workers: { painel: "Panel", execucoes: "Runs" },
+  },
   system: {
     runStatus: {
       QUEUED: "Queued",
@@ -172,6 +203,7 @@ export const en: typeof pt = {
     },
   },
   isad: {
+    datePlaceholder: "E.g. 1985-03-14, 1980s or a range",
     areas: {
       identity: {
         title: "3.1 Identity",

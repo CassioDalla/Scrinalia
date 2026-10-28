@@ -166,6 +166,38 @@ export const pt = {
     tagline: "Curadoria do acervo",
     documentTitle: `${ATTRIBUTION.name} — Curadoria`,
   },
+  common: {
+    nothingFound: "Nada encontrado",
+    readingDescriptions: "Lendo as descrições…",
+    next: "Próxima →",
+    previous: "← Anterior",
+    range: "{from}–{to} de {total}",
+    notInformed: "— não informado —",
+  },
+  pages: {
+    anomalies: {
+      fixHint:
+        "Corrigir é revisar a ficha: a edição fica no histórico e marca a descrição como revisada por humano; a partir daí a IA não a sobrescreve.",
+      status: "{count} descrições com anomalia",
+      reasonHint: "Motivo registrado pelo validador de qualidade",
+      rules: "Regras",
+    },
+    inbox: {
+      notReadyTitle: "Esta tela ainda não está pronta para uso.",
+      notReady: "tela em preparação",
+      empty: "nada pendente",
+      open: "abrir →",
+      emptyTitle: "Nenhuma pendência recebida",
+      emptyHint:
+        "Nada chegou, o que não quer dizer que o acervo esteja em ordem. Avise quem administra a instalação.",
+    },
+    settings: {
+      emptyTitle: "Nada para configurar",
+      emptyHint:
+        "Os cartões desta página são as telas de configuração da instalação (contas, catálogos, arranjo e operação), e o seu papel não alcança nenhuma delas. Por isso a entrada Configurações não aparece no menu.",
+    },
+    workers: { painel: "Painel", execucoes: "Execuções" },
+  },
   system: {
     runStatus: {
       QUEUED: "Na fila",
@@ -334,6 +366,7 @@ export const pt = {
     },
   },
   isad: {
+    datePlaceholder: "E.g. 1985-03-14, 1980s or a range",
     areas: {
       identity: {
         title: "3.1 Identidade",

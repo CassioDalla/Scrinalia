@@ -10,6 +10,7 @@ import { EmptyState, ErrorState, Skeleton } from "@/components/ui/Feedback";
 import { PageBody } from "@/components/layout/PageBody";
 import { formatCount } from "@/lib/format";
 import { QUEUE_COPY } from "@/lib/queues";
+import { useCopy } from "@/i18n/context";
 
 /**
  * Screens that exist today.
@@ -40,6 +41,7 @@ function QueueCard({ queue }: { queue: CurationQueue }) {
   const ready = IMPLEMENTED.has(target);
   const empty = queue.count === 0;
   const copy = QUEUE_COPY[queue.key];
+  const messages = useCopy();
 
   const body = (
     <CardBody className="flex h-full flex-col gap-2">
@@ -60,14 +62,14 @@ function QueueCard({ queue }: { queue: CurationQueue }) {
       <p className="text-xs text-(--color-muted)">{copy.description}</p>
       <div className="mt-auto pt-1">
         {!ready ? (
-          <Badge tone="neutral" title="Esta tela ainda não está pronta para uso.">
-            tela em preparação
+          <Badge tone="neutral" title={messages.pages.inbox.notReadyTitle}>
+            {messages.pages.inbox.notReady}
           </Badge>
         ) : empty ? (
           // Zero is not hidden: the archivist has to know the queue exists and is empty.
-          <Badge tone="neutral">nada pendente</Badge>
+          <Badge tone="neutral">{messages.pages.inbox.empty}</Badge>
         ) : (
-          <span className="text-xs font-medium text-(--color-accent)">abrir →</span>
+          <span className="text-xs font-medium text-(--color-accent)">{messages.pages.inbox.open}</span>
         )}
       </div>
     </CardBody>
@@ -98,6 +100,7 @@ function searchOf(route: string): Record<string, string> {
 }
 
 export function InboxRoute() {
+  const messages = useCopy();
   const { data, isPending, error } = useQuery(queries.inbox());
 
   return (
@@ -124,8 +127,8 @@ export function InboxRoute() {
 
         {data && (!data.queues || data.queues.length === 0) ? (
           <EmptyState
-            title="Nenhuma pendência recebida"
-            hint="Nada chegou, o que não quer dizer que o acervo esteja em ordem. Avise quem administra a instalação."
+            title={messages.pages.inbox.emptyTitle}
+            hint={messages.pages.inbox.emptyHint}
           />
         ) : null}
 
