@@ -324,6 +324,16 @@ até a #198. O formulário gera um id `manual-<uuid>`, então um reenvio é o me
 `description_id` duplicado é recusado antes da gravação. Só o título é obrigatório — uma descrição pode
 nascer incompleta e ser completada no dossiê.
 
+**Pontos de acesso** são chips sobre o catálogo de tags, não uma string separada por vírgulas. A busca
+enquanto digita escolhe uma grafia existente; digitar um termo e escolher *Adicionar* mantém a grafia
+do arquivista. Um resumo abaixo do campo diz o que a `transfer` vai fazer com a string — criar uma
+grafia nova, ligá-la a um sinônimo ou descartá-la por ser um termo bloqueado, ter menos de três ou mais
+de cem caracteres — e aponta as entradas cuja grafia guardada difere da digitada. O resumo é `POST
+/api/v1/taxonomy/tags/preview`, uma leitura: uma grafia desconhecida é `NEW` e só é criada pela
+`transfer` no arquivamento. Nada é removido nem reescrito pela prévia: remover um termo é decisão do
+arquivista. O campo continua opcional, e a string que ele envia é a mesma da coluna do CSV e da chave
+mapeada do scraper.
+
 **Importar CSV** é a origem `csv` (#191, ADR 0019). O arquivo é interpretado **no navegador** (vírgula
 ou ponto e vírgula, campos entre aspas, CRLF, UTF-8 com queda para Windows-1252); a tela mostra os
 cabeçalhos detectados, uma prévia e as conferências locais, e envia só uma lista limitada de linhas

@@ -2795,5 +2795,38 @@ with short or full shas, and part of a `## <date> — <title>` entry.
   admin password was reset for the render and restored afterwards, and the full suite used the test
   database, not the development one.
 
+## 2026-10-28 — the access points are chips, and the string is read before it is written
+
+- **Range:** `8f891d8..c15060d`
+- **Pages:**
+  - `guides/curate.md` — **updated**: the Nova Descrição section now says the access points are chips
+    over the catalogue, that the type-ahead picks an existing spelling and *Adicionar* keeps the
+    archivist's, and that the summary under the control names what the transfer will discard, create
+    or map to a synonym. It names `POST /api/v1/taxonomy/tags/preview` as the read behind the
+    summary and says the preview removes nothing.
+  - `guides/curate.pt.md` — **updated**: the same paragraph in the translation.
+  - `guides/data-model.md` — **no-change**: the repository gained two read-only lookups
+    (`get_tag_identities_by_names`/`by_ids`) over existing columns and the unique normalized-name
+    index; no table, column, constraint or relationship changed, so the model page is still true.
+  - `guides/data-model.pt.md` — **no-change**: the English page it translates did not change.
+- **Why the round exists.** #229: the creation form asked for one comma-separated string and the
+  transfer then lowercased it, dropped banned, short and long terms and created unknown spellings,
+  with no message. The field is now a chip editor over the catalogue; the explicit *Adicionar* keeps
+  a new term, and one read-only summary says what the transfer will do with the whole string. The
+  wire is still `indexing_points: str | None`; the CSV column and the scraper are untouched, and the
+  transfer remains the only writer.
+- **What the round measured.** `ruff check`, `ruff format --check`, `basedpyright`, 2310 pytest
+  passed and 1 skipped against the test database on port 5434, 61 bun tests, `tsc`, ESLint,
+  `bun run contract` (the new route), `alembic check`, the docs coverage suite and `mkdocs build
+  --strict`. The screen was rendered against the development database with the headless shell: the
+  old free-text field, then the new chips with an existing tag, a synonym, a banned term and a new
+  term, plus the type-ahead open. The first render showed the input's own focus outline around the
+  text field only; the ring was moved to the chips box and the screen re-rendered. The warning line
+  of the summary was moved first after the first render.
+- **Not verified, and said so.** The render used the development database; the admin password was
+  reset for it and its hash restored afterwards, and the render sessions were deleted. The summary's
+  copy was observed on the development catalogue; the blocked, synonym and new states are pinned by
+  the API and component tests, not by a catalogue built for the screenshot. The CSV import was not
+  re-rendered, because its column, map and copy are unchanged.
 
 
