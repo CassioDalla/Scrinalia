@@ -1,16 +1,19 @@
 import { Link } from "@tanstack/react-router";
 
 import { EmptyState } from "@/components/ui/Feedback";
+import { useCopy } from "@/i18n/context";
 
 export function NotFoundRoute() {
+  const copy = useCopy();
+
   return (
     <div className="px-6 py-10">
       <EmptyState
-        title="Tela não encontrada"
-        hint="O endereço não corresponde a nenhuma tela do sistema."
+        title={copy.notFound.title}
+        hint={copy.notFound.hint}
         action={
           <Link to="/" className="text-sm text-(--color-accent) hover:underline">
-            Voltar ao início
+            {copy.notFound.backHome}
           </Link>
         }
       />

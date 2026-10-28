@@ -1,3 +1,4 @@
+import { useCopy } from "@/i18n/context";
 import { ATTRIBUTION } from "@/lib/attribution";
 import { PRODUCT } from "@/lib/copy";
 
@@ -14,6 +15,8 @@ import { PRODUCT } from "@/lib/copy";
  * notice to the users of a network service.
  */
 export function AttributionFooter() {
+  const copy = useCopy();
+
   return (
     <footer className="flex shrink-0 flex-wrap items-center gap-x-2 gap-y-1 border-t border-(--color-line) bg-(--color-surface) px-4 py-2 text-[11px] text-(--color-muted)">
       <span>{ATTRIBUTION.name}</span>
@@ -25,11 +28,11 @@ export function AttributionFooter() {
       <span>{ATTRIBUTION.license}</span>
       <Separator />
       <a className="underline hover:text-(--color-ink)" href={ATTRIBUTION.licenseUrl} target="_blank" rel="noreferrer">
-        Licença
+        {copy.attribution.license}
       </a>
       <Separator />
       <a className="underline hover:text-(--color-ink)" href={ATTRIBUTION.sourceUrl} target="_blank" rel="noreferrer">
-        Código-fonte
+        {copy.attribution.source}
       </a>
       {/*
         The installation's version, alone at the far right and deliberately quiet.
@@ -39,7 +42,7 @@ export function AttributionFooter() {
         because it is read once and then never again — `opacity-60` on an 11px line — and separated
         by `ml-auto` so it cannot be read as part of the license notice beside it.
       */}
-      <span className="ml-auto tabular-nums opacity-60" title="Versão da instalação">
+      <span className="ml-auto tabular-nums opacity-60" title={copy.attribution.version}>
         v{PRODUCT.version}
       </span>
     </footer>

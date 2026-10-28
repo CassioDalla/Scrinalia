@@ -3,6 +3,7 @@ import { RouterProvider } from "@tanstack/react-router";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 
+import { LocaleProvider } from "@/i18n/context";
 import { PRODUCT } from "@/lib/copy";
 import { router } from "@/router";
 import "@/styles.css";
@@ -23,12 +24,14 @@ const queryClient = new QueryClient({
 });
 
 const rootElement = document.getElementById("root");
-if (!rootElement) throw new Error("#root não encontrado no index.html");
+if (!rootElement) throw new Error("#root not found in index.html");
 
 createRoot(rootElement).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
-      <RouterProvider router={router} />
+      <LocaleProvider>
+        <RouterProvider router={router} />
+      </LocaleProvider>
     </QueryClientProvider>
   </StrictMode>,
 );

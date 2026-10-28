@@ -1,5 +1,7 @@
 import createClient from "openapi-fetch";
 
+import { activeLocale } from "@/i18n/locale";
+
 import type { components, paths } from "./schema";
 
 /**
@@ -15,6 +17,20 @@ import type { components, paths } from "./schema";
  * environment variable to get wrong.
  */
 export const client = createClient<paths>({ baseUrl: "" });
+
+/**
+ * Every request says which language the interface is in.
+ *
+ * The API composes the sentence a screen shows — a route's confirmation, a refusal — and renders it
+ * from a catalogue keyed by code (ADR 0020 §4). The header is the only channel: the request that
+ * fails and the request that confirms are both answered in the language the person is reading.
+ */
+client.use({
+  onRequest({ request }) {
+    request.headers.set("Accept-Language", activeLocale());
+    return request;
+  },
+});
 
 export class ApiError extends Error {
   constructor(

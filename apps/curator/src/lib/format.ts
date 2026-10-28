@@ -1,33 +1,66 @@
 import type { ArchiveReviewStatus } from "@/api/client";
+import { activeLocale, activeMessages, type Locale } from "@/i18n/locale";
 
-const dateFormatter = new Intl.DateTimeFormat("pt-BR", { dateStyle: "medium" });
-const dateTimeFormatter = new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" });
-const numberFormatter = new Intl.NumberFormat("pt-BR");
+/**
+ * One formatter set per locale, built once.
+ *
+ * `Intl` constructors are not free and these functions are called 220 times across the screens, so
+ * the set is cached by locale instead of rebuilt on every render.
+ */
+type Formatters = {
+  date: Intl.DateTimeFormat;
+  dateTime: Intl.DateTimeFormat;
+  number: Intl.NumberFormat;
+  plural: Intl.PluralRules;
+};
+
+const FORMATTERS = new Map<Locale, Formatters>();
+
+function formattersFor(locale: Locale): Formatters {
+  const cached = FORMATTERS.get(locale);
+  if (cached) return cached;
+
+  const built: Formatters = {
+    date: new Intl.DateTimeFormat(locale, { dateStyle: "medium" }),
+    dateTime: new Intl.DateTimeFormat(locale, { dateStyle: "short", timeStyle: "short" }),
+    number: new Intl.NumberFormat(locale),
+    plural: new Intl.PluralRules(locale),
+  };
+  FORMATTERS.set(locale, built);
+  return built;
+}
+
+function current(): Formatters {
+  return formattersFor(activeLocale());
+}
 
 export function formatDate(value?: string | null): string {
-  if (!value) return "sem data";
+  if (!value) return activeMessages().format.noDate;
   const parsed = new Date(`${value}T00:00:00`);
-  return Number.isNaN(parsed.getTime()) ? value : dateFormatter.format(parsed);
+  return Number.isNaN(parsed.getTime()) ? value : current().date.format(parsed);
 }
 
 export function formatDateTime(value?: string | null): string {
   if (!value) return "—";
   const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? value : dateTimeFormatter.format(parsed);
+  return Number.isNaN(parsed.getTime()) ? value : current().dateTime.format(parsed);
 }
 
 export function formatCount(value: number): string {
-  return numberFormatter.format(value);
+  return current().number.format(value);
 }
 
 /**
- * "1 descrição" / "2 descrições".
+ * "1 descrição" / "2 descrições" — and "1 description" / "2 descriptions".
  *
  * A count of one is common here (a rung with a single record, a tag carried by one description), and
- * the card that said "1 descrições" was the first thing the level screen showed.
+ * the card that said "1 descrições" was the first thing the level screen showed. The plural category
+ * comes from `Intl.PluralRules`; the two forms come from the catalogue.
  */
 export function descricoes(value: number): string {
-  return `${formatCount(value)} ${value === 1 ? "descrição" : "descrições"}`;
+  const forms = activeMessages().format.descriptions;
+  const form = current().plural.select(value) === "one" ? forms.one : forms.other;
+  return `${formatCount(value)} ${form}`;
 }
 
 /**
