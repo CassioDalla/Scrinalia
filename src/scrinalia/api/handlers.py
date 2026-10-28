@@ -15,7 +15,7 @@ from litestar.status_codes import (
 from sqlalchemy.exc import IntegrityError
 
 from scrinalia.api.middleware import request_id_of
-from scrinalia.api.security import PERMISSION_DENIED_MESSAGE, SESSION_REQUIRED_MESSAGE
+from scrinalia.core.i18n import refusal
 from scrinalia.core.logger import logger
 from scrinalia.domains.archive.exceptions import (
     ArrangementTermNotFoundError,
@@ -219,7 +219,7 @@ def integrity_error_handler(request: Request, exc: IntegrityError) -> Response:
     return Response(
         content={
             "error_code": "IntegrityError",
-            "message": "Conflito estrutural no banco de dados. Operação abortada.",
+            "message": refusal("security.integrity_error"),
         },
         status_code=HTTP_409_CONFLICT,
     )
@@ -253,7 +253,7 @@ def unhandled_exception_handler(request: Request, exc: Exception) -> Response:
     return Response(
         content={
             "error_code": "InternalError",
-            "message": "Erro interno inesperado. A falha foi registrada e pode ser localizada pela referência.",
+            "message": refusal("security.internal_error"),
         },
         status_code=HTTP_500_INTERNAL_SERVER_ERROR,
     )
@@ -272,7 +272,7 @@ def not_authorized_handler(request: Request, exc: NotAuthorizedException) -> Res
     return Response(
         content={
             "error_code": type(exc).__name__,
-            "message": str(exc.detail) or SESSION_REQUIRED_MESSAGE,
+            "message": str(exc.detail) or refusal("security.session_required"),
         },
         status_code=HTTP_401_UNAUTHORIZED,
     )
@@ -294,7 +294,7 @@ def permission_denied_handler(request: Request, exc: PermissionDeniedException) 
     """
     content: dict[str, object] = {
         "error_code": type(exc).__name__,
-        "message": str(exc.detail) or PERMISSION_DENIED_MESSAGE,
+        "message": str(exc.detail) or refusal("security.permission_denied"),
     }
     code = getattr(exc, "code", None)
     if isinstance(code, RouteMessageCode):

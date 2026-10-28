@@ -10,11 +10,11 @@ from litestar.exceptions import NotAuthorizedException
 
 from scrinalia.api.login_rate_limit import LoginRateLimiter
 from scrinalia.api.security import (
-    SESSION_REQUIRED_MESSAGE,
     AuthenticatedUser,
     authenticated_user_of,
 )
 from scrinalia.core.database import create_session
+from scrinalia.core.i18n import refusal
 from scrinalia.core.unit_of_work import UnitOfWork
 from scrinalia.domains.archive.engines.base import EmbeddingEngine
 from scrinalia.domains.archive.repository.cleaning_repo import CleaningRepository
@@ -278,5 +278,5 @@ def provide_current_user(request: Request) -> AuthenticatedUser:
     if user is None:
         # The gate answers this before the handler runs; the branch exists so a route reached by a
         # path that skipped the middleware fails closed instead of receiving ``None``.
-        raise NotAuthorizedException(SESSION_REQUIRED_MESSAGE)
+        raise NotAuthorizedException(refusal("security.session_required"))
     return user

@@ -1,6 +1,6 @@
 """The request's language, from the header the client sends."""
 
-from scrinalia.api.i18n import negotiate_locale
+from scrinalia.core.i18n import negotiate_locale
 from scrinalia.core.locale import Locale
 
 

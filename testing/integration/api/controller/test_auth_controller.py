@@ -345,3 +345,20 @@ def test_logout_answers_in_the_requested_language(api_client: TestClient, genera
     _login(api_client)
     portuguese = api_client.post("/api/v1/auth/logout", headers={"Accept-Language": "pt-BR"})
     assert portuguese.json()["message"] == "Sessão encerrada."
+
+
+def test_a_login_refusal_answers_in_the_requested_language(api_client: TestClient, generate_user) -> None:
+    """The refusal is composed by code and facts, so the English is not a parse of the Portuguese."""
+    generate_user(email=EMAIL, password=PASSWORD)
+
+    portuguese = _login(api_client, password="a senha errada")
+    assert portuguese.status_code == 401
+    assert portuguese.json()["message"] == "E-mail ou senha inválidos."
+
+    english = api_client.post(
+        "/api/v1/auth/login",
+        json={"email": EMAIL, "password": "a senha errada"},
+        headers={"Accept-Language": "en-US"},
+    )
+    assert english.status_code == 401
+    assert english.json()["message"] == "Invalid e-mail or password."
