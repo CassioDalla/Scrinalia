@@ -333,6 +333,140 @@ export const pt = {
         "A importação tem {mb} MB e o limite é {limit} MB. Divida o arquivo em partes.",
     },
   },
+  isad: {
+    areas: {
+      identity: {
+        title: "3.1 Identidade",
+        hint: "O que a descrição é: código, nível, datas e dimensão.",
+      },
+      context: {
+        title: "3.2 Contexto",
+        hint: "Quem produziu, como o conjunto chegou até aqui e de onde o registro veio.",
+      },
+      content: {
+        title: "3.3 Conteúdo e Estrutura",
+        hint: "O que o documento diz e como o conjunto está organizado.",
+      },
+      access: {
+        title: "3.4 Acesso e Uso",
+        hint: "Quem pode consultar, como reproduzir e o que é preciso para usar o documento.",
+      },
+      allied: {
+        title: "3.5 Materiais Relacionados",
+        hint: "Onde estão os originais e as cópias, e que outras descrições se relacionam com esta.",
+      },
+      notes: {
+        title: "3.6 Notas",
+        hint: "Observações gerais e sobre o estado de conservação.",
+      },
+      control: {
+        title: "3.7 Controle da Descrição",
+        hint: "Quem descreveu, sob que regras e quando.",
+      },
+    },
+    fields: {
+      reference_code: {
+        label: "Código de Referência",
+        help: "O código que identifica a unidade de descrição no arranjo.",
+      },
+      document_date: {
+        label: "Data do Documento",
+        help: "AAAA-MM-DD, ou a expressão como está na fonte (Década de 1980, 1951-1953).",
+      },
+      dimension_support: {
+        label: "Dimensão e Suporte",
+        help: "Quantidade e o suporte do material. Ex: 2 folhas; 1 fotografia em papel; 3,5 m de documentos textuais.",
+      },
+      producers: {
+        label: "Produtor(es)",
+        help: "Quem produziu o conjunto: a instituição ou a pessoa. A lista sugere nomes das entidades; escolher um copia o nome, sem criar vínculo.",
+      },
+      admin_bio_history: {
+        label: "História Administrativa / Biografia",
+        help: "A trajetória da entidade ou pessoa produtora para contextualizar a criação e o uso dos documentos.",
+      },
+      admin_archival_history: {
+        label: "História Arquivística",
+        help: "Informações sobre a custódia, proveniência, acumulação, mudanças de propriedade ou alterações na organização do acervo ao longo do tempo.",
+      },
+      provenance: {
+        label: "Procedência",
+        help: "Identificação da fonte imediata de aquisição ou transferência do acervo (doador, alienante, recolhedor ou custodiante anterior).",
+      },
+      scope_content: {
+        label: "Âmbito e Conteúdo",
+        help: "Síntese do tema central, alcance temporal, funções/atividades representadas e principais entidades ou indivíduos mencionados no acervo.",
+      },
+      appraisal_destruction: {
+        label: "Avaliação e Temporalidade",
+        help: "O prazo de guarda e a decisão de eliminação, quando houver.",
+      },
+      accruals: {
+        label: "Incorporações",
+        help: "Indica se são esperados acréscimos ou novas entradas de documentos a esta unidade de descrição (acervo aberto ou fechado).",
+      },
+      arrangement: {
+        label: "Sistema de Arranjo",
+        help: "Informações sobre a estrutura de organização, plano de classificação e critérios de ordenação interna da unidade de descrição.",
+      },
+      access_conditions: {
+        label: "Condições de Acesso",
+        help: "Informações sobre o estatuto legal ou regulamentos que restringem ou autorizam a consulta pública à unidade de descrição.",
+      },
+      reproduction_conditions: {
+        label: "Condições de Reprodução",
+        help: "Restrições relativas a direitos autorais, reprodução (cópias, fotografias) ou publicação dos documentos.",
+      },
+      language_name: {
+        label: "Idioma",
+        help: "O idioma predominante do documento.",
+      },
+      physical_characteristics: {
+        label: "Características Físicas",
+        help: "Informações sobre o estado de conservação, suporte físico e exigências técnicas ou de preservação para a consulta dos documentos.",
+      },
+      finding_aids: {
+        label: "Instrumentos de Pesquisa",
+        help: "Referência a guias, inventários, repertórios ou bases de dados que facilitem a localização e o acesso à unidade de descrição.",
+      },
+      originals_location: {
+        label: "Existência e Localização dos Originais",
+        help: "Endereço ou instituição detentora da documentação original quando a unidade de descrição for constituída por cópias.",
+      },
+      copies_location: {
+        label: "Existência e Localização de Cópias",
+        help: "Informações sobre cópias em outros formatos ou suportes, bem como sua localização ou identificação no acervo.",
+      },
+      related_units: {
+        label: "Unidades de Descrição Relacionadas",
+        help: "Referências cruzadas a outras unidades de descrição com as quais este acervo guarda proveniência ou relação temática.",
+      },
+      publication_notes: {
+        label: "Notas de Publicação",
+        help: "Referências bibliográficas de publicações baseadas na pesquisa, uso ou reprodução da unidade de descrição.",
+      },
+      general_notes: {
+        label: "Notas Gerais",
+        help: "Informações adicionais que não puderam ser incluídas nos campos anteriores da descrição arquivística.",
+      },
+      conservation_notes: {
+        label: "Notas de Conservação",
+        help: "Registro de danos, condições de preservação e tratamentos conservativos ou restaurativos aplicados ou requeridos.",
+      },
+      archivist_notes: {
+        label: "Notas do Arquivista",
+        help: "Anotações relativas ao trabalho do responsável pela descrição, procedimentos adotados e decisões arquivísticas.",
+      },
+      rules_conventions: {
+        label: "Regras ou Convenções",
+        help: "Identificação dos padrões internacionais, nacionais ou institucionais utilizados na elaboração do registro.",
+      },
+      description_dates: {
+        label: "Datas da Descrição",
+        help: "Registro cronológico da elaboração, revisão e atualizações da ficha arquivística.",
+      },
+    },
+  },
   format: {
     reviewStatus: {
       PENDING_AI: "Aguardando IA",

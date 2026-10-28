@@ -171,6 +171,140 @@ export const en: typeof pt = {
       fileTooLarge: "The import is {mb} MB and the limit is {limit} MB. Split the file into parts.",
     },
   },
+  isad: {
+    areas: {
+      identity: {
+        title: "3.1 Identity",
+        hint: "What the description is: code, level, dates and extent.",
+      },
+      context: {
+        title: "3.2 Context",
+        hint: "Who produced it, how the collection arrived here and where the record came from.",
+      },
+      content: {
+        title: "3.3 Content and Structure",
+        hint: "What the document says and how the collection is organised.",
+      },
+      access: {
+        title: "3.4 Access and Use",
+        hint: "Who may consult it, how to reproduce it and what is needed to use the document.",
+      },
+      allied: {
+        title: "3.5 Related Materials",
+        hint: "Where the originals and copies are, and which other descriptions relate to this one.",
+      },
+      notes: {
+        title: "3.6 Notes",
+        hint: "General observations and observations about the conservation state.",
+      },
+      control: {
+        title: "3.7 Description Control",
+        hint: "Who described it, under which rules and when.",
+      },
+    },
+    fields: {
+      reference_code: {
+        label: "Reference Code",
+        help: "The code that identifies the unit of description in the arrangement.",
+      },
+      document_date: {
+        label: "Document Date",
+        help: "YYYY-MM-DD, or the expression as it appears in the source (1980s, 1951-1953).",
+      },
+      dimension_support: {
+        label: "Extent and Medium",
+        help: "Quantity and medium of the material. E.g. 2 leaves; 1 photograph on paper; 3.5 m of textual records.",
+      },
+      producers: {
+        label: "Producer(s)",
+        help: "Who produced the collection: the institution or the person. The list suggests entity names; choosing one copies the name without creating a link.",
+      },
+      admin_bio_history: {
+        label: "Administrative History / Biography",
+        help: "The trajectory of the producing entity or person, to contextualise the creation and use of the documents.",
+      },
+      admin_archival_history: {
+        label: "Archival History",
+        help: "Information about custody, provenance, accumulation, changes of ownership or alterations in the arrangement over time.",
+      },
+      provenance: {
+        label: "Provenance",
+        help: "Identification of the immediate source of acquisition or transfer (donor, seller, collector or previous custodian).",
+      },
+      scope_content: {
+        label: "Scope and Content",
+        help: "A summary of the central theme, temporal reach, functions and activities represented, and the main entities or individuals mentioned.",
+      },
+      appraisal_destruction: {
+        label: "Appraisal and Destruction",
+        help: "The retention period and the destruction decision, when there is one.",
+      },
+      accruals: {
+        label: "Accruals",
+        help: "Whether additions or new entries of documents are expected for this unit of description (open or closed collection).",
+      },
+      arrangement: {
+        label: "System of Arrangement",
+        help: "Information about the organisation structure, classification plan and internal ordering criteria of the unit of description.",
+      },
+      access_conditions: {
+        label: "Conditions Governing Access",
+        help: "Information about the legal status or regulations that restrict or authorise public access to the unit of description.",
+      },
+      reproduction_conditions: {
+        label: "Conditions Governing Reproduction",
+        help: "Restrictions related to copyright, reproduction (copies, photographs) or publication of the documents.",
+      },
+      language_name: {
+        label: "Language",
+        help: "The predominant language of the document.",
+      },
+      physical_characteristics: {
+        label: "Physical Characteristics",
+        help: "Information about the conservation state, physical medium and technical or preservation requirements for consulting the documents.",
+      },
+      finding_aids: {
+        label: "Finding Aids",
+        help: "Reference to guides, inventories, repertories or databases that help locate and access the unit of description.",
+      },
+      originals_location: {
+        label: "Existence and Location of Originals",
+        help: "Address or institution holding the original documentation when the unit of description consists of copies.",
+      },
+      copies_location: {
+        label: "Existence and Location of Copies",
+        help: "Information about copies in other formats or media, and their location or identification in the collection.",
+      },
+      related_units: {
+        label: "Related Units of Description",
+        help: "Cross-references to other units of description with which this collection shares provenance or a thematic relation.",
+      },
+      publication_notes: {
+        label: "Publication Notes",
+        help: "Bibliographic references of publications based on the research, use or reproduction of the unit of description.",
+      },
+      general_notes: {
+        label: "General Notes",
+        help: "Additional information that could not be included in the previous fields of the archival description.",
+      },
+      conservation_notes: {
+        label: "Conservation Notes",
+        help: "Record of damage, preservation conditions and conservation or restoration treatments applied or required.",
+      },
+      archivist_notes: {
+        label: "Archivist's Notes",
+        help: "Notes about the work of the person responsible for the description, procedures adopted and archival decisions.",
+      },
+      rules_conventions: {
+        label: "Rules or Conventions",
+        help: "Identification of the international, national or institutional standards used in preparing the record.",
+      },
+      description_dates: {
+        label: "Dates of Description",
+        help: "Chronological record of the preparation, revision and updates of the archival record.",
+      },
+    },
+  },
   format: {
     reviewStatus: {
       PENDING_AI: "Waiting for AI",
