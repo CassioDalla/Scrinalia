@@ -10,10 +10,7 @@ def _inbox(*, count: int = 0) -> CurationInbox:
     from datetime import UTC, datetime
 
     return CurationInbox(
-        queues=[
-            CurationQueue(key=key, label=label, count=count, route=route, description="d")
-            for key, label, route, _description in QUEUE_CATALOGUE
-        ],
+        queues=[CurationQueue(key=key, count=count, route=route) for key, route in QUEUE_CATALOGUE],
         generated_at=datetime.now(UTC),
     )
 
