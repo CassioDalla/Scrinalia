@@ -815,7 +815,7 @@ baniu na tela Stopwords, ou que uma resolução de conflito plantou antes, sobre
 | Tela | Decisão | Reversível? |
 | --- | --- | --- |
 | Entidades — `/entidades/lista` | o tipo de um nome, a grafia de um nome, e se dois nomes são um | o tipo sim; a renomeação **sim** (uma linha no ledger); o merge **sim** (uma linha por entidade absorvida) |
-| Exclusões de NER — `/entidades/excecoes` | quais grafias são assunto, não nome próprio, e o expurgo retroativo que as segue | ambos **sim**: a linha do veto pelo seu próprio `DELETE`, o expurgo pelo seu ledger (`archive_ner_purge_log`) |
+| Remover de Entidades — `/entidades/excecoes` | quais grafias são assunto, não nome próprio, e o expurgo retroativo que as segue | ambos **sim**: a linha do veto pelo seu próprio `DELETE`, o expurgo pelo seu ledger (`archive_ner_purge_log`) |
 | Conflitos — `/entidades/conflitos` | se uma colisão pertence ao eixo de assunto ou aos nomes, um par de cada vez ou uma categoria inteira de uma vez | sim (uma linha no ledger por par, com o desfazer) |
 
 ### Entidades — `/entidades/lista`
@@ -875,7 +875,7 @@ A segunda aba do cartão é a renomeação, e o botão **Renomear** ao lado do n
 recurso da própria linha e nunca mescla: o merge parte de dois ou mais nomes e só renomeia a canônica
 como efeito colateral.
 
-### Exclusões de NER — `/entidades/excecoes`
+### Remover de Entidades — `/entidades/excecoes`
 
 O veto "esta grafia é assunto, não nome próprio". **Vetar não apaga nada.** A escrita é `POST
 /api/v1/taxonomy/entities/ner-exclusions` (`CURATE`), com um motivo guardado para auditoria, e a

@@ -2746,4 +2746,29 @@ with short or full shas, and part of a `## <date> — <title>` entry.
   gates above and the diff, not pixels. The pages quote labels, not behaviour, and no route, schema
   or contract changed.
 
+## 2026-10-27 — the second copy read, and the screen it renamed
+
+- **Range:** `7e9a5b3..0876ead`
+- **Pages:**
+  - `guides/curate.md` — **updated**: the copy pass renamed `/entidades/excecoes` from "Exclusões de
+    NER" to "Remover de Entidades", and the guide quotes that label in the screen table and in the
+    section heading. No route, write or flow changed.
+  - `guides/curate.pt.md` — **updated**: the same two names, in the translation.
+  - `guides/install.md` — **no-change**: its only moved source in the range is `lib/screens.ts`, and
+    the install guide names neither the Tags screen nor this one; what moved there is the Tags
+    hint/description and two screen descriptions.
+  - `guides/install.pt.md` — **no-change**: the same source, the same reason.
+- **Why the round exists.** A second, closer copy read over the subject, entity and dossier screens
+  (`8b3acfc`) plus the correction it made necessary (`0876ead`): the entities list still linked to
+  the old label, so the list and its destination named the same screen two ways. The pass also
+  reopened the retired-word gate, which caught `apagar` and `unificação` and required the canon's
+  `Excluir` and `Mesclagem` again — and a stray double quote in one JSX text node, which is also
+  what hid that node from the scan.
+- **What the round measured.** `tsc`, ESLint, 26 bun tests and 24 pytest for the copy commit;
+  `ruff check`, `ruff format --check`, `basedpyright`, `bun run contract` (no drift),
+  `alembic check` (no drift) and `mkdocs build --strict` for this round. `freshness.py` reported
+  these two pages and no other.
+- **Not verified, and said so.** No screen was rendered: the evidence is the gates and the diff.
+
+
 

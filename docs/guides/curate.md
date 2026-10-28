@@ -841,7 +841,7 @@ the Stopwords screen, or one a conflict resolution planted first, survives.
 | Screen | Decision | Reversible? |
 | --- | --- | --- |
 | Entidades — `/entidades/lista` | the type of a name, the spelling of a name, and whether two names are one | the type yes; the rename **yes** (one ledger row); the merge **yes** (one ledger row per absorbed entity) |
-| Exclusões de NER — `/entidades/excecoes` | which spellings are subjects, not proper names, and the retroactive purge that follows | both **yes**: the veto row by its own `DELETE`, the purge by its ledger (`archive_ner_purge_log`) |
+| Remover de Entidades — `/entidades/excecoes` | which spellings are subjects, not proper names, and the retroactive purge that follows | both **yes**: the veto row by its own `DELETE`, the purge by its ledger (`archive_ner_purge_log`) |
 | Conflitos — `/entidades/conflitos` | whether a collision belongs to the subject axis or to the names, one pair at a time or a whole category at once | yes (one ledger row per pair, with the undo) |
 
 ### Entidades — `/entidades/lista`
@@ -900,7 +900,7 @@ The card's second tab is the rename, and the **Renomear** button beside the name
 row's own affordance and never merges: the merge starts from two or more names and only renames the
 canonical as a side effect.
 
-### Exclusões de NER — `/entidades/excecoes`
+### Remover de Entidades — `/entidades/excecoes`
 
 The veto "this spelling is a subject, not a proper name". **Vetoing deletes nothing.** The write is
 `POST /api/v1/taxonomy/entities/ner-exclusions` (`CURATE`), with a reason kept for audit, and the
