@@ -33,6 +33,7 @@ import { ACTION, DIGITAL_OBJECT } from "@/lib/copy";
 import { ENTITY_ORIGIN_HINT, ENTITY_ORIGIN_LABEL, ENTITY_ORIGIN_TONE } from "@/lib/entities";
 import { formatCount, formatDate, formatDateTime, REVIEW_STATUS_LABEL, REVIEW_STATUS_TONE } from "@/lib/format";
 import { fieldsOfArea, ISAD_AREAS } from "@/lib/isad";
+import { Hint } from "@/components/ui/Hint";
 
 const routeApi = getRouteApi("/acervo/$descriptionId");
 
@@ -89,7 +90,7 @@ export function DocumentRoute() {
         }
         actions={
           <Link to="/acervo/lista" className="text-sm text-(--color-muted) hover:underline">
-            ← voltar à lista
+            ← Voltar à lista
           </Link>
         }
       />
@@ -203,13 +204,13 @@ function DescriptionTab({ document }: { document: DocumentSummary }) {
               <p className="text-xs font-semibold tracking-wide text-(--color-muted) uppercase">Título sugerido</p>
               <p className="text-sm">{document.suggested_final_title}</p>
               <p className="text-xs text-(--color-muted)">
-                Derivado na leitura a partir dos trechos aprovados; nunca armazenado.
+                Título proposto sem a parte fixa já aprovada. Só entra no registro se você usar.
               </p>
             </div>
             <Button
               onClick={() => setDraft((previous) => ({ ...previous, final_title: document.suggested_final_title ?? "" }))}
             >
-              Usar esta
+              Usar este título
             </Button>
           </CardBody>
         </Card>
@@ -227,13 +228,16 @@ function DescriptionTab({ document }: { document: DocumentSummary }) {
 
             {area.id === "identity" ? (
               <>
-                <Field label="Título original" hint="O título que a origem declarou.">
+                <Field label="Título Original" hint="O título que a origem declarou.">
                   <Input value={valueOf("original_title")} onChange={(event) => setField("original_title", event.target.value)} />
                 </Field>
-                <Field label="Título final (decisão do arquivista)" hint="Vazio enquanto o arquivista não decidir.">
+                <Field
+                  label="Título Final (Decisão do Arquivista)"
+                  hint="O título que você aprova. Enquanto estiver vazio, vale o título original."
+                >
                   <Input value={valueOf("final_title")} onChange={(event) => setField("final_title", event.target.value)} />
                 </Field>
-                <Field label="Nível de descrição">
+                <Field label="Nível de Descrição">
                   <Select
                     value={levels ?? ""}
                     onChange={(event) => setLevels(event.target.value ? Number(event.target.value) : undefined)}
@@ -252,7 +256,7 @@ function DescriptionTab({ document }: { document: DocumentSummary }) {
                   the classifier. Only the active ones are offered: a retired typology is out of the
                   classifier's candidate set, so it must be out of the editor's too.
                 */}
-                <Field label="Tipologia documental">
+                <Field label="Tipologia Documental">
                   <Select
                     value={typology ?? ""}
                     onChange={(event) => setTypology(event.target.value ? Number(event.target.value) : undefined)}
@@ -298,7 +302,7 @@ function DescriptionTab({ document }: { document: DocumentSummary }) {
                   {document.original_url}
                 </a>
                 <span className="text-(--color-muted)">
-                  A página de onde este registro foi lido. Não é o objeto digital, que ainda não é armazenado.
+                  A página de onde este registro foi lido — não o objeto digital, que ainda não é guardado.
                 </span>
               </div>
             ) : null}
@@ -312,10 +316,9 @@ function DescriptionTab({ document }: { document: DocumentSummary }) {
           <label className="flex items-center gap-2">
             <input type="checkbox" checked={published} onChange={(event) => setPublished(event.target.checked)} />
             <span className="text-sm">
-              Publicar na difusão
-              <span className="block text-xs text-(--color-muted)">
-                Eixo separado da revisão: publicar não bloqueia a IA de continuar melhorando o registro.
-              </span>
+              Publicar na Difusão
+              <Hint label="Publicar na Difusão" className="text-xs"> Publicar é decisão de difusão, separada da revisão: publicar <strong>não impede</strong> a IA de continuar melhorando
+                o registro.</Hint>
             </span>
           </label>
         </CardBody>
@@ -342,7 +345,7 @@ function DescriptionTab({ document }: { document: DocumentSummary }) {
 
       <Card>
         <CardBody className="grid gap-3 sm:grid-cols-2">
-          <Field label="Motivo da edição">
+          <Field label="Motivo da Edição">
             <Input value={note} onChange={(event) => setNote(event.target.value)} />
           </Field>
           <div className="sm:col-span-2">
@@ -350,8 +353,8 @@ function DescriptionTab({ document }: { document: DocumentSummary }) {
               {save.isPending ? "Salvando…" : "Salvar e marcar como revisado"}
             </Button>
             <span className="ml-3 text-xs text-(--color-muted)">
-              Toda edição registra antes/depois no histórico e marca o documento como revisado por humano —
-              o que o retira da fila da IA.
+              Toda edição fica no histórico e marca o documento como revisado por humano; a partir daí a IA não o
+              reescreve.
             </span>
           </div>
           {save.error ? (
@@ -380,7 +383,7 @@ function ParentReference({ document }: { document: DocumentSummary }) {
 
   return (
     <div className="grid gap-1 text-xs sm:col-span-2">
-      <span className="text-(--color-muted)">Unidade superior</span>
+      <span className="text-(--color-muted)">Unidade Superior</span>
       {document.parent_id ? (
         <Link
           to="/acervo/$descriptionId"
@@ -391,11 +394,11 @@ function ParentReference({ document }: { document: DocumentSummary }) {
         </Link>
       ) : document.parent_reference_code ? (
         <span className="text-sm">
-          {document.parent_reference_code} — declarada pela origem, aguardando a descrição do pai. O vínculo se
-          faz na aba Arranjo.
+          {document.parent_reference_code} — declarada pela origem, aguardando a descrição da unidade superior. O
+          vínculo se faz na aba Arranjo.
         </span>
       ) : (
-        <span className="text-sm text-(--color-muted)">não declarada. O vínculo se faz na aba Arranjo.</span>
+        <span className="text-sm text-(--color-muted)">Não declarada. O vínculo se faz na aba Arranjo.</span>
       )}
     </div>
   );
@@ -455,16 +458,16 @@ function SubjectsTab({ document }: { document: DocumentSummary }) {
 
       <Card>
         <CardHeader className="flex items-center justify-between">
-          <span className="text-sm font-semibold">Tags e assunto</span>
+          <span className="text-sm font-semibold">Tags e categorias</span>
           <span className="text-xs text-(--color-muted)">
-            {document.macro_categories?.length ?? 0} categoria(s) votada(s)
+            Categorias atribuídas: {document.macro_categories?.length ?? 0}
           </span>
         </CardHeader>
         <CardBody className="grid gap-2">
           {tags.length === 0 ? (
             <EmptyState
               title="Nenhuma tag"
-              hint="O worker de extração ainda não passou por esta descrição, ou ela não tem ponto de acesso."
+              hint="A extração automática ainda não passou por esta descrição, ou ela não tem ponto de acesso."
             />
           ) : null}
 
@@ -474,11 +477,11 @@ function SubjectsTab({ document }: { document: DocumentSummary }) {
                 <span className="flex min-w-0 items-center gap-2">
                   <span className="truncate text-sm">{tag.name}</span>
                   {tag.macro_category_name ? (
-                    <Badge tone="accent" title={`Confiança da IA: ${tag.ai_confidence_score ?? "—"}`}>
+                    <Badge tone="accent" title={`Confiança da classificação: ${tag.ai_confidence_score ?? "—"}`}>
                       {tag.macro_category_name}
                     </Badge>
                   ) : (
-                    <Badge tone="neutral" title="O classificador não arquivou esta tag numa categoria">
+                    <Badge tone="neutral" title="Esta tag não está em nenhuma categoria de assunto.">
                       sem categoria
                     </Badge>
                   )}
@@ -494,7 +497,7 @@ function SubjectsTab({ document }: { document: DocumentSummary }) {
                     aria-label={`Categoria da tag ${tag.name}`}
                     value={tag.macro_category_id ?? ""}
                     disabled={reclassify.isPending}
-                    title="Muda a categoria desta tag em TODAS as descrições que a carregam, não só nesta."
+                    title="Vale para todas as descrições que carregam a tag, não só para esta."
                     onChange={(event) =>
                       reclassify.mutate({
                         tagId: tag.tag_id,
@@ -529,19 +532,18 @@ function SubjectsTab({ document }: { document: DocumentSummary }) {
           <div className="flex items-end gap-2 border-t border-(--color-line) pt-3">
             <label className="flex-1">
               <span className="mb-1 block text-xs font-medium text-(--color-muted)">
-                Associar uma tag pelo nome
+                Associe uma tag pelo nome
               </span>
               <Typeahead
                 placeholder="digite ao menos 2 letras: igrej…"
                 disabled={addTag.isPending}
-                emptyLabel="nenhuma tag com esse trecho"
+                emptyLabel="Nenhuma tag com esse trecho"
                 onSearch={async (term) =>
                   (await searchTags(term)).map((result) => ({
                     value: String(result.tag_id),
                     label: result.name,
-                    hint: `${formatCount(result.document_count)} doc${
-                      result.macro_category_name ? ` · ${result.macro_category_name}` : " · sem categoria"
-                    }`,
+                    hint: `${formatCount(result.document_count)} doc${result.macro_category_name ? ` · ${result.macro_category_name}` : " · sem categoria"
+                      }`,
                   }))
                 }
                 onPick={(option) => addTag.mutate(Number(option.value))}
@@ -550,8 +552,8 @@ function SubjectsTab({ document }: { document: DocumentSummary }) {
           </div>
           <p className="text-xs text-(--color-muted)">
             A categoria escolhida ao lado vale para <strong>todas</strong> as descrições que carregam a tag: é uma
-            decisão sobre o vocabulário, não sobre este documento. O selo <em>sem categoria</em> devolve a tag ao
-            classificador.
+            decisão sobre o vocabulário, não sobre esta descrição. <em>Sem categoria</em> declara que a tag não é
+            assunto, e a grafia não volta a virar tag.
           </p>
           {addTag.error ? <ErrorState error={addTag.error} /> : null}
         </CardBody>
@@ -561,7 +563,7 @@ function SubjectsTab({ document }: { document: DocumentSummary }) {
         <CardHeader className="text-sm font-semibold">Entidades nomeadas</CardHeader>
         <CardBody className="grid gap-2">
           {entities.length === 0 ? (
-            <EmptyState title="Nenhuma entidade" hint="O extrator (NER) ainda não passou por esta descrição." />
+            <EmptyState title="Nenhuma entidade" hint="A extração automática de nomes ainda não passou por esta descrição." />
           ) : null}
           <ul className="divide-y divide-(--color-line)">
             {entities.map((entity) => (
@@ -579,7 +581,7 @@ function SubjectsTab({ document }: { document: DocumentSummary }) {
                       size="sm"
                       variant="ghost"
                       disabled={addEntity.isPending}
-                      title="Registra que uma pessoa revisou e mantém esta entidade."
+                      title="Registra que você revisou esta entidade: a IA não a remove depois."
                       onClick={() => addEntity.mutate(entity.entity_id)}
                     >
                       {ACTION.confirm.label}
@@ -600,12 +602,12 @@ function SubjectsTab({ document }: { document: DocumentSummary }) {
 
           <div className="border-t border-(--color-line) pt-3">
             <span className="mb-1 block text-xs font-medium text-(--color-muted)">
-              Associar uma entidade pelo nome
+              Associe uma entidade pelo nome
             </span>
             <Typeahead
               placeholder="digite ao menos 2 letras: igreja…"
               disabled={addEntity.isPending}
-              emptyLabel="nenhuma entidade com esse trecho"
+              emptyLabel="Nenhuma entidade com esse trecho"
               onSearch={async (term) =>
                 (await searchEntities(term)).map((result) => ({
                   value: String(result.entity_id),
@@ -668,7 +670,7 @@ function ArrangementTab({ document }: { document: DocumentSummary }) {
           {ancestors.length === 0 ? (
             <EmptyState
               title="Esta descrição está na raiz"
-              hint="Com o arranjo ainda não materializado, quase todo o acervo está solto. A tela que resolve isso é o plano de arranjo."
+              hint="Enquanto o arranjo não estiver definido, quase todo o acervo fica solto. O plano de arranjo é a tela que resolve isso."
               action={
                 <Link to="/arranjo/plano">
                   <Button size="sm">Abrir o plano de arranjo</Button>
@@ -699,17 +701,17 @@ function ArrangementTab({ document }: { document: DocumentSummary }) {
         <CardHeader className="text-sm font-semibold">Unidade superior e nível</CardHeader>
         <CardBody className="grid gap-3">
           <p className="text-xs text-(--color-muted)">
-            A API valida antes de escrever: um Item não pode ter filhos, um Dossiê não pode ficar sem pai, e
-            mover para dentro da própria subárvore é recusado. A trilha da mudança fica no histórico desta
-            descrição.
+            A mudança é conferida antes de ser gravada: um Item não pode receber filhos, um Dossiê não pode ficar
+            sem unidade superior, e mover uma unidade para dentro dela mesma é recusado. O resultado fica no
+            histórico desta descrição.
           </p>
 
           <div className="grid gap-2 sm:grid-cols-2">
-            <Field label={<>Unidade superior atual: {currentParentTitle ?? "raiz"}</>}>
+            <Field label={<>Unidade Superior Atual: {currentParentTitle ?? "raiz"}</>}>
               <Typeahead
                 placeholder="buscar a nova unidade superior…"
                 disabled={move.isPending}
-                emptyLabel="nenhuma descrição com esse trecho"
+                emptyLabel="Nenhuma descrição com esse trecho"
                 onSearch={async (term) => {
                   const page = await fetchDocuments({ term, limit: 8 });
                   return page.items
@@ -727,7 +729,7 @@ function ArrangementTab({ document }: { document: DocumentSummary }) {
               />
             </Field>
 
-            <Field label="Nível de descrição">
+            <Field label="Nível de Descrição">
               <Select
                 value={levelId ?? ""}
                 onChange={(event) => setLevelId(event.target.value ? Number(event.target.value) : null)}
@@ -746,7 +748,7 @@ function ArrangementTab({ document }: { document: DocumentSummary }) {
               no longer exists — the API takes the actor from the session since ADR 0009 — so the form
               showed a field title with nothing under it.
             */}
-            <Field label="Nota da decisão">
+            <Field label="Nota da Decisão">
               <Input value={note} onChange={(event) => setNote(event.target.value)} />
             </Field>
           </div>
@@ -757,7 +759,7 @@ function ArrangementTab({ document }: { document: DocumentSummary }) {
             </Button>
             <Button
               disabled={move.isPending || parentId === null}
-              title="Deixa a descrição na raiz. O nível continua o que estiver escolhido acima."
+              title="Coloca a descrição na raiz. O nível escolhido acima continua valendo."
               onClick={() => move.mutate(null)}
             >
               Promover à raiz
@@ -767,14 +769,14 @@ function ArrangementTab({ document }: { document: DocumentSummary }) {
               disabled={move.isPending}
               onClick={() => navigate({ to: "/arranjo/diagnostico", search: { issue: "LEVEL_DEPTH_MISMATCH" } })}
             >
-              ver incoerências de nível
+              Ver incoerências de nível
             </Button>
           </div>
 
           {move.error ? <ErrorState error={move.error} /> : null}
           {move.data ? (
             <Notice tone="ok">
-              Movido: agora pende de {move.data.parent_id ?? "ninguém (raiz)"} e o caminho é{" "}
+              Movido. A unidade superior agora é {move.data.parent_id ?? "a raiz"}, e o caminho no arranjo é{" "}
               <code>{move.data.path}</code>.
             </Notice>
           ) : null}
@@ -785,11 +787,11 @@ function ArrangementTab({ document }: { document: DocumentSummary }) {
         <CardHeader className="text-sm font-semibold">Filhos</CardHeader>
         <CardBody className="text-sm">
           {document.children_count === 0 ? (
-            <p className="text-(--color-muted)">Nenhuma descrição pende diretamente desta.</p>
+            <p className="text-(--color-muted)">Nenhuma descrição está diretamente abaixo desta.</p>
           ) : (
             <p>
-              <strong>{formatCount(document.children_count)}</strong> descrição(ões) diretamente abaixo. Mover esta
-              unidade leva a subárvore inteira: o caminho é reescrito em uma instrução.
+              Descrições diretamente abaixo: <strong>{formatCount(document.children_count)}</strong>. Mover esta
+              unidade leva a subárvore inteira junto.
             </p>
           )}
         </CardBody>
@@ -828,37 +830,37 @@ function HistoryTab({ document }: { document: DocumentSummary }) {
       {!data || data.length === 0 ? (
         <EmptyState
           title="Nenhuma revisão humana"
-          hint="O histórico é o que dá crédito ao selo de revisado: ele registra quem mudou o quê, de qual valor para qual, e por quê."
+          hint="O histórico registra quem mudou o quê, de qual valor para qual, e por quê."
         />
       ) : (
         <ol className="space-y-3">
           {data.map((revision) => (
-        <li key={revision.revision_id}>
-          <Card>
-            <CardHeader className="flex items-center justify-between text-sm">
-              <span className="font-medium">{revision.changed_by ?? "autoria não registrada"}</span>
-              <span className="text-xs text-(--color-muted)">{formatDateTime(revision.created_at)}</span>
-            </CardHeader>
-            <CardBody className="space-y-2">
-              {revision.note ? <p className="text-sm italic text-(--color-muted)">{revision.note}</p> : null}
-              <ul className="space-y-1">
-                {Object.entries(revision.changes ?? {}).map(([field, change]) => {
-                  const pair = change as { old?: unknown; new?: unknown };
-                  return (
-                    <li key={field} className="text-xs">
-                      <code className="rounded bg-black/[0.05] px-1 font-medium">{field}</code>
-                      <span className="mx-2 text-(--color-danger) line-through">
-                        {JSON.stringify(pair?.old) ?? "—"}
-                      </span>
-                      <span className="text-(--color-ok)">{JSON.stringify(pair?.new) ?? "—"}</span>
-                    </li>
-                  );
-                })}
-              </ul>
-            </CardBody>
-          </Card>
-          </li>
-        ))}
+            <li key={revision.revision_id}>
+              <Card>
+                <CardHeader className="flex items-center justify-between text-sm">
+                  <span className="font-medium">{revision.changed_by ?? "autoria não registrada"}</span>
+                  <span className="text-xs text-(--color-muted)">{formatDateTime(revision.created_at)}</span>
+                </CardHeader>
+                <CardBody className="space-y-2">
+                  {revision.note ? <p className="text-sm italic text-(--color-muted)">{revision.note}</p> : null}
+                  <ul className="space-y-1">
+                    {Object.entries(revision.changes ?? {}).map(([field, change]) => {
+                      const pair = change as { old?: unknown; new?: unknown };
+                      return (
+                        <li key={field} className="text-xs">
+                          <code className="rounded bg-black/[0.05] px-1 font-medium">{field}</code>
+                          <span className="mx-2 text-(--color-danger) line-through">
+                            {JSON.stringify(pair?.old) ?? "—"}
+                          </span>
+                          <span className="text-(--color-ok)">{JSON.stringify(pair?.new) ?? "—"}</span>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </CardBody>
+              </Card>
+            </li>
+          ))}
         </ol>
       )}
 
@@ -919,7 +921,7 @@ function DeleteDocumentCard({ document }: { document: DocumentSummary }) {
           <div className="grid gap-1">
             <p className="text-sm font-semibold text-(--color-danger)">Excluir esta descrição</p>
             <p className="text-xs text-(--color-muted)">
-              Exclusão definitiva. O retrato da descrição fica na trilha de exclusões; nada a traz de volta.
+              Exclusão definitiva. O Histórico de exclusões guarda os dados da descrição; nada a traz de volta.
             </p>
           </div>
           <Button size="sm" variant="danger" onClick={() => setOpen((current) => !current)}>
@@ -931,7 +933,7 @@ function DeleteDocumentCard({ document }: { document: DocumentSummary }) {
           <Notice tone="danger" as="div" className="grid gap-3">
             <p className="text-xs text-(--color-danger)">
               Uma descrição com filhos <strong>não pode</strong> ser excluída: a árvore ficaria apontando para um
-              ramo que não existe. O serviço recusa e diz quantos filhos estão no caminho.
+              ramo que não existe. Exclua ou mova as descrições abaixo primeiro.
             </p>
 
             <Field label={<>Escreva <code>{expected}</code> para confirmar</>}>
@@ -949,7 +951,7 @@ function DeleteDocumentCard({ document }: { document: DocumentSummary }) {
               showed a field title with nothing under it.
             */}
             <div className="grid gap-2">
-              <Field label="Motivo (guardado na trilha)">
+              <Field label="Motivo da Exclusão">
                 <Input
                   value={note}
                   onChange={(event) => setNote(event.target.value)}
@@ -975,7 +977,7 @@ function DeleteDocumentCard({ document }: { document: DocumentSummary }) {
             {remove.error ? <ErrorState error={remove.error} /> : null}
             {done ? (
               <p className="text-xs text-(--color-ok)">
-                “{done.title}” foi excluída. A trilha guarda o retrato dela.
+                “{done.title}” foi excluída. O Histórico de exclusões guarda os dados dela.
               </p>
             ) : null}
           </Notice>

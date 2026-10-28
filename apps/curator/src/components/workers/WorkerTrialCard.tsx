@@ -122,13 +122,13 @@ export function WorkerTrialCard({
     <div className="grid gap-3 rounded-lg bg-black/[0.02] p-3 ring-1 ring-(--color-line)">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <span className="text-sm font-medium">Comparar configurações</span>
-        <span className="text-xs text-(--color-muted)">um ensaio lê a coleção e não escreve nada</span>
+        <span className="text-xs text-(--color-muted)">o ensaio não altera o acervo</span>
       </div>
 
       <p className="text-xs text-(--color-muted)">
-        O ensaio roda cada configuração sobre a mesma amostra e mostra a concordância contra as
-        correções humanas de tipologia. Ele ocupa a vaga do worker como uma execução; a escolha só
-        vira padrão quando você clicar em <strong>Usar esta</strong>.
+        O ensaio aplica cada configuração à mesma amostra e mostra a concordância com as correções
+        humanas de tipologia. Ele ocupa a vaga desta etapa como uma execução; a escolha só vira padrão
+        quando você clicar em <strong>Salvar como padrão</strong>.
       </p>
 
       <div className="grid gap-3 lg:grid-cols-2">
@@ -146,7 +146,7 @@ export function WorkerTrialCard({
       </div>
 
       <div className="flex flex-wrap items-end gap-3">
-        <Field label="Descrições na amostra (5 a 500)" hint="O gabarito é lido até o mesmo teto.">
+        <Field label="Descrições na Amostra (5 a 500)" hint="As correções humanas são lidas até o mesmo limite.">
           <Input
             type="number"
             min={5}
@@ -160,11 +160,11 @@ export function WorkerTrialCard({
           variant="primary"
           onClick={() => trial.mutate(body)}
           disabled={trial.isPending || busy || !sampleValid}
-          title={busy ? "Já há um ensaio ou execução deste worker em andamento." : undefined}
+          title={busy ? "Já há um ensaio ou uma execução desta etapa em andamento." : undefined}
         >
-          {trial.isPending ? "Enfileirando…" : "Rodar ensaio"}
+          {trial.isPending ? "Enfileirando…" : "Enfileirar ensaio"}
         </Button>
-        {!sampleValid ? <span className="text-xs text-(--color-danger)">A amostra é de 5 a 500.</span> : null}
+        {!sampleValid ? <span className="text-xs text-(--color-danger)">A amostra vai de 5 a 500.</span> : null}
       </div>
 
       {trial.error ? <ErrorState error={trial.error} /> : null}
@@ -209,15 +209,15 @@ export function WorkerTrialCard({
               title={
                 preview.data?.pending === 0
                   ? "A fila está vazia com este padrão."
-                  : "Enfileira a execução real com o padrão salvo, sem overrides."
+                  : "Enfileira a execução com o padrão salvo, sem ajustes só desta vez."
               }
             >
-              {runAll.isPending ? "Enfileirando…" : "Rodar no acervo inteiro"}
+              {runAll.isPending ? "Enfileirando…" : "Enfileirar execução"}
             </Button>
             {preview.data ? (
               <span className="text-xs text-(--color-muted)">
                 {preview.data.pending == null
-                  ? (preview.data.pending_reason ?? "A fila não é mensurável.")
+                  ? (preview.data.pending_reason ?? "Não é possível contar a fila.")
                   : `${formatCount(preview.data.pending)} na fila com o padrão salvo.`}
               </span>
             ) : null}
@@ -266,12 +266,12 @@ function ConfigEditor({
     <div className="grid gap-2 rounded-md bg-(--color-surface) p-3 ring-1 ring-(--color-line)">
       <span className="text-xs font-semibold tracking-wide text-(--color-muted) uppercase">{title}</span>
       <div className="grid gap-2 sm:grid-cols-2">
-        <Field label="Engine">
+        <Field label="Motor">
           <Select
             value={config.engine_name ?? ""}
             onChange={(event) => onChange({ ...config, engine_name: event.target.value || null, preset: null })}
           >
-            <option value="">(a do código)</option>
+            <option value="">(o padrão do sistema)</option>
             {engines.map((engine) => (
               <option key={engine.name} value={engine.name}>
                 {engine.name}
@@ -284,7 +284,7 @@ function ConfigEditor({
             value={config.preset ?? ""}
             onChange={(event) => onChange({ ...config, preset: event.target.value || null })}
           >
-            <option value="">(o do código)</option>
+            <option value="">(o padrão do sistema)</option>
             {presets.map((preset) => (
               <option key={preset.name} value={preset.name}>
                 {preset.name}
@@ -293,7 +293,7 @@ function ConfigEditor({
           </Select>
         </Field>
       </div>
-      <Field label="Tamanho do lote (vazio = o do código)">
+      <Field label="Tamanho do Lote (vazio = o do sistema)">
         <Input
           type="number"
           min={1}
@@ -323,7 +323,7 @@ function TrialRunPanel({ run }: { run: WorkerRunDetail }) {
       </span>
       {isActiveRun(run) ? (
         <span>
-          o resultado aparece quando o runner terminar; acompanhe em{" "}
+          o resultado aparece quando a execução terminar; acompanhe em{" "}
           <Link to="/sistema/workers" search={{ aba: "execucoes" }} className="underline">
             Execuções
           </Link>
@@ -357,12 +357,12 @@ function TrialComparison({
   return (
     <div className="grid gap-2">
       <p className="text-xs text-(--color-muted)">
-        {result.sample.verdicts_available} veredito(s) humano(s) de tipologia na coleção ·{" "}
-        {verdictIds.length} lido(s) neste ensaio · amostra aleatória de {sampledIds.length} descrição(ões).
+        {result.sample.verdicts_available} veredito(s) humano(s) de tipologia no acervo ·{" "}
+        {verdictIds.length} usado(s) neste ensaio · amostra aleatória de {sampledIds.length} descrição(ões).
         {result.sample.verdicts_available === 0 ? (
           <>
             {" "}
-            A concordância não é mensurável ainda: corrija uma recusa em{" "}
+            A concordância ainda não pode ser medida: corrija uma recusa em{" "}
             <Link to="/arranjo/tipologias" className="underline">
               Tipologias
             </Link>{" "}
@@ -383,9 +383,9 @@ function TrialComparison({
               <th className="py-1 pr-3 font-medium">Concordância</th>
               <th className="py-1 pr-3 font-medium">Cobertura</th>
               <th className="py-1 pr-3 font-medium">Abstenção</th>
-              <th className="py-1 pr-3 font-medium">Maior rótulo</th>
+              <th className="py-1 pr-3 font-medium">Maior Rótulo</th>
               <th className="py-1 pr-3 font-medium">Entropia</th>
-              <th className="py-1 pr-3 font-medium">s/doc</th>
+              <th className="py-1 pr-3 font-medium">s/descrição</th>
               <th className="py-1 pr-3 font-medium">Fila</th>
               <th className="py-1 pr-3 font-medium">Projeção</th>
               <th className="py-1 font-medium" />
@@ -422,7 +422,7 @@ function TrialComparison({
                 </td>
                 <td className="py-2">
                   <Button size="sm" variant="secondary" onClick={() => onUse(config)} disabled={using}>
-                    Usar esta
+                    Salvar como padrão
                   </Button>
                 </td>
               </tr>

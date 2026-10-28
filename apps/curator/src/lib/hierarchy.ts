@@ -41,27 +41,27 @@ export const PLAN_FLAG_LABEL: Record<string, string> = {
 
 export const PLAN_FLAG_HINT: Record<string, string> = {
   ORDINAL_INFERRED:
-    "O ordinal não veio de nenhum registro existente: é proposta, não declaração. Decida o nível olhando os níveis declarados abaixo.",
+    "O ordinal não veio de nenhum registro existente: é uma proposta, não uma declaração. Decida o nível olhando os níveis já declarados abaixo.",
   RECORD_WITHOUT_DOCUMENTS:
-    "Existe um registro com este código e nada pendurado nele. Adotá-lo preserva a identidade que já está no acervo.",
+    "Existe um registro com este código e nenhuma descrição ligada a ele. Adotá-lo preserva a identidade que já está no acervo.",
   DUPLICATE_REFERENCE_CODE:
-    "Mais de um registro reivindica este código, então 'o' nó existente é ambíguo: decida qual deles é a unidade.",
+    "Mais de um registro usa este código, então não há uma unidade única a adotar: decida qual dos registros é a unidade.",
   NEAR_DUPLICATE_NODE:
-    "Um irmão difere por uma letra (FOTOGRAFIA x FOTOGRAFIAS). Nenhuma similaridade resolve isso: decida se este degrau existe ou se funde no outro.",
+    "Um irmão difere por uma letra (FOTOGRAFIA x FOTOGRAFIAS). A semelhança não decide nada: decida se este degrau existe ou se funde no outro.",
   LEVEL_NOT_ALLOWED_AS_CHILD:
-    "O nível proposto não é posterior ao do pai na escada, então a materialização o recusaria. Funda num degrau existente ou escolha outro nível.",
+    "O nível proposto não vem depois do nível do pai na escada, e a árvore não aceita criá-lo assim. Funda num degrau existente ou escolha outro nível.",
   MID_CODE_IDENTIFIER:
-    "Há um identificador antes do último token de vocabulário: a segmentação do código é um palpite.",
+    "Há um identificador antes do último termo de vocabulário do arranjo: a divisão do código é um palpite.",
   UNPARSED_TAIL:
-    "O final do código não é número puro (ex.: '(1)', '369B'). O código é listado, nunca adivinhado.",
-  NO_STRUCTURAL_TOKEN: "O código não carrega vocabulário de arranjo nenhum: não há degrau a propor.",
+    "O final do código não é só número (ex.: '(1)', '369B'). O código é listado como está, nunca adivinhado.",
+  NO_STRUCTURAL_TOKEN: "O código não traz nenhum termo do vocabulário de arranjo: não há degrau a propor.",
 };
 
 /** Qual código de ação o materializador propõe para um degrau. */
 export const ACTION_LABEL: Record<string, string> = {
   CREATE: "criar",
   ADOPT: "adotar",
-  ALREADY: "já materializado",
+  ALREADY: "já está na árvore",
 };
 
 export const ACTION_TONE: Record<string, BadgeTone> = {
@@ -75,20 +75,20 @@ export const ISSUE_LABEL: Record<string, string> = {
   DOSSIER_WITHOUT_PARENT: "Dossiê na raiz",
   UNKNOWN_LEVEL: "Nível não classificado",
   PATH_DIVERGENCE: "Caminho divergente",
-  LEVEL_DEPTH_MISMATCH: "Nível x profundidade do código",
+  LEVEL_DEPTH_MISMATCH: "Nível e profundidade do código",
 };
 
 export const ISSUE_HINT: Record<string, string> = {
   ORPHAN:
-    "Descrição sem pai cujo nível exige uma unidade superior, mais as que não têm nível algum e por isso não podem ser julgadas. A correção é o arranjo ser materializado — ou este ramo não ter nenhum degrau aprovado.",
+    "Descrição sem unidade superior cujo nível exige uma, mais as que não têm nível algum e por isso não podem ser julgadas. A correção é materializar o arranjo deste ramo — ou confirmar que ele não tem nenhum degrau aprovado.",
   DOSSIER_WITHOUT_PARENT:
-    "O caso nomeado e mais estreito do anterior: um Dossiê (nível que exige pai) parado na raiz.",
+    "O caso nomeado e mais estreito do anterior: um Dossiê — nível que exige unidade superior — parado na raiz.",
   UNKNOWN_LEVEL:
-    "A carga tolera nível desconhecido de propósito; o arquivista não. Corrija o nível no dossiê da descrição.",
+    "A importação tolera nível desconhecido de propósito; o arquivista não. Corrija o nível na própria descrição.",
   PATH_DIVERGENCE:
-    "O caminho materializado não bate com o do pai. Deve ser sempre 0: só o serviço de mover escreve o caminho, e ele reescreve a subárvore inteira na mesma transação. Se aparecer, alguém escreveu por fora.",
+    "O caminho registrado não bate com o da unidade superior. Deve ser sempre zero: o caminho é reescrito por inteiro quando uma descrição muda de lugar. Se aparecer, o caminho foi alterado por fora da movimentação da descrição.",
   LEVEL_DEPTH_MISMATCH:
-    "O nível declarado é minoria na profundidade do código. A norma é aprendida da coleção, não fixada no código: cinco tokens carregam Itens, uma Série e uma Seção ao mesmo tempo.",
+    "O nível declarado é minoria naquela profundidade de código. A norma vem da coleção, não do código: um código de cinco partes pode carregar Itens, uma Série e uma Seção ao mesmo tempo.",
 };
 
 /** Rótulos das chaves de ``HierarchyDiagnostic.detail``, que o diagnóstico monta por issue. */
@@ -109,27 +109,27 @@ export const DETAIL_LABEL: Record<string, string> = {
  */
 export const ISSUE_ACTION: Record<string, { label: string; to: string; hint: string }> = {
   ORPHAN: {
-    label: "ir para o plano de arranjo",
+    label: "Ir para o plano de arranjo",
     to: "/arranjo/plano",
     hint: "O arranjo é materializado a partir dos degraus aprovados.",
   },
   DOSSIER_WITHOUT_PARENT: {
-    label: "ir para o plano de arranjo",
+    label: "Ir para o plano de arranjo",
     to: "/arranjo/plano",
     hint: "Um Dossiê exige uma unidade superior: aprove o degrau acima dele.",
   },
   UNKNOWN_LEVEL: {
-    label: "corrigir no dossiê",
+    label: "Corrigir na descrição",
     to: "",
     hint: "Abra a descrição e escolha o nível de descrição na aba Arranjo.",
   },
   PATH_DIVERGENCE: {
-    label: "corrigir no dossiê",
+    label: "Corrigir na descrição",
     to: "",
-    hint: "O caminho só é reescrito pelo serviço de mover: confira a unidade superior da descrição.",
+    hint: "O caminho é reescrito quando a descrição muda de lugar: confira a unidade superior.",
   },
   LEVEL_DEPTH_MISMATCH: {
-    label: "corrigir no dossiê",
+    label: "Corrigir na descrição",
     to: "",
     hint: "Revise o nível declarado: ele é minoria naquela profundidade de código.",
   },

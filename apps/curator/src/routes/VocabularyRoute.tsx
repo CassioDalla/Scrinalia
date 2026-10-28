@@ -67,11 +67,12 @@ export function VocabularyRoute() {
 
       <PageBody>
         <Notice tone="accent">
-          Estas duas listas são <strong>dados do acervo</strong>, não regras do sistema. O que é
-          propriedade da língua portuguesa — <em>rua</em>, <em>avenida</em>, <em>não identificado</em>,{" "}
-          <em>303 anos</em>, um ano solto — fica no perfil de idioma e <strong>não</strong> aparece aqui:
-          mudá-lo seria mudar o significado que o sistema dá à palavra. Aposentar um termo não o exclui, e
-          um termo aposentado volta a ser tratado como assunto na próxima execução do classificador.
+          Estas duas listas são <strong>dados do acervo</strong>, não regras do sistema. O que pertence
+          à língua portuguesa — <em>rua</em>, <em>avenida</em>, <em>não identificado</em>,{" "}
+          <em>303 anos</em>, um ano solto — não é decisão desta curadoria e <strong>não</strong> aparece
+          aqui: mudá-lo seria mudar o significado que o sistema dá à palavra. Aposentar um termo não o
+          exclui: ele deixa de ser recusado e pode voltar a ser sugerido como assunto na próxima
+          classificação.
         </Notice>
 
         {vocabulary.error ? <ErrorState error={vocabulary.error} /> : null}
@@ -86,8 +87,8 @@ export function VocabularyRoute() {
         <section className="grid gap-2">
           <SectionTitle>Vocabulário de arranjo</SectionTitle>
           <p className="text-xs text-(--color-muted)">
-            O nome que a proposta de arranjo sugere para um degrau do código de referência. O código
-            inteiro tem precedência sobre o último token, então <code>BR PRADAP</code> pode ter um nome
+            O nome que a proposta de arranjo sugere para um nível do código de referência. O código
+            inteiro tem precedência sobre o último segmento: <code>BR PRADAP</code> pode ter um nome
             próprio e <code>SMU</code> o da secretaria.
           </p>
           <CreateArrangementTermCard />
@@ -100,8 +101,8 @@ export function VocabularyRoute() {
           <SectionTitle>Termos do acervo</SectionTitle>
           <p className="text-xs text-(--color-muted)">
             O que o acervo carrega e <strong>não</strong> é assunto. Um lugar continua alcançável pela
-            faceta Lugar; um nome de pessoa é o produtor e não vai a lugar nenhum. É essa diferença que o
-            tipo registra.
+            busca, como entidade do tipo Local; um nome de pessoa é o produtor ou a pessoa retratada,
+            nunca um assunto. É essa diferença que o tipo registra.
           </p>
           <CreateCollectionTermCard kinds={kinds} />
           {terms.map((term) => (
@@ -160,7 +161,7 @@ function ArrangementTermCard({ term }: { term: ArrangementTerm }) {
       }
     >
       <div className="grid gap-2">
-        <Field label="Nome sugerido">
+        <Field label="Nome Sugerido">
           <Input
             value={displayName}
             onChange={(event) => setDisplayName(event.target.value)}
@@ -208,14 +209,14 @@ function CreateArrangementTermCard() {
         <div className="grid gap-1">
           <span className="text-sm font-semibold">Criar um nome de arranjo</span>
           <span className="text-xs text-(--color-muted)">
-            Um token do código (<code>SMU</code>) ou o código inteiro (<code>BR PRADAP</code>).
+            Um segmento do código (<code>SMU</code>) ou o código inteiro (<code>BR PRADAP</code>).
           </span>
         </div>
       }
     >
       <div className="grid gap-2">
         <div className="grid gap-2 sm:grid-cols-2">
-          <Field label="Token ou código">
+          <Field label="Segmento ou Código">
             <Input
               value={draft.token}
               onChange={(event) => setDraft({ ...draft, token: event.target.value })}
@@ -223,7 +224,7 @@ function CreateArrangementTermCard() {
               maxLength={100}
             />
           </Field>
-          <Field label="Nome sugerido">
+          <Field label="Nome Sugerido">
             <Input
               value={draft.display_name}
               onChange={(event) => setDraft({ ...draft, display_name: event.target.value })}
@@ -277,8 +278,8 @@ function CollectionTermCard({ term, kinds }: { term: CollectionTerm; kinds: Coll
           disabled={save.isPending}
           title={
             term.is_active
-              ? "O termo volta a ser tratado como assunto na próxima execução."
-              : "O termo volta a ser recusado pelo guarda."
+              ? "O termo deixa de ser recusado como assunto."
+              : "O termo volta a ser recusado como assunto."
           }
           onClick={() => save.mutate({ is_active: !term.is_active })}
         >
@@ -288,7 +289,7 @@ function CollectionTermCard({ term, kinds }: { term: CollectionTerm; kinds: Coll
     >
       <div className="grid gap-2">
         <div className="grid gap-2 sm:grid-cols-2">
-          <Field label="Grafia como aparece no acervo">
+          <Field label="Grafia como Aparece no Acervo">
             <Input
               value={spelling}
               onChange={(event) => setSpelling(event.target.value)}

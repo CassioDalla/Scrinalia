@@ -26,7 +26,7 @@ export function LedgerList<T>({
   termOf,
   renderItem,
   keyOf,
-  searchPlaceholder = "buscar no histórico…",
+  searchPlaceholder = "Buscar no histórico…",
   nounSingular,
   nounPlural,
   emptyTitle,
@@ -78,7 +78,7 @@ export function LedgerList<T>({
       ) : matches.length === 0 ? (
         <EmptyState
           title={`Nenhum resultado para “${term}”`}
-          hint={`Há ${items.length} ${items.length === 1 ? nounSingular : nounPlural} no histórico, mas nenhum casa com o termo.`}
+          hint={`Há ${items.length} ${items.length === 1 ? nounSingular : nounPlural} no histórico, mas nenhum corresponde ao termo.`}
         />
       ) : (
         <>
@@ -90,11 +90,11 @@ export function LedgerList<T>({
           {hidden > 0 ? (
             <div className="flex flex-wrap items-center gap-2">
               <Button size="sm" variant="ghost" onClick={() => setLimit((current) => current + pageSize)}>
-                ver mais {Math.min(hidden, pageSize)}
+                Ver mais {Math.min(hidden, pageSize)}
               </Button>
               <span className="text-xs text-(--color-muted)">
-                mostrando {visible.length} de {matches.length}
-                {searching ? ` que casam com “${term}”` : ""} ({items.length} no total)
+                Mostrando {visible.length} de {matches.length}
+                {searching ? ` que correspondem a “${term}”` : ""} ({items.length} no total)
               </span>
             </div>
           ) : (

@@ -35,11 +35,11 @@ export const TERM_KIND_TONE: Record<string, BadgeTone> = {
  * "não é assunto" look like "não serve para nada" (ADR 0013).
  */
 export const TERM_KIND_HINT: Record<string, string> = {
-  DISTRICT: "Um bairro: o lugar mais fino que a coleção distingue. O eixo de entidades (LOC) o carrega.",
-  MUNICIPALITY: "Um município (inclusive uma cidade estrangeira). O eixo de entidades (LOC) o carrega.",
-  STATE: "Um estado ou província. O eixo de entidades (LOC) o carrega.",
-  REGION: "Uma região mais ampla que um município. O eixo de entidades (LOC) o carrega.",
-  COUNTRY: "Um país que os registros do acervo alcançam. O eixo de entidades (LOC) o carrega.",
+  DISTRICT: "Um bairro: o lugar mais fino que a coleção distingue. O eixo de entidades o carrega.",
+  MUNICIPALITY: "Um município, inclusive uma cidade estrangeira. O eixo de entidades o carrega.",
+  STATE: "Um estado ou província. O eixo de entidades o carrega.",
+  REGION: "Uma região mais ampla que um município. O eixo de entidades o carrega.",
+  COUNTRY: "Um país que os registros do acervo alcançam. O eixo de entidades o carrega.",
   PERSON: "Um nome de pessoa: o produtor ou a pessoa retratada, nunca um assunto.",
 };
 

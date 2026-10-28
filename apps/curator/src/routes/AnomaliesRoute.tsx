@@ -31,11 +31,11 @@ export function validateAnomaliesSearch(search: Record<string, unknown>): Anomal
 /**
  * What the quality validator marked.
  *
- * The empty state is the point of this screen, not a decoration. An empty anomaly queue has two very
- * different causes and the archivist has to be able to tell them apart: the collection is clean, or
- * **no rule that flags anything is active**. Only ``VALIDATE`` and ``LLM_CHECK`` rules write an
- * anomaly — a ``REWRITE`` rule changes the text and never flags it — so an empty queue with no such
- * rule means the check never ran, and the screen says so and links to the rules.
+ * The empty state is the point of this screen, not a decoration. An empty queue has two causes and
+ * the archivist has to be able to tell them apart: the collection has none of the defects the check
+ * looks for, or the check never ran. The validator marks structural defects (missing date, empty
+ * title, all-caps title, repeated title) with no rule at all; ``VALIDATE`` and ``LLM_CHECK`` rules
+ * add their own reasons on top, while a ``REWRITE`` rule changes the text and never flags it.
  *
  * The counts by reason are the search's own facet, over the whole filtered set — the screen used to
  * count the page in hand and say so, because the API had no dimension to offer. They are also the
@@ -66,7 +66,7 @@ export function AnomaliesRoute() {
       <PageHeader
         screen="anomalies"
         pending={page.isPending}
-        status={page.data ? `${formatCount(total)} descrições aguardando revisão` : undefined}
+        status={page.data ? `${formatCount(total)} descrições com anomalia` : undefined}
         actions={
           <Link to="/qualidade/regras">
             <Button size="sm">Regras</Button>
@@ -80,9 +80,8 @@ export function AnomaliesRoute() {
             title="Nenhuma anomalia detectada"
             hint={
               <>
-                Isso quer dizer que nenhuma regra <code>VALIDATE</code> ou <code>LLM_CHECK</code> está
-                ativa — não que o acervo esteja impecável. Uma regra <code>REWRITE</code> muda o texto e
-                nunca marca anomalia. Veja as{" "}
+                Pode ser que o acervo não tenha nenhum dos defeitos que a verificação procura, ou que
+                ela ainda não tenha rodado. Regras que só sinalizam acrescentam outros motivos. Veja as{" "}
                 <Link to="/qualidade/regras" className="underline">
                   regras de limpeza
                 </Link>
@@ -94,14 +93,13 @@ export function AnomaliesRoute() {
 
         {reasons.length > 0 ? (
           <div className="flex flex-wrap items-center gap-2 text-xs">
-            <span className="text-(--color-muted)">motivos no acervo filtrado:</span>
+            <span className="text-(--color-muted)">motivos encontrados:</span>
             {reasons.map((item) => (
               <button
                 key={item.key}
                 type="button"
                 title={
-                  ANOMALY_REASON_HINT[anomalyReasonCode(item.key)] ??
-                  "Código gravado pelo validador de qualidade"
+                  ANOMALY_REASON_HINT[anomalyReasonCode(item.key)] ?? "Motivo registrado pelo validador de qualidade"
                 }
                 onClick={() =>
                   navigate({
@@ -125,7 +123,7 @@ export function AnomaliesRoute() {
                 variant="ghost"
                 onClick={() => navigate({ to: "/qualidade/anomalias", search: { offset: undefined } })}
               >
-                limpar filtro
+                Limpar filtro
               </Button>
             ) : null}
           </div>
@@ -171,8 +169,8 @@ export function AnomaliesRoute() {
                   ) : null}
 
                   <p className="text-xs text-(--color-muted)">
-                    A correção é a revisão humana da ficha: editar salva o antes/depois na trilha e marca
-                    a descrição como revisada.
+                    Corrigir é revisar a ficha: a edição fica no histórico e marca a descrição como revisada por
+                    humano; a partir daí a IA não a sobrescreve.
                   </p>
                 </CardBody>
               </Card>

@@ -66,8 +66,8 @@ export function SetupForm() {
           <p className="pb-3 text-base font-semibold">Primeiro acesso da instalação</p>
 
           <p className="pb-4 text-xs text-(--color-muted)">
-            Esta instalação ainda não tem contas, e esta só pode ser criada uma vez. A conta criada aqui
-            administra o sistema: ela cria as demais em Configurações › Usuários.
+            Esta instalação ainda não tem contas, e a conta de administração só pode ser criada uma vez. Ela
+            administra o sistema e cria as demais em Configurações › Usuários.
           </p>
 
           <label className="block pb-3 text-sm">
@@ -97,7 +97,7 @@ export function SetupForm() {
           </label>
 
           <label className="block pb-5 text-sm">
-            <span className="pb-1 block text-(--color-muted)">Repita a senha</span>
+            <span className="pb-1 block text-(--color-muted)">Confirmação da Senha</span>
             <Input
               type="password"
               value={confirmation}
@@ -120,12 +120,12 @@ export function SetupForm() {
             className="w-full"
             disabled={create.isPending || !email || !name || !password || mismatch}
           >
-            {create.isPending ? "Criando…" : "Criar conta e entrar"}
+            {create.isPending ? "Criando…" : "Criar conta"}
           </Button>
 
           <p className="pt-4 text-xs text-(--color-muted)">
-            Não há recuperação de senha por e-mail: guarde esta senha, ou quem administra a instalação a
-            redefine pelo terminal do servidor.
+            Não há recuperação de senha por e-mail: guarde esta senha. Se ela for perdida, só quem
+            administra a instalação pode definir outra.
           </p>
         </div>
       </form>

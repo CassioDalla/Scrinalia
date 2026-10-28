@@ -82,7 +82,7 @@ export const SCREENS: Record<ScreenId, Screen> = {
     path: "/acervo/lista",
     label: "Lista e Busca",
     hint: "Facetas e Filtros",
-    description: "Busca lexical, semântica ou híbrida do acervo.",
+    description: "Busca por Palavra-chave, Significado ou Busca Combinada do acervo.",
   },
   tree: {
     path: "/acervo/arvore",
@@ -93,10 +93,10 @@ export const SCREENS: Record<ScreenId, Screen> = {
   },
   deletions: {
     path: "/acervo/excluidas",
-    label: "Excluídas",
-    hint: "A trilha do que foi excluído",
+    label: "Histórico de exclusões",
+    hint: "Registro de itens removidos",
     description:
-      "O retrato do que saiu — código, título, nível e o conteúdo ISAD(G) inteiro — porque a exclusão é definitiva e nada aqui restaura.",
+      "Consulta dos dados originais de registros excluídos em definitivo, preservados apenas para fins de histórico e auditoria.",
   },
   diagnostics: {
     path: "/arranjo/diagnostico",
@@ -108,8 +108,8 @@ export const SCREENS: Record<ScreenId, Screen> = {
   tags: {
     path: "/assuntos/tags",
     label: "Tags",
-    hint: "Peso, Duplicatas e Mesclagem",
-    description: "Peso, duplicatas e a fila de mesclagem.",
+    hint: "Uso, Termos Duplicados, Mesclagem",
+    description: "Gerencie a relevância das etiquetas, identifique duplicidades e mescle termos semelhantes.",
   },
   categories: {
     path: "/assuntos/categorias",
@@ -133,11 +133,13 @@ export const SCREENS: Record<ScreenId, Screen> = {
     path: "/entidades/lista",
     label: "Entidades Nomeadas (NER)",
     hint: "Relevância, Tipo e Mesclagem",
+    description: "Revise a relevância dos termos, defina a categoria (pessoa, local ou instituição) e junte nomes repetidos."
   },
   nerExclusions: {
     path: "/entidades/excecoes",
-    label: "Exclusões de NER",
+    label: "Remover de Entidades",
     hint: "Isto é assunto, não nome",
+    description: "Classificar como termo temático (assunto) em vez de pessoa, local ou entidade coletiva."
   },
   conflicts: {
     path: "/entidades/conflitos",
@@ -184,28 +186,28 @@ export const SCREENS: Record<ScreenId, Screen> = {
     label: "Workers e execuções",
     hint: "O que roda e o que rodou",
     description:
-      "O painel do que o worker está fazendo — preset, modelo, fila, última e execução ativa — e o ledger do que já rodou, na aba ao lado.",
+      "O painel do que está rodando agora — preset, modelo, fila, última e execução ativa — e o histórico do que já rodou, na aba ao lado.",
   },
   origins: {
     path: "/sistema/ingestao",
     label: "Origens",
     hint: "Configurar, pausar e agendar",
     description:
-      "As fontes que esta instalação lê, com a fila, a agenda e a configuração de cada uma; a entrada manual e a importação CSV ficam no Acervo, em Nova descrição.",
+      "As fontes que esta instalação lê, com a fila, a agenda e a configuração de cada uma; a entrada manual e a importação CSV ficam no Acervo, em Nova Descrição.",
   },
   newDescription: {
     path: "/acervo/nova",
-    label: "Nova descrição",
+    label: "Nova Descrição",
     hint: "Digitar ou importar CSV",
     description:
-      "O registro entra no mesmo staging e na mesma fila de IA das demais origens — digitado campo a campo ou importado de um CSV — e não é uma aprovação: ele nasce pendente de revisão, e o dossiê é onde ele é aprovado.",
+      "Crie uma descrição manualmente ou importe um CSV.",
   },
   workerSettings: {
     path: "/configuracoes/workers",
     label: "Configuração dos Workers",
-    hint: "Engine, preset e o histórico",
+    hint: "Motor, preset e o histórico",
     description:
-      "O padrão persistido de cada worker — engine, preset, lote e opções — e quem alterou o quê, execução após execução.",
+      "O padrão salvo de cada worker — motor, preset, lote e opções — e quem alterou o quê, execução após execução.",
   },
   health: {
     path: "/sistema/diagnostico",

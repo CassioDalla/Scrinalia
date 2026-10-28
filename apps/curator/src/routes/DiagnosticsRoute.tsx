@@ -61,7 +61,7 @@ export function DiagnosticsRoute() {
         screen="diagnostics"
         actions={
           <Link to="/arranjo/plano">
-            <Button size="sm">Plano de arranjo</Button>
+            <Button size="sm">Abrir o plano de arranjo</Button>
           </Link>
         }
       />
@@ -106,8 +106,9 @@ export function DiagnosticsRoute() {
             })}
           </ul>
           <p className="px-4 py-3 text-xs text-(--color-muted)">
-            As contagens se sobrepõem de propósito — um Dossiê na raiz é ao mesmo tempo{" "}
-            <code>ORPHAN</code> e <code>DOSSIER_WITHOUT_PARENT</code> — por isso não há um total geral.
+            As contagens se sobrepõem de propósito: a mesma descrição pode aparecer em mais de um problema — um
+            Dossiê na raiz conta em <code>Sem unidade superior</code> e em <code>Dossiê na raiz</code> — por isso
+            não há um total geral.
           </p>
         </aside>
 
@@ -127,7 +128,7 @@ export function DiagnosticsRoute() {
           {page.data && page.data.total === 0 ? (
             <EmptyState
               title="Nenhuma descrição com este problema"
-              hint="O diagnóstico rodou e não encontrou nada deste tipo. Isto é o esperado para PATH_DIVERGENCE: a invariante do caminho é garantida por quem escreve."
+              hint="O diagnóstico foi feito e não encontrou nada deste tipo. Para o caminho divergente, este é o resultado esperado: quando uma descrição muda de lugar, o caminho de todo o ramo é reescrito de uma vez."
             />
           ) : null}
 
@@ -185,7 +186,7 @@ export function DiagnosticsRoute() {
                           search={{ aba: "arranjo" }}
                         >
                           <Button size="sm" variant="secondary">
-                            {action?.label ?? "abrir a descrição"}
+                            {action?.label ?? "Abrir a descrição"}
                           </Button>
                         </Link>
                       )}

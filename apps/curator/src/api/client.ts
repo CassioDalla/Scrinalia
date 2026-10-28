@@ -62,7 +62,7 @@ async function unwrap<T>(result: ApiResult): Promise<T> {
     throw new ApiError(
       result.response.status,
       payload?.error_code ?? "UNKNOWN",
-      payload?.message ?? payload?.detail ?? `Erro ${result.response.status}`,
+      payload?.message ?? payload?.detail ?? `Não foi possível concluir a operação (erro ${result.response.status}).`,
       result.response.headers.get("X-Request-ID") ?? undefined,
       payload?.details,
     );

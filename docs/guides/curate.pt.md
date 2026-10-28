@@ -174,7 +174,7 @@ sessão.
 A casca filtra as entradas pela área em que a tela **escreve**
 (`apps/curator/src/lib/permissions.ts`, um espelho do mapa de papéis do servidor), e um grupo vazio
 não é renderizado. As telas que só leem não carregam permissão e ficam visíveis para todo papel:
-Início, a lista do acervo, a árvore, a trilha de excluídas e o diagnóstico do arranjo. Um `VIEWER`
+Início, a lista do acervo, a árvore, o histórico de exclusões e o diagnóstico do arranjo. Um `VIEWER`
 vê, portanto, o grupo "Acervo" e a entrada "Início", que fica sem cabeçalho — todos os outros grupos
 existem para decidir, e ficam escondidos.
 
@@ -303,13 +303,13 @@ mostra "tela pendente" em vez de apontar para o vazio.
 
 | Tela | Decisão | Reversível? |
 | --- | --- | --- |
-| Nova descrição — `/acervo/nova` | digitar uma descrição ou importar um CSV (curador) | o registro entra no pipeline como `PENDING_AI`; a aprovação (ou rejeição) acontece no dossiê, e só ali |
+| Nova Descrição — `/acervo/nova` | digitar uma descrição ou importar um CSV (curador) | o registro entra no pipeline como `PENDING_AI`; a aprovação (ou rejeição) acontece no dossiê, e só ali |
 | Lista e busca — `/acervo/lista` | como recortar o acervo | sim (só leitura) |
 | Árvore — `/acervo/arvore` | onde a descrição fica no arranjo | sim, movendo; remover o nó significa excluir a descrição |
-| Excluídas — `/acervo/excluidas` | nenhuma (o ledger do que saiu) | sim (só leitura) |
+| Histórico de exclusões — `/acervo/excluidas` | nenhuma (o registro do que saiu) | sim (só leitura) |
 | Descrição — `/acervo/$descriptionId` | o registro, seus assuntos e seu lugar | em geral sim; a exclusão não |
 
-### Nova descrição — `/acervo/nova`
+### Nova Descrição — `/acervo/nova`
 
 A porta de entrada do acervo: uma descrição digitada inteira, ou um CSV importado. As duas são abas
 na URL — **Digitar** (o padrão) e **Importar CSV** (`?modo=csv`) — porque são duas formas de entrada
@@ -373,7 +373,7 @@ excluir a descrição, o que é definitivo.
     lista e na ficha; misturá-los aqui ensinaria o arquivista a "consertar" um assunto arrastando uma
     descrição para outro ramo.
 
-### Excluídas — `/acervo/excluidas`
+### Histórico de exclusões — `/acervo/excluidas`
 
 A trilha das exclusões, em leitura (`GET /api/v1/documents/deletions`), com busca e paginação no
 servidor porque a trilha não tem teto. Ela **não é uma lixeira**: cada entrada é o retrato ISAD(G)
@@ -674,7 +674,7 @@ coisas:
 
 Cada tag apagada é gravada num **ledger** (`archive_stopword_purge_log`) antes de sumir: o retrato da
 linha, os documentos que a carregavam e as grafias que apontavam para ela. A resposta da purga traz os
-`purge_ids`, a aba Stopwords os mostra em **Ledger das purgas**, e `DELETE
+`purge_ids`, a aba Stopwords os mostra em **Registro das purgas**, e `DELETE
 /api/v1/taxonomy/tags/stopwords/purge-log/{purge_id}` (`CURATE`) restaura a tag, os vínculos e as
 grafias; um identificador desconhecido é **404** e uma segunda tentativa é **409**. O desfazer **não**
 levanta o banimento — o termo continua stopword, e a próxima purga lista a tag restaurada de novo.
@@ -815,7 +815,7 @@ baniu na tela Stopwords, ou que uma resolução de conflito plantou antes, sobre
 | Tela | Decisão | Reversível? |
 | --- | --- | --- |
 | Entidades — `/entidades/lista` | o tipo de um nome, a grafia de um nome, e se dois nomes são um | o tipo sim; a renomeação **sim** (uma linha no ledger); o merge **sim** (uma linha por entidade absorvida) |
-| Exclusões de NER — `/entidades/excecoes` | quais grafias são assunto, não nome próprio, e o expurgo retroativo que as segue | ambos **sim**: a linha do veto pelo seu próprio `DELETE`, o expurgo pelo seu ledger (`archive_ner_purge_log`) |
+| Remover de Entidades — `/entidades/excecoes` | quais grafias são assunto, não nome próprio, e o expurgo retroativo que as segue | ambos **sim**: a linha do veto pelo seu próprio `DELETE`, o expurgo pelo seu ledger (`archive_ner_purge_log`) |
 | Conflitos — `/entidades/conflitos` | se uma colisão pertence ao eixo de assunto ou aos nomes, um par de cada vez ou uma categoria inteira de uma vez | sim (uma linha no ledger por par, com o desfazer) |
 
 ### Entidades — `/entidades/lista`
@@ -875,7 +875,7 @@ A segunda aba do cartão é a renomeação, e o botão **Renomear** ao lado do n
 recurso da própria linha e nunca mescla: o merge parte de dois ou mais nomes e só renomeia a canônica
 como efeito colateral.
 
-### Exclusões de NER — `/entidades/excecoes`
+### Remover de Entidades — `/entidades/excecoes`
 
 O veto "esta grafia é assunto, não nome próprio". **Vetar não apaga nada.** A escrita é `POST
 /api/v1/taxonomy/entities/ner-exclusions` (`CURATE`), com um motivo guardado para auditoria, e a
@@ -890,7 +890,7 @@ A metade retroativa é um ato separado, **Expurgar do passado**:
 extraída de uma grafia vetada, com as descrições que a carregam, e a escrita consome o mesmo plano.
 Cada entidade apagada entra num **ledger** (`archive_ner_purge_log`) antes de sair: o snapshot da
 linha, os documentos que a carregavam, as grafias que apontavam para ela e o `excluded_term` que a
-justificou. A resposta carrega os `purge_ids`, a tela os mostra em **Ledger dos expurgos**, e
+justificou. A resposta carrega os `purge_ids`, a tela os mostra em **Histórico de expurgos**, e
 `DELETE /api/v1/taxonomy/entities/ner-exclusions/purge-log/{purge_id}` restaura a entidade, os seus
 vínculos e as suas grafias — **sem** levantar o veto, então o próximo expurgo lista a entidade
 restaurada de novo. Use-o para reverter a perda; use "remover veto" para reabrir o termo.

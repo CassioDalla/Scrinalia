@@ -117,8 +117,8 @@ export function MaterialisationPanel({
             ))}
           </ul>
           <p className="text-xs text-(--color-muted)">
-            Só os degraus <strong>aprovados</strong> são materializados. Um degrau rejeitado deixa suas descrições
-            órfãs de propósito: elas caem no degrau aprovado mais próximo acima.
+            Só os degraus <strong>aprovados</strong> entram na árvore. Um degrau rejeitado deixa suas descrições
+            órfãs de propósito: elas ficam no degrau aprovado mais próximo acima.
           </p>
         </CardBody>
       </Card>
@@ -153,7 +153,7 @@ export function MaterialisationPanel({
             <Button
               onClick={() => apply.mutate()}
               disabled={!preview || apply.isPending}
-              title={preview ? undefined : "A prévia é obrigatória: confira o impacto primeiro."}
+              title={preview ? undefined : "Confira o impacto antes de materializar."}
             >
               {apply.isPending ? "Materializando…" : "Materializar"}
             </Button>
@@ -164,19 +164,21 @@ export function MaterialisationPanel({
 
           {preview ? (
             <div className="flex flex-col gap-3 rounded-md bg-black/[0.02] p-3 ring-1 ring-(--color-line)">
-              <p className="text-xs font-medium">Nada foi escrito ainda. A aplicação usa este mesmo planejador.</p>
+              <p className="text-xs font-medium">
+                Nada foi escrito ainda: estes números são exatamente o que a materialização vai fazer.
+              </p>
               <ul className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
-                <PreviewNumber label="nós a criar" value={preview.nodes_to_create} />
-                <PreviewNumber label="nós a adotar" value={preview.nodes_to_adopt} />
-                <PreviewNumber label="já materializados" value={preview.nodes_already_materialised} />
-                <PreviewNumber label="descrições a ligar" value={preview.documents_to_attach} />
-                <PreviewNumber label="já no lugar" value={preview.documents_already_placed} />
-                <PreviewNumber label="continuam órfãs" value={preview.remaining_orphans} />
+                <PreviewNumber label="degraus a criar" value={preview.nodes_to_create} />
+                <PreviewNumber label="degraus a reaproveitar" value={preview.nodes_to_adopt} />
+                <PreviewNumber label="já na árvore" value={preview.nodes_already_materialised} />
+                <PreviewNumber label="descrições a vincular" value={preview.documents_to_attach} />
+                <PreviewNumber label="descrições já no lugar" value={preview.documents_already_placed} />
+                <PreviewNumber label="descrições que continuam órfãs" value={preview.remaining_orphans} />
               </ul>
 
               {items.some((item) => item.rooted_early) ? (
                 <Notice tone="warn">
-                  {items.filter((item) => item.rooted_early).length} degrau(s) ficariam na raiz porque o degrau acima deles
+                  {items.filter((item) => item.rooted_early).length} degrau(s) ficariam na raiz: o degrau acima deles
                   não foi aprovado.
                 </Notice>
               ) : null}
@@ -194,7 +196,7 @@ export function MaterialisationPanel({
               </ul>
               {items.length > visibleItems.length ? (
                 <Button size="sm" variant="ghost" onClick={() => setShowAllItems(true)}>
-                  ver os {formatCount(items.length)} degraus
+                  Ver os {formatCount(items.length)} degraus
                 </Button>
               ) : null}
             </div>
@@ -203,13 +205,14 @@ export function MaterialisationPanel({
           {result ? (
             <Notice tone="ok" as="div" className="flex flex-col gap-2">
               <p className="font-medium text-(--color-ok)">
-                Materialização {result.materialisation_id}: {formatCount(result.created_nodes)} nó(s) criado(s),{" "}
-                {formatCount(result.adopted_nodes)} adotado(s), {formatCount(result.documents_attached)} descrição(ões)
-                ligada(s).
+                Materialização {result.materialisation_id}: {formatCount(result.created_nodes)} degrau(s) criado(s),{" "}
+                {formatCount(result.adopted_nodes)} reaproveitado(s), {formatCount(result.documents_attached)}{" "}
+                descrição(ões) ligada(s).
               </p>
               <p className="text-(--color-muted)">
-                A trilha está no ledger abaixo, com o estado anterior de cada linha. Desfazer recoloca as descrições onde
-                estavam e remove os nós criados.
+                Cada materialização fica registrada no histórico abaixo, com o estado anterior do que mudou. Desfazer
+                recoloca as descrições onde estavam e remove os degraus criados; se uma materialização posterior tiver
+                ligado algo a eles, o desfazer recusa.
               </p>
               <div>
                 <Button
@@ -230,7 +233,7 @@ export function MaterialisationPanel({
 
       <Card>
         <CardHeader>
-          <p className="text-sm font-medium">Ledger</p>
+          <p className="text-sm font-medium">Histórico de materializações</p>
         </CardHeader>
         <CardBody className="grid gap-2">
           {/*
@@ -239,18 +242,18 @@ export function MaterialisationPanel({
           */}
           <Input
             value={logTerm}
-            placeholder="buscar por quem autorizou ou pela nota…"
+            placeholder="Buscar por quem materializou ou pela nota…"
             onChange={(event) => setLogTerm(event.target.value)}
           />
-          {log.isPending ? <Spinner label="Lendo o ledger…" /> : null}
+          {log.isPending ? <Spinner label="Lendo o histórico…" /> : null}
           {log.error ? <ErrorState error={log.error} /> : null}
           {log.data && log.data.items.length === 0 ? (
             <EmptyState
               title={term ? `Nenhuma materialização para “${term}”` : "Nenhuma materialização ainda"}
               hint={
                 term
-                  ? "A busca cobre quem autorizou e a nota da decisão."
-                  : "Cada aplicação grava uma entrada aqui, com o estado anterior das linhas que mudou."
+                  ? "A busca cobre quem materializou e a nota da decisão."
+                  : "Cada materialização fica registrada aqui, com o estado anterior do que mudou."
               }
             />
           ) : null}
@@ -268,12 +271,12 @@ export function MaterialisationPanel({
                       disabled={undo.isPending}
                       onClick={() => undo.mutate(entry.materialisation_id)}
                     >
-                      desfazer
+                      Desfazer
                     </Button>
                   )}
                 </div>
                 <p className="text-(--color-muted)">
-                  {formatDateTime(entry.changed_at)} · {formatCount(entry.changed_rows)} linha(s) alterada(s)
+                  {formatDateTime(entry.changed_at)} · {formatCount(entry.changed_rows)} registro(s) alterado(s)
                   {entry.changed_by ? ` · por ${entry.changed_by}` : ""}
                 </p>
                 {entry.note ? <p className="text-(--color-muted)">{entry.note}</p> : null}
@@ -284,12 +287,12 @@ export function MaterialisationPanel({
             <div className="flex items-center gap-2">
               {log.data.total > log.data.items.length ? (
                 <Button size="sm" variant="ghost" onClick={() => setLogLimit((current) => current + 10)}>
-                  ver mais
+                  Ver mais
                 </Button>
               ) : null}
               <span className="text-xs text-(--color-muted)">
                 mostrando {formatCount(log.data.items.length)} de {formatCount(log.data.total)}{" "}
-                {term ? "materialização(ões) que casam com a busca" : "materialização(ões)"}
+                {term ? "materialização(ões) encontrada(s) pela busca" : "materialização(ões)"}
               </span>
             </div>
           ) : null}

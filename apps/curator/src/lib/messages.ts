@@ -64,7 +64,7 @@ const REFUSALS: Partial<Record<string, (details: RefusalDetails) => string>> = {
     const twin = details?.conflicting_entity as { name?: string } | undefined;
     return twin?.name
       ? `Já existe uma entidade chamada "${twin.name}". Mescle as duas em vez de renomear.`
-      : "Já existe uma entidade com essa grafia. Mescle as duas em vez de renomear.";
+      : "Já existe uma entidade com esse nome. Mescle as duas em vez de renomear.";
   },
 };
 

@@ -123,7 +123,7 @@ export function PlanRoute() {
               between "the button is missing" and "the button is next door".
             */}
             <Link to="/acervo/arvore">
-              <Button size="sm" variant="secondary" title="Declarar um nó que a origem não entregou">
+              <Button size="sm" variant="secondary" title="Declarar um nó que a importação não trouxe">
                 Criar nó na árvore ↗
               </Button>
             </Link>
@@ -145,7 +145,7 @@ export function PlanRoute() {
           {suggest.data ? (
             <Notice tone="ok" className="mb-4">
               Proposta: {formatCount(suggest.data.created)} degrau(s) novo(s), {formatCount(suggest.data.refreshed)}{" "}
-              atualizada(s), {formatCount(suggest.data.preserved)} decisão(ões) preservada(s). Total no catálogo:{" "}
+              atualizado(s), {formatCount(suggest.data.preserved)} decisão(ões) preservada(s). Total no catálogo:{" "}
               {formatCount(suggest.data.total)}.
             </Notice>
           ) : null}
@@ -196,8 +196,8 @@ export function PlanRoute() {
 
           {plans.data && catalogueTotal === 0 ? (
             <EmptyState
-              title="O catálogo de decisões está vazio"
-              hint="Nenhum degrau foi proposto ainda. A proposta lê os códigos de referência do acervo e escreve as perguntas — nenhum nó é criado na coleção."
+              title="Nenhum degrau proposto"
+              hint="A proposta lê os códigos de referência do acervo e lista o que há para decidir — nada é criado no acervo."
               action={
                 <Button onClick={() => suggest.mutate()} disabled={suggest.isPending}>
                   Propor níveis
@@ -209,7 +209,7 @@ export function PlanRoute() {
           {plans.data && catalogueTotal > 0 && visible.length === 0 ? (
             <EmptyState
               title="Nenhum degrau com este filtro"
-              hint="Há degraus no catálogo, mas nenhum casa com o aviso ou o código que você digitou."
+              hint="Há degraus no catálogo, mas nenhum corresponde ao aviso ou ao código digitado."
               action={
                 <Button size="sm" onClick={() => navigate({ to: "/arranjo/plano", search: {} })}>
                   Limpar filtros
@@ -324,7 +324,7 @@ function PlanCard({
             <p className="text-xs text-(--color-muted)">
               nível: <strong className="text-(--color-ink)">{plan.level ?? "—"}</strong>
               {plan.title ? ` · título: ${plan.title}` : ""}
-              {plan.decided_by ? ` · por ${plan.decided_by}` : ""}
+              {plan.decided_by ? ` · decidido por ${plan.decided_by}` : ""}
               {plan.decided_at ? ` · ${formatDateTime(plan.decided_at)}` : ""}
               {plan.decision_note ? ` · nota: ${plan.decision_note}` : ""}
             </p>
@@ -332,7 +332,7 @@ function PlanCard({
 
           {plan.collapse_into_code ? (
             <p className="text-xs text-(--color-accent)">
-              Este degrau <strong>é</strong> <code>{plan.collapse_into_code}</code>: a aplicação segue o vínculo.
+              Este degrau <strong>é</strong> <code>{plan.collapse_into_code}</code>: a materialização segue o vínculo.
             </p>
           ) : null}
         </div>
@@ -343,7 +343,7 @@ function PlanCard({
             size="sm"
             variant="ghost"
             disabled={decide.isPending}
-            title="Volta o degrau para 'sugerido': a próxima proposta pode atualizar a evidência de novo."
+            title="Devolve o degrau para “sugerido”: a próxima proposta pode atualizar a evidência de novo."
             onClick={() => decide.mutate("SUGGESTED")}
           >
             Reabrir decisão
@@ -371,13 +371,13 @@ function PlanCard({
         <div className="flex flex-col gap-2">
           <div className="grid gap-2 sm:grid-cols-2">
             <Field
-              label={<>Nível de descrição {flags.includes("ORDINAL_INFERRED") ? "(inferido, não declarado)" : ""}</>}
+              label={<>Nível de Descrição {flags.includes("ORDINAL_INFERRED") ? "(inferido, não declarado)" : ""}</>}
             >
               <Select
                 value={levelId ?? ""}
                 onChange={(event) => setLevelId(event.target.value ? Number(event.target.value) : null)}
               >
-                <option value="">— escolher —</option>
+                <option value="">Escolha o nível</option>
                 {levels.map((level) => (
                   <option key={level.level_id} value={level.level_id}>
                     {level.ordinal}. {level.name}
@@ -385,7 +385,7 @@ function PlanCard({
                 ))}
               </Select>
             </Field>
-            <Field label="Título do nó">
+            <Field label="Título do Nó">
               <Input
                 value={title}
                 onChange={(event) => setTitle(event.target.value)}
@@ -409,14 +409,14 @@ function PlanCard({
                   ))}
               </datalist>
             </Field>
-            <Field label="Nota da decisão">
+            <Field label="Nota da Decisão">
               <Input value={note} onChange={(event) => setNote(event.target.value)} />
             </Field>
           </div>
 
           {!canApprove ? (
             <p className="text-xs text-(--color-warn)">
-              Aprovar exige escolher o nível: é a decisão que o código não sabe tomar.
+              Para aprovar, escolha o nível de descrição: sem ele a aprovação é recusada.
             </p>
           ) : null}
 
@@ -436,7 +436,7 @@ function PlanCard({
         </div>
       ) : (
         <p className="text-xs text-(--color-muted)">
-          Reabrir devolve o degrau para “sugerido”: a próxima proposta volta a atualizar a evidência dela.
+          Reabrir devolve o degrau para “sugerido”: a próxima proposta volta a atualizar a evidência.
         </p>
       )}
 

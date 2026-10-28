@@ -24,39 +24,39 @@ import { Input } from "@/components/ui/Input";
 /** The Portuguese label of an option, and the one-line explanation under it. */
 const COPY: Record<string, { label: string; hint?: string }> = {
   columns_to_extract: {
-    label: "Colunas lidas pela IA",
-    hint: "O texto que o worker lê. Vazio = a escolha do código.",
+    label: "Colunas Lidas pela IA",
+    hint: "O texto que a IA lê. Vazio = o padrão do sistema.",
   },
   columns_to_classify: {
-    label: "Colunas lidas pela IA",
-    hint: "O texto que o worker lê. Vazio = a escolha do código.",
+    label: "Colunas Lidas pela IA",
+    hint: "O texto que a IA lê. Vazio = o padrão do sistema.",
   },
   confidence_threshold: {
-    label: "Limite de confiança",
-    hint: "Abaixo dele o resultado não é vinculado.",
+    label: "Limite de Confiança",
+    hint: "Abaixo dele o resultado é descartado.",
   },
   force: {
     label: "Forçar",
-    hint: "Re-lê o que já foi carimbado por outro produtor.",
+    hint: "Refaz o que já foi processado, e não só o que falta.",
   },
   limit: {
-    label: "Limite de documentos",
+    label: "Limite de Documentos",
     hint: "Vale só para esta execução; não vira padrão.",
   },
   repeat_threshold: {
-    label: "Repetições para tratar como modelo",
-    hint: "Quantos títulos iguais caracterizam um resto de modelo.",
+    label: "Repetições que Caracterizam um Modelo de Ficha",
+    hint: "Quantos títulos iguais indicam um modelo de ficha, um título que se repete de uma descrição para outra.",
   },
   llm_confidence: {
-    label: "Confiança mínima do LLM",
-    hint: "Abaixo dela a revisão de título é descartada.",
+    label: "Confiança Mínima da IA",
+    hint: "Abaixo dela a opinião da IA sobre o título é ignorada.",
   },
   similarity_threshold: {
-    label: "Similaridade mínima",
-    hint: "O trigram entre a tag e a entidade para entrar no julgamento.",
+    label: "Similaridade Mínima",
+    hint: "O quanto os nomes da tag e da entidade precisam se parecer para o caso ser julgado.",
   },
   auto_resolve_threshold: {
-    label: "Confiança para resolver sozinho",
+    label: "Confiança para Resolver sem Revisão",
     hint: "Abaixo dela o conflito vai para a fila de revisão.",
   },
 };
@@ -116,7 +116,7 @@ export function WorkerOptionsFields({
 }) {
   const options = optionsForMode(settings.declared_options ?? [], mode);
   if (options.length === 0) {
-    return <p className="text-xs text-(--color-muted)">Este worker não declara opções além da engine e do lote.</p>;
+    return <p className="text-xs text-(--color-muted)">Esta etapa não tem ajustes além do motor e do lote.</p>;
   }
 
   const set = (name: string, value: unknown) => {
@@ -168,7 +168,7 @@ export function WorkerOptionsFields({
             >
               <div className="flex flex-wrap gap-x-4 gap-y-1 rounded-md bg-black/[0.02] px-3 py-2">
                 {(option.choices ?? []).length === 0 ? (
-                  <span className="text-(--color-muted)">O contrato não declara colunas para esta opção.</span>
+                  <span className="text-(--color-muted)">Não há colunas para escolher nesta opção.</span>
                 ) : null}
                 {(option.choices ?? []).map((column) => {
                   const selected = Array.isArray(value) ? (value as string[]) : [];
@@ -224,7 +224,7 @@ export function WorkerOptionsFields({
               type={numeric ? "number" : "text"}
               step={option.kind === "number" ? "any" : undefined}
               value={value === undefined || value === null ? "" : String(value)}
-              placeholder={option.default === null || option.default === undefined ? "o do código" : String(option.default)}
+              placeholder={option.default === null || option.default === undefined ? "o do sistema" : String(option.default)}
               onChange={(event) => {
                 const text = event.target.value;
                 if (text === "") {

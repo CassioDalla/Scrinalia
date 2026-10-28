@@ -102,10 +102,10 @@ export function CleaningRulesRoute() {
 
       <PageBody>
         <Notice tone="warn">
-          <strong>O tipo da regra é o que separa limpar de destruir.</strong> Uma regra{" "}
-          <code>REWRITE</code> substitui cada ocorrência no acervo; <code>VALIDATE</code> e{" "}
-          <code>LLM_CHECK</code> só sinalizam — o worker filtra <code>REWRITE</code> explicitamente.
-          Regras nunca são excluídas: as aposentadas continuam nesta tela, com o botão de reativar.
+          <strong>O tipo da regra é o que separa limpar de destruir.</strong> Uma regra que reescreve o
+          texto substitui cada ocorrência no acervo; uma que só sinaliza, ou que consulta o modelo,
+          apenas aponta o problema, sem tocar no texto. Regras nunca são excluídas: as aposentadas
+          continuam nesta tela, com o botão de reativar.
         </Notice>
 
         {rules.error ? <ErrorState error={rules.error} /> : null}
@@ -114,7 +114,7 @@ export function CleaningRulesRoute() {
         {rules.data && activeCount === 0 ? (
           <EmptyState
             title="Nenhuma regra ativa"
-            hint="Sem regra REWRITE ativa, o worker de limpeza não reescreve nada. Sem regra VALIDATE/LLM_CHECK, a fila de anomalias fica vazia por construção — não por o acervo estar perfeito. As aposentadas aparecem abaixo, com o botão de reativar."
+            hint="Sem nenhuma regra ativa que reescreva o texto, nada no acervo é reescrito. Sem nenhuma regra ativa que sinalize, nenhuma ocorrência é marcada pelas suas regras; as anomalias que o sistema aponta por conta própria — sem data, título vazio — continuam aparecendo. As aposentadas ficam abaixo, com o botão de reativar."
           />
         ) : null}
 
@@ -181,13 +181,13 @@ export function CleaningRulesRoute() {
                     <p className="text-xs text-(--color-warn)">
                       Esta regra reescreve o acervo: cada ocorrência em{" "}
                       {labelOf(TARGET_COLUMN_LABEL, rule.target_column)} será substituída na próxima
-                      varredura.
+                      varredura. As descrições aprovadas por uma pessoa não são tocadas.
                     </p>
                   ) : null}
                   {!rule.is_active ? (
                     <p className="text-xs text-(--color-muted)">
-                      Aposentada: o worker não lê esta regra. Reativar devolve a mesma regra, com o
-                      mesmo id — nada foi excluído.
+                      Aposentada: esta regra não é aplicada ao acervo. Reativar devolve a mesma regra —
+                      nada foi excluído.
                     </p>
                   ) : null}
                 </CardBody>
@@ -266,7 +266,8 @@ function CreateRuleCard({ onCreated }: { onCreated: () => void }) {
         <div className="grid gap-1">
           <span className="text-sm font-semibold">Nova regra</span>
           <span className="text-xs text-(--color-muted)">
-            <code>REWRITE</code> substitui no acervo inteiro e só é salva depois de conferir o impacto.
+            Uma regra que reescreve substitui cada ocorrência no acervo inteiro e só é salva depois de
+            conferir o impacto.
           </span>
         </div>
       }
@@ -281,7 +282,7 @@ function CreateRuleCard({ onCreated }: { onCreated: () => void }) {
               placeholder="ex.: normaliza abreviação de logradouro"
             />
           </Field>
-          <Field label="Coluna alvo">
+          <Field label="Campo da Descrição">
             <Select
               value={draft.target_column}
               onChange={(event) => patch({ target_column: event.target.value as CleaningTargetColumn })}
@@ -296,7 +297,7 @@ function CreateRuleCard({ onCreated }: { onCreated: () => void }) {
         </div>
 
         <div className="grid gap-2 sm:grid-cols-2">
-          <Field label="Expressão regular (Python)">
+          <Field label="Expressão Regular (Python)">
             <Input
               value={draft.regex_pattern}
               onChange={(event) => patch({ regex_pattern: event.target.value })}
@@ -325,7 +326,7 @@ function CreateRuleCard({ onCreated }: { onCreated: () => void }) {
         </Field>
 
         {draft.rule_kind === "VALIDATE" ? (
-          <Field label="Motivo gravado no documento quando casar">
+          <Field label="Motivo Registrado no Documento quando Casar">
             <Input
               value={draft.anomaly_reason ?? ""}
               onChange={(event) => patch({ anomaly_reason: event.target.value || null })}
@@ -336,7 +337,7 @@ function CreateRuleCard({ onCreated }: { onCreated: () => void }) {
 
         {draft.rule_kind === "LLM_CHECK" ? (
           <div className="grid gap-2 sm:grid-cols-2">
-            <Field label="Engine">
+            <Field label="Motor">
               <Select
                 value={draft.engine_name ?? ""}
                 disabled={catalogue.length === 0}
@@ -352,8 +353,7 @@ function CreateRuleCard({ onCreated }: { onCreated: () => void }) {
                 ))}
               </Select>
               <span className="text-(--color-muted)">
-                A lista é a do registro de motores; vazio usa o padrão do eixo, e a regra não é salva com um
-                nome que o registro não tenha.
+                Em branco, a regra usa o motor padrão. Só é possível salvar com um motor desta lista.
               </span>
             </Field>
             <Field label="Preset">
@@ -402,12 +402,13 @@ function CreateRuleCard({ onCreated }: { onCreated: () => void }) {
           <div className="rounded-md bg-black/[0.03] px-3 py-2 text-xs">
             {preview.is_valid_regex ? (
               <p>
-                <strong>{formatCount(preview.matches_found)}</strong> ocorrências em{" "}
+                A amostra encontrou{" "}
+                <strong>{formatCount(preview.matches_found)}</strong> descrições que mudariam em{" "}
                 {labelOf(TARGET_COLUMN_LABEL, draft.target_column)}.
               </p>
             ) : (
               <p className="text-(--color-danger)">
-                Expressão inválida: {preview.error_message ?? "o Python não conseguiu compilá-la."}
+                Expressão inválida: {preview.error_message ?? "a expressão não pôde ser lida."}
               </p>
             )}
             {preview.samples.length > 0 ? (

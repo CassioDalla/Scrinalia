@@ -93,9 +93,8 @@ export function TreeRoute() {
 
       {orphans > 0 ? (
         <div className="border-b border-(--color-warn)/20 bg-(--color-warn)/5 px-6 py-2 text-xs text-(--color-warn)">
-          <strong>{formatCount(orphans)} descrições ainda não têm unidade superior.</strong> O que
-          aparece abaixo é só o que já foi materializado — o resto continua na raiz, esperando a decisão
-          dos degraus.{" "}
+          <strong>{formatCount(orphans)} descrições ainda estão sem unidade superior.</strong>
+          Abaixo você vê apenas o que já foi organizado; o restante permanece na raiz aguardando definição.{" "}
           <Link to="/arranjo/diagnostico" className="underline">
             Ver o diagnóstico
           </Link>
@@ -116,7 +115,7 @@ export function TreeRoute() {
             <div className="p-4">
               <EmptyState
                 title="Nenhuma descrição na raiz"
-                hint="O acervo está vazio ou todas as descrições já estão sob alguma unidade superior. Este é o estado final esperado depois da materialização."
+                hint="O acervo está vazio ou todas as descrições já foram devidamente organizadas sob uma unidade superior."
               />
             </div>
           ) : null}
@@ -175,9 +174,9 @@ export function TreeRoute() {
               title="Escolha um nó à esquerda"
               hint={
                 <>
-                  A árvore é o eixo do arranjo: cada descrição tem um lugar. Se o que você procura é
-                  por assunto, use a <Link to="/acervo/lista" className="underline">lista</Link> — lá os
-                  assuntos são badges e filtros.
+                  A árvore exibe a estrutura hierárquica do acervo:
+                  cada item em seu devido lugar. Se você prefere buscar por assunto
+                  ou termos específicos, utilize a <Link to="/acervo/lista" className="underline">lista</Link>.
                 </>
               }
             />
@@ -245,13 +244,10 @@ function CreateNodePanel({
 
   return (
     <Card className="ring-(--color-accent)/40">
-      <CardHeader className="text-sm font-semibold">Criar um nó que a origem não entregou</CardHeader>
+      <CardHeader className="text-sm font-semibold">Criar nova Unidade de Descrição</CardHeader>
       <CardBody className="grid gap-3">
         <p className="text-xs text-(--color-muted)">
-          Um Fundo, uma Seção ou uma Série <strong>sem documentos</strong> não sai de nenhum código de
-          referência, e o plano só decide os degraus que o fatiador propôs. Declarar aqui é o outro
-          caminho: a descrição nasce <code>HUMAN_APPROVED</code> e a escada é validada contra o pai
-          escolhido pela mesma regra do mover.
+          Utilize esta opção quando precisar inserir uma unidade (Fundo, Seção ou Série) que não veio nos dados originais. O novo item será criado como aprovado manualmente.
         </p>
 
         <div className="grid gap-2 text-xs">
@@ -278,7 +274,7 @@ function CreateNodePanel({
         </div>
 
         <div className="grid gap-2 sm:grid-cols-3">
-          <Field label="Código de referência">
+          <Field label="Código de Referência">
             <Input
               value={referenceCode}
               onChange={(event) => setReferenceCode(event.target.value)}
@@ -289,7 +285,7 @@ function CreateNodePanel({
           <Field label="Título">
             <Input value={title} onChange={(event) => setTitle(event.target.value)} maxLength={300} />
           </Field>
-          <Field label="Nível de descrição">
+          <Field label="Nível de Descrição">
             <Select
               value={levelId ?? ""}
               onChange={(event) => setLevelId(event.target.value ? Number(event.target.value) : null)}
@@ -304,7 +300,7 @@ function CreateNodePanel({
           </Field>
         </div>
 
-        <Field label="Escopo e conteúdo (opcional)">
+        <Field label="Âmbito e conteúdo (opcional)">
           <Input value={scopeContent} onChange={(event) => setScopeContent(event.target.value)} />
         </Field>
 
@@ -320,7 +316,7 @@ function CreateNodePanel({
           </Button>
           {!valid ? (
             <span className="text-xs text-(--color-muted)">
-              Código, título e nível são obrigatórios — o nível é a decisão que o código não sabe tomar.
+              Código, título e nível são obrigatórios.
             </span>
           ) : null}
         </div>

@@ -14,7 +14,6 @@ import { Disclosure } from "@/components/ui/Disclosure";
 import { ErrorState, Skeleton } from "@/components/ui/Feedback";
 import { Field } from "@/components/ui/Field";
 import { Input, Textarea } from "@/components/ui/Input";
-import { Notice } from "@/components/ui/Notice";
 import { SectionTitle } from "@/components/ui/SectionTitle";
 import { Tabs } from "@/components/ui/Tabs";
 import { ACTION } from "@/lib/copy";
@@ -136,11 +135,6 @@ export function CategoriesRoute() {
       />
 
       <PageBody>
-        <Notice tone="warn">
-          <strong>A frase não melhora a classificação.</strong> Medido em 44 tags rotuladas à mão: dar uma frase ao
-          modelo em vez do nome nu leva a acurácia a <strong>0.000</strong>, com 65% das tags numa única categoria. O
-          rótulo existe para o curador ajustar a redação sem deploy — não espere ganho dele.
-        </Notice>
 
         {categories.error ? <ErrorState error={categories.error} /> : null}
         {categories.isPending ? (
@@ -166,8 +160,8 @@ export function CategoriesRoute() {
         >
           <div className="grid gap-2">
             <p className="text-xs text-(--color-muted)">
-              Uma categoria nova só passa a valer quando o classificador rodar de novo: o carimbo do worker é o
-              <strong> hash do conjunto de rótulos</strong>, então mudar o vocabulário devolve as tags à fila sozinho.
+              O classificador percebe sozinho quando o <strong>conjunto de categorias</strong> muda e
+              classifica as tags outra vez na execução seguinte.
             </p>
             <Input
               value={draftName}
@@ -216,8 +210,9 @@ export function CategoriesRoute() {
           <section className="grid gap-2">
             <SectionTitle>Aposentadas</SectionTitle>
             <p className="text-xs text-(--color-muted)">
-              Saíram do eixo de assunto porque são proveniência e geografia, não assunto. Nunca foram excluídas: a
-              chave estrangeira é <code>SET NULL</code>, e excluir uma categoria excluiria o registro de que ela existiu.
+              Saíram do eixo de assunto porque são proveniência e geografia, não assunto. Nunca foram
+              excluídas: ficam marcadas como <code>aposentada</code>, porque excluir uma categoria
+              excluiria o registro de que ela existiu.
             </p>
             {retired.map((category) => (
               <CategoryCard
@@ -332,7 +327,7 @@ function CategoryCard({
               <Field label="Nome">
                 <Input value={name} onChange={(event) => setName(event.target.value)} maxLength={100} />
               </Field>
-              <Field label="Rótulo que o modelo lê (vazio = o nome)">
+              <Field label="Rótulo que o Modelo Lê (vazio: usa o nome)">
                 <Input
                   value={label}
                   onChange={(event) => setLabel(event.target.value)}
@@ -341,7 +336,7 @@ function CategoryCard({
               </Field>
             </div>
 
-            <Field label="Descrição (documentação do curador, nunca vai ao modelo)">
+            <Field label="Descrição para o Curador (nunca vai ao modelo)">
               <Input value={description} onChange={(event) => setDescription(event.target.value)} />
             </Field>
 
@@ -374,13 +369,13 @@ function CategoryCard({
             empty={
               category.is_active
                 ? {
-                    title: "Nenhuma descrição nesta categoria",
-                    hint: "Nenhuma tag desta categoria está ligada a uma descrição ainda. As tags sem categoria de assunto estão na aba Classificar, em Tags.",
-                  }
+                  title: "Nenhuma descrição nesta categoria",
+                  hint: "Nenhuma tag desta categoria está ligada a uma descrição ainda. As tags sem categoria de assunto estão na aba Classificar, em Tags.",
+                }
                 : {
-                    title: "Categoria aposentada e vazia",
-                    hint: "Ela saiu do eixo de assunto, e o classificador não a propõe mais — por isso nenhuma descrição a carrega. A linha continua no catálogo porque a chave estrangeira é SET NULL.",
-                  }
+                  title: "Categoria aposentada e vazia",
+                  hint: "Ela saiu do eixo de assunto, e o classificador não a propõe mais — por isso nenhuma descrição a carrega. Continua no catálogo, aposentada: excluir uma categoria excluiria o registro de que ela existiu.",
+                }
             }
           />
         )}

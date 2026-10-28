@@ -58,8 +58,8 @@ function QueueCard({ queue }: { queue: CurationQueue }) {
       <p className="text-xs text-(--color-muted)">{queue.description}</p>
       <div className="mt-auto pt-1">
         {!ready ? (
-          <Badge tone="neutral" title="Esta tela ainda não foi implementada">
-            tela pendente
+          <Badge tone="neutral" title="Esta tela ainda não está pronta para uso.">
+            tela em preparação
           </Badge>
         ) : empty ? (
           // Zero is not hidden: the archivist has to know the queue exists and is empty.
@@ -122,8 +122,8 @@ export function InboxRoute() {
 
         {data && (!data.queues || data.queues.length === 0) ? (
           <EmptyState
-            title="Nenhuma fila configurada"
-            hint="A API respondeu sem filas. Isso é um problema de contrato, não um acervo limpo."
+            title="Nenhuma pendência recebida"
+            hint="Nada chegou, o que não quer dizer que o acervo esteja em ordem. Avise quem administra a instalação."
           />
         ) : null}
 

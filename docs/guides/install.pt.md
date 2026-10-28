@@ -512,8 +512,8 @@ interface serve imagens quebradas. Faça o backup das duas juntas e restaure as 
   contínuo nem envio de WAL; o ponto de recuperação é o dump.
 - **Uma descrição excluída.** O `DELETE /api/v1/documents/{id}` é a única operação que remove um
   registro. Ele fotografa a linha inteira em `archive_document_deletions` — código de referência,
-  título, nível, todo o conteúdo ISAD(G), quem excluiu e por quê —, mas a tela `Acervo › Excluídas`
-  é uma trilha, não uma lixeira: não há restauração. Um nó com filhos é recusado de saída, porque a
+  título, nível, todo o conteúdo ISAD(G), quem excluiu e por quê —, mas a tela `Acervo › Histórico de
+  exclusões` é só um registro, não uma lixeira: não há restauração. Um nó com filhos é recusado de saída, porque a
   chave estrangeira que referencia a própria tabela é `RESTRICT`.
 - **As miniaturas, se o bucket se perder.** O banco continua nomeando-as, e o worker poderia
   derivar uma de novo a partir de `original_thumbnail_url` enquanto o site de origem ainda servir a

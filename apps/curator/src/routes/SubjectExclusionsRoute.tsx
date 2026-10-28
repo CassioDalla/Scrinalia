@@ -137,7 +137,7 @@ export function SubjectExclusionsRoute() {
           <section className="grid gap-2">
             <div className="flex flex-wrap items-end justify-between gap-2">
               <div className="grid gap-1">
-                <span className="text-sm font-semibold">O guarda já recusa estes termos</span>
+                <span className="text-sm font-semibold">A regra já recusa estes termos</span>
                 <span className="text-xs text-(--color-muted)">
                   {formatCount(suggestions.data.candidate_count)} candidatos ·{" "}
                   {Object.entries(suggestions.data.by_signal ?? {})
@@ -164,18 +164,18 @@ export function SubjectExclusionsRoute() {
                   size="sm"
                   variant="secondary"
                   disabled={suggestions.data.candidate_count === 0 || ban.isPending}
-                  title="Registra de uma vez todos os candidatos do guarda, com source=RULE."
+                  title="Registra de uma vez todos os candidatos que a regra recusa."
                   onClick={() =>
                     ban.mutate({
                       words: (suggestions.data?.items ?? [])
                         .filter((item) => !item.already_excluded)
                         .map((item) => item.term),
                       source: "RULE",
-                      reason: "forma reconhecida pelo guarda determinístico (ano, placeholder, medida, logradouro ou nome de pessoa)",
+                      reason: "forma reconhecida por regra (ano, placeholder, medida, logradouro ou nome de pessoa)",
                     })
                   }
                 >
-                  registrar os {formatCount(suggestions.data.candidate_count)} do guarda
+                  registrar os {formatCount(suggestions.data.candidate_count)} candidatos
                 </Button>
               </div>
             </div>
@@ -191,7 +191,7 @@ export function SubjectExclusionsRoute() {
                           <Badge tone="warn">{SIGNAL_LABEL[item.signal] ?? item.signal}</Badge>
                           <Badge tone="neutral">{descricoes(item.document_count)}</Badge>
                           {item.is_place_term ? (
-                            <Badge tone="accent" title="O guarda recusa como assunto, mas é um lugar: quem o carrega é o eixo de entidades (LOC). 'Não é assunto' não é 'vai para o lixo'.">
+                            <Badge tone="accent" title="A regra recusa como assunto, mas é um lugar: quem o carrega é o eixo de entidades. Recusar como assunto não exclui o termo.">
                               é lugar
                             </Badge>
                           ) : null}
@@ -232,11 +232,11 @@ export function SubjectExclusionsRoute() {
                           ban.mutate({
                             words: [item.term],
                             source: "RULE",
-                            reason: `forma reconhecida pelo guarda: ${item.signal}`,
+                            reason: `forma reconhecida por regra: ${item.signal}`,
                           })
                         }
                       >
-                        marcar como não-assunto
+                        Marcar como não-assunto
                       </Button>
                     </CardBody>
                   </Card>
@@ -264,16 +264,14 @@ export function SubjectExclusionsRoute() {
             ) : null}
 
             <p className="text-xs text-(--color-muted)">
-              A metade semântica não é sugerida por ninguém, de propósito: <code>pessoas</code> (166
-              documentos), <code>vista aérea</code> (89) e <code>capanema</code> (91) não têm forma que
-              uma regra pegue, e o modelo — que não sabe se abster — responde com confiança justamente
-              nesses. Eles entram pelo campo acima, que é julgamento humano.
+              Os casos que nenhuma regra pega não são sugeridos aqui de propósito — só uma decisão
+              humana os registra. Entre eles: <code>pessoas</code>, <code>vista aérea</code> e <code>capanema</code>.
             </p>
           </section>
         ) : null}
 
         {suggestions.error ? <ErrorState error={suggestions.error} /> : null}
-        {suggestions.isPending ? <Spinner label="Aplicando o guarda ao vocabulário…" /> : null}
+        {suggestions.isPending ? <Spinner label="Conferindo o vocabulário do acervo…" /> : null}
 
         {exclusions.error ? <ErrorState error={exclusions.error} /> : null}
         {exclusions.isPending ? <Spinner /> : null}
@@ -299,8 +297,7 @@ export function SubjectExclusionsRoute() {
           <div className="grid gap-2">
             <p className="text-xs text-(--color-muted)">
               Para os termos que <strong>nenhuma regra alcança</strong> — os julgamentos semânticos. Os
-              que o guarda já recusa estão na lista acima e entram por ela, com <code>source=RULE</code>{" "}
-              e o motivo declarado.
+              que a regra já recusa estão na lista acima e entram por ela, com o motivo declarado.
             </p>
             <Input
               value={draft}
@@ -340,7 +337,7 @@ export function SubjectExclusionsRoute() {
                   })
                 }
               >
-                {ban.isPending ? "Vetando…" : "Marcar como não-assunto"}
+                {ban.isPending ? "Registrando…" : "Marcar como não-assunto"}
               </Button>
             </div>
             {ban.error ? <ErrorState error={ban.error} /> : null}
@@ -367,8 +364,8 @@ export function SubjectExclusionsRoute() {
 
         {exclusions.data && words.length === 0 ? (
           <EmptyState
-            title="Nenhum termo excluído do eixo de assunto"
-            hint="A lista nasce vazia: ela é feita de decisões humanas sobre casos que a regra não pega. Enquanto o classificador não rodar no acervo, também não há erro a corrigir."
+            title="Nenhum termo fora do eixo de assunto"
+            hint="A lista nasce vazia: é feita de decisões humanas sobre os casos que nenhuma regra pega. Enquanto o classificador não rodar no acervo, também não há erro a corrigir."
           />
         ) : null}
 
@@ -396,7 +393,7 @@ export function SubjectExclusionsRoute() {
                       size="sm"
                       variant="ghost"
                       disabled={restore.isPending}
-                      title="O classificador volta a considerar o termo, e a grafia volta a poder virar tag (só o ban que esta decisão plantou sai; um ban digitado na aba Stopwords fica)."
+                      title="O classificador volta a considerar o termo, e a grafia volta a poder virar tag. Só o banimento que esta decisão criou sai; um banimento digitado na aba Stopwords continua."
                       onClick={() => restore.mutate(word)}
                     >
                       {ACTION.remove.label}

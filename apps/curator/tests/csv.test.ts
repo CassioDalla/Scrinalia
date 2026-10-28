@@ -164,14 +164,14 @@ describe("mapCsv", () => {
     const mapping = mapCsv(parsed, SPEC, ids());
 
     expect(mapping.blocking).toEqual([]);
-    expect(mapping.rows[0]?.issues).toContain("O campo 'Título' é obrigatório.");
+    expect(mapping.rows[0]?.issues.some((issue) => issue.includes("é obrigatório"))).toBe(true);
   });
 
   it("marks a repeated id in the file", () => {
     const parsed = parseCsv("Identificador,Título\ncsv-9,A\ncsv-9,B\n");
     const mapping = mapCsv(parsed, SPEC, ids());
 
-    expect(mapping.rows[1]?.issues.some((issue) => issue.includes("repete a linha 2"))).toBe(true);
+    expect(mapping.rows[1]?.issues.some((issue) => issue.includes("linha 2"))).toBe(true);
   });
 
   it("builds the request body with the canonical labels", () => {

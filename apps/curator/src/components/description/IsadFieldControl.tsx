@@ -42,7 +42,7 @@ export function IsadFieldControl({
         <Input
           type="text"
           value={value}
-          placeholder={field.control === "date" ? "AAAA-MM-DD, década ou intervalo" : undefined}
+          placeholder={field.control === "date" ? "Ex.: 1985-03-14, década de 1980 ou intervalo" : undefined}
           onChange={(event) => onChange(event.target.value)}
         />
       )}
@@ -71,7 +71,7 @@ export function LanguageSelect({
   return (
     <Select value={value} onChange={(event) => onChange(event.target.value)}>
       <option value="">— não informado —</option>
-      {known ? null : <option value={value}>{value} (fora do catálogo)</option>}
+      {known ? null : <option value={value}>{value} (fora da lista)</option>}
       {languages.map((language) => (
         <option key={language.code} value={language.name}>
           {language.name}

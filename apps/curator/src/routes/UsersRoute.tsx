@@ -70,11 +70,13 @@ export function UsersRoute() {
 
       <PageBody>
         <Notice tone="accent">
-          A senha criada aqui é <strong>temporária</strong>: a conta troca no primeiro acesso. Desativar
-          encerra todas as sessões na hora, e a última conta de administrador ativa não pode ser
-          desativada nem rebaixada — é o único beco sem saída que não tem volta pela tela. Tentativas
-          repetidas <strong>bloqueiam a conta</strong> por um tempo crescente; redefinir a senha
-          destrava e encerra as sessões.
+          A senha criada aqui é <strong>temporária</strong>: a conta troca a senha no primeiro acesso,
+          antes de chegar às telas. Desativar uma conta encerra todas as sessões dela na hora. A última
+          conta de administrador ativa não pode ser desativada nem ter o papel trocado — promova outra
+          antes.
+          Várias tentativas de acesso falhas <strong>bloqueiam a conta</strong> por um tempo que dobra a
+          cada novo bloqueio, até um limite; redefinir a senha destrava a conta e encerra as sessões
+          dela.
         </Notice>
 
         {users.error ? <ErrorState error={users.error} /> : null}
@@ -130,8 +132,8 @@ function CreateUserCard({ onCreated }: { onCreated: () => void }) {
         <div className="grid gap-1">
           <span className="text-sm font-semibold">Criar uma conta</span>
           <span className="text-xs text-(--color-muted)">
-            O papel decide o que a conta alcança; a senha é temporária e a política é verificada pelo
-            servidor.
+            O papel decide o que a conta alcança. A senha é temporária e precisa ter o tamanho mínimo
+            da instalação; não pode ser o próprio e-mail.
           </span>
         </div>
       }
@@ -255,8 +257,8 @@ function UserCard({ user, isSelf, onChanged }: { user: AuthUser; isSelf: boolean
             </Badge>
           ) : null}
           {!user.is_locked && (user.failed_attempts ?? 0) > 0 ? (
-            <Badge tone="warn" title="Tentativas falhas desde o último acesso bem-sucedido">
-              {user.failed_attempts} tentativa(s) falha(s)
+            <Badge tone="warn" title="Tentativas de acesso falhas desde o último acesso bem-sucedido">
+              tentativas de acesso falhas: {user.failed_attempts}
             </Badge>
           ) : null}
           <span className="w-full text-xs text-(--color-muted)">
@@ -316,8 +318,8 @@ function UserCard({ user, isSelf, onChanged }: { user: AuthUser; isSelf: boolean
 
         <div className="grid gap-2 border-t border-(--color-line) pt-3">
           <p className="text-xs text-(--color-muted)">
-            Redefinir a senha encerra todas as sessões desta conta — é o que se faz quando alguém
-            perdeu o acesso.
+            Redefinir a senha encerra todas as sessões desta conta. É o caminho quando alguém perdeu o
+            acesso.
           </p>
           {/*
             The reset revokes **every** session of the account, and unlike ``change_password`` it does
@@ -327,9 +329,9 @@ function UserCard({ user, isSelf, onChanged }: { user: AuthUser; isSelf: boolean
           */}
           {isSelf ? (
             <Notice tone="warn">
-              Esta é a sua conta: redefinir aqui <strong>encerra a sua própria sessão</strong> e desconecta
-              você. Para trocar a sua senha sabendo a atual, use <strong>Trocar senha</strong> no rodapé do
-              menu — com o menu recolhido, o ícone de chave — que mantém esta sessão aberta.
+              Esta é a sua conta: redefinir a senha aqui <strong>encerra a sua própria sessão</strong> e
+              desconecta você. Para trocar a senha sabendo a atual, use <strong>Trocar senha</strong>, no
+              rodapé do menu — com o menu recolhido, o ícone de chave —, que mantém esta sessão aberta.
             </Notice>
           ) : null}
           <div className="flex flex-wrap items-end gap-2">
@@ -421,10 +423,10 @@ function SessionList({ userId }: { userId: number }) {
             className="flex flex-wrap items-center gap-2 rounded-md bg-black/[0.02] px-2 py-1.5 text-xs"
           >
             <span className="min-w-40 flex-1 truncate" title={session.user_agent ?? undefined}>
-              {session.user_agent ?? "agente não informado"}
+              {session.user_agent ?? "navegador não informado"}
             </span>
             <span className="text-(--color-muted)">{session.ip_address ?? "—"}</span>
-            <span className="text-(--color-muted)">vista em {formatDateTime(session.last_seen_at)}</span>
+            <span className="text-(--color-muted)">último uso em {formatDateTime(session.last_seen_at)}</span>
             {session.is_current ? <Badge tone="accent">esta sessão</Badge> : null}
             <Button
               size="sm"
@@ -432,7 +434,7 @@ function SessionList({ userId }: { userId: number }) {
               disabled={revoke.isPending}
               onClick={() => revoke.mutate(session.session_id)}
             >
-              encerrar
+              Encerrar
             </Button>
           </li>
         ))}

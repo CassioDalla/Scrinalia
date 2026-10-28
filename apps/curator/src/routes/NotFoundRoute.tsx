@@ -7,7 +7,7 @@ export function NotFoundRoute() {
     <div className="px-6 py-10">
       <EmptyState
         title="Tela não encontrada"
-        hint="O endereço não corresponde a nenhuma tela implementada."
+        hint="O endereço não corresponde a nenhuma tela do sistema."
         action={
           <Link to="/" className="text-sm text-(--color-accent) hover:underline">
             Voltar ao início

@@ -27,7 +27,7 @@ export function Typeahead({
   onSearch,
   onPick,
   disabled,
-  emptyLabel = "nada encontrado",
+  emptyLabel = "Nada encontrado",
   className,
   autoFocus,
 }: {
@@ -146,7 +146,7 @@ export function Typeahead({
           className="absolute z-20 mt-1 max-h-72 w-full overflow-y-auto rounded-md bg-(--color-surface) py-1 text-sm shadow-lg ring-1 ring-(--color-line)"
         >
           {searching && options.length === 0 ? (
-            <li className="px-3 py-2 text-xs text-(--color-muted)">buscando…</li>
+            <li className="px-3 py-2 text-xs text-(--color-muted)">Buscando…</li>
           ) : null}
 
           {!searching && searched && options.length === 0 ? (
