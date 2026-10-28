@@ -2,6 +2,7 @@ from collections.abc import Sequence
 from typing import Literal
 
 from scrinalia.core.author import Author
+from scrinalia.core.i18n import t
 from scrinalia.core.logger import logger
 from scrinalia.domains.archive.domain.normalization import normalize_entity
 from scrinalia.domains.archive.exceptions import EntityNotFoundError, InvalidParam
@@ -62,7 +63,7 @@ class EntityService:
         self, target_name: str, entity_type: Literal["ORG", "PER", "LOC"] | None = None, threshold: float = 0.5
     ) -> Sequence[EntitySimilarity]:
         if not target_name:
-            raise InvalidParam("O parâmetro 'target_name' é obrigatório.")
+            raise InvalidParam(t("O parâmetro 'target_name' é obrigatório."))
 
         # Business rule: the search must always be sent in lowercase
         target_lower = target_name.strip().lower()
@@ -135,17 +136,19 @@ class EntityService:
         rows under one decision. Returns the entity as it now reads and the ledger id of the undo.
         """
         if not new_name.strip():
-            raise InvalidParam("O novo nome da entidade não pode ser vazio.")
+            raise InvalidParam(t("O novo nome da entidade não pode ser vazio."))
 
         record = self.repo.rename_entity(entity_id, new_name, keep_old_synonym=keep_old_synonym)
         if record is None:
-            raise EntityNotFoundError(f"Entidade com ID {entity_id} não encontrada.")
+            raise EntityNotFoundError(t("Entidade com ID {entity_id} não encontrada.", entity_id=entity_id))
 
         merge_id = self.repo.write_entity_rename_log(record, changed_by=changed_by, note=note)
 
         renamed = self.repo.get_by_id(entity_id)
         if renamed is None:
-            raise EntityNotFoundError(f"Entidade com ID {entity_id} não encontrada após o rename.")
+            raise EntityNotFoundError(
+                t("Entidade com ID {entity_id} não encontrada após o rename.", entity_id=entity_id)
+            )
         return renamed, merge_id
 
     def list_merge_log(
@@ -216,10 +219,12 @@ class EntityService:
         """
         canonical = self.repo.get_by_id(entity_id)
         if not canonical:
-            raise InvalidParam(f"Entidade canônica com ID {entity_id} não encontrada.")
+            raise InvalidParam(t("Entidade canônica com ID {entity_id} não encontrada.", entity_id=entity_id))
 
         if canonical.entity_type == new_type:
-            raise InvalidParam(f"A entidade '{canonical.name}' já está classificada como {new_type}.")
+            raise InvalidParam(
+                t("A entidade '{name}' já está classificada como {new_type}.", name=canonical.name, new_type=new_type)
+            )
 
         self.repo.update_entity_type(entity_id, new_type)
 
@@ -239,7 +244,7 @@ class EntityService:
         """Surgically deletes an isolated entity from the database."""
         entity = self.repo.get_by_id(entity_id)
         if not entity:
-            raise InvalidParam(f"Entidade com ID {entity_id} não encontrada para exclusão.")
+            raise InvalidParam(t("Entidade com ID {entity_id} não encontrada para exclusão.", entity_id=entity_id))
 
         self.repo.delete_entities([entity_id])
 
@@ -364,7 +369,7 @@ class EntityService:
         category — the same selection the batch writes.
         """
         if not 0 < threshold <= 1:
-            raise InvalidParam("O parâmetro 'threshold' deve estar entre 0 e 1.")
+            raise InvalidParam(t("O parâmetro 'threshold' deve estar entre 0 e 1."))
         return self.repo.page_cross_domain_conflicts(
             threshold=threshold, pair_kind=pair_kind, entity_type=entity_type, limit=limit, offset=offset
         )
@@ -420,9 +425,14 @@ class EntityService:
         The bounds are validated here so the API route stays a thin translation of the command.
         """
         if not 0 < command.threshold <= 1:
-            raise InvalidParam("O parâmetro 'threshold' deve estar entre 0 e 1.")
+            raise InvalidParam(t("O parâmetro 'threshold' deve estar entre 0 e 1."))
         if not 1 <= command.limit <= MAX_CONFLICT_BATCH_PAIRS:
-            raise InvalidParam(f"O lote aceita entre 1 e {MAX_CONFLICT_BATCH_PAIRS} pares por requisição.")
+            raise InvalidParam(
+                t(
+                    "O lote aceita entre 1 e {max_conflict_batch_pairs} pares por requisição.",
+                    max_conflict_batch_pairs=MAX_CONFLICT_BATCH_PAIRS,
+                )
+            )
 
         return self.repo.resolve_conflict_batch(
             winner=command.winner,

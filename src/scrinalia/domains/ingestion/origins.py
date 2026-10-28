@@ -19,6 +19,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from scrinalia.core.config import settings
+from scrinalia.core.i18n import t
 from scrinalia.domains.ingestion.exceptions import InvalidOriginConfigError, OriginNotFoundError
 from scrinalia.domains.ingestion.models import IngestionOrigin
 from scrinalia.domains.ingestion.origin_registry import OriginKind, OriginSummary, get_origin_summary
@@ -44,8 +45,10 @@ def _row_config(code: str, db_session: Session | None, config: dict[str, Any] | 
     row = db_session.get(IngestionOrigin, code)
     if row is None:
         raise OriginNotFoundError(
-            f"A origem '{code}' não está registrada em ingestion_origins. Rode a migração 44 e "
-            "configure-a na tela de ingestão."
+            t(
+                "A origem '{code}' não está registrada em ingestion_origins. Rode a migração 44 e configure-a na tela de ingestão.",
+                code=code,
+            )
         )
     return dict(row.config or {})
 
@@ -55,7 +58,9 @@ def _validated_config(summary: OriginSummary, raw: dict[str, Any]) -> BaseModel:
     try:
         return summary.config_model.model_validate(raw)
     except Exception as exc:
-        raise InvalidOriginConfigError(f"Configuração inválida da origem '{summary.code}': {exc}") from exc
+        raise InvalidOriginConfigError(
+            t("Configuração inválida da origem '{code}': {exc}", code=summary.code, exc=exc)
+        ) from exc
 
 
 def get_origin_definition(
@@ -106,8 +111,10 @@ def get_origin_definition(
         detail_url = getattr(pmc_config, "detail_url", None) or settings.PUBLIC_SCRAPE_DETAIL_URL
         if not base_url or not detail_url:
             raise InvalidOriginConfigError(
-                f"A origem '{code}' precisa de base_url e detail_url (ou de PUBLIC_SCRAPE_URL e "
-                "PUBLIC_SCRAPE_DETAIL_URL no ambiente)."
+                t(
+                    "A origem '{code}' precisa de base_url e detail_url (ou de PUBLIC_SCRAPE_URL e PUBLIC_SCRAPE_DETAIL_URL no ambiente).",
+                    code=code,
+                )
             )
         adapter = PMCScraperAdapter(
             SourceConfig(
@@ -123,4 +130,6 @@ def get_origin_definition(
             adapters=OriginAdapters(code=code, discovery=adapter, detail=adapter),
         )
 
-    raise OriginNotFoundError(f"A origem '{code}' declara um tipo que este pacote não conhece: {summary.kind}.")
+    raise OriginNotFoundError(
+        t("A origem '{code}' declara um tipo que este pacote não conhece: {kind}.", code=code, kind=summary.kind)
+    )

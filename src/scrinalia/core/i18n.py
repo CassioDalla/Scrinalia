@@ -16,6 +16,7 @@ from __future__ import annotations
 from contextvars import ContextVar, Token
 
 from scrinalia.core.locale import DEFAULT_LOCALE, Locale
+from scrinalia.core.refusal_translations import TRANSLATIONS
 
 _current: ContextVar[Locale] = ContextVar("scrinalia_locale", default=DEFAULT_LOCALE)
 
@@ -168,6 +169,12 @@ REFUSALS: dict[str, dict[Locale, str]] = {
         Locale.EN: "Unexpected internal error. The failure was recorded and can be located by the reference.",
     },
 }
+
+
+def t(template: str, **facts: object) -> str:
+    """The sentence of a refusal, in the request's language; the Portuguese is the key."""
+    translated = TRANSLATIONS.get(template) if current_locale() is Locale.EN else None
+    return (translated or template).format(**facts)
 
 
 def refusal(code: str, **facts: object) -> str:

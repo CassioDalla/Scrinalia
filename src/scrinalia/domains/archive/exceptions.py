@@ -6,6 +6,7 @@ from typing import Any
 # every domain's refusals, and a per-domain base class would escape it. Re-exported here with the
 # redundant alias so the imports across the codebase keep resolving and ruff sees the intent.
 from scrinalia.core.exceptions import DomainException as DomainException
+from scrinalia.core.i18n import t
 
 
 class TagNotFoundError(DomainException):
@@ -38,8 +39,12 @@ class DuplicateEntityNameError(DomainException):
 
     def __init__(self, entity_id: int, name: str, conflicting_entity_id: int, conflicting_name: str) -> None:
         super().__init__(
-            f"Já existe uma entidade com a grafia '{conflicting_name}' (ID {conflicting_entity_id}). "
-            f"Mescle as duas em vez de renomear."
+            t(
+                "Já existe uma entidade com a grafia '{conflicting_name}' (ID {conflicting_entity_id}). "
+                "Mescle as duas em vez de renomear.",
+                conflicting_name=conflicting_name,
+                conflicting_entity_id=conflicting_entity_id,
+            )
         )
         self.entity_id = entity_id
         self.name = name

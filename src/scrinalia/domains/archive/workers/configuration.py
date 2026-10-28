@@ -28,6 +28,7 @@ from typing import Any, Literal, Union, get_args, get_origin, get_type_hints
 
 from sqlalchemy.orm import Session
 
+from scrinalia.core.i18n import t
 from scrinalia.domains.archive.domain.text_quality import AI_TEXT_COLUMNS, unknown_ai_columns
 from scrinalia.domains.archive.exceptions import InvalidWorkerSettingsError
 from scrinalia.domains.archive.models.operations import WorkerSetting
@@ -211,34 +212,48 @@ def _validate_value(spec: WorkerSpec, option: DeclaredOption, value: Any) -> Non
     label = option.name
     if option.kind == "boolean":
         if not isinstance(value, bool):
-            raise InvalidWorkerSettingsError(f"A opção '{label}' é booleana: use true ou false, não {value!r}.")
+            raise InvalidWorkerSettingsError(
+                t("A opção '{label}' é booleana: use true ou false, não {value}.", label=label, value=value)
+            )
         return
     if option.kind == "integer":
         if isinstance(value, bool) or not isinstance(value, int):
-            raise InvalidWorkerSettingsError(f"A opção '{label}' espera um inteiro, não {value!r}.")
+            raise InvalidWorkerSettingsError(
+                t("A opção '{label}' espera um inteiro, não {value}.", label=label, value=value)
+            )
         return
     if option.kind == "number":
         if isinstance(value, bool) or not isinstance(value, (int, float)):
-            raise InvalidWorkerSettingsError(f"A opção '{label}' espera um número, não {value!r}.")
+            raise InvalidWorkerSettingsError(
+                t("A opção '{label}' espera um número, não {value}.", label=label, value=value)
+            )
         return
     if option.kind == "text":
         if not isinstance(value, str):
-            raise InvalidWorkerSettingsError(f"A opção '{label}' espera texto, não {value!r}.")
+            raise InvalidWorkerSettingsError(
+                t("A opção '{label}' espera texto, não {value}.", label=label, value=value)
+            )
         return
     # ``list`` and ``columns``: the value has to be a list of strings, and for a column list every
     # name has to be one the AI text has — read from the same tuple the benches read.
     if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
-        raise InvalidWorkerSettingsError(f"A opção '{label}' espera uma lista de nomes, não {value!r}.")
+        raise InvalidWorkerSettingsError(
+            t("A opção '{label}' espera uma lista de nomes, não {value}.", label=label, value=value)
+        )
     if option.kind == "columns":
         if not value:
             raise InvalidWorkerSettingsError(
-                f"A opção '{label}' não pode ser vazia: sem coluna o worker não teria texto para ler."
+                t("A opção '{label}' não pode ser vazia: sem coluna o worker não teria texto para ler.", label=label)
             )
         unknown = unknown_ai_columns(value)
         if unknown:
             raise InvalidWorkerSettingsError(
-                f"A opção '{label}' nomeia colunas que o texto da IA não tem: {unknown}. "
-                f"Conhecidas: {list(option.choices)}."
+                t(
+                    "A opção '{label}' nomeia colunas que o texto da IA não tem: {unknown}. Conhecidas: {choices}.",
+                    label=label,
+                    unknown=unknown,
+                    choices=list(option.choices),
+                )
             )
 
 
@@ -256,18 +271,26 @@ def validate_options(spec: WorkerSpec, options: dict[str, Any]) -> None:
     for key, value in options.items():
         if key in NON_OPTION_PARAMETERS:
             raise InvalidWorkerSettingsError(
-                f"A opção '{key}' {NON_OPTION_REASONS.get(key, 'não pode ser definida pela tela')}; "
-                "use as opções declaradas pelo worker."
+                t(
+                    "A opção '{key}' {tela}; use as opções declaradas pelo worker.",
+                    key=key,
+                    tela=t(NON_OPTION_REASONS.get(key, "não pode ser definida pela tela")),
+                )
             )
         if key in SEPARATE_OPTIONS:
             raise InvalidWorkerSettingsError(
-                f"A opção '{key}' tem campo próprio na configuração e não se define em 'options'."
+                t("A opção '{key}' tem campo próprio na configuração e não se define em 'options'.", key=key)
             )
         option = declared.get(key)
         if option is None:
-            sentence = f"O worker '{spec.name}' não aceita a opção '{key}'. Opções: {sorted(declared)}."
+            sentence = t(
+                "O worker '{name}' não aceita a opção '{key}'. Opções: {options}.",
+                name=spec.name,
+                key=key,
+                options=sorted(declared),
+            )
             if accepts_extra_kwargs(spec):
-                sentence += (
+                sentence += t(
                     " Para passar um parâmetro ao construtor do engine, use um repasse ao engine "
                     "('--engine-option' na linha de comando, ou o bloco avançado do painel de execução)."
                 )
@@ -286,8 +309,10 @@ def validate_settings_options(spec: WorkerSpec, options: dict[str, Any]) -> None
     run_only = sorted(key for key in options if key in RUN_ONLY_OPTIONS)
     if run_only:
         raise InvalidWorkerSettingsError(
-            f"{run_only} valem para uma execução e não para um padrão: use o painel de execução "
-            "(ou '--limit' na linha de comando)."
+            t(
+                "{run_only} valem para uma execução e não para um padrão: use o painel de execução (ou '--limit' na linha de comando).",
+                run_only=run_only,
+            )
         )
 
 
@@ -304,12 +329,14 @@ def validate_engine_options(spec: WorkerSpec, engine_options: dict[str, Any]) ->
     if not engine_options:
         return
     if not accepts_extra_kwargs(spec):
-        raise InvalidWorkerSettingsError(f"O worker '{spec.name}' não repassa parâmetros ao construtor do engine.")
+        raise InvalidWorkerSettingsError(
+            t("O worker '{name}' não repassa parâmetros ao construtor do engine.", name=spec.name)
+        )
     declared = {option.name for option in declared_options(spec)}
     for key in engine_options:
         if key in NON_OPTION_PARAMETERS or key in SEPARATE_OPTIONS or key in declared:
             raise InvalidWorkerSettingsError(
-                f"O repasse '{key}' é uma opção declarada do worker: use 'options', não 'engine_options'."
+                t("O repasse '{key}' é uma opção declarada do worker: use 'options', não 'engine_options'.", key=key)
             )
 
 
@@ -318,11 +345,14 @@ def validate_engine_choice(spec: WorkerSpec, engine_name: str | None, preset: st
     if spec.engine_source != "signature":
         if engine_name is not None or preset is not None:
             raise InvalidWorkerSettingsError(
-                f"A engine do worker '{spec.name}' não é configurável aqui: "
-                + (
-                    "ela vive na regra LLM_CHECK ativa (tela de regras)."
-                    if spec.engine_source == "llm_check_rule"
-                    else "este worker não carrega modelo."
+                t(
+                    "A engine do worker '{name}' não é configurável aqui: {reason}",
+                    name=spec.name,
+                    reason=t(
+                        "ela vive na regra LLM_CHECK ativa (tela de regras)."
+                        if spec.engine_source == "llm_check_rule"
+                        else "este worker não carrega modelo."
+                    ),
                 )
             )
         return
@@ -330,17 +360,29 @@ def validate_engine_choice(spec: WorkerSpec, engine_name: str | None, preset: st
     registry = axis_registry(spec.axis)
     if engine_name is not None and engine_name not in registry.AVAILABLE_ENGINES:
         raise InvalidWorkerSettingsError(
-            f"Engine '{engine_name}' não existe para o eixo {spec.axis}. Opções: {sorted(registry.AVAILABLE_ENGINES)}."
+            t(
+                "Engine '{engine_name}' não existe para o eixo {axis}. Opções: {available_engines}.",
+                engine_name=engine_name,
+                axis=spec.axis,
+                available_engines=sorted(registry.AVAILABLE_ENGINES),
+            )
         )
     # A retired preset is not merely unknown: it was declared and cannot run, and the reason is what
     # turns "did you mistype?" into "use this instead" (#122). The axis is read through ``getattr``
     # because only the axes that name an Ollama model have presets to retire.
     retired_presets: dict[str, str] = getattr(registry, "RETIRED_PRESETS", {})
     if preset is not None and preset in retired_presets:
-        raise InvalidWorkerSettingsError(f"Preset '{preset}' foi aposentado: {retired_presets[preset]}")
+        raise InvalidWorkerSettingsError(
+            t("Preset '{preset}' foi aposentado: {preset2}", preset=preset, preset2=retired_presets[preset])
+        )
     if preset is not None and preset not in registry.PRESETS:
         raise InvalidWorkerSettingsError(
-            f"Preset '{preset}' não existe para o eixo {spec.axis}. Opções: {sorted(registry.PRESETS)}."
+            t(
+                "Preset '{preset}' não existe para o eixo {axis}. Opções: {presets}.",
+                preset=preset,
+                axis=spec.axis,
+                presets=sorted(registry.PRESETS),
+            )
         )
 
 

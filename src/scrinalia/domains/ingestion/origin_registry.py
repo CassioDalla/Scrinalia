@@ -21,6 +21,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from scrinalia.core.i18n import t
 from scrinalia.domains.ingestion.exceptions import OriginNotFoundError
 
 
@@ -167,8 +168,10 @@ def get_origin_summary(code: str | None) -> OriginSummary:
     an environment variable. That is the ADR 0008 rule one layer down.
     """
     if not code:
-        raise OriginNotFoundError(f"Informe a origem. Disponíveis: {sorted(ORIGINS)}.")
+        raise OriginNotFoundError(t("Informe a origem. Disponíveis: {origins}.", origins=sorted(ORIGINS)))
     try:
         return ORIGINS[code]
     except KeyError:
-        raise OriginNotFoundError(f"Origem '{code}' não existe. Disponíveis: {sorted(ORIGINS)}.") from None
+        raise OriginNotFoundError(
+            t("Origem '{code}' não existe. Disponíveis: {origins}.", code=code, origins=sorted(ORIGINS))
+        ) from None

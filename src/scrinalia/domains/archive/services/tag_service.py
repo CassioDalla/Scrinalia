@@ -4,6 +4,7 @@ from datetime import UTC, datetime
 from typing import Literal
 
 from scrinalia.core.author import Author
+from scrinalia.core.i18n import t
 from scrinalia.core.logger import logger
 from scrinalia.domains.archive.domain.normalization import normalize_stopword, normalize_tag
 from scrinalia.domains.archive.domain.text_quality import AI_TEXT_COLUMNS, unknown_ai_columns
@@ -324,7 +325,7 @@ class TagService:
         Searches for tags with typos or high similarity using the pg_trgm extension.
         """
         if not target_tag:
-            raise InvalidParam("O parametro 'target_tag' é obrigatório")
+            raise InvalidParam(t("O parametro 'target_tag' é obrigatório"))
 
         # Business rule: always search in lowercase
         target_lower = target_tag.strip().lower()
@@ -366,12 +367,17 @@ class TagService:
         table and this is the only trace the decision leaves.
         """
         if command.macro_category_id is not None and self.repo.get_macro_category(command.macro_category_id) is None:
-            raise MacroCategoryNotFoundError(f"Categoria macro {command.macro_category_id} não existe no catálogo.")
+            raise MacroCategoryNotFoundError(
+                t(
+                    "Categoria macro {macro_category_id} não existe no catálogo.",
+                    macro_category_id=command.macro_category_id,
+                )
+            )
 
         stamp = _curation_stamp(command.macro_category_id, command.changed_by)
         updated = self.repo.update_tag_macro_category(tag_id, command.macro_category_id, stamp)
         if updated is None:
-            raise TagNotFoundError(f"Tag {tag_id} não existe no vocabulário.")
+            raise TagNotFoundError(t("Tag {tag_id} não existe no vocabulário.", tag_id=tag_id))
 
         excluded = command.macro_category_id is None
         if excluded:
@@ -431,7 +437,7 @@ class TagService:
         cluster is not re-proposed after a human rejected it.
         """
         if not 0 < threshold <= 1:
-            raise InvalidParam("O parâmetro 'threshold' deve estar entre 0 e 1.")
+            raise InvalidParam(t("O parâmetro 'threshold' deve estar entre 0 e 1."))
 
         suggestions = self.repo.find_merge_suggestions(threshold=threshold, limit=limit)
         persisted = self.repo.upsert_merge_proposals(suggestions)
@@ -465,9 +471,14 @@ class TagService:
     ) -> TagMergeProposalListResponse:
         """One page of proposals with the total matching the same filters (no silent truncation)."""
         if limit <= 0 or limit > MAX_MERGE_PROPOSALS_PAGE:
-            raise InvalidParam(f"O parâmetro 'limit' deve estar entre 1 e {MAX_MERGE_PROPOSALS_PAGE}.")
+            raise InvalidParam(
+                t(
+                    "O parâmetro 'limit' deve estar entre 1 e {max_merge_proposals_page}.",
+                    max_merge_proposals_page=MAX_MERGE_PROPOSALS_PAGE,
+                )
+            )
         if offset < 0:
-            raise InvalidParam("O parâmetro 'offset' não pode ser negativo.")
+            raise InvalidParam(t("O parâmetro 'offset' não pode ser negativo."))
 
         total = self.repo.count_merge_proposals(
             status=status, reason=reason, min_documents=min_documents, flagged_only=flagged_only
@@ -495,7 +506,10 @@ class TagService:
         )
         if updated is None:
             raise TagMergeProposalNotFoundError(
-                f"Proposta de mesclagem {proposal_id} não encontrada no catálogo de curadoria."
+                t(
+                    "Proposta de mesclagem {proposal_id} não encontrada no catálogo de curadoria.",
+                    proposal_id=proposal_id,
+                )
             )
         return updated
 
@@ -522,7 +536,12 @@ class TagService:
         """
         proposal_ids = list(dict.fromkeys(command.proposal_ids))
         if len(proposal_ids) > MAX_MERGE_BATCH_CLUSTERS:
-            raise InvalidParam(f"O lote aceita no máximo {MAX_MERGE_BATCH_CLUSTERS} clusters por requisição.")
+            raise InvalidParam(
+                t(
+                    "O lote aceita no máximo {max_merge_batch_clusters} clusters por requisição.",
+                    max_merge_batch_clusters=MAX_MERGE_BATCH_CLUSTERS,
+                )
+            )
 
         entries: list[MergeBatchEntry] = []
         failures: list[MergeBatchFailure] = []
@@ -607,9 +626,14 @@ class TagService:
     ) -> MergeLogListResponse:
         """The audit trail of the merges, with the total matching the same filters."""
         if limit <= 0 or limit > MAX_MERGE_LOG_PAGE:
-            raise InvalidParam(f"O parâmetro 'limit' deve estar entre 1 e {MAX_MERGE_LOG_PAGE}.")
+            raise InvalidParam(
+                t(
+                    "O parâmetro 'limit' deve estar entre 1 e {max_merge_log_page}.",
+                    max_merge_log_page=MAX_MERGE_LOG_PAGE,
+                )
+            )
         if offset < 0:
-            raise InvalidParam("O parâmetro 'offset' não pode ser negativo.")
+            raise InvalidParam(t("O parâmetro 'offset' não pode ser negativo."))
 
         total = self.repo.count_merge_log(
             canonical_id=canonical_id, changed_by_name=changed_by_name, include_undone=include_undone, term=term
@@ -653,29 +677,34 @@ class TagService:
             proposal = self.repo.get_merge_proposal(command.proposal_id)
             if proposal is None:
                 raise TagMergeProposalNotFoundError(
-                    f"Proposta de mesclagem {command.proposal_id} não encontrada no catálogo de curadoria."
+                    t(
+                        "Proposta de mesclagem {proposal_id} não encontrada no catálogo de curadoria.",
+                        proposal_id=command.proposal_id,
+                    )
                 )
             if proposal.canonical_id is None:
-                raise InvalidParam("A proposta não tem mais uma tag canônica válida para simular.")
+                raise InvalidParam(t("A proposta não tem mais uma tag canônica válida para simular."))
 
             ids = [member.tag_id for member in proposal.members if member.tag_id != proposal.canonical_id]
             return proposal.canonical_id, ids
 
         if command.canonical_id is None:
-            raise InvalidParam("Informe 'proposal_id' ou 'canonical_id' com 'ids_to_merge'.")
+            raise InvalidParam(t("Informe 'proposal_id' ou 'canonical_id' com 'ids_to_merge'."))
         return command.canonical_id, list(command.ids_to_merge)
 
     def _validate_merge_inputs(self, canonical_id: int, ids_to_merge: Sequence[int]) -> None:
         """The business rules a merge (and its dry-run, identically) has to respect."""
         if not ids_to_merge:
-            raise InvalidParam("A lista de tags para mesclar não pode estar vazia.")
+            raise InvalidParam(t("A lista de tags para mesclar não pode estar vazia."))
 
         if canonical_id in ids_to_merge:
-            raise InvalidMergeError("O ID da tag canônica não pode estar na lista de exclusão.")
+            raise InvalidMergeError(t("O ID da tag canônica não pode estar na lista de exclusão."))
 
         canonical_exists = self.repo.get_by_id(canonical_id)
         if not canonical_exists:
-            raise InvalidParam(f"A tag canônica informada (ID {canonical_id}) não existe no acervo.")
+            raise InvalidParam(
+                t("A tag canônica informada (ID {canonical_id}) não existe no acervo.", canonical_id=canonical_id)
+            )
 
     def get_text_to_suggest_macro_category(
         self,
@@ -689,7 +718,7 @@ class TagService:
         logger.info(f"🔍 Starting topic discovery using source_type:{source_type}...")
 
         if source_type not in ["tags", "documents"]:
-            raise InvalidParam("O parâmetro 'source_type' deve ser obrigatoriamente 'tags' ou 'documents'.")
+            raise InvalidParam(t("O parâmetro 'source_type' deve ser obrigatoriamente 'tags' ou 'documents'."))
 
         if source_type == "tags":
             texts_to_analyze = self.repo.fetch_tags_for_clustering()
@@ -704,8 +733,11 @@ class TagService:
             unknown = unknown_ai_columns(columns_to_extract or [])
             if unknown:
                 raise InvalidParam(
-                    f"Estas colunas não fazem parte do texto da IA: {', '.join(unknown)}. "
-                    f"O texto da IA tem: {', '.join(AI_TEXT_COLUMNS)}."
+                    t(
+                        "Estas colunas não fazem parte do texto da IA: {unknown}. O texto da IA tem: {ai_text_columns}.",
+                        unknown=", ".join(unknown),
+                        ai_text_columns=", ".join(AI_TEXT_COLUMNS),
+                    )
                 )
             texts_to_analyze = self.document_repo.fetch_documents_for_clustering(columns_to_extract=columns_to_extract)
 
@@ -745,7 +777,7 @@ class TagService:
         """
         clean_words = [normalize_tag(word) for word in words if word.strip()]
         if not clean_words:
-            raise InvalidParam("Nenhum termo válido foi informado.")
+            raise InvalidParam(t("Nenhum termo válido foi informado."))
         return self.repo.plan_subject_exclusions(clean_words)
 
     def exclude_terms_from_subjects(
@@ -807,7 +839,7 @@ class TagService:
         """
         name = command.name.strip()
         if not name:
-            raise InvalidParam("O nome da macro categoria não pode ser vazio.")
+            raise InvalidParam(t("O nome da macro categoria não pode ser vazio."))
 
         logger.info(f"🏷️ Registering macro category '{name}'...")
         label = command.classifier_label.strip() if command.classifier_label else None
@@ -822,7 +854,7 @@ class TagService:
         if "name" in changes and changes["name"] is not None:
             changes["name"] = changes["name"].strip()
             if not changes["name"]:
-                raise InvalidParam("O nome da macro categoria não pode ser vazio.")
+                raise InvalidParam(t("O nome da macro categoria não pode ser vazio."))
 
         # Blanking the label is how the curator falls back to the bare name; storing "" would
         # send the model an empty hypothesis, which is worse than the name it replaced.
@@ -832,6 +864,8 @@ class TagService:
 
         updated = self.repo.update_macro_category(category_id, changes)
         if updated is None:
-            raise MacroCategoryNotFoundError(f"Macro categoria {category_id} não encontrada no acervo.")
+            raise MacroCategoryNotFoundError(
+                t("Macro categoria {category_id} não encontrada no acervo.", category_id=category_id)
+            )
 
         return updated

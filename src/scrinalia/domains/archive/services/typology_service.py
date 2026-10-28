@@ -1,5 +1,6 @@
 """Typology catalogue use cases (Fase 4, the last catalogue without a screen)."""
 
+from scrinalia.core.i18n import t
 from scrinalia.domains.archive.exceptions import (
     DuplicateTypologyError,
     InvalidTypologyError,
@@ -71,7 +72,9 @@ class TypologyService:
     def get_typology(self, typology_id: int) -> ArchiveTypology:
         typology = self.repo.get(typology_id)
         if typology is None:
-            raise TypologyNotFoundError(f"Tipologia documental {typology_id} não existe no catálogo.")
+            raise TypologyNotFoundError(
+                t("Tipologia documental {typology_id} não existe no catálogo.", typology_id=typology_id)
+            )
         return typology
 
     def create_typology(self, command: CreateTypologyCommand) -> TypologyDTO:
@@ -85,8 +88,10 @@ class TypologyService:
         existing = self.repo.get_by_name(command.name)
         if existing is not None:
             raise DuplicateTypologyError(
-                f"Já existe uma tipologia chamada '{existing.name}'. "
-                "Se ela está desativada, reative-a em vez de criar outra."
+                t(
+                    "Já existe uma tipologia chamada '{name}'. Se ela está desativada, reative-a em vez de criar outra.",
+                    name=existing.name,
+                )
             )
 
         typology = self.repo.create(command)
@@ -98,7 +103,7 @@ class TypologyService:
         if command.name is not None:
             existing = self.repo.get_by_name(command.name)
             if existing is not None and existing.typology_id != typology_id:
-                raise DuplicateTypologyError(f"Já existe uma tipologia chamada '{existing.name}'.")
+                raise DuplicateTypologyError(t("Já existe uma tipologia chamada '{name}'.", name=existing.name))
 
         self.repo.update(typology, command)
         return next(item for item in self.list_typologies() if item.typology_id == typology_id)
@@ -114,7 +119,9 @@ class TypologyService:
         """
         if self.repo.get(typology_id) is None:
             raise InvalidTypologyError(
-                f"A tipologia documental {typology_id} não existe no catálogo. "
-                "Cadastre-a (ou escolha outra) antes de classificar a descrição."
+                t(
+                    "A tipologia documental {typology_id} não existe no catálogo. Cadastre-a (ou escolha outra) antes de classificar a descrição.",
+                    typology_id=typology_id,
+                )
             )
         return typology_id

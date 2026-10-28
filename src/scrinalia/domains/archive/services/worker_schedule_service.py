@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 
 from scrinalia.core.author import Author
 from scrinalia.core.config import get_settings
+from scrinalia.core.i18n import t
 from scrinalia.domains.archive.exceptions import (
     InvalidWorkerScheduleError,
     InvalidWorkerSettingsError,
@@ -87,10 +88,12 @@ class WorkerScheduleService:
             timezone = validate_timezone(zona)
         except InvalidCronError as exc:
             raise InvalidWorkerScheduleError(
-                "Agenda inválida: o cron precisa de cinco campos (minuto, hora, dia do mês, mês e dia da semana)."
+                t("Agenda inválida: o cron precisa de cinco campos (minuto, hora, dia do mês, mês e dia da semana).")
             ) from exc
         except InvalidTimezoneError as exc:
-            raise InvalidWorkerScheduleError(f"Agenda inválida: '{zona}' não é um fuso IANA conhecido.") from exc
+            raise InvalidWorkerScheduleError(
+                t("Agenda inválida: '{zona}' não é um fuso IANA conhecido.", zona=zona)
+            ) from exc
 
         validate_engine_choice(spec, data.request.engine_name, data.request.preset)
         validate_options(spec, data.request.options)
@@ -113,15 +116,21 @@ class WorkerScheduleService:
         """Removes the agenda; the runs it already created stay in the ledger."""
         self._spec(worker_name)
         if not self.schedules.delete(worker_name):
-            raise WorkerScheduleNotFoundError(f"O worker '{worker_name}' não tem agenda.")
+            raise WorkerScheduleNotFoundError(t("O worker '{worker_name}' não tem agenda.", worker_name=worker_name))
         self.db.commit()
 
     def _spec(self, worker_name: str):
         spec = WORKER_CATALOGUE.get(worker_name)
         if spec is None:
-            raise WorkerNotFoundError(f"Worker '{worker_name}' não existe. Opções: {sorted(WORKER_CATALOGUE)}.")
+            raise WorkerNotFoundError(
+                t(
+                    "Worker '{worker_name}' não existe. Opções: {worker_catalogue}.",
+                    worker_name=worker_name,
+                    worker_catalogue=sorted(WORKER_CATALOGUE),
+                )
+            )
         if spec.origin_axis:
             raise InvalidWorkerSettingsError(
-                "A agenda da ingestão é a da origem: use a tela de ingestão, não a agenda genérica de workers."
+                t("A agenda da ingestão é a da origem: use a tela de ingestão, não a agenda genérica de workers.")
             )
         return spec

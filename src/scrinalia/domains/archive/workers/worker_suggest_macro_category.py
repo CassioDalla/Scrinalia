@@ -2,6 +2,7 @@ from typing import Any, cast
 
 from pandas import DataFrame
 
+from scrinalia.core.i18n import t
 from scrinalia.core.logger import logger
 from scrinalia.domains.archive.engines.clustering.registry import (
     PRESETS,
@@ -93,7 +94,7 @@ def run_suggestion_engine(
     only a bad engine/preset name raises ``EngineExecutionError``.
     """
     if not texts_to_analyze:
-        raise InvalidParam("O parâmetro 'texts_to_analyze' não foi passado.")
+        raise InvalidParam(t("O parâmetro 'texts_to_analyze' não foi passado."))
 
     corpus_size = len(texts_to_analyze)
 
@@ -115,7 +116,9 @@ def run_suggestion_engine(
             # disguise it as "not enough data".
             logger.error("Failure configuring the category suggestion engine.")
             logger.error(e)
-            raise EngineExecutionError(f"O motor '{engine_name}' falhou ao processar os textos.") from e
+            raise EngineExecutionError(
+                t("O motor '{engine_name}' falhou ao processar os textos.", engine_name=engine_name)
+            ) from e
 
         try:
             topics, topic_info_df = engine.discover_topics(list(texts_to_analyze))

@@ -9,6 +9,7 @@ composition uses, so "affected" means affected for real.
 
 import math
 
+from scrinalia.core.i18n import t
 from scrinalia.core.logger import logger
 from scrinalia.domains.archive.domain.text_quality import (
     AI_TEXT_COLUMNS,
@@ -62,11 +63,15 @@ class TextQualityService:
         """Applies a partial edit and re-queues what the new decision changes."""
         previous = self.repo.get_template(template_id)
         if previous is None:
-            raise TextTemplateNotFoundError(f"Trecho {template_id} não encontrado no catálogo.")
+            raise TextTemplateNotFoundError(
+                t("Trecho {template_id} não encontrado no catálogo.", template_id=template_id)
+            )
 
         updated = self.repo.update_template(template_id, command)
         if updated is None:
-            raise TextTemplateNotFoundError(f"Trecho {template_id} não encontrado no catálogo.")
+            raise TextTemplateNotFoundError(
+                t("Trecho {template_id} não encontrado no catálogo.", template_id=template_id)
+            )
 
         refreshed = self._refresh_evidence(updated)
         if not self._changes_effect(previous, refreshed):
@@ -94,7 +99,9 @@ class TextQualityService:
         """
         removed = self.repo.delete_template(template_id)
         if removed is None:
-            raise TextTemplateNotFoundError(f"Trecho {template_id} não encontrado no catálogo.")
+            raise TextTemplateNotFoundError(
+                t("Trecho {template_id} não encontrado no catálogo.", template_id=template_id)
+            )
 
         requeued = self.repo.requeue_documents(
             self.repo.find_documents_with_excerpt(removed.matchers, list(AI_TEXT_COLUMNS)),
@@ -123,7 +130,7 @@ class TextQualityService:
         approves it.
         """
         if not 0 < min_ratio <= 1:
-            raise InvalidParam("O parâmetro 'min_ratio' deve estar entre 0 e 1.")
+            raise InvalidParam(t("O parâmetro 'min_ratio' deve estar entre 0 e 1."))
 
         documents = self.repo.count_documents(list(columns))
         min_count = max(min_documents, math.ceil(min_ratio * documents))
@@ -166,7 +173,7 @@ class TextQualityService:
         """Shows the impact of an excerpt on the text the chosen consumers read."""
         rule = self._rule_from(request.text, request.variants, request.action, request.replacement)
         if not rule.matchers:
-            raise InvalidParam("O trecho não pode ser vazio.")
+            raise InvalidParam(t("O trecho não pode ser vazio."))
 
         return self.repo.dry_run(
             [rule], self._columns_for_scope(list(request.scope)), sample_limit=request.sample_limit

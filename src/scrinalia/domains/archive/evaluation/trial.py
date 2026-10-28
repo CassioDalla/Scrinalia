@@ -33,6 +33,7 @@ from typing import Any, cast
 from sqlalchemy import func, literal, select
 from sqlalchemy.orm import Session
 
+from scrinalia.core.i18n import t
 from scrinalia.core.logger import logger
 from scrinalia.domains.archive.engines.classification.registry import (
     EngineName,
@@ -175,7 +176,7 @@ def _typology_trial(
     catalogue = list(TypologyRepository(db).get_active_typologies())
     if not catalogue:
         raise InvalidWorkerSettingsError(
-            "O catálogo de tipologias ativo está vazio: o ensaio não tem contra o que classificar."
+            t("O catálogo de tipologias ativo está vazio: o ensaio não tem contra o que classificar.")
         )
 
     setting = WorkerSettingsRepository(db).get(spec.name)
@@ -228,14 +229,17 @@ def _resolve(db: Session, spec: WorkerSpec, setting: Any, config: Any) -> Resolv
     validate_options(spec, config.options)
     if config.engine_options:
         raise InvalidWorkerSettingsError(
-            "Um ensaio compara o que a tela pode salvar: 'engine_options' é um repasse de uma "
-            "execução e não vira padrão, então não entra na comparação."
+            t(
+                "Um ensaio compara o que a tela pode salvar: 'engine_options' é um repasse de uma execução e não vira padrão, então não entra na comparação."
+            )
         )
     refused = sorted(set(config.options) & RUN_ONLY_OPTIONS)
     if refused:
         raise InvalidWorkerSettingsError(
-            f"O ensaio não aceita {refused}: o tamanho da amostra é o 'sample'. Um limite por "
-            "configuração mediria uma configuração diferente da que a tela pode salvar."
+            t(
+                "O ensaio não aceita {refused}: o tamanho da amostra é o 'sample'. Um limite por configuração mediria uma configuração diferente da que a tela pode salvar.",
+                refused=refused,
+            )
         )
     return resolve_configuration(
         db,

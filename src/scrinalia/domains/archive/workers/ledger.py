@@ -31,6 +31,7 @@ from sqlalchemy.exc import IntegrityError
 
 from scrinalia.core.author import Author
 from scrinalia.core.database import SessionFactory, create_session
+from scrinalia.core.i18n import t
 from scrinalia.core.logger import logger
 from scrinalia.domains.archive.exceptions import WorkerRunAlreadyActiveError
 from scrinalia.domains.archive.models.enums import WorkerRunStatus, WorkerRunTrigger
@@ -89,7 +90,7 @@ class WorkerRunLedger:
                 return run
         except IntegrityError as exc:
             raise WorkerRunAlreadyActiveError(
-                f"Já existe uma execução em andamento para o worker '{worker_name}'."
+                t("Já existe uma execução em andamento para o worker '{worker_name}'.", worker_name=worker_name)
             ) from exc
 
     def claim(self, worker_names: Sequence[str], *, runner_id: str, lease_seconds: int) -> ClaimedRun | None:
@@ -237,7 +238,7 @@ class WorkerRunLedger:
                 return run.run_id
         except IntegrityError as exc:
             raise WorkerRunAlreadyActiveError(
-                f"Já existe uma execução em andamento para o worker '{worker_name}'."
+                t("Já existe uma execução em andamento para o worker '{worker_name}'.", worker_name=worker_name)
             ) from exc
         except Exception as exc:
             logger.error(f"⚠️ Não foi possível abrir o registro da execução de '{worker_name}': {exc}")

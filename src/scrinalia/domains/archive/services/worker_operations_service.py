@@ -14,6 +14,7 @@ from datetime import UTC, datetime
 from sqlalchemy.orm import Session
 
 from scrinalia.core.author import Author
+from scrinalia.core.i18n import t
 from scrinalia.core.logger import logger
 from scrinalia.domains.archive.exceptions import InvalidWorkerSettingsError, WorkerNotFoundError
 from scrinalia.domains.archive.models.operations import WorkerSetting
@@ -222,10 +223,16 @@ class WorkerOperationsService:
     def _spec(self, worker_name: str) -> WorkerSpec:
         spec = WORKER_CATALOGUE.get(worker_name)
         if spec is None:
-            raise WorkerNotFoundError(f"Worker '{worker_name}' não existe. Opções: {sorted(WORKER_CATALOGUE)}.")
+            raise WorkerNotFoundError(
+                t(
+                    "Worker '{worker_name}' não existe. Opções: {worker_catalogue}.",
+                    worker_name=worker_name,
+                    worker_catalogue=sorted(WORKER_CATALOGUE),
+                )
+            )
         if spec.origin_axis:
             raise InvalidWorkerSettingsError(
-                "A ingestão não tem engine nem padrão de worker: a configuração dela é a da origem."
+                t("A ingestão não tem engine nem padrão de worker: a configuração dela é a da origem.")
             )
         return spec
 
