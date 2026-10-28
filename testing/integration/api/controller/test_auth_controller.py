@@ -332,3 +332,16 @@ def test_the_language_needs_a_session(api_client: TestClient) -> None:
     response = api_client.patch("/api/v1/auth/me", json={"locale": "en"})
 
     assert response.status_code == 401
+
+
+def test_logout_answers_in_the_requested_language(api_client: TestClient, generate_user) -> None:
+    """The sentence a screen shows is composed in the language of the request (ADR 0020 §4)."""
+    generate_user(email=EMAIL, password=PASSWORD)
+    _login(api_client)
+
+    english = api_client.post("/api/v1/auth/logout", headers={"Accept-Language": "en-US"})
+    assert english.json()["message"] == "Signed out."
+
+    _login(api_client)
+    portuguese = api_client.post("/api/v1/auth/logout", headers={"Accept-Language": "pt-BR"})
+    assert portuguese.json()["message"] == "Sessão encerrada."
