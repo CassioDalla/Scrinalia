@@ -31,3 +31,8 @@ export function fieldMap(select: (messages: Messages) => Strings, field: "label"
     },
   });
 }
+
+/** Fills the catalogue's `{name}` placeholders; the same convention the server's refusals use. */
+export function fill(template: string, facts: Record<string, string | number>): string {
+  return Object.entries(facts).reduce((text, [key, value]) => text.replace(`{${key}}`, String(value)), template);
+}
