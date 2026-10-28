@@ -15,6 +15,8 @@ import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { EmptyState, ErrorState, Spinner } from "@/components/ui/Feedback";
 import { Input } from "@/components/ui/Input";
 import { Notice } from "@/components/ui/Notice";
+import { useCopy } from "@/i18n/context";
+import { fill } from "@/i18n/maps";
 import { ACTION } from "@/lib/copy";
 import { formatCount, formatDateTime } from "@/lib/format";
 import { useDebounced } from "@/lib/useDebounced";
@@ -38,6 +40,7 @@ export function MaterialisationPanel({
   totalPlans: number;
   statusCounts: Record<string, number>;
 }) {
+  const messages = useCopy();
   const queryClient = useQueryClient();
   const [preview, setPreview] = useState<MaterialisationPreview | null>(null);
   const [result, setResult] = useState<MaterialisationResult | null>(null);
@@ -92,13 +95,15 @@ export function MaterialisationPanel({
     <div className="flex flex-col gap-3">
       <Card>
         <CardHeader>
-          <p className="text-sm font-medium">Decisão</p>
+          <p className="text-sm font-medium">{messages.pages.materialisation.decision}</p>
         </CardHeader>
         <CardBody className="flex flex-col gap-3">
           <div>
             <div className="flex items-baseline justify-between">
               <span className="text-2xl font-semibold tabular-nums">{formatCount(decided)}</span>
-              <span className="text-xs text-(--color-muted)">de {formatCount(totalPlans)} degraus decididos</span>
+              <span className="text-xs text-(--color-muted)">
+                {fill(messages.pages.materialisation.decidedOf, { total: formatCount(totalPlans) })}
+              </span>
             </div>
             <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-black/10">
               <div
@@ -116,30 +121,25 @@ export function MaterialisationPanel({
               </li>
             ))}
           </ul>
-          <p className="text-xs text-(--color-muted)">
-            Só os degraus <strong>aprovados</strong> entram na árvore. Um degrau rejeitado deixa suas descrições
-            órfãs de propósito: elas ficam no degrau aprovado mais próximo acima.
-          </p>
+          <p className="text-xs text-(--color-muted)">{messages.pages.materialisation.onlyApproved}</p>
         </CardBody>
       </Card>
 
       <Card>
         <CardHeader>
-          <p className="text-sm font-medium">Materializar</p>
+          <p className="text-sm font-medium">{messages.pages.materialisation.materialise}</p>
         </CardHeader>
         <CardBody className="flex flex-col gap-3">
           <div className="grid gap-2">
             <Input
               value={note}
               onChange={(event) => setNote(event.target.value)}
-              placeholder="Nota da decisão (opcional)"
+              placeholder={messages.pages.materialisation.notePlaceholder}
             />
           </div>
 
           {approved === 0 ? (
-            <Notice tone="warn">
-              Nenhum degrau aprovado: aprove ao menos um antes de materializar a árvore.
-            </Notice>
+            <Notice tone="warn">{messages.pages.materialisation.noApproved}</Notice>
           ) : null}
 
           <div className="flex flex-wrap gap-2">
@@ -153,9 +153,9 @@ export function MaterialisationPanel({
             <Button
               onClick={() => apply.mutate()}
               disabled={!preview || apply.isPending}
-              title={preview ? undefined : "Confira o impacto antes de materializar."}
+              title={preview ? undefined : messages.pages.materialisation.previewFirst}
             >
-              {apply.isPending ? "Materializando…" : "Materializar"}
+              {apply.isPending ? messages.pages.materialisation.materialising : messages.pages.materialisation.materialise}
             </Button>
           </div>
 
@@ -164,22 +164,21 @@ export function MaterialisationPanel({
 
           {preview ? (
             <div className="flex flex-col gap-3 rounded-md bg-black/[0.02] p-3 ring-1 ring-(--color-line)">
-              <p className="text-xs font-medium">
-                Nada foi escrito ainda: estes números são exatamente o que a materialização vai fazer.
-              </p>
+              <p className="text-xs font-medium">{messages.pages.materialisation.nothingWritten}</p>
               <ul className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
-                <PreviewNumber label="degraus a criar" value={preview.nodes_to_create} />
-                <PreviewNumber label="degraus a reaproveitar" value={preview.nodes_to_adopt} />
-                <PreviewNumber label="já na árvore" value={preview.nodes_already_materialised} />
-                <PreviewNumber label="descrições a vincular" value={preview.documents_to_attach} />
-                <PreviewNumber label="descrições já no lugar" value={preview.documents_already_placed} />
-                <PreviewNumber label="descrições que continuam órfãs" value={preview.remaining_orphans} />
+                <PreviewNumber label={messages.pages.materialisation.nodesToCreate} value={preview.nodes_to_create} />
+                <PreviewNumber label={messages.pages.materialisation.nodesToAdopt} value={preview.nodes_to_adopt} />
+                <PreviewNumber label={messages.pages.materialisation.alreadyInTree} value={preview.nodes_already_materialised} />
+                <PreviewNumber label={messages.pages.materialisation.documentsToAttach} value={preview.documents_to_attach} />
+                <PreviewNumber label={messages.pages.materialisation.documentsPlaced} value={preview.documents_already_placed} />
+                <PreviewNumber label={messages.pages.materialisation.remainingOrphans} value={preview.remaining_orphans} />
               </ul>
 
               {items.some((item) => item.rooted_early) ? (
                 <Notice tone="warn">
-                  {items.filter((item) => item.rooted_early).length} degrau(s) ficariam na raiz: o degrau acima deles
-                  não foi aprovado.
+                  {fill(messages.pages.materialisation.rootedEarly, {
+                    count: String(items.filter((item) => item.rooted_early).length),
+                  })}
                 </Notice>
               ) : null}
 
@@ -196,7 +195,7 @@ export function MaterialisationPanel({
               </ul>
               {items.length > visibleItems.length ? (
                 <Button size="sm" variant="ghost" onClick={() => setShowAllItems(true)}>
-                  Ver os {formatCount(items.length)} degraus
+                  {fill(messages.pages.materialisation.seeAll, { count: formatCount(items.length) })}
                 </Button>
               ) : null}
             </div>
@@ -205,15 +204,14 @@ export function MaterialisationPanel({
           {result ? (
             <Notice tone="ok" as="div" className="flex flex-col gap-2">
               <p className="font-medium text-(--color-ok)">
-                Materialização {result.materialisation_id}: {formatCount(result.created_nodes)} degrau(s) criado(s),{" "}
-                {formatCount(result.adopted_nodes)} reaproveitado(s), {formatCount(result.documents_attached)}{" "}
-                descrição(ões) ligada(s).
+                {fill(messages.pages.materialisation.resultLine, {
+                  id: String(result.materialisation_id),
+                  created: formatCount(result.created_nodes),
+                  adopted: formatCount(result.adopted_nodes),
+                  attached: formatCount(result.documents_attached),
+                })}
               </p>
-              <p className="text-(--color-muted)">
-                Cada materialização fica registrada no histórico abaixo, com o estado anterior do que mudou. Desfazer
-                recoloca as descrições onde estavam e remove os degraus criados; se uma materialização posterior tiver
-                ligado algo a eles, o desfazer recusa.
-              </p>
+              <p className="text-(--color-muted)">{messages.pages.materialisation.resultNote}</p>
               <div>
                 <Button
                   size="sm"
@@ -221,7 +219,7 @@ export function MaterialisationPanel({
                   disabled={undo.isPending}
                   onClick={() => undo.mutate(result.materialisation_id)}
                 >
-                  {undo.isPending ? "Desfazendo…" : "Desfazer esta materialização"}
+                  {undo.isPending ? messages.pages.materialisation.undoing : messages.pages.materialisation.undoThis}
                 </Button>
               </div>
             </Notice>
@@ -233,7 +231,7 @@ export function MaterialisationPanel({
 
       <Card>
         <CardHeader>
-          <p className="text-sm font-medium">Histórico de materializações</p>
+          <p className="text-sm font-medium">{messages.pages.materialisation.historyTitle}</p>
         </CardHeader>
         <CardBody className="grid gap-2">
           {/*
@@ -242,18 +240,22 @@ export function MaterialisationPanel({
           */}
           <Input
             value={logTerm}
-            placeholder="Buscar por quem materializou ou pela nota…"
+            placeholder={messages.pages.materialisation.logPlaceholder}
             onChange={(event) => setLogTerm(event.target.value)}
           />
-          {log.isPending ? <Spinner label="Lendo o histórico…" /> : null}
+          {log.isPending ? <Spinner label={messages.pages.materialisation.readingHistory} /> : null}
           {log.error ? <ErrorState error={log.error} /> : null}
           {log.data && log.data.items.length === 0 ? (
             <EmptyState
-              title={term ? `Nenhuma materialização para “${term}”` : "Nenhuma materialização ainda"}
+              title={
+              term
+                ? fill(messages.pages.materialisation.emptyTitleTerm, { term })
+                : messages.pages.materialisation.emptyTitleNone
+            }
               hint={
                 term
-                  ? "A busca cobre quem materializou e a nota da decisão."
-                  : "Cada materialização fica registrada aqui, com o estado anterior do que mudou."
+                  ? messages.pages.materialisation.emptyHintTerm
+                  : messages.pages.materialisation.emptyHintNone
               }
             />
           ) : null}
@@ -263,7 +265,11 @@ export function MaterialisationPanel({
                 <div className="flex items-center justify-between gap-2">
                   <span className="font-medium">#{entry.materialisation_id}</span>
                   {entry.undone_at ? (
-                    <Badge tone="neutral">desfeita em {formatDateTime(entry.undone_at)}</Badge>
+                    <Badge tone="neutral">
+                      {fill(messages.pages.materialisation.undoneAt, {
+                        date: formatDateTime(entry.undone_at),
+                      })}
+                    </Badge>
                   ) : (
                     <Button
                       size="sm"
@@ -276,8 +282,13 @@ export function MaterialisationPanel({
                   )}
                 </div>
                 <p className="text-(--color-muted)">
-                  {formatDateTime(entry.changed_at)} · {formatCount(entry.changed_rows)} registro(s) alterado(s)
-                  {entry.changed_by ? ` · por ${entry.changed_by}` : ""}
+                  {fill(messages.pages.materialisation.changedRows, {
+                    date: formatDateTime(entry.changed_at),
+                    count: formatCount(entry.changed_rows),
+                  })}
+                  {entry.changed_by
+                    ? fill(messages.pages.materialisation.byAuthor, { name: entry.changed_by })
+                    : ""}
                 </p>
                 {entry.note ? <p className="text-(--color-muted)">{entry.note}</p> : null}
               </li>
@@ -287,12 +298,17 @@ export function MaterialisationPanel({
             <div className="flex items-center gap-2">
               {log.data.total > log.data.items.length ? (
                 <Button size="sm" variant="ghost" onClick={() => setLogLimit((current) => current + 10)}>
-                  Ver mais
+                  {messages.pages.materialisation.seeMore}
                 </Button>
               ) : null}
               <span className="text-xs text-(--color-muted)">
-                mostrando {formatCount(log.data.items.length)} de {formatCount(log.data.total)}{" "}
-                {term ? "materialização(ões) encontrada(s) pela busca" : "materialização(ões)"}
+                {fill(messages.pages.materialisation.showing, {
+                  shown: formatCount(log.data.items.length),
+                  total: formatCount(log.data.total),
+                  noun: term
+                    ? messages.pages.materialisation.foundBySearch
+                    : messages.pages.materialisation.allMaterialisations,
+                })}
               </span>
             </div>
           ) : null}
