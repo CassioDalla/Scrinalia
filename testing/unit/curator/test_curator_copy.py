@@ -136,9 +136,10 @@ def test_no_retired_word_is_visible() -> None:
     offenders: list[str] = []
     for path in SOURCES:
         relative = path.relative_to(CURATOR).as_posix()
-        # The canon is about the Portuguese interface: the English catalogue is allowed to say
-        # "Apply" and "Undo", which are the correct English for `Aplicar` and `Desfazer`.
-        if relative == "src/i18n/en.ts":
+        # The canon is about the Portuguese interface: the English catalogue (and the per-screen
+        # translation modules) may say "Apply" and "Undo", the correct English for `Aplicar` and
+        # `Desfazer`.
+        if relative == "src/i18n/en.ts" or relative.startswith("src/i18n/pages/"):
             continue
         for value in visible_strings(path):
             if any(relative == file and allowed in value for file, allowed, _ in ALLOWED):
@@ -226,7 +227,6 @@ PENDING = {
     "src/routes/BlockedSpellingsRoute.tsx",
     "src/routes/CleaningRulesRoute.tsx",
     "src/routes/CollectionRoute.tsx",
-    "src/routes/ConflictsRoute.tsx",
     "src/routes/EntitiesRoute.tsx",
     "src/routes/NerExclusionsRoute.tsx",
     "src/routes/PlanRoute.tsx",
