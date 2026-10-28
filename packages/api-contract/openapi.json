@@ -1868,17 +1868,8 @@
             "minimum": 0.0,
             "type": "integer"
           },
-          "description": {
-            "description": "One line explaining what the queue is, for an empty card.",
-            "type": "string"
-          },
           "key": {
-            "description": "Stable identifier of the queue, e.g. 'tag_merge_proposals'.",
-            "type": "string"
-          },
-          "label": {
-            "description": "Text the archivist reads on the card.",
-            "type": "string"
+            "$ref": "#/components/schemas/QueueKey"
           },
           "route": {
             "description": "Screen that resolves the queue, already filtered.",
@@ -1887,9 +1878,7 @@
         },
         "required": [
           "count",
-          "description",
           "key",
-          "label",
           "route"
         ],
         "title": "CurationQueue",
@@ -7853,6 +7842,22 @@
         ],
         "title": "PublicTagSummary",
         "type": "object"
+      },
+      "QueueKey": {
+        "description": "\n    The stable identity of a queue on the home screen.\n\n    The contract carries the key, not the card's copy: the SPA resolves the label and the one-line\n    description from it (ADR 0020 §5), so the copy pass and its gate can see the first screen. The\n    values are the identity of an outcome, so they never change once released.\n    ",
+        "enum": [
+          "hierarchy_orphans",
+          "hierarchy_plans",
+          "tag_merge_proposals",
+          "cross_domain_conflicts",
+          "subject_low_confidence",
+          "orphan_subject_tags",
+          "typology_low_confidence",
+          "anomalies",
+          "unreviewed_documents"
+        ],
+        "title": "QueueKey",
+        "type": "string"
       },
       "ReclassifyEntityRequest": {
         "properties": {

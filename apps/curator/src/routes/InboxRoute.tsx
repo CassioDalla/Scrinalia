@@ -9,6 +9,7 @@ import { Card, CardBody } from "@/components/ui/Card";
 import { EmptyState, ErrorState, Skeleton } from "@/components/ui/Feedback";
 import { PageBody } from "@/components/layout/PageBody";
 import { formatCount } from "@/lib/format";
+import { QUEUE_COPY } from "@/lib/queues";
 
 /**
  * Screens that exist today.
@@ -38,12 +39,13 @@ function QueueCard({ queue }: { queue: CurationQueue }) {
   const target = pathOf(queue.route);
   const ready = IMPLEMENTED.has(target);
   const empty = queue.count === 0;
+  const copy = QUEUE_COPY[queue.key];
 
   const body = (
     <CardBody className="flex h-full flex-col gap-2">
       <div className="flex items-start justify-between gap-3">
         <span className={empty ? "text-sm font-medium text-(--color-muted)" : "text-sm font-medium"}>
-          {queue.label}
+          {copy.label}
         </span>
         <span
           className={
@@ -55,7 +57,7 @@ function QueueCard({ queue }: { queue: CurationQueue }) {
           {formatCount(queue.count)}
         </span>
       </div>
-      <p className="text-xs text-(--color-muted)">{queue.description}</p>
+      <p className="text-xs text-(--color-muted)">{copy.description}</p>
       <div className="mt-auto pt-1">
         {!ready ? (
           <Badge tone="neutral" title="Esta tela ainda não está pronta para uso.">
