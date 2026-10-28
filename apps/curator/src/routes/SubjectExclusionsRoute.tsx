@@ -322,9 +322,10 @@ export function SubjectExclusionsRoute() {
         {exclusions.isPending ? <Spinner /> : null}
 
         {/*
-          The write first, and the catalogue of decisions under it — the same order the tags screen
-          uses for its stopwords. Banning here deletes nothing, so the record below is the whole point
-          of the screen; the form stays collapsed and gets a labelled button to be findable.
+          The write first, and the catalogue of decisions under it — the same order the blocked-
+          spellings screen uses for its form. Banning here deletes nothing, so the record below is
+          the whole point of the screen; the form stays collapsed and gets a labelled button to be
+          findable.
         */}
         <Disclosure
           triggerLabel="+ Vetar termos"

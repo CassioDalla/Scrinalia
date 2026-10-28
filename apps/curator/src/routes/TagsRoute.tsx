@@ -148,9 +148,11 @@ export function validateTagsSearch(search: Record<string, unknown>): TagsSearch 
  * ``alvenarias`` weighs little, finds its near-duplicate, and decides whether to absorb it. The
  * active question is in the URL, so a colleague can be sent the exact list.
  *
- * The stopwords subtab manages the banned terms **and** the one destructive write in the taxonomy
- * that has no undo. Banning and purging are separate steps on purpose: banning a word deletes
- * nothing, and the purge shows what it would destroy before destroying it.
+ * The blocked spellings used to be the fourth subtab, and they are `/assuntos/grafias` since #232 —
+ * a screen of their own, beside *Não é Assunto*, because this page never described the only write
+ * that deletes a tag. What stayed here is the ban as a consequence of a merge decision: the axis is
+ * chosen before the click, banning a word deletes nothing, and the exclusion of the tags lives on
+ * that other screen, behind its own preview.
  */
 export function TagsRoute() {
   const search = routeApi.useSearch();
@@ -359,15 +361,15 @@ function SimilarityTab({
    * Bans the whole selection, in one call.
    *
    * The route already takes a list and the marks *are* the list: twenty spellings that all mean
-   * "this is not worth considering" are twenty trips to the Stopwords tab and one click here. The
-   * axis is chosen before the click because a ban is *from* one axis — `domain_stopwords.word` is
-   * unique, so re-banning moves the term instead of adding a second row — and the NER veto is not
-   * the subject veto.
+   * "this is not worth considering" are twenty trips to the blocked-spellings screen and one click
+   * here. The axis is chosen before the click because a ban is *from* one axis —
+   * `domain_stopwords.word` is unique, so re-banning moves the term instead of adding a second row —
+   * and the NER veto is not the subject veto.
    *
-   * Banning **deletes nothing**: the tags stay in the collection, linked and reachable, and the step
-   * that removes them is the purge, in the Stopwords tab and behind its own preview. That is why the
-   * marks are **not** cleared: unlike a merge, this write took no row away, so the selection is still
-   * there and the merge it was made for is still possible.
+   * Banning **deletes nothing**: the tags stay in the collection, linked and reachable, and the
+   * step that removes them is the exclusion of tags, in `Grafias bloqueadas`, behind its own
+   * preview. That is why the marks are **not** cleared: unlike a merge, this write took no row
+   * away, so the selection is still there and the merge it was made for is still possible.
    */
   const banMarked = useMutation({
     mutationFn: () => banStopwords({ words: marked.map((member) => member.name), scope: banScope }),
