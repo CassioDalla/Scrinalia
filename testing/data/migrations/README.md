@@ -6,7 +6,11 @@ database the suite has just emptied; this one meets the catalogues and the rows 
 installation already has, which is the only way a backfill that assumes a null-free column fails
 before an operator's upgrade does.
 
-One directory per release, named after the version it is a snapshot of:
+One directory, named after the release it is a snapshot of (`1.7.0`). It is a **baseline, not a
+release note**: it stays at that release and grows as migrations land, so the chain an installation
+older than the fixture would run is the chain the test keeps replaying. Re-snapshotting `dev` at
+each release would reset that chain to one migration and throw away the rows earlier migrations
+proved.
 
 - `schema.sql` — `pg_dump --schema-only --no-owner --no-privileges` of a database migrated to the
   release, with the `\restrict`/`\unrestrict` lines `pg_dump` 15.19 wraps it in removed. They are
@@ -16,8 +20,7 @@ One directory per release, named after the version it is a snapshot of:
   carries the rows the migrations seed, the release's `alembic_version` row, and the application
   rows below.
 
-The test uses whichever directory is named in its `FIXTURE_DIR`, so a new release adds a directory
-and moves that constant in the same pull request.
+The test names this directory in its `FIXTURE_DIR`; it does not follow the newest directory.
 
 ## Adding rows: the next data migration's job
 
@@ -42,17 +45,18 @@ The migration seeds are data too, and are part of the dump: six description leve
 eight macro categories and the `manual`/`csv` origins. A migration that rewrites the ladder or the
 catalogues is verified against those rows.
 
-## Regenerating a release fixture
+## Rebuilding the fixture (only if it is lost or corrupt)
 
-Only when a release is cut (or when the fixture is first created for a previous release):
+Reproduce the 1.7.0 baseline, then restore the rows from the table above — the file is not
+regenerated from `dev`, because that would silently drop the rows a later migration added:
 
 1. Create a scratch database in the test cluster, e.g.
-   `docker exec scrinalia_db_test psql -U test_user -d test_db -c "CREATE DATABASE fixture_180"`.
-2. From a checkout of the release tag, with `DB_*` pointing at that database, run
+   `docker exec scrinalia_db_test psql -U test_user -d test_db -c "CREATE DATABASE fixture_170"`.
+2. From a checkout of the `v1.7.0` tag, with `DB_*` pointing at that database, run
    `uv run alembic upgrade head` — the migrations must be the tag's, not `dev`'s.
 3. Insert the application rows from the table above (raw SQL is enough; they are a handful).
 4. Dump both files with the `pg_dump` of the same major version as the test image (15), e.g.
-   `docker exec scrinalia_db_test pg_dump -U test_user --schema-only --no-owner --no-privileges fixture_180`,
+   `docker exec scrinalia_db_test pg_dump -U test_user --schema-only --no-owner --no-privileges fixture_170`,
    then the same with `--data-only --inserts`. Remove the `\restrict`/`\unrestrict` lines.
 5. Run `TEST_DATABASE_URL=... uv run pytest testing/integration/migrations` and read the
    assertions: they name the values the fixture is supposed to carry.
