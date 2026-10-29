@@ -283,6 +283,8 @@ um cartão cada: a fila que a próxima execução leria, os números de processa
 execução e a ativa, a agenda, a configuração efetiva e a disponibilidade de runner. O operador pode
 **Adicionar origem** — um seletor das definições que o pacote traz e esta instalação ainda não tem
 linha; adicionar ativa —, **Configurar**, **Agenda**, **Desativar/Ativar** e **Enfileirar execução**.
+**Configurar** e **Agenda** são os dois painéis do cartão: o clique abre o cartão, mostra o formulário
+e o traz para a vista, e um segundo clique fecha o formulário e deixa o cartão aberto.
 Pausar é o ciclo de vida, não uma remoção: o cartão, a agenda e as execuções ficam, e só a execução é
 recusada. Uma instalação nova começa sem fonte configurada (a linha `pmc` semeada é apagada por
 `f1090f825a94`), então a seção mostra **Nenhuma origem configurada** e o fluxo de adicionar.

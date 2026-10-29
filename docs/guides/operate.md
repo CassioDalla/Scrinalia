@@ -60,6 +60,8 @@ sources:
   - apps/curator/src/routes/SystemWorkersRoute.tsx
   - apps/curator/src/components/workers/**
   - apps/curator/src/routes/SystemHealthRoute.tsx
+  - apps/curator/src/routes/OriginsRoute.tsx
+  - apps/curator/src/components/ingestion/OriginPanel.tsx
   - .github/workflows/ci.yml
   - mkdocs.yml
 ---
@@ -342,7 +344,9 @@ sources, one card each: the queue the next execution would read, the processed/f
 last and active run, the agenda, the effective configuration and the runner availability. The
 operator can **Adicionar origem** — a picker of the definitions the package ships and this
 installation has no row for; adding activates — **Configurar**, **Agenda**, **Desativar/Ativar** and
-**Enfileirar execução**. Pausing is the lifecycle, not a removal: the card, the agenda and the runs
+**Enfileirar execução**. **Configurar** and **Agenda** are the card's two panels: the click opens the
+card, shows the form and brings it into view, and a second click closes the form and leaves the card
+open. Pausing is the lifecycle, not a removal: the card, the agenda and the runs
 stay, and only the run is refused. A fresh install starts with no configured source (the seeded
 `pmc` row is dropped by `f1090f825a94`), so the section shows **Nenhuma origem configurada** and the
 add flow. **Entradas** lists the manual and CSV rows read-only, with their status and a link to

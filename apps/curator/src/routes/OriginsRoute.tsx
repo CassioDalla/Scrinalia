@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { useState } from "react";
+import { useId, useState } from "react";
 
 import {
   deleteIngestionSchedule,
@@ -14,6 +14,7 @@ import {
   type OriginConfigField,
 } from "@/api/client";
 import { queries } from "@/api/queries";
+import { OriginPanelActions, OriginPanelRegion, useOriginPanel } from "@/components/ingestion/OriginPanel";
 import { PageBody } from "@/components/layout/PageBody";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Badge } from "@/components/ui/Badge";
@@ -170,8 +171,9 @@ const ORIGIN_KIND_LABEL = stringMap((m) => ({
 
 function OriginCard({ origin, canOperate }: { origin: IngestionOrigin; canOperate: boolean }) {
   const messages = useCopy();
-  const [open, setOpen] = useState(false);
-  const [panel, setPanel] = useState<"none" | "config" | "schedule">("none");
+  const { open, panel, reveal, onOpenChange } = useOriginPanel();
+  const configId = useId();
+  const scheduleId = useId();
 
   const active = origin.active_run_id != null;
   const controlled = canOperate;
@@ -179,20 +181,12 @@ function OriginCard({ origin, canOperate }: { origin: IngestionOrigin; canOperat
   return (
     <Disclosure
       open={open}
-      onOpenChange={(next) => {
-        setOpen(next);
-        if (!next) setPanel("none");
-      }}
+      onOpenChange={onOpenChange}
       header={<OriginHeader origin={origin} />}
       actions={
         controlled ? (
           <div className="flex flex-wrap items-center gap-2">
-            <Button size="sm" variant="secondary" onClick={() => setPanel(panel === "config" ? "none" : "config")}>
-              {messages.pages.origins.configure}
-            </Button>
-            <Button size="sm" variant="ghost" onClick={() => setPanel(panel === "schedule" ? "none" : "schedule")}>
-              {messages.pages.origins.scheduleTab}
-            </Button>
+            <OriginPanelActions panel={panel} onSelect={reveal} configId={configId} scheduleId={scheduleId} />
             <LifecycleButton origin={origin} />
           </div>
         ) : null
@@ -274,8 +268,15 @@ function OriginCard({ origin, canOperate }: { origin: IngestionOrigin; canOperat
           )}
         </div>
 
-        {panel === "config" && controlled ? <OriginConfigForm origin={origin} /> : null}
-        {panel === "schedule" && controlled ? <OriginScheduleForm origin={origin} /> : null}
+        {controlled ? (
+          <OriginPanelRegion
+            panel={panel}
+            configId={configId}
+            scheduleId={scheduleId}
+            config={<OriginConfigForm origin={origin} />}
+            schedule={<OriginScheduleForm origin={origin} />}
+          />
+        ) : null}
       </div>
     </Disclosure>
   );
