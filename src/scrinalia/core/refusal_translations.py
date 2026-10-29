@@ -20,7 +20,7 @@ TRANSLATIONS: dict[str, str] = {
     "A importação tem {total_bytes} MB; o limite é {limit_mb} MB. Divida o arquivo em partes.": "The import is {total_bytes} MB; the limit is {limit_mb} MB. Split the file into parts.",
     "A ingestão não tem engine nem padrão de worker: a configuração dela é a da origem.": "Ingestion has no engine or worker preset: its configuration is the origin's.",
     "A ingestão não tem ensaio: a unidade dela é a origem.": "Ingestion has no trial: its unit is the origin.",
-    "A ingestão é enfileirada pela origem, não pelo worker genérico: use a tela de ingestão ou POST /api/v1/ingestion/origins/{code}/runs.": "Ingestion is enqueued by the origin, not by the generic worker: use the ingestion screen or POST /api/v1/ingestion/origins/{code}/runs.",
+    "A ingestão é enfileirada pela origem, não pelo worker genérico: use a tela de ingestão.": "Ingestion is enqueued by the origin, not by the generic worker: use the ingestion screen.",
     "A lista de tags para mesclar não pode estar vazia.": "The list of tags to merge cannot be empty.",
     "A materialização {materialisation_id} já foi desfeita em {undone_at}.": "Materialisation {materialisation_id} was already undone at {undone_at}.",
     "A mesclagem {merge_id} já foi desfeita em {undone_at}.": "Merge {merge_id} was already undone at {undone_at}.",
@@ -192,5 +192,19 @@ TRANSLATIONS.update(
         "O canal '{code}' é lido a cada requisição e não tem opções de execução.": "Channel '{code}' is read on every request and has no run options.",
         "O canal '{code}' é o site público: ele é lido a cada requisição e não tem agenda.": "Channel '{code}' is the public site: it is read on every request and has no schedule.",
         "O site público ainda não está configurado nesta instalação.": "The public site is not configured in this installation yet.",
+    }
+)
+
+TRANSLATIONS.update(
+    {
+        "O canal '{code}' ainda não está configurado. Salve a configuração antes de executar.": "Channel '{code}' is not configured yet. Save the configuration before running it.",
+        "O canal '{code}' é lido a cada requisição e não tem execução.": "Channel '{code}' is read on every request and has no run.",
+        "O canal '{code}' está pausado; ative-o antes de executar.": "Channel '{code}' is paused; enable it before running it.",
+        "O canal '{code}' ainda não exporta nesta versão.": "Channel '{code}' does not export in this version yet.",
+        "O worker 'diffusion' precisa do canal: informe --channel ou a linha da fila.": "The 'diffusion' worker needs the channel: pass --channel or the queue row.",
+        "A difusão é enfileirada pelo canal, não pelo worker genérico: use a tela de difusão.": "Diffusion is enqueued by the channel, not by the generic worker: use the diffusion screen.",
+        "A difusão não tem ensaio: a unidade dela é o canal.": "Diffusion has no trial: its unit is the channel.",
+        "A difusão não tem engine nem padrão de worker: a configuração dela é a do canal.": "Diffusion has no engine or worker preset: its configuration is the channel's.",
+        "A agenda da difusão é a do canal: use a tela de difusão, não a agenda genérica de workers.": "The diffusion schedule belongs to the channel: use the diffusion screen, not the generic worker schedule.",
     }
 )

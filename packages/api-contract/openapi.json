@@ -10776,6 +10776,17 @@
               }
             ]
           },
+          "channel_code": {
+            "description": "O canal de difusão que esta execução de exportação escreveu; nulo em qualquer outro worker, inclusive na ingestão, cujo eixo é a origem (ADR 0023).",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "config": {
             "additionalProperties": {},
             "description": "Configuração resolvida (preset já mesclado com os overrides), para o registro não mudar de sentido quando um preset mudar no código.",
@@ -10993,6 +11004,17 @@
           },
           "cancel_requested_by": {
             "description": "Quem pediu o cancelamento; nulo quando o pedido veio de um sinal do processo, não do painel.",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "channel_code": {
+            "description": "O canal de difusão que esta execução de exportação escreveu; nulo em qualquer outro worker, inclusive na ingestão, cujo eixo é a origem (ADR 0023).",
             "oneOf": [
               {
                 "type": "string"
@@ -11904,6 +11926,7 @@
           "unit": {
             "enum": [
               "origin",
+              "channel",
               "staging",
               "document",
               "tag",
@@ -12680,6 +12703,78 @@
           }
         },
         "summary": "UpdateChannel",
+        "tags": [
+          "Diffusion"
+        ]
+      }
+    },
+    "/api/v1/diffusion/channels/{code}/runs": {
+      "post": {
+        "deprecated": false,
+        "operationId": "ApiV1DiffusionChannelsCodeRunsTriggerRun",
+        "parameters": [
+          {
+            "deprecated": false,
+            "in": "path",
+            "name": "code",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkerRunDTO"
+                }
+              }
+            },
+            "description": "Document created, URL follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "TriggerRun",
         "tags": [
           "Diffusion"
         ]
@@ -17548,6 +17643,24 @@
             "deprecated": false,
             "in": "query",
             "name": "origin",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "channel",
             "required": false,
             "schema": {
               "oneOf": [

@@ -6,8 +6,14 @@ missing ``opt={"access": ...}`` fails there; these tests prove the levels in the
 matter: an anonymous client cannot read the panel, and a curator cannot operate it.
 """
 
+from datetime import UTC, datetime
+
 from litestar.testing import TestClient
 
+from scrinalia.domains.archive.exceptions import WorkerRunAlreadyActiveError
+from scrinalia.domains.archive.models.enums import WorkerRunStatus, WorkerRunTrigger
+from scrinalia.domains.archive.schemas.system_schema import WorkerRunDTO
+from scrinalia.domains.diffusion.service import DiffusionChannelService
 from scrinalia.domains.identity.domain.permissions import Role
 
 
@@ -90,3 +96,37 @@ def test_the_reads_are_authenticated_and_the_writes_are_operate(api_client: Test
     assert curator.get("/api/v1/diffusion/channels").status_code == 200
     refused = curator.patch("/api/v1/diffusion/channels/public_site", json={"enabled": False})
     assert refused.status_code == 403
+
+
+def test_the_channel_run_is_enqueued_from_the_channel_route(client: TestClient, mocker) -> None:
+    """The selector is the channel, not a body: the route is what names it (ADR 0023 §7)."""
+    mock = mocker.patch.object(DiffusionChannelService, "trigger")
+    mock.return_value = WorkerRunDTO(
+        run_id=7,
+        worker_name="diffusion",
+        channel_code="fake_export",
+        status=WorkerRunStatus.QUEUED,
+        trigger=WorkerRunTrigger.API,
+        queued_at=datetime.now(UTC),
+    )
+
+    response = client.post("/api/v1/diffusion/channels/fake_export/runs")
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["worker_name"] == "diffusion"
+    assert body["channel_code"] == "fake_export"
+    assert body["origin_code"] is None
+    mock.assert_called_once()
+
+
+def test_a_second_run_of_the_channel_answers_409(client: TestClient, mocker) -> None:
+    mocker.patch.object(
+        DiffusionChannelService,
+        "trigger",
+        side_effect=WorkerRunAlreadyActiveError("já existe uma execução"),
+    )
+
+    response = client.post("/api/v1/diffusion/channels/fake_export/runs")
+
+    assert response.status_code == 409

@@ -24,6 +24,8 @@ from sqlalchemy.orm import Session
 from scrinalia.core.author import Author
 from scrinalia.core.config import get_settings
 from scrinalia.core.i18n import t
+from scrinalia.domains.archive.repository.worker_run_repo import WorkerRunDTO, WorkerRunRepository
+from scrinalia.domains.archive.workers.ledger import WorkerRunLedger
 from scrinalia.domains.archive.workers.schedule import (
     InvalidCronError,
     InvalidTimezoneError,
@@ -36,6 +38,7 @@ from scrinalia.domains.diffusion.diffusion_registry import (
     DiffusionCapability,
     DiffusionChannelSummary,
     PublicSiteConfig,
+    adapter_module,
     get_channel_summary,
 )
 from scrinalia.domains.diffusion.exceptions import (
@@ -56,11 +59,14 @@ from scrinalia.domains.diffusion.schemas import (
 
 
 class DiffusionChannelService:
-    """The operator screen's read model and the two writes it owns."""
+    """The operator screen's read model, its writes and the channel's manual run."""
 
-    def __init__(self, db: Session) -> None:
+    def __init__(self, db: Session, ledger: WorkerRunLedger | None = None) -> None:
         self.db = db
         self.channels = DiffusionChannelRepository(db)
+        # The ledger writes through its own committed session, so the QUEUED row is durable before
+        # the response and visible to a runner that claims it (ADR 0014).
+        self.ledger = ledger or WorkerRunLedger()
 
     # --- reads -----------------------------------------------------------------------------------
 
@@ -73,14 +79,26 @@ class DiffusionChannelService:
         flag instead of the API keeping a second "available" list that could disagree.
         """
         rows = {row.code: row for row in self.channels.list_all()}
+        runs = WorkerRunRepository(self.db)
+        last = runs.last_diffusion_by_channel()
+        active = runs.active_diffusion_by_channel()
         return DiffusionChannelListResponse(
-            channels=[self._dto(summary, rows.get(summary.code)) for summary in CHANNELS.values()],
+            channels=[
+                self._dto(summary, rows.get(summary.code), last=last.get(summary.code), active=active.get(summary.code))
+                for summary in CHANNELS.values()
+            ],
             generated_at=datetime.now(UTC),
         )
 
     def get_channel(self, code: str) -> DiffusionChannelDTO:
         """One definition with its lifecycle; an unknown code answers 404 with the known ones."""
-        return self._dto(get_channel_summary(code), self.channels.get(code))
+        runs = WorkerRunRepository(self.db)
+        return self._dto(
+            get_channel_summary(code),
+            self.channels.get(code),
+            last=runs.last_diffusion_by_channel().get(code),
+            active=runs.active_diffusion_by_channel().get(code),
+        )
 
     # --- writes ----------------------------------------------------------------------------------
 
@@ -188,6 +206,45 @@ class DiffusionChannelService:
         self.db.flush()
         return self.get_channel(code)
 
+    # --- the manual run --------------------------------------------------------------------------
+
+    def trigger(self, code: str, *, requested_by: Author | None = None) -> WorkerRunDTO:
+        """
+        Queues one export run of the channel and answers the ``QUEUED`` row.
+
+        The channel is the **selector** of the run, which is why this route exists instead of the
+        generic worker one: a ``WorkerRunRequest`` has no channel to name. The row carries the
+        channel as its axis and pins the channel's saved run policy in ``request``; the runner
+        re-reads the channel row at execution, exactly like the ingestion run resolves its origin.
+
+        A ``LIVE`` channel has no run, a paused channel does not export, and a channel without an
+        adapter is refused here rather than queued to fail: the operator reads the sentence now, and
+        the ledger does not collect a failure the operator cannot fix.
+        """
+        summary = get_channel_summary(code)
+        channel = self.channels.get(code)
+        if channel is None:
+            raise DiffusionChannelNotFoundError(
+                t("O canal '{code}' ainda não está configurado. Salve a configuração antes de executar.", code=code)
+            )
+        if summary.capability is not DiffusionCapability.EXPORT:
+            raise InvalidDiffusionConfigError(
+                t("O canal '{code}' é lido a cada requisição e não tem execução.", code=code)
+            )
+        if not channel.enabled:
+            raise InvalidDiffusionConfigError(t("O canal '{code}' está pausado; ative-o antes de executar.", code=code))
+        adapter_module(summary)
+
+        return self.ledger.enqueue(
+            "diffusion",
+            requested_by=requested_by,
+            engine_name=None,
+            preset=None,
+            config={},
+            channel_code=code,
+            request={"options": dict(channel.options or {})},
+        )
+
     # --- the public site identity ----------------------------------------------------------------
 
     def public_site(self) -> PublicSiteConfig:
@@ -207,7 +264,14 @@ class DiffusionChannelService:
 
     # --- the DTO ---------------------------------------------------------------------------------
 
-    def _dto(self, summary: DiffusionChannelSummary, channel: DiffusionChannel | None) -> DiffusionChannelDTO:
+    def _dto(
+        self,
+        summary: DiffusionChannelSummary,
+        channel: DiffusionChannel | None,
+        *,
+        last: WorkerRunDTO | None = None,
+        active: WorkerRunDTO | None = None,
+    ) -> DiffusionChannelDTO:
         return DiffusionChannelDTO(
             code=summary.code,
             label=summary.label,
@@ -229,6 +293,13 @@ class DiffusionChannelService:
             ],
             options=dict(channel.options or {}) if channel is not None else {},
             schedule=self._schedule_of(channel),
+            last_run_id=last.run_id if last is not None else None,
+            last_run_status=last.status if last is not None else None,
+            # The moment the operator means by "when did it last run": the end, or the start when it
+            # is still going, or the queue when no runner has claimed it yet.
+            last_run_at=(last.finished_at or last.started_at or last.queued_at) if last is not None else None,
+            active_run_id=active.run_id if active is not None else None,
+            active_run_status=active.status if active is not None else None,
             updated_by=channel.updated_by if channel is not None else None,
             updated_at=channel.updated_at if channel is not None else None,
         )

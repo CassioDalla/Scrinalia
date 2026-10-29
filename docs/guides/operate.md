@@ -85,7 +85,7 @@ position in the pipeline, the unit its queue counts, whether it respects the rev
 and the stamp it writes. The catalogue imports no worker — it resolves each module lazily — so
 reading it is cheap.
 
-Ten workers, in pipeline order:
+Eleven workers, in pipeline order:
 
 | # | Name | Module | Unit | Governed | Effective engine from |
 | --- | --- | --- | --- | --- | --- |
@@ -99,12 +99,13 @@ Ten workers, in pipeline order:
 | 8 | `macro-category` | `worker_macro_category` | tag | no | signature |
 | 9 | `quality-validator` | `worker_quality_validator` | document | yes | active `LLM_CHECK` rule |
 | 10 | `embedding` | `worker_embedding` | document | no | signature |
+| 11 | `diffusion` | `diffusion.worker` | channel | no | — |
 
 The order is the order in which the stages unblock each other, and it is the order the pipeline
 section of the panel shows:
 
 ```text
-ingestion -> transfer -> cleaning -> ner -> typology -> thumbnail -> conflict-judge -> macro-category -> quality-validator -> embedding
+ingestion -> transfer -> cleaning -> ner -> typology -> thumbnail -> conflict-judge -> macro-category -> quality-validator -> embedding -> diffusion
 ```
 
 - **`ingestion`** is the stage in front of the archive: it lists one origin, reads its detail pages
@@ -432,6 +433,26 @@ agenda; for an `EXPORT` channel, **Agenda** saves a five-field cron in an IANA z
 `OPERATE`, and the read routes stay authenticated, so a curator who follows the URL sees the cards
 read-only.
 
+An `EXPORT` channel runs in the **same worker ledger** as every other execution, with the channel as
+its axis (ADR 0023 §7): the run names the channel in `archive_worker_runs.channel_code`, and the queue
+is one slot per channel. Two channels export at the same time, a second run of one channel answers
+**409**, and an origin never shares a slot with a channel. **Enfileirar execução** on the card queues
+one run; the worker re-reads the channel row, resolves the module the definition names
+(`DiffusionChannelSummary.adapter`) and hands it the row. A channel the package ships **without an
+adapter** answers **422** and queues nothing, and a `LIVE` channel has no run at all. The scheduler
+reads the due channels the way it reads due origins: a period that arrives while the channel is active
+is **skipped**, a failed scheduled run follows the existing retry policy, and a channel without an
+adapter is skipped instead of enqueued. The card shows the last run with its status, linked to the
+ledger filtered by the channel. The host command is the same one-shot runner:
+
+```bash
+# One export of one channel, from the host; the channel's adapter resolves the destination.
+uv run python -m scrinalia.domains.archive.workers.runner diffusion --channel dataset
+```
+
+The generic `POST /api/v1/system/workers/diffusion/runs` **refuses** the worker: the body has no
+channel to name, so the selector is `POST /api/v1/diffusion/channels/{code}/runs`.
+
 Nothing on this page publishes. `is_published` is the record's permission to leave, edited on the
 dossier under `CURATE`; the channel is where it goes, and the two are independent. The public site's
 identity — title, description, institution, contact, logo, locale, public address and indexing — is
@@ -643,7 +664,7 @@ in the SPA: the menu no longer carries them (issue #22).
 | `/api/v1/system/workers/{worker_name}/settings` | `PUT` | `OPERATE` | persists the default engine/preset/batch/options |
 | `/api/v1/system/workers/{worker_name}/settings` | `DELETE` | `OPERATE` | drops the override so the worker follows the code |
 | `/api/v1/system/workers/{worker_name}/settings/revisions` | `GET` | authenticated | who changed what, when |
-| `/api/v1/system/runs` | `GET` | authenticated | the execution ledger, newest first; filters `worker`, `origin`, `status`, `fingerprint`, `trial`, `limit`, `offset` |
+| `/api/v1/system/runs` | `GET` | authenticated | the execution ledger, newest first; filters `worker`, `origin`, `channel`, `status`, `fingerprint`, `trial`, `limit`, `offset` |
 | `/api/v1/system/runs/{run_id}` | `GET` | authenticated | one execution, with its trial result when it is a comparison (ADR 0018) |
 | `/api/v1/system/runs/{run_id}/cancel` | `POST` | `OPERATE` | asks one execution to stop: closes a queued run no runner claimed, records the request on a running one (#72) |
 | `/api/v1/system/failures` | `GET` | authenticated | the grouped root causes; filters `days` (default 30), `worker`, `limit` |
@@ -666,7 +687,7 @@ The SPA mirrors it, as cards of `/configuracoes` under *Operação*:
 
 | Screen | Shows |
 | --- | --- |
-| `/sistema/workers` | the operations screen, with two tabs in the URL (#207). **Painel**: the ten workers — engine, preset and model, the queue, what the stamp of each one names (with a producer, without a known one, without a record) and an **Enfileirar execução** button; above them, the runner cards (online, host, version, concurrency, capabilities, last heartbeat) and a warning when none is online. A worker no online runner accepts is marked **sem runner** — the row still queues and waits. The **Agenda** badge and fact show the cron, the zone, the next run and the last skipped period. The effective configuration is read-only here. The `ingestion` row is the exception: it has no engine, no aggregate pending/processed/failed counters, and its run belongs to an origin, so it links to `/sistema/ingestao` instead of a generic run button — the per-origin numbers live on that screen. The last run is a link to the ledger, filtered by that worker and with the exact row highlighted. **Execuções**: the execution ledger, and the failures of the last 30 days grouped by root cause; clicking a cause filters the ledger to its occurrences. Each row says who asked (`painel`, `linha de comando` or `agenda`), the attempt (`tentativa 2/3`), the row it retries and, when it is queued with a `not_before`, when it starts. A **trial** row carries an `ensaio` badge and links to the comparison card, so it is never mistaken for a production run (ADR 0018). An active row offers **Cancelar execução…** with an inline confirmation, and a requested stop is shown as a note while the worker finishes the current batch. The old `/sistema/execucoes` path redirects here with the search preserved |
+| `/sistema/workers` | the operations screen, with two tabs in the URL (#207). **Painel**: the eleven workers — engine, preset and model, the queue, what the stamp of each one names (with a producer, without a known one, without a record) and an **Enfileirar execução** button; above them, the runner cards (online, host, version, concurrency, capabilities, last heartbeat) and a warning when none is online. A worker no online runner accepts is marked **sem runner** — the row still queues and waits. The **Agenda** badge and fact show the cron, the zone, the next run and the last skipped period. The effective configuration is read-only here. Two rows are the exception: `ingestion` and `diffusion` have no engine and no aggregate pending/processed/failed counters, and their runs belong to an origin and a channel, so they link to `/sistema/ingestao` and `/configuracoes/difusao` instead of a generic run button — the per-origin and per-channel numbers live on those screens. The last run is a link to the ledger, filtered by that worker and with the exact row highlighted. **Execuções**: the execution ledger, and the failures of the last 30 days grouped by root cause; clicking a cause filters the ledger to its occurrences. The filters are `worker`, `origin`, `channel` and `status`, and each row carries the axis it ran on (`origem {code}` or `canal {code}`). Each row says who asked (`painel`, `linha de comando` or `agenda`), the attempt (`tentativa 2/3`), the row it retries and, when it is queued with a `not_before`, when it starts. A **trial** row carries an `ensaio` badge and links to the comparison card, so it is never mistaken for a production run (ADR 0018). An active row offers **Cancelar execução…** with an inline confirmation, and a requested stop is shown as a note while the worker finishes the current batch. The old `/sistema/execucoes` path redirects here with the search preserved |
 | `/configuracoes/workers` | the persisted default of each worker and its revisions, with save and remove, and the worker's **Agenda** (the cron, the zone, the enabled state and the pinned request) — the write the panel used to carry. A worker the catalogue marks `trial` (today the typology) also carries **Comparar configurações**: two configurations, the sample size, the side-by-side table (agreement with its denominator, coverage, abstention, the largest drawer, entropy, seconds per document, the queue and the projected hours) and **Usar esta**, which saves the measured body, and **Rodar no acervo inteiro**, which reads the saved body's queue and triggers the real run |
 | `/sistema/ingestao` | **Origens**, one card per configured source: its queue and last run, the adapter configuration, the agenda, **Desativar/Ativar** and **Enfileirar execução**; **Adicionar origem** opens the picker of the definitions without a row. The **Entradas** section shows the manual/CSV rows read-only, with a link to `/acervo/nova`. The card is `OPERATE`; the read routes remain authenticated (#206) |
 | `/sistema/diagnostico` | database, Ollama models, thumbnail storage, the ingestion origins (active/total, with a link to `/sistema/ingestao`) and the effective process configuration |
@@ -703,13 +724,21 @@ operating system's TCP timeout.
 
 `archive_worker_runs` has one row per execution, for **both** the CLI and the panel: the ledger is
 about the worker, not about the button that started it. A row carries `worker_name`, `origin_code`
-(the origin an `ingestion` run processed; null for an archive worker), `status`,
+(the origin an `ingestion` run processed; null for an archive worker), `channel_code` (the channel a
+`diffusion` run wrote; null for every other worker), `status`,
 `trigger` (`CLI`, `API` or `SCHEDULE`), `trial` (whether the execution is a comparison, ADR 0018),
 `requested_by` (and `requested_by_user_id`), `engine_name`, `preset`,
 the validated `request` (what a runner reproduces), the resolved `config`, the **effective worker
 `options`**, `queued_at`, `runner_id`, `started_at`, `heartbeat_at`, `lease_expires_at`,
 `cancel_requested_at`, `cancel_requested_by` (and `cancel_requested_by_user_id`), `finished_at`,
 `duration_ms`, `error`, the generated `error_fingerprint` and, on a trial, the `trial_result` JSONB.
+
+The two axes are exclusive: a run of `ingestion` names the origin and no channel, a run of `diffusion`
+names the channel and no origin, and every other worker names neither. The partial unique index is
+`(worker_name, COALESCE(origin_code, ''), COALESCE(channel_code, ''))`, so the queue is one slot per
+worker **and** per axis row: two channels export at the same time, and a second run of one channel
+waits like a second run of one origin. The ledger's writer checks the axis against the worker
+catalogue, which is the one definition of which worker has which.
 
 `config` answers "with which model?" and `options` answers "over which text, with which floor?" —
 the two halves of one run. `options` is resolved **when the run starts**, because the default of a
@@ -736,11 +765,12 @@ A cancellation is a **request** before it is a status: `cancel_requested_at` (an
 and only the worker's batch boundary turns it into `CANCELLED`. [Cancelling a run](#cancelling-a-run)
 is the whole story.
 
-`uq_worker_run_active` is a **partial unique index** on `(worker_name, COALESCE(origin_code, ''))`
-where the status is `QUEUED` or `RUNNING`. It, and not a process lock, is the concurrency guard: at
-most one run per worker may be in flight, across processes and across a reload. The origin in the
-key is what gives each ingestion origin a slot of its own without weakening the archive workers'
-one-slot-per-worker rule (their `origin_code` is null and coalesces to one value). A second submission becomes an
+`uq_worker_run_active` is a **partial unique index** on
+`(worker_name, COALESCE(origin_code, ''), COALESCE(channel_code, ''))` where the status is `QUEUED` or
+`RUNNING`. It, and not a process lock, is the concurrency guard: at most one run per worker and axis
+row may be in flight, across processes and across a reload. The origin and the channel in the key are
+what give each ingestion origin and each diffusion channel a slot of its own without weakening the
+archive workers' one-slot-per-worker rule (their two columns are null and coalesce to one value). A second submission becomes an
 `IntegrityError` that the API turns into `409` with a sentence ("Já existe uma execução em
 andamento para o worker '…'"). The CLI reaches the same error but has no handler for it, so it stops
 with a traceback instead of the sentence.
@@ -1097,8 +1127,10 @@ behaviour to expect, and so that a limit already paid for is not read as a defec
 - **The queue is one slot per worker.** A second run for a worker with one in flight answers `409`,
   and a schedule has to coalesce; a backlog or a priority is not what this queue is.
 - **One diffusion channel ships, and it is `LIVE`.** The registry carries the built-in public site;
-  no export adapter exists yet, and the run ledger has no channel axis, so the page configures
-  channels and nothing produces an export run. The card offers no enqueue action for that reason.
+  no export adapter exists yet, so the page configures channels and an export channel the package
+  ships without an adapter answers 422 and queues nothing. The run axis itself is in place: a
+  channel's export is a row of the shared ledger with `channel_code`, scheduled and retried like
+  any other run.
 - **The retry is bounded and unclassified.** A scheduled failure spends up to three attempts,
   whatever the cause: a missing model costs three bounded attempts, because a classifier that is
   wrong in the other direction either wastes the GPU or hides a real failure. The retry holds the

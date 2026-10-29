@@ -802,6 +802,7 @@ export const pt = {
     trigger: { API: "painel", CLI: "linha de comando", SCHEDULE: "agenda" },
     unit: {
       origin: "origens",
+      channel: "canais",
       staging: "registros importados",
       document: "descrições",
       tag: "tags",

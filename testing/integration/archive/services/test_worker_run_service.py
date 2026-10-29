@@ -389,3 +389,9 @@ def test_the_worker_reads_the_panel_request_from_the_ledger(db_session, ledger, 
     assert stored is not None
     assert stored.status == WorkerRunStatus.CANCELLED
     assert stored.error is None
+
+
+def test_the_generic_route_refuses_the_diffusion_worker(service) -> None:
+    """A ``WorkerRunRequest`` has no channel to name: the channel route is the selector."""
+    with pytest.raises(InvalidWorkerSettingsError, match="enfileirada pelo canal"):
+        service.trigger("diffusion", WorkerRunRequest())

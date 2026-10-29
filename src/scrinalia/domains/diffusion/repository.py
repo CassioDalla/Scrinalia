@@ -1,8 +1,8 @@
 """Reads and writes the channel table; the caller owns the transaction.
 
 It mirrors ``domains/ingestion/origin_repo.py``: the repository owns the lifecycle and the agenda,
-not the registry and not the run ledger. The scheduler's due query and ``advance`` land with #212,
-when the diffusion run axis exists.
+not the registry and not the run ledger. The scheduler's due query lives here because the agenda is
+the row's, and the advance is written by the scheduler on the same locked row (#212).
 """
 
 from __future__ import annotations
@@ -30,6 +30,28 @@ class DiffusionChannelRepository:
     def list_all(self) -> list[DiffusionChannel]:
         """Every row, ordered by code, so a caller that does not know the registry still reads them."""
         return list(self.db.scalars(select(DiffusionChannel).order_by(DiffusionChannel.code)))
+
+    def due(self, now: datetime) -> list[DiffusionChannel]:
+        """
+        The enabled channels whose agenda is due, locked for this transaction.
+
+        ``FOR UPDATE SKIP LOCKED`` is the second guard after the scheduler's advisory lock: a
+        handover between two scheduler transactions cannot enqueue the same period twice. A paused
+        channel is not due, and a channel without a cron or a ``next_run_at`` has no agenda to fire.
+        """
+        return list(
+            self.db.scalars(
+                select(DiffusionChannel)
+                .where(
+                    DiffusionChannel.enabled.is_(True),
+                    DiffusionChannel.cron.is_not(None),
+                    DiffusionChannel.next_run_at.is_not(None),
+                    DiffusionChannel.next_run_at <= now,
+                )
+                .order_by(DiffusionChannel.next_run_at, DiffusionChannel.code)
+                .with_for_update(skip_locked=True)
+            )
+        )
 
     def _new(self, code: str) -> DiffusionChannel:
         channel = DiffusionChannel(code=code)

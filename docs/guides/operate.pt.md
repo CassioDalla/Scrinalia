@@ -17,7 +17,7 @@ dele no pipeline, a unidade que a fila conta, se ele respeita a governança de r
 que escreve. O catálogo não importa nenhum worker — resolve cada módulo sob demanda —, então lê-lo
 é barato.
 
-Dez workers, na ordem do pipeline:
+Onze workers, na ordem do pipeline:
 
 | # | Nome | Módulo | Unidade | Governança | Engine efetiva vem de |
 | --- | --- | --- | --- | --- | --- |
@@ -31,12 +31,13 @@ Dez workers, na ordem do pipeline:
 | 8 | `macro-category` | `worker_macro_category` | tag | não | assinatura |
 | 9 | `quality-validator` | `worker_quality_validator` | documento | sim | regra `LLM_CHECK` ativa |
 | 10 | `embedding` | `worker_embedding` | documento | não | assinatura |
+| 11 | `diffusion` | `diffusion.worker` | canal | não | — |
 
 A ordem é a ordem em que as etapas liberam umas às outras, e é a ordem que a seção de pipeline do
 painel mostra:
 
 ```text
-ingestion -> transfer -> cleaning -> ner -> typology -> thumbnail -> conflict-judge -> macro-category -> quality-validator -> embedding
+ingestion -> transfer -> cleaning -> ner -> typology -> thumbnail -> conflict-judge -> macro-category -> quality-validator -> embedding -> diffusion
 ```
 
 - **`ingestion`** é a etapa à frente do Acervo: lista uma origem, lê as páginas de detalhe para o
@@ -368,6 +369,25 @@ ainda não tem; adicionar é um único `PATCH` que cria a linha com a configura�
 `EXPORT`, **Agenda** salva um cron de cinco campos num fuso IANA. A página é `OPERATE`, e as rotas de
 leitura continuam autenticadas, então um curador que siga a URL vê os cartões só para leitura.
 
+Um canal `EXPORT` roda no **mesmo ledger** de todas as execuções, com o canal como eixo (ADR 0023 §7):
+a execução nomeia o canal em `archive_worker_runs.channel_code`, e a fila é um slot por canal. Dois
+canais exportam ao mesmo tempo, uma segunda execução do mesmo canal responde **409**, e uma origem nunca
+divide slot com um canal. **Enfileirar execução** no cartão põe uma execução na fila; o worker relê a
+linha do canal, resolve o módulo que a definição nomeia (`DiffusionChannelSummary.adapter`) e entrega a
+linha a ele. Um canal que o pacote traz **sem adaptador** responde **422** e não enfileira nada, e um
+canal `LIVE` não tem execução. O scheduler lê os canais vencidos como lê as origens vencidas: um período
+que chega com o canal ativo é **pulado**, uma execução agendada que falhou segue a política de retry
+existente, e um canal sem adaptador é pulado em vez de enfileirado. O cartão mostra a última execução com
+o status e o link para o ledger filtrado pelo canal. O comando de host é o mesmo runner pontual:
+
+```bash
+# Uma exportação de um canal, a partir do host; o adaptador do canal resolve o destino.
+uv run python -m scrinalia.domains.archive.workers.runner diffusion --channel dataset
+```
+
+A rota genérica `POST /api/v1/system/workers/diffusion/runs` **recusa** o worker: o corpo não tem canal
+para nomear, então o seletor é `POST /api/v1/diffusion/channels/{code}/runs`.
+
 Nada nesta página publica. `is_published` é a permissão do registro para sair, editada na ficha sob
 `CURATE`; o canal é para onde ele vai, e os dois são independentes. A identidade do site público — título,
 descrição, instituição, contato, logotipo, idioma, endereço público e indexação — é o que o aplicativo lê
@@ -572,7 +592,7 @@ SPA: o menu não os carrega mais (issue #22).
 
 | Rota | Método | Permissão | O que faz |
 | --- | --- | --- | --- |
-| `/api/v1/system/workers` | `GET` | autenticado | os dez workers com configuração, números de fila, última execução/execução ativa e o registro de runners, numa requisição só |
+| `/api/v1/system/workers` | `GET` | autenticado | os onze workers com configuração, números de fila, última execução/execução ativa e o registro de runners, numa requisição só |
 | `/api/v1/system/workers/settings` | `GET` | autenticado | os padrões persistidos dos workers de IA, sem os contadores de fila (issue #53) |
 | `/api/v1/system/workers/{worker_name}/queue/preview` | `POST` | autenticado | o pendente de uma configuração **proposta**, calculado sem escrever |
 | `/api/v1/system/workers/{worker_name}/runs` | `POST` | `OPERATE` | enfileira uma execução com overrides só para ela e responde `201` na hora |
@@ -583,7 +603,7 @@ SPA: o menu não os carrega mais (issue #22).
 | `/api/v1/system/workers/{worker_name}/settings` | `PUT` | `OPERATE` | persiste o padrão de engine/preset/batch/options |
 | `/api/v1/system/workers/{worker_name}/settings` | `DELETE` | `OPERATE` | apaga o override para o worker voltar a seguir o código |
 | `/api/v1/system/workers/{worker_name}/settings/revisions` | `GET` | autenticado | quem mudou o quê, quando |
-| `/api/v1/system/runs` | `GET` | autenticado | o ledger de execuções, mais recente primeiro; filtros `worker`, `origin`, `status`, `fingerprint`, `trial`, `limit`, `offset` |
+| `/api/v1/system/runs` | `GET` | autenticado | o ledger de execuções, mais recente primeiro; filtros `worker`, `origin`, `channel`, `status`, `fingerprint`, `trial`, `limit`, `offset` |
 | `/api/v1/system/runs/{run_id}` | `GET` | autenticado | uma execução, com o resultado do ensaio quando ela é uma comparação (ADR 0018) |
 | `/api/v1/system/runs/{run_id}/cancel` | `POST` | `OPERATE` | pede que uma execução pare: fecha uma na fila que nenhum runner reivindicou, registra o pedido numa em andamento (#72) |
 | `/api/v1/system/failures` | `GET` | autenticado | as causas raiz agrupadas; filtros `days` (padrão 30), `worker`, `limit` |
@@ -606,7 +626,7 @@ A SPA espelha isso, como cartões de `/configuracoes` sob *Operação*:
 
 | Tela | Mostra |
 | --- | --- |
-| `/sistema/workers` | a tela de operação, com duas abas na URL (#207). **Painel**: os dez workers — engine, preset e modelo, a fila, o que o carimbo de cada um nomeia (com produtor, sem produtor conhecido, sem registro) e um botão **Enfileirar execução**; acima deles, os cartões dos runners (online, host, versão, concorrência, capacidades, último sinal) e um aviso quando nenhum está online. Um worker que nenhum runner online aceita aparece como **sem runner** — a linha ainda enfileira e espera. O selo e o fato **Agenda** mostram o cron, o fuso, a próxima execução e o último período pulado. A configuração efetiva aqui é só leitura. A linha `ingestion` é a exceção: não tem engine, não tem contadores agregados de pendentes/processados/falhas, e a execução dela pertence a uma origem, então ela leva a `/sistema/ingestao` em vez de um botão genérico — os números por origem ficam naquela tela. A última execução é um link para o ledger, filtrado por aquele worker e com a linha exata realçada. **Execuções**: o ledger de execuções e as falhas dos últimos 30 dias agrupadas por causa raiz; clicar numa causa filtra o ledger para as ocorrências dela. Cada linha diz quem pediu (`painel`, `linha de comando` ou `agenda`), a tentativa (`tentativa 2/3`), a linha que ela retenta e, quando está na fila com `not_before`, quando começa. Uma linha de **ensaio** carrega o selo `ensaio` e leva ao cartão de comparação, para nunca ser confundida com uma execução de produção (ADR 0018). Uma linha ativa oferece **Cancelar execução…** com confirmação embutida, e um pedido de parada aparece como nota enquanto o worker termina o lote atual. O caminho antigo `/sistema/execucoes` redireciona para cá com a busca preservada |
+| `/sistema/workers` | a tela de operação, com duas abas na URL (#207). **Painel**: os onze workers — engine, preset e modelo, a fila, o que o carimbo de cada um nomeia (com produtor, sem produtor conhecido, sem registro) e um botão **Enfileirar execução**; acima deles, os cartões dos runners (online, host, versão, concorrência, capacidades, último sinal) e um aviso quando nenhum está online. Um worker que nenhum runner online aceita aparece como **sem runner** — a linha ainda enfileira e espera. O selo e o fato **Agenda** mostram o cron, o fuso, a próxima execução e o último período pulado. A configuração efetiva aqui é só leitura. Duas linhas são a exceção: `ingestion` e `diffusion` não têm engine nem contadores agregados de pendentes/processados/falhas, e as execuções delas pertencem a uma origem e a um canal, então elas levam a `/sistema/ingestao` e a `/configuracoes/difusao` em vez de um botão genérico — os números por origem e por canal ficam naquelas telas. A última execução é um link para o ledger, filtrado por aquele worker e com a linha exata realçada. **Execuções**: o ledger de execuções e as falhas dos últimos 30 dias agrupadas por causa raiz; clicar numa causa filtra o ledger para as ocorrências dela. Os filtros são `worker`, `origin`, `channel` e `status`, e cada linha carrega o eixo em que rodou (`origem {code}` ou `canal {code}`). Cada linha diz quem pediu (`painel`, `linha de comando` ou `agenda`), a tentativa (`tentativa 2/3`), a linha que ela retenta e, quando está na fila com `not_before`, quando começa. Uma linha de **ensaio** carrega o selo `ensaio` e leva ao cartão de comparação, para nunca ser confundida com uma execução de produção (ADR 0018). Uma linha ativa oferece **Cancelar execução…** com confirmação embutida, e um pedido de parada aparece como nota enquanto o worker termina o lote atual. O caminho antigo `/sistema/execucoes` redireciona para cá com a busca preservada |
 | `/configuracoes/workers` | o padrão persistido de cada worker e suas revisões, com salvar e remover, e a **Agenda** do worker (o cron, o fuso, o estado habilitado e o request pinado) — a escrita que o painel carregava. Um worker que o catálogo marca `trial` (hoje a tipologia) também carrega **Comparar configurações**: duas configurações, o tamanho da amostra, a tabela lado a lado (concordância com o denominador, cobertura, abstenção, a maior gaveta, entropia, segundos por documento, a fila e as horas projetadas) e **Usar esta**, que salva o corpo medido, e **Rodar no acervo inteiro**, que lê a fila do corpo salvo e dispara a execução real |
 | `/sistema/ingestao` | **Origens**, um cartão por fonte configurada: a fila e a última execução, a configuração do adaptador, a agenda, **Desativar/Ativar** e **Enfileirar execução**; **Adicionar origem** abre o seletor das definições sem linha. A seção **Entradas** mostra as linhas manual/CSV só para leitura, com link para `/acervo/nova`. O cartão é `OPERATE`; as rotas de leitura continuam autenticadas (#206) |
 | `/sistema/diagnostico` | banco, modelos do Ollama, storage das miniaturas, as origens da ingestão (ativas/total, com link para `/sistema/ingestao`) e a configuração efetiva do processo |
@@ -642,12 +662,21 @@ timeout de TCP do sistema operacional.
 ## O ledger de execuções
 
 `archive_worker_runs` tem uma linha por execução, tanto da CLI quanto do painel: o ledger é sobre o
-worker, não sobre o botão que o iniciou. Uma linha carrega `worker_name`, `status`, `trigger` (`CLI`,
+worker, não sobre o botão que o iniciou. Uma linha carrega `worker_name`, `origin_code` (a origem que uma
+execução de `ingestion` processou; nulo nos workers de archive) e `channel_code` (o canal que uma execução
+de `diffusion` escreveu; nulo em todos os outros), `status`, `trigger` (`CLI`,
 `API` ou `SCHEDULE`), `trial` (se a execução é uma comparação, ADR 0018), `requested_by` (e `requested_by_user_id`), `engine_name`, `preset`, o `request` validado
 (o que um runner reproduz), o `config` resolvido, as **`options` efetivas do worker**, `attempt`, `retry_of`, `not_before`, `queued_at`,
 `runner_id`, `started_at`, `heartbeat_at`, `lease_expires_at`, `cancel_requested_at`,
 `cancel_requested_by` (e `cancel_requested_by_user_id`), `finished_at`, `duration_ms`, `error`
 e o `error_fingerprint` gerado.
+
+Os dois eixos são exclusivos: uma execução de `ingestion` nomeia a origem e nenhum canal, uma de
+`diffusion` nomeia o canal e nenhuma origem, e os demais workers não nomeiam nenhum dos dois. O índice
+parcial único é `(worker_name, COALESCE(origin_code, ''), COALESCE(channel_code, ''))`, então a fila é
+um slot por worker **e** por linha do eixo: dois canais exportam ao mesmo tempo, e uma segunda execução
+de um canal espera como a segunda de uma origem. O escritor do ledger confere o eixo contra o catálogo,
+que é a definição única de qual worker tem qual.
 
 O `config` responde "com qual modelo?" e as `options` respondem "sobre qual texto, com qual limiar?" —
 as duas metades de uma execução. As `options` são resolvidas **quando a execução começa**, porque o
@@ -674,9 +703,13 @@ com o vínculo `_user_id`) é gravado enquanto a linha ainda está `QUEUED`/`RUN
 lote do worker o transforma em `CANCELLED`. [Cancelar uma execução](#cancelar-uma-execucao) é a
 história inteira.
 
-`uq_worker_run_active` é um **índice único parcial** sobre `(worker_name)` quando o status é `QUEUED`
-ou `RUNNING`. É ele, e não um lock de processo, a trava de concorrência: no máximo uma execução por
-worker em andamento, entre processos e através de um reload. Um segundo envio vira um
+`uq_worker_run_active` é um **índice único parcial** sobre
+`(worker_name, COALESCE(origin_code, ''), COALESCE(channel_code, ''))` quando o status é `QUEUED` ou
+`RUNNING`. É ele, e não um lock de processo, a trava de concorrência: no máximo uma execução por
+worker e por linha do eixo em andamento, entre processos e através de um reload. A origem e o canal
+na chave são o que dá a cada origem de ingestão e a cada canal de difusão uma vaga própria sem
+enfraquecer a regra de uma vaga por worker dos workers de archive (as duas colunas deles são nulas e
+coalescem para um valor). Um segundo envio vira um
 `IntegrityError` que a API transforma em `409` com uma frase ("Já existe uma execução em andamento
 para o worker '…'"). A CLI chega ao mesmo erro, mas não tem tratamento para ele, então termina com o
 traceback em vez da frase.
@@ -1032,9 +1065,10 @@ comportamento esperar, e para um limite já pago não ser lido como defeito.
 - **A fila é um slot por worker.** Uma segunda execução de um worker com uma em andamento responde
   `409`, e um agendamento precisa coalescer; backlog ou prioridade não é o que esta fila é.
 - **Um canal de difusão embarcado, e ele é `LIVE`.** O registry carrega o site público embutido; não
-  existe adaptador de exportação ainda, e o ledger de execuções não tem eixo de canal, então a página
-  configura canais e nada produz uma execução de exportação. É por isso que o cartão não oferece ação
-  de enfileirar.
+  existe adaptador de exportação ainda, então a página configura canais e um canal de exportação que o
+  pacote traz sem adaptador responde 422 e não enfileira nada. O eixo de execução existe: a exportação
+  de um canal é uma linha do ledger compartilhado com `channel_code`, agendada e retentada como
+  qualquer outra execução.
 - **O retry é limitado e não classificado.** Uma falha agendada gasta até três tentativas, qualquer que
   seja a causa: um modelo faltando custa três tentativas limitadas, porque um classificador errado na
   outra direção ou desperdiça a GPU ou esconde uma falha real. O retry segura o slot do worker durante o

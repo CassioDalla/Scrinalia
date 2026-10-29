@@ -99,11 +99,14 @@ def test_worker_pipeline_order_is_complete() -> None:
     assert "macro-category" in runner.WORKERS
     assert "quality-validator" in runner.WORKERS
     assert "embedding" in runner.WORKERS
-    assert runner.PIPELINE_ORDER[-1] == "embedding"
+    # The diffusion export is the output of the pipeline, not a stage the AI reads: it runs after
+    # every worker that can change the text (ADR 0023).
+    assert runner.PIPELINE_ORDER[-1] == "diffusion"
+    assert runner.PIPELINE_ORDER[-2] == "embedding"
     # The validator reads the tags, the typology and the entities, and the embedding is
-    # always last because every text mutation has to happen before it.
-    assert runner.PIPELINE_ORDER[-2] == "quality-validator"
-    assert runner.PIPELINE_ORDER[-3] == "macro-category"
+    # always last among the AI stages because every text mutation has to happen before it.
+    assert runner.PIPELINE_ORDER[-3] == "quality-validator"
+    assert runner.PIPELINE_ORDER[-4] == "macro-category"
     assert set(runner.PIPELINE_ORDER) == set(runner.WORKERS)
 
 

@@ -24,3 +24,16 @@ class PublicSiteNotConfiguredError(DomainException):
     """The public site was not added, or it is paused; the public identity read answers 404."""
 
     pass
+
+
+class DiffusionAdapterMissingError(DomainException):
+    """
+    The channel has no adapter in this version, so an export run cannot be queued.
+
+    The registry ships a definition and, for an export channel, the module that writes it. Until the
+    first adapter lands (#214) an export channel that is only a definition must answer with a
+    sentence instead of queueing a run that would fail for a reason the operator cannot fix. The
+    worker raises the same refusal defensively, for a row that was queued before a deploy.
+    """
+
+    pass

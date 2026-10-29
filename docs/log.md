@@ -3169,3 +3169,23 @@ with short or full shas, and part of a `## <date> — <title>` entry.
   - `guides/operate.md` — **no-change**: same reason. The registry, the two capabilities, the
     add/configure/pause/agenda gesture and the public site's 404 are unchanged, and the new
     capability line states the same distinction the page already documents.
+
+## 2026-10-29 — the diffusion run axis (#212)
+
+- **Range:** `47588c7..2bc33c7`
+- **Pages:**
+  - `guides/operate.md` — **updated**: the eleventh worker and its place in the pipeline, the channel
+    axis of the ledger (exclusive with the origin, the new partial unique index), the manual run, the
+    scheduler's skip/retry behaviour and the channel filter in the ledger table. The known limit is
+    corrected: the axis exists, and what is missing is the adapter (#214).
+  - `guides/operate.pt.md` — **updated**: the translation of the same.
+  - `guides/data-model.md` — **updated**: `channel_code` and the axis in the `archive_worker_runs`
+    row.
+  - `guides/data-model.pt.md` — **updated**: the translation of the same.
+  - `guides/curate.md` — **updated**: the card's **Enfileirar execução**, the last-run link and the
+    one-slot-per-channel rule.
+  - `guides/curate.pt.md` — **updated**: the translation of the same.
+- **Not verified:** the panel, the ledger and the card were rendered against a stub API (the eleven
+  rows, the `canal dataset` badge, the channel filter and the enqueue button); the enqueue click and
+  the polling were not exercised against a live API in the browser — the route, the slot and the
+  refusals are pinned by the API's integration tests, not by a rendered write.

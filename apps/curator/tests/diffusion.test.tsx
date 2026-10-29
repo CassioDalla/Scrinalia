@@ -170,12 +170,30 @@ describe("the export card", () => {
     expect(screen.queryByText(/aplicativo separado/)).toBeNull();
   });
 
-  it("opens the agenda form, and offers no enqueue until the ledger has the channel axis", () => {
+  it("opens the agenda form and offers the manual export run", () => {
     withClient(<DiffusionChannelCard channel={DATASET} canOperate />);
 
     fireEvent.click(screen.getByRole("button", { name: /Agenda/ }));
 
     expect(screen.getByDisplayValue("0 2 * * *")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Enfileirar execução" })).toBeTruthy();
+  });
+
+  it("disables the run while one is in flight, and says so", () => {
+    withClient(
+      <DiffusionChannelCard
+        channel={{ ...DATASET, active_run_id: 9, active_run_status: "RUNNING" }}
+        canOperate
+      />,
+    );
+
+    const button = screen.getByRole("button", { name: "Já há uma execução" }) as HTMLButtonElement;
+    expect(button.disabled).toBe(true);
+  });
+
+  it("never offers a run on a live channel", () => {
+    withClient(<DiffusionChannelCard channel={PUBLIC_SITE} canOperate />);
+
     expect(screen.queryByRole("button", { name: /Enfileirar execução/ })).toBeNull();
   });
 });
