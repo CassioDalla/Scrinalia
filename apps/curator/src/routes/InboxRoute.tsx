@@ -9,37 +9,12 @@ import { Card, CardBody } from "@/components/ui/Card";
 import { EmptyState, ErrorState, Skeleton } from "@/components/ui/Feedback";
 import { PageBody } from "@/components/layout/PageBody";
 import { formatCount, formatDateTime } from "@/lib/format";
-import { QUEUE_COPY } from "@/lib/queues";
+import { QUEUE_COPY, QUEUE_DESTINATIONS } from "@/lib/queues";
 import { useCopy } from "@/i18n/context";
 import { fill } from "@/i18n/maps";
 
-/**
- * Screens that exist today.
- *
- * The queues come from the API with the route that resolves them, which keeps the mapping on one
- * side. But a route in the contract is not a route that is *deployed* yet, and sending the
- * archivist to a blank page would be worse than saying "not yet" — so the front decides what it
- * can actually open, and the card says the rest is pending.
- */
-const IMPLEMENTED = new Set([
-  "/",
-  "/acervo/lista",
-  "/arranjo/plano",
-  "/arranjo/diagnostico",
-  "/assuntos/tags",
-  "/assuntos/categorias",
-  "/entidades/conflitos",
-  "/qualidade/anomalias",
-  "/arranjo/tipologias",
-]);
-
-function pathOf(route: string): string {
-  return route.split("?")[0] ?? route;
-}
-
 function QueueCard({ queue }: { queue: CurationQueue }) {
-  const target = pathOf(queue.route);
-  const ready = IMPLEMENTED.has(target);
+  const destination = QUEUE_DESTINATIONS[queue.key];
   const empty = queue.count === 0;
   const copy = QUEUE_COPY[queue.key];
   const messages = useCopy();
@@ -62,11 +37,7 @@ function QueueCard({ queue }: { queue: CurationQueue }) {
       </div>
       <p className="text-xs text-(--color-muted)">{copy.description}</p>
       <div className="mt-auto pt-1">
-        {!ready ? (
-          <Badge tone="neutral" title={messages.pages.inbox.notReadyTitle}>
-            {messages.pages.inbox.notReady}
-          </Badge>
-        ) : empty ? (
+        {empty ? (
           // Zero is not hidden: the archivist has to know the queue exists and is empty.
           <Badge tone="neutral">{messages.pages.inbox.empty}</Badge>
         ) : (
@@ -78,26 +49,11 @@ function QueueCard({ queue }: { queue: CurationQueue }) {
 
   const className = "h-full transition " + (empty ? "opacity-60" : "");
 
-  if (!ready) {
-    return (
-      <Card className={className}>
-        {body}
-      </Card>
-    );
-  }
-
   return (
-    <Link to={target} search={searchOf(queue.route)} className={className + " hover:ring-(--color-accent)/40"}>
+    <Link {...destination} className={className + " hover:ring-(--color-accent)/40"}>
       <Card className="h-full hover:ring-(--color-accent)/40">{body}</Card>
     </Link>
   );
-}
-
-/** Query string of the destination, so the card lands on the screen already filtered. */
-function searchOf(route: string): Record<string, string> {
-  const query = route.split("?")[1];
-  if (!query) return {};
-  return Object.fromEntries(new URLSearchParams(query));
 }
 
 export function InboxRoute() {

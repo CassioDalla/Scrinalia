@@ -61,7 +61,7 @@ export type Screen = {
   readonly dynamicTitle?: true;
 };
 
-export const SCREENS: Record<ScreenId, Screen> = {
+export const SCREENS = {
   inbox: { path: "/" },
   collection: { path: "/acervo/lista" },
   tree: { path: "/acervo/arvore" },
@@ -90,4 +90,4 @@ export const SCREENS: Record<ScreenId, Screen> = {
   settings: { path: "/configuracoes" },
   users: { path: "/configuracoes/usuarios" },
   dossier: { path: "/acervo/$descriptionId", dynamicTitle: true },
-};
+} as const satisfies Record<ScreenId, Screen>;

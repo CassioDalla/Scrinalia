@@ -338,10 +338,10 @@ alone at the right. The icons come from `lucide-react`, one glyph per entry.
 
 ### Início — `/`
 
-The work list. It answers "what needs me today?" with one card per queue and the route that resolves
-it, already filtered. It is a **read view of existing predicates** (`GET /api/v1/curation/inbox`):
-nothing is written. A card the shell does not recognise as openable shows "tela pendente" instead of
-linking.
+The work list. It answers "what needs me today?" with one card per queue. Each card opens the screen
+that resolves the pending work, already filtered: the queue's tab and status travel as the screen's
+own typed search. It is a **read view of existing predicates**
+(`GET /api/v1/curation/inbox`): nothing is written.
 
 ## Acervo
 

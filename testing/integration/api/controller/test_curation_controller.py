@@ -10,13 +10,13 @@ def _inbox(*, count: int = 0) -> CurationInbox:
     from datetime import UTC, datetime
 
     return CurationInbox(
-        queues=[CurationQueue(key=key, count=count, route=route) for key, route in QUEUE_CATALOGUE],
+        queues=[CurationQueue(key=key, count=count) for key in QUEUE_CATALOGUE],
         generated_at=datetime.now(UTC),
     )
 
 
-def test_inbox_lists_every_queue_with_its_route(client: TestClient, mocker) -> None:
-    """One request answers "what needs me today", and each card says where it is resolved."""
+def test_inbox_lists_every_queue_with_its_count(client: TestClient, mocker) -> None:
+    """One request answers "what needs me today"; the SPA resolves where each card leads."""
     mock_inbox = mocker.patch.object(CurationService, "inbox")
     mock_inbox.return_value = _inbox(count=0)
 
@@ -24,8 +24,8 @@ def test_inbox_lists_every_queue_with_its_route(client: TestClient, mocker) -> N
 
     assert response.status_code == 200
     body = response.json()
-    assert {queue["key"] for queue in body["queues"]} == {key for key, *_ in QUEUE_CATALOGUE}
-    assert all(queue["route"].startswith("/") for queue in body["queues"])
+    assert {queue["key"] for queue in body["queues"]} == set(QUEUE_CATALOGUE)
+    assert all("route" not in queue for queue in body["queues"])
 
 
 def test_an_empty_queue_is_returned_with_zero_not_omitted(client: TestClient, mocker) -> None:
@@ -53,7 +53,7 @@ def test_the_service_asks_for_every_key_the_catalogue_declares(mocker) -> None:
     instead of at review time.
     """
     repo = mocker.Mock()
-    repo.count_pending.return_value = {key: 1 for key, *_ in QUEUE_CATALOGUE}
+    repo.count_pending.return_value = dict.fromkeys(QUEUE_CATALOGUE, 1)
 
     inbox = CurationService(repo).inbox()
 

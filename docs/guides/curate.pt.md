@@ -311,10 +311,10 @@ direita. Os ícones vêm do `lucide-react`, um glifo por entrada.
 
 ### Início — `/`
 
-A lista de trabalho. Ela responde "o que precisa de mim hoje?" com um cartão por fila e a rota que
-resolve a pendência, já filtrada. É uma **leitura de predicados existentes**
-(`GET /api/v1/curation/inbox`): nada é escrito. Um cartão que a casca não reconhece como abrível
-mostra "tela pendente" em vez de apontar para o vazio.
+A lista de trabalho. Ela responde "o que precisa de mim hoje?" com um cartão por fila. Cada cartão
+abre a tela que resolve a pendência, já filtrada: a aba e o estado da fila viajam como busca tipada
+da própria tela. É uma **leitura de predicados existentes**
+(`GET /api/v1/curation/inbox`): nada é escrito.
 
 ## Acervo
 

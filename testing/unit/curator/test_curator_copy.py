@@ -24,11 +24,16 @@ Five rules that no green gate could see before, each one the day after a defect 
    link between them dropped the reader on the Tags screen's default tab. The link is now a source
    fact: each route contains `to="<the other's path>"`, and the paths are read from `SCREENS`, so a
    rename fails here instead of orphaning the referent again.
+6. **A queue's destination has one owner, and it is the SPA.** #246 found the screen path spelled in
+   four places — `screens.ts`, `router.tsx`, the server's `QUEUE_CATALOGUE` (through the contract)
+   and a second list in `InboxRoute.tsx` — and only the first pair was gated. The API now carries the
+   queue's identity and its count; the destination is a `QueueKey`-keyed entry in `lib/queues.ts`,
+   read from `SCREENS`, and neither the server module nor the inbox renders a path of its own.
 
 The parser is deliberately textual. The SPA has no test runner of its own (there is no `vitest` and
-this is not the change that adds one), and the five rules are about *source text* — a token spelled
+this is not the change that adds one), and the six rules are about *source text* — a token spelled
 wrong, a name typed twice, a heading written by hand, a word that should be gone, a link that points
-nowhere — which is exactly what a text scan can decide.
+nowhere, a path typed twice — which is exactly what a text scan can decide.
 """
 
 from __future__ import annotations
@@ -43,6 +48,10 @@ SRC = CURATOR / "src"
 STYLES = SRC / "styles.css"
 ATTRIBUTION = SRC / "lib" / "attribution.ts"
 SCREENS = SRC / "lib" / "screens.ts"
+QUEUES = SRC / "lib" / "queues.ts"
+INBOX = SRC / "routes" / "InboxRoute.tsx"
+SCHEMA_DTS = SRC / "api" / "schema.d.ts"
+CURATION_SERVICE = REPO_ROOT / "src" / "scrinalia" / "domains" / "archive" / "services" / "curation_service.py"
 ROUTER = SRC / "router.tsx"
 INDEX_HTML = CURATOR / "index.html"
 MAIN_TSX = SRC / "main.tsx"
@@ -504,3 +513,83 @@ def test_the_verdict_and_the_spelling_screen_link_to_each_other() -> None:
         f"it to `{spellings_path}` in `beforeLoad`, and `LEGACY_ABAS` keeps the id accepted so the "
         "redirect can see it."
     )
+
+
+#: The `QueueKey` enum as the generated contract spells it: one string literal per queue.
+QUEUE_KEY_DECL = re.compile(r'QueueKey:\s*("(?:[a-z_]+)"(?:\s*\|\s*"[a-z_]+")*)\s*;')
+#: One entry of `QUEUE_DESTINATIONS`: the key, then `linkOptions(`.
+DESTINATION_ENTRY = re.compile(r"\n  ([a-z_]+): linkOptions\(")
+#: A destination read from the screens catalogue, which is what makes its path the one the router uses.
+SCREEN_TARGET = re.compile(r"to:\s*SCREENS\.(\w+)\.path")
+
+
+def _contract_queue_keys() -> set[str]:
+    """The queue identities the generated contract declares, read from `schema.d.ts`."""
+    match = QUEUE_KEY_DECL.search(text(SCHEMA_DTS))
+    assert match, "`schema.d.ts` no longer declares `QueueKey` as a union of string literals."
+    return set(re.findall(r'"([a-z_]+)"', match.group(1)))
+
+
+def _queue_destinations() -> str:
+    """The body of `QUEUE_DESTINATIONS`, for the tests that read its entries."""
+    body = text(QUEUES).split("export const QUEUE_DESTINATIONS", 1)
+    assert len(body) == 2, "`lib/queues.ts` no longer exports `QUEUE_DESTINATIONS`."
+    return body[1]
+
+
+def test_every_queue_has_a_destination_in_the_spa_catalogue() -> None:
+    """#246: the destination the API used to carry lives beside the copy, keyed by `QueueKey`.
+
+    The type system already fails a `Record<QueueKey, …>` that is missing an entry; this is the
+    same pair read from the text, so a destination cannot be added under a key the contract does
+    not declare — the direction the type check cannot see.
+    """
+    contract = _contract_queue_keys()
+    destinations = set(DESTINATION_ENTRY.findall(_queue_destinations()))
+
+    assert destinations == contract, (
+        "the queue destinations and the contract's `QueueKey` disagree: "
+        f"missing={sorted(contract - destinations)}, unknown={sorted(destinations - contract)}. "
+        "Every queue the API can return needs exactly one entry in `QUEUE_DESTINATIONS` "
+        "(`apps/curator/src/lib/queues.ts`), and every entry there needs a key the contract declares."
+    )
+
+
+def test_every_queue_destination_is_a_screen_from_the_catalogue() -> None:
+    """The destination's path is read from `SCREENS`, so a screen rename cannot leave it behind."""
+    destinations = _queue_destinations()
+    targets = SCREEN_TARGET.findall(destinations)
+    entries = DESTINATION_ENTRY.findall(destinations)
+
+    assert len(targets) == len(entries), (
+        f"{len(entries)} queue destinations name {len(targets)} screens from `SCREENS`. Every "
+        "destination is `linkOptions({ to: SCREENS.<screen>.path, … })`; a literal path here is a "
+        "second owner of the screen's address."
+    )
+    assert not re.search(r'to:\s*"', destinations), (
+        "a queue destination types its path as a literal. Read it from `SCREENS` instead: the path "
+        "belongs to `lib/screens.ts`, and a string here is what #246 removed."
+    )
+
+    screens = _screen_records()
+    unknown = sorted(set(targets) - set(screens))
+    assert not unknown, (
+        f"`QUEUE_DESTINATIONS` points at screens `lib/screens.ts` does not declare: {unknown}. "
+        "A destination for a screen that does not exist is a card that leads nowhere."
+    )
+
+
+def test_neither_the_server_nor_the_inbox_owns_a_screen_path() -> None:
+    """#246: the API carries identity and count; the path is the SPA's, and only the SPA's."""
+    paths = {path for path, _ in _screen_records().values()}
+    owners = {"the server's queue catalogue": CURATION_SERVICE, "the inbox": INBOX}
+
+    for name, source in owners.items():
+        assert source.exists(), f"#246 moved a file and `{source}` no longer exists."
+        body = text(source)
+        typed = sorted(path for path in paths if f'"{path}"' in body)
+        assert not typed, (
+            f"{name} spells these screen paths: {typed}. A path is not copy and not an identity the "
+            "API needs: `QUEUE_CATALOGUE` carries the `QueueKey`, and `QUEUE_DESTINATIONS` in "
+            "`lib/queues.ts` owns the screen and its filters (ADR 0021)."
+        )

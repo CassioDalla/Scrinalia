@@ -2798,8 +2798,6 @@ export interface components {
             /** @description How many items are waiting; zero is a valid answer. */
             count: number;
             key: components["schemas"]["QueueKey"];
-            /** @description Screen that resolves the queue, already filtered. */
-            route: string;
         };
         /** DatabaseHealthDTO */
         DatabaseHealthDTO: {
@@ -4201,9 +4199,10 @@ export interface components {
          * QueueKey
          * @description The stable identity of a queue on the home screen.
          *
-         *         The contract carries the key, not the card's copy: the SPA resolves the label and the one-line
-         *         description from it (ADR 0020 §5), so the copy pass and its gate can see the first screen. The
-         *         values are the identity of an outcome, so they never change once released.
+         *         The contract carries the key, not the card's copy or its destination: the SPA resolves the
+         *         label, the one-line description and the screen from it (ADR 0020 §5, ADR 0021), so the copy
+         *         pass and its gate can see the first screen. The values are the identity of an outcome, so they
+         *         never change once released.
          * @enum {string}
          */
         QueueKey: "hierarchy_orphans" | "hierarchy_plans" | "tag_merge_proposals" | "cross_domain_conflicts" | "subject_low_confidence" | "orphan_subject_tags" | "typology_low_confidence" | "anomalies" | "unreviewed_documents";
