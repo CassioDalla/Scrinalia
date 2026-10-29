@@ -1263,10 +1263,16 @@ estado vazio é real, não decorativo.
 Cada cartão traz o nome do canal, a capacidade — `LIVE` (lido a cada requisição) ou `EXPORT` (produzido
 por uma execução) —, o ciclo de vida e o resumo da configuração, renderizado dos mesmos `config_fields`
 que o formulário renderiza. As ações são **Editar configuração**, **Agenda** (só `EXPORT`),
+**Enfileirar execução** (só `EXPORT`, desabilitado enquanto o canal tem execução em andamento),
 **Desativar/Ativar** e, para o site público, **Ver site** — visível só com o canal ativo e um endereço
 público configurado, porque o link é o endereço que o operador digitou, não uma afirmação de que há um
 site no ar. Pausar é o ciclo de vida: a linha, a configuração e a agenda ficam, e o canal simplesmente
 deixa de ser oferecido a quem lê.
+
+Um cartão `EXPORT` mostra também a agenda e a **última execução**, com o status e o link para o ledger
+filtrado por aquele canal. A execução é o worker `diffusion` do ledger compartilhado, com o canal como
+eixo (issue #212, ADR 0023 §7): uma segunda execução do mesmo canal responde 409, dois canais exportam
+ao mesmo tempo, e um canal que o pacote traz sem adaptador responde 422 e não enfileira nada.
 
 Adicionar é um gesto só, num painel lateral: escolher uma definição que o pacote traz, preencher a
 configuração e salvar. O salvamento é um único `PATCH` que cria a linha e a ativa, porque um canal que o

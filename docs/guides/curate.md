@@ -1291,10 +1291,16 @@ empty state is real, not decorative.
 Each card carries the channel's name, its capability — `LIVE` (read on every request) or `EXPORT`
 (produced by a run) — its lifecycle and the configuration summary rendered from the same
 `config_fields` the form renders. The actions are **Editar configuração**, **Agenda** (`EXPORT` only),
+**Enfileirar execução** (`EXPORT` only, disabled while the channel has a run in flight),
 **Desativar/Ativar** and, for the public site, **Ver site** — shown only while the channel is enabled
 and a public address is configured, because the link is the address the operator typed, not a claim
 that a site answers there. Pausing is the lifecycle: the row, the configuration and the agenda stay,
 and the channel is simply not offered to a reader.
+
+An `EXPORT` card also shows the agenda and the **last run**, with its status and a link to the ledger
+filtered by that channel. The run is the `diffusion` worker of the shared ledger, with the channel as
+its axis (issue #212, ADR 0023 §7): a second run of the same channel answers 409, two channels export
+at the same time, and a channel the package ships without an adapter answers 422 and queues nothing.
 
 Adding is one gesture in a side panel: pick a definition the package ships, fill its configuration and
 save. The save is a single `PATCH` that creates the row and enables it, because a channel the package
