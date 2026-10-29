@@ -399,6 +399,13 @@ docker compose --profile app logs -f scheduler
 O serviço `app` fica atrás do profile `app` de propósito, então o `docker compose up -d` — e
 portanto o `bun run dev` — continua subindo só a infraestrutura.
 
+O CI constrói esta imagem em toda pull request e em todo push — o job `image` de
+`.github/workflows/ci.yml` — roda `create_app()` dentro dela e confere que o pacote da interface, a
+configuração do Alembic e as revisões de migração estão na imagem. Um `Dockerfile` que deixa de
+construir, portanto, falha na pull request, e não no `docker compose up` do próximo instalador. O
+mesmo job resolve o arquivo acima com `docker compose -f docker-compose.yml config -q`, então um
+Compose quebrado falha em segundos.
+
 O profile também traz um serviço `runner` e um `scheduler`: a mesma imagem, sem porta publicada, o
 módulo dos workers como entrypoint do runner e o módulo do scheduler como entrypoint do scheduler. É o formato CPU de uma instalação de um host só; um host com GPU roda a imagem
 naquela máquina com uma build CUDA e um caminho privado até o banco, como em [a rede e a

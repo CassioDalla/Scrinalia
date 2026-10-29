@@ -431,6 +431,13 @@ docker compose --profile app logs -f scheduler
 The `app` service is behind the `app` profile on purpose, so `docker compose up -d` — and therefore
 `bun run dev` — keeps starting the infrastructure alone.
 
+CI builds this image on every pull request and on every push — the `image` job in
+`.github/workflows/ci.yml` — runs `create_app()` inside it, and checks that the SPA build, the
+Alembic configuration and the migration revisions are in the image. A `Dockerfile` that stops
+building therefore fails the pull request instead of the next installer's `docker compose up`. The
+same job resolves the file above with `docker compose -f docker-compose.yml config -q`, so a broken
+Compose file fails in seconds.
+
 The profile also carries a `runner` service and a `scheduler` service: the same image, no published
 port, the worker module as the runner's entrypoint and the scheduler module as the scheduler's. It is the CPU shape of a single-host installation; a GPU host runs the image on that
 machine with a CUDA build and a private path to the database, as in [the network and the
