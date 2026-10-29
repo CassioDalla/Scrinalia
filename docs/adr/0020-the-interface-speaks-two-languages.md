@@ -113,8 +113,9 @@ The API carries two kinds of user-facing text, and they do not have the same own
   of the interface's copy.
 
 So the nine home cards (eighteen strings) and the twenty worker labels leave `CurationQueue`,
-`WorkerStatusDTO` and `WorkerSettingsItemDTO`; the server keeps the identity, the count, the route
-and the sentences. A gate asserts that every `queue.key` and every worker `name` the contract
+`WorkerStatusDTO` and `WorkerSettingsItemDTO`; the server keeps the identity, the count and the
+sentences, and the route leaves too — a path is not text, so it lives with the screen catalogue in
+the SPA (ADR 0021). A gate asserts that every `queue.key` and every worker `name` the contract
 declares has a label in every locale, so a new queue fails a test instead of rendering a blank card.
 
 A consumer that is not the SPA loses the ready-to-render label. That is accepted: the queue and the

@@ -2959,3 +2959,39 @@ with short or full shas, and part of a `## <date> — <title>` entry.
   The render used the one configured origin (`pmc`) in the scratch database; the long-card
   below-the-fold case is pinned by the unit test's `scrollIntoView` assertion, not by a screenshot of
   a card taller than the viewport.
+
+## 2026-10-29 — the queue destination has one owner (#246)
+
+- **Range:** `dfac1d0..15ff1680`
+- **Pages:**
+  - `guides/curate.md` — **updated**: the Início paragraph no longer says the API carries the route
+    that resolves a queue, nor that an unrecognised card shows "tela pendente". Each card opens the
+    screen that resolves the pending work, already filtered, with the queue's tab and status as that
+    screen's own typed search. The page's `sources:` already cover `apps/curator/src/routes/**` and
+    the generated contract, so the change was visible to the report.
+  - `guides/curate.pt.md` — **updated**: the same sentence in the SPA's vocabulary.
+  - `guides/install.md` — **no-change**: the report flagged it because the 1.7.0 release bumped
+    `pyproject.toml`, but the page documents the installation's Python/PostgreSQL versions, not the
+    project's own; the release changed no dependency and no install step.
+- **ADRs.** `adr/0020-the-interface-speaks-two-languages.md` **updated** §5: the server keeps the
+  identity, the count and the sentences; the route is not text, so it lives with the screen
+  catalogue in the SPA. `adr/0021-the-url-speaks-the-interfaces-language.md` **created**, recording
+  #239's decision — the paths and their query keys stay Portuguese because a path is an identifier
+  and not copy, and the path has one owner in `lib/screens.ts`. The ADR is linked from
+  `adr/index.md` and from the MkDocs nav, which the coverage gate checks.
+- **What the round measured.** `ruff check`, `ruff format --check`, basedpyright, `alembic check`,
+  the full suite (**2313 passed, 1 skipped**), the SPA's **79** bun tests, `tsc`, ESLint, the Vite
+  build and `mkdocs build --strict`. The inbox **was rendered** with the headless shell over CDP
+  against the dev server and the API, with a temporary session row inserted for the round and
+  deleted after: the nine cards render, none says "tela em preparação", and clicking every card
+  landed on its destination — `/arranjo/plano` twice, `/assuntos/tags` (four, two of them with
+  `?aba=classificar&subject_state=…`), `/entidades/conflitos`, `/arranjo/tipologias`,
+  `/qualidade/anomalias` and `/acervo/lista?status=PENDING_AI`.
+- **The render found a defect outside the issue's letter.** `CollectionRoute` built its status
+  vocabulary with `Object.keys(REVIEW_STATUS_LABEL)`; the labels are a `Proxy` over the locale
+  catalogue with no `ownKeys` trap, so the list was empty and every `?status=` was silently dropped
+  — including the one the "unreviewed" card has always sent. It now reads the literal tone map. The
+  rendered collection shows the `Aguardando IA` chip and **72 descrições**.
+- **Not verified.** No write was exercised; the English locale was not re-rendered (its strings did
+  not change); and the `?status=` fix was verified through the inbox card and the rendered collection
+  screen, not through the status select on its own.
