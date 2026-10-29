@@ -3125,3 +3125,47 @@ with short or full shas, and part of a `## <date> — <title>` entry.
 - **Pages:**
   - `guides/data-model.md` — no-change: `testing/conftest.py` is a declared source and now calls
     `load_all_models()` before `create_all`; the table documentation is the same.
+
+## 2026-10-29 — the diffusion channels page (#213)
+
+- **Range:** `74df2f9..b080a31`
+- **Pages:**
+  - `guides/curate.md` — **updated**: the Configurações table and the *Operação* tab gained the new
+    card; a section for `/configuracoes/difusao` states what the page decides, what is reversible
+    (the configuration, the agenda and the pause; nothing is deleted) and that adding is one `PATCH`
+    carrying the configuration, because the channel's own model validates it; *Diffusion is not
+    review* now says the gate and the channel answer different questions, and that configuring a
+    channel publishes nothing.
+  - `guides/curate.pt.md` — **updated**: the same sections in Portuguese.
+  - `guides/operate.md` — **updated**: a section on the channel registry (definition plus lifecycle
+    row, `LIVE`/`EXPORT`, the public site's 404 until the channel is enabled, the agenda refused for
+    `LIVE`), the add/configure/pause/agenda actions and the `OPERATE` boundary; a known limit records
+    that one `LIVE` channel ships and the run ledger has no channel axis, which is why the card
+    offers no enqueue action.
+  - `guides/operate.pt.md` — **updated**: the same in Portuguese.
+  - `guides/install.md` — **no-change**: its `screens.ts`/`settings.ts` sources moved, but the one
+    sentence that reads them (`Configurações → Operação → Saúde do sistema`) still names the same
+    path; the new card adds no setting and no environment variable.
+- **What the round measured.** The SPA suite is **90 passed** (11 of them new), `tsc`, ESLint and the
+  Vite build are green, `bun run contract` produced no diff, and the copy and documentation coverage
+  gates are **59 passed**; `mkdocs build --strict` is green. The page was rendered from the built SPA
+  with the headless shell, and the states were inspected: the empty state, the configured public
+  site with its form open, the add picker, an `EXPORT` card, and the settings landing's *Operação*
+  tab with the new card.
+- **Not verified.** The `EXPORT` card was rendered from a stubbed channel response, because no export
+  definition ships yet (#214) and the run ledger has no channel axis (#212); the enqueue action and
+  the channel-filtered ledger link are deliberately not in the page. The add gesture was not
+  exercised against a live API in the browser: the click opened the form, and the save is pinned by
+  the client types and by the API's own integration tests (#211), not by a rendered write.
+
+## 2026-10-29 — the diffusion page copy pass (#213 review)
+
+- **Range:** `b080a31..47588c7`
+- **Pages:**
+  - `guides/curate.md` — **no-change**: the screen's copy gained an introduction, a section title
+    with its hint, the capability line and a sentence of help at the form and the schedule. The page
+    describes the decisions and the writes — which channel, what is reversible, what does not
+    publish — and none of that changed; it does not quote the wording.
+  - `guides/operate.md` — **no-change**: same reason. The registry, the two capabilities, the
+    add/configure/pause/agenda gesture and the public site's 404 are unchanged, and the new
+    capability line states the same distinction the page already documents.

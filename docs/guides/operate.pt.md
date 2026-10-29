@@ -349,6 +349,32 @@ no log o id em que a janela terminou e o comando para continuar dali. Não use `
 `--force`: sob a comparação de hash, pular à frente pularia registros pendentes em vez de registros
 já estruturados.
 
+### Os canais de difusão
+
+Um canal de difusão é uma definição em código mais uma linha em `diffusion_channels` (ADR 0023), a mesma
+forma de uma origem uma camada fora. A definição — a capacidade, o modelo Pydantic da configuração e os
+metadados que a tela renderiza — fica em `src/scrinalia/domains/diffusion/diffusion_registry.py`; a linha
+é o ciclo de vida: ativo/pausado, a configuração, a política de execução que um export herda e o
+cron/fuso da agenda. O registry traz o site público embutido (`public_site`), um canal `LIVE`: ele é lido
+a cada requisição e não tem execução, então não tem agenda, e a API recusa uma
+(`PUT /channels/{code}/schedule` responde 422).
+
+`/configuracoes/difusao` é a tela, um cartão de Configurações em *Operação* (issue #213). Ela lista os
+canais configurados, um cartão cada: a capacidade, o ciclo de vida, o resumo da configuração e as ações.
+**Adicionar canal de difusão** abre um seletor das definições que o pacote traz e que esta instalação
+ainda não tem; adicionar é um único `PATCH` que cria a linha com a configuração preenchida e a ativa.
+**Editar configuração** salva os campos do próprio canal, validados pelo modelo dele;
+**Desativar/Ativar** é o ciclo de vida, e mantém a linha, a configuração e a agenda; para um canal
+`EXPORT`, **Agenda** salva um cron de cinco campos num fuso IANA. A página é `OPERATE`, e as rotas de
+leitura continuam autenticadas, então um curador que siga a URL vê os cartões só para leitura.
+
+Nada nesta página publica. `is_published` é a permissão do registro para sair, editada na ficha sob
+`CURATE`; o canal é para onde ele vai, e os dois são independentes. A identidade do site público — título,
+descrição, instituição, contato, logotipo, idioma, endereço público e indexação — é o que o aplicativo lê
+antes da primeira consulta de documentos: `GET /api/v1/public/site` responde **404** até o canal existir e
+estar ativo, então uma linha ausente e uma pausa são o mesmo fato para um visitante. Habilitar o canal não
+instala o aplicativo público (#46).
+
 ### A entrada manual
 
 A origem `manual` é a aba **Digitar** em `/acervo/nova` (o caminho antigo `/sistema/ingestao/nova`
@@ -1005,6 +1031,10 @@ comportamento esperar, e para um limite já pago não ser lido como defeito.
   execução duplicada depois de um lease vencido é possível. Um fence rígido é trabalho futuro.
 - **A fila é um slot por worker.** Uma segunda execução de um worker com uma em andamento responde
   `409`, e um agendamento precisa coalescer; backlog ou prioridade não é o que esta fila é.
+- **Um canal de difusão embarcado, e ele é `LIVE`.** O registry carrega o site público embutido; não
+  existe adaptador de exportação ainda, e o ledger de execuções não tem eixo de canal, então a página
+  configura canais e nada produz uma execução de exportação. É por isso que o cartão não oferece ação
+  de enfileirar.
 - **O retry é limitado e não classificado.** Uma falha agendada gasta até três tentativas, qualquer que
   seja a causa: um modelo faltando custa três tentativas limitadas, porque um classificador errado na
   outra direção ou desperdiça a GPU ou esconde uma falha real. O retry segura o slot do worker durante o

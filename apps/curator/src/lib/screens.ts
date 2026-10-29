@@ -47,6 +47,7 @@ export type ScreenId =
   | "vocabulary"
   | "workers"
   | "origins"
+  | "diffusion"
   | "newDescription"
   | "workerSettings"
   | "health"
@@ -84,6 +85,7 @@ export const SCREENS = {
   vocabulary: { path: "/vocabulario" },
   workers: { path: "/sistema/workers" },
   origins: { path: "/sistema/ingestao" },
+  diffusion: { path: "/configuracoes/difusao" },
   newDescription: { path: "/acervo/nova" },
   workerSettings: { path: "/configuracoes/workers" },
   health: { path: "/sistema/diagnostico" },

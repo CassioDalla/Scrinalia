@@ -134,6 +134,19 @@ Review is a claim about the record; publication is a decision about what to expo
 `Descrição` tab, and the public predicate is exactly `is_published`. Nothing is published by default,
 so the diffusion surface is born empty.
 
+The gate and the channel answer different questions, and the interface keeps them apart.
+`is_published` says **whether** a record may leave; a **diffusion channel** says **where** it goes. The
+channel is a definition in code plus a lifecycle row (ADR 0023), and the operator's page under
+`Configurações → Operação` — **Canais de difusão**, `/configuracoes/difusao` — adds a definition the
+package ships, edits its configuration, pauses it and, for an export channel, saves its agenda. It
+never publishes: configuring a channel changes no description, and the two states are independent on
+purpose — a record can be published with no channel configured, and a channel can be enabled with
+nothing published. The registry ships the built-in public site (`public_site`), whose configuration is
+the presentation identity the application reads (title, description, institution, contact, logo,
+locale, public address and indexing); enabling it does not install the public application (#46). The
+page is `OPERATE`, like the origins one, so a curator who follows the URL sees the cards without the
+controls.
+
 Publishing exposes the description through the open, unauthenticated surface:
 
 - `GET /api/v1/public/documents` and `GET /api/v1/public/documents/{description_id}`.
@@ -1246,6 +1259,7 @@ day. It writes nothing of its own.
 | Screen | Decision | Reversible? |
 | --- | --- | --- |
 | Configurações — `/configuracoes` | which setup screen to open | yes (read only) |
+| Canais de difusão — `/configuracoes/difusao` | which channel to add, its configuration, its lifecycle and (for an export) its agenda | yes (the configuration, the agenda and the pause; nothing is deleted) |
 | Configuração dos Workers — `/configuracoes/workers` | the persisted default of each worker, and its history | yes (remove the row) |
 | Usuários — `/configuracoes/usuarios` | who exists, what they may do, and where they are signed in | yes (deactivate and reactivate) |
 
@@ -1257,7 +1271,7 @@ what changed is how it is found. Three tabs, in the order of the permission ladd
 | Tab | Cards |
 | --- | --- |
 | Arranjo e catálogos | Plano de arranjo (`CURATE`), Níveis de descrição, Tipologias and Vocabulário do acervo (`CATALOGUE`) |
-| Operação | Workers e execuções, Configuração dos Workers and Saúde do sistema (`OPERATE`) |
+| Operação | Workers e execuções, Origens, Canais de difusão, Configuração dos Workers and Saúde do sistema (`OPERATE`) |
 | Acesso | Usuários (`ADMIN`) |
 
 The tab is in the URL (`?aba=`), so "the worker cards" can be sent to somebody. A tab the account
@@ -1265,6 +1279,31 @@ cannot fill is not rendered, and a `?aba=` naming one falls back to the first ta
 fill: a link that was valid for the sender still lands somewhere honest for the reader. Each card
 carries the area its screen writes, and the entry that opens this page follows the same areas — the
 rule is under *The menu hides; it never grants* above.
+
+### Canais de difusão — `/configuracoes/difusao`
+
+The operator's page for where the published collection goes out (issue #213, ADR 0023), the
+deliberate twin of Origens: one screen says where the data comes in, this one says where the record
+leaves. It reads every definition the package ships in one request, so a definition without a row is
+what the add picker offers and a definition with one is a card. A fresh installation has no row: the
+empty state is real, not decorative.
+
+Each card carries the channel's name, its capability — `LIVE` (read on every request) or `EXPORT`
+(produced by a run) — its lifecycle and the configuration summary rendered from the same
+`config_fields` the form renders. The actions are **Editar configuração**, **Agenda** (`EXPORT` only),
+**Desativar/Ativar** and, for the public site, **Ver site** — shown only while the channel is enabled
+and a public address is configured, because the link is the address the operator typed, not a claim
+that a site answers there. Pausing is the lifecycle: the row, the configuration and the agenda stay,
+and the channel is simply not offered to a reader.
+
+Adding is one gesture in a side panel: pick a definition the package ships, fill its configuration and
+save. The save is a single `PATCH` that creates the row and enables it, because a channel the package
+cannot validate is not a row — the public site's title is required. **Desativar** is the pause
+(`PATCH {"enabled": false}`); nothing is deleted. The configuration is validated by the channel's own
+model on every read and write, so a typo is a 422 with a sentence, and the page renders **one generic
+form** over the channel's fields rather than one component per channel. The public site's card states
+the consequence the owner asks about: the public application is a separate surface, and enabling the
+channel does not install it.
 
 ### Configuração dos Workers — `/configuracoes/workers`
 

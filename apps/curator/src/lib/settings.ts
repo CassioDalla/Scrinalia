@@ -5,6 +5,7 @@ import {
   FileType,
   HeartPulse,
   Layers,
+  RadioTower,
   SlidersHorizontal,
   UserCog,
   Waypoints,
@@ -71,6 +72,7 @@ export type SettingsScreenId = Extract<
   | "vocabulary"
   | "workers"
   | "origins"
+  | "diffusion"
   | "workerSettings"
   | "health"
   | "users"
@@ -117,6 +119,15 @@ export const SETTINGS_TABS: SettingsTab[] = [
         operator's door, and the entries live in the Acervo at /acervo/nova.
       */
       { screen: "origins", icon: Download, permission: "OPERATE" },
+      /*
+        Canais de difusão is the operator's other page (#213): adding a channel, editing its identity
+        or configuration, pausing it and (for an export channel) saving its agenda are all OPERATE.
+        It sits beside Origens on purpose — one page says where the data comes in, this one says where
+        the published collection goes out — and the two must not read as the same object with two
+        verbs. The read routes stay AUTHENTICATED, so a curator who follows a direct URL sees the
+        cards read-only; the permission to *publish* stays on the dossier, under CURATE.
+      */
+      { screen: "diffusion", icon: RadioTower, permission: "OPERATE" },
       /*
         The configuration sits beside the panel it configures, and the two are separate cards
         because they answer different questions: the panel says what the machine is *doing* (queues,
