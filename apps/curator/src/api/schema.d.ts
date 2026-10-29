@@ -2987,12 +2987,18 @@ export interface components {
             suggested_final_title?: string | null;
             tags?: components["schemas"]["DocumentTagSummary"][];
             /**
-             * @description Where the browser reads the miniature, or ``None`` when the source had no image to store.
+             * @description Where the browser reads the miniature, or ``None`` when there is nothing to serve.
              *
              *     Derived on the server from ``storage_thumbnail_uri`` and **never** assembled by the client:
              *     the SPA binds this string to an ``<img>``, so it does not know the bucket and cannot drift
              *     from the route. The bytes themselves come from the authenticated route, which answers 404
              *     when the object is gone; the screen shows "imagem indisponível" instead of a broken image.
+             *
+             *     **An object-backed field is advertised only when ``storage_configured()``.** An installation
+             *     without the four ``S3_*`` settings stores no URI of its own — but a database copied from one
+             *     that had storage still carries them, and advertising those URLs would make a page of
+             *     twenty-five rows issue twenty-five requests for objects this installation cannot read. The
+             *     rule applies to every future object-backed field (#198), not only to this one.
              */
             readonly thumbnail_url: string | null;
             typology?: string | null;
