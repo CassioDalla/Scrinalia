@@ -259,19 +259,6 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Free the runner's disk
-        # Not a speed trick: it is what makes the build fit. The image is ~4 GB, and BuildKit keeps
-        # the intermediate Python stage in its content store while the loaded image takes a second
-        # copy in the daemon's — the ~14 GB a hosted runner leaves free is the constraint that
-        # fails, with "no space left on device", long before the 45 minutes do.
-        #
-        # These language SDKs are preinstalled for other projects and nothing in this job uses
-        # them. The daemon is empty on a fresh runner; the prune is for a re-run that is not.
-        run: |
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
-          sudo docker image prune --all --force
-          df -h /
-
       - name: Set up Buildx
         # The build runs as a command and not through a build action on purpose: one action to trust
         # instead of two, and the command is what a contributor reproduces locally.
