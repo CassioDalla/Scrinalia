@@ -43,6 +43,11 @@ export const pt = {
     scheduleTab: "Agenda",
     pause: "Desativar",
     reactivate: "Ativar",
+    enqueueRun: "Enfileirar execução",
+    enqueuing: "Enfileirando…",
+    alreadyRunning: "Já há uma execução",
+    pausedChannel: "Canal desativado",
+    queuedLine: "Execução #{id} na fila; ela ainda não começou.",
     operatorOnly:
       "Só o operador adiciona, configura e desativa canais; aqui você pode consultar os destinos e abrir o site público.",
     saving: "Salvando…",
@@ -104,6 +109,11 @@ export const en: typeof pt = {
     scheduleTab: "Schedule",
     pause: "Disable",
     reactivate: "Enable",
+    enqueueRun: "Enqueue run",
+    enqueuing: "Enqueueing…",
+    alreadyRunning: "A run is already in flight",
+    pausedChannel: "Channel disabled",
+    queuedLine: "Run #{id} is queued; it has not started yet.",
     operatorOnly:
       "Only the operator adds, configures and disables channels; here you can consult the destinations and open the public site.",
     saving: "Saving…",

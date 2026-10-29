@@ -733,6 +733,7 @@ export const queries = {
     fingerprint?: string,
     origin?: string,
     trial?: boolean,
+    channel?: string,
   ) =>
     queryOptions({
       queryKey: [
@@ -743,9 +744,20 @@ export const queries = {
         fingerprint ?? "",
         origin ?? "",
         trial === undefined ? "" : String(trial),
+        channel ?? "",
         offset,
       ],
-      queryFn: () => fetchSystemRuns({ worker, origin, status, fingerprint, trial, limit: RUNS_PAGE_SIZE, offset }),
+      queryFn: () =>
+        fetchSystemRuns({
+          worker,
+          origin,
+          channel,
+          status,
+          fingerprint,
+          trial,
+          limit: RUNS_PAGE_SIZE,
+          offset,
+        }),
       staleTime: 10_000,
       placeholderData: (previous) => previous,
     }),

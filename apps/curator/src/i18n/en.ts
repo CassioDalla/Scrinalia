@@ -642,6 +642,7 @@ export const en: typeof pt = {
     trigger: { API: "panel", CLI: "command line", SCHEDULE: "schedule" },
     unit: {
       origin: "origins",
+      channel: "channels",
       staging: "imported records",
       document: "descriptions",
       tag: "tags",

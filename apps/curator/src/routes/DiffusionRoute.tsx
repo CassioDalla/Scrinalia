@@ -31,7 +31,13 @@ import { can } from "@/lib/permissions";
  */
 export function DiffusionRoute() {
   const messages = useCopy();
-  const { data, isPending, error } = useQuery(queries.diffusionChannels());
+  const { data, isPending, error } = useQuery({
+    ...queries.diffusionChannels(),
+    // A run in flight is the only reason this read changes by itself: it flips the card's button
+    // back and fills the last-run line when the runner closes the row.
+    refetchInterval: (query) =>
+      (query.state.data?.channels ?? []).some((channel) => channel.active_run_id != null) ? 5_000 : 15_000,
+  });
   const current = useQuery({ queryKey: ["current-user"], queryFn: fetchCurrentUser, retry: false });
   const role = current.data?.role ?? "VIEWER";
   const canOperate = can(role, "OPERATE");

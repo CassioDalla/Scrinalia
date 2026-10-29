@@ -1829,6 +1829,19 @@ export async function deleteDiffusionSchedule(code: string): Promise<DiffusionCh
 }
 
 /**
+ * Enqueues one export run of the channel and answers the ``QUEUED`` row.
+ *
+ * No body: the run repeats the channel's saved run policy, which the ledger pins in the row. The
+ * channel is the run's axis, which is why this is the channel's call and not the generic worker
+ * trigger — a ``WorkerRunRequest`` has no channel to name.
+ */
+export async function triggerDiffusionRun(code: string): Promise<WorkerRun> {
+  return unwrap<WorkerRun>(
+    await client.POST("/api/v1/diffusion/channels/{code}/runs", { params: { path: { code } } }),
+  );
+}
+
+/**
  * The manual origin's one-record write.
  *
  * It returns the record id and whether the transfer was queued or is waiting for the one in flight;

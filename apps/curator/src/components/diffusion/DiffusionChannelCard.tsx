@@ -1,7 +1,8 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
 import { useId, useState } from "react";
 
-import { updateDiffusionChannel, type DiffusionChannel } from "@/api/client";
+import { triggerDiffusionRun, updateDiffusionChannel, type DiffusionChannel } from "@/api/client";
 import { configSummary, DiffusionConfigForm } from "@/components/diffusion/DiffusionConfigForm";
 import { DiffusionScheduleForm } from "@/components/diffusion/DiffusionScheduleForm";
 import { Badge } from "@/components/ui/Badge";
@@ -13,6 +14,7 @@ import { PanelToggle } from "@/components/ui/PanelToggle";
 import { useCopy } from "@/i18n/context";
 import { fill, stringMap } from "@/i18n/maps";
 import { formatDateTime } from "@/lib/format";
+import { RUN_STATUS_LABEL, RUN_STATUS_TONE } from "@/lib/system";
 
 /** The two capabilities, named the way the operator reads them. */
 const CAPABILITY_LABEL = stringMap((m) => ({
@@ -84,9 +86,25 @@ export function DiffusionChannelCard({
                   })
                 : messages.pages.diffusion.noSchedule}
             </span>
-            <span>
+            <span className="flex flex-wrap items-center gap-1">
               {messages.pages.diffusion.lastRun}:{" "}
-              {channel.last_run_id == null ? messages.pages.diffusion.none : `#${channel.last_run_id}`}
+              {channel.last_run_id == null ? (
+                messages.pages.diffusion.none
+              ) : (
+                <Link
+                  to="/sistema/workers"
+                  search={{ aba: "execucoes", channel: channel.code }}
+                  className="underline"
+                >
+                  #{channel.last_run_id}
+                </Link>
+              )}
+              {channel.last_run_status ? (
+                <Badge tone={RUN_STATUS_TONE[channel.last_run_status]}>
+                  {RUN_STATUS_LABEL[channel.last_run_status]}
+                </Badge>
+              ) : null}
+              {channel.last_run_at ? <span>· {formatDateTime(channel.last_run_at)}</span> : null}
             </span>
           </div>
         ) : null}
@@ -109,6 +127,7 @@ export function DiffusionChannelCard({
                 />
               ) : null}
               {siteUrl ? <SiteLink href={siteUrl} /> : null}
+              {!live ? <RunNowButton channel={channel} /> : null}
               <LifecycleButton channel={channel} />
             </>
           ) : (
@@ -148,6 +167,54 @@ function SiteLink({ href }: { href: string }) {
     >
       {messages.pages.diffusion.viewSite}
     </a>
+  );
+}
+
+/**
+ * Enqueues one export run of this channel, and says why the button is not available.
+ *
+ * A paused channel does not export, and a channel with a run in flight keeps its slot (the partial
+ * unique index): the button says which of the two it is instead of offering a click that would
+ * answer 409 or 422. A queued answer is shown with its id, because "nothing happened" is not a
+ * state the operator should have to guess.
+ */
+function RunNowButton({ channel }: { channel: DiffusionChannel }) {
+  const messages = useCopy();
+  const queryClient = useQueryClient();
+  const run = useMutation({
+    mutationFn: () => triggerDiffusionRun(channel.code),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["diffusion", "channels"] });
+      void queryClient.invalidateQueries({ queryKey: ["system", "runs"] });
+    },
+  });
+
+  const paused = !channel.enabled;
+  const active = channel.active_run_id != null;
+
+  return (
+    <div className="grid gap-1">
+      <Button
+        size="sm"
+        variant="primary"
+        disabled={paused || active || run.isPending}
+        onClick={() => run.mutate()}
+      >
+        {paused
+          ? messages.pages.diffusion.pausedChannel
+          : active
+            ? messages.pages.diffusion.alreadyRunning
+            : run.isPending
+              ? messages.pages.diffusion.enqueuing
+              : messages.pages.diffusion.enqueueRun}
+      </Button>
+      {run.data ? (
+        <span className="text-xs text-(--color-muted)">
+          {fill(messages.pages.diffusion.queuedLine, { id: String(run.data.run_id) })}
+        </span>
+      ) : null}
+      {run.error ? <ErrorState error={run.error} /> : null}
+    </div>
   );
 }
 
