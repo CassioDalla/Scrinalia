@@ -4,6 +4,11 @@ on:
   push:
     branches: [main, dev]
   pull_request:
+  # The application image is built **by hand**, and that trigger exists for the ``image`` job below:
+  # Actions -> CI -> Run workflow, on the branch that matters (``dev`` before a release). It is not
+  # part of the pull-request gate on purpose — the build is minutes and installs the whole Python
+  # and spaCy environment, and the issue that asked for the gate (#255) allows the cheaper shape.
+  workflow_dispatch:
 
 # Least privilege by default. A workflow that only reads the repository should not carry a token that
 # can write to it, and a third-party action that turns malicious cannot escalate what it was not given.
@@ -244,6 +249,62 @@ jobs:
         run: bun run --cwd apps/curator test
       - name: Build
         run: bun run --cwd apps/curator build
+
+  image:
+    name: Application image (Docker)
+    runs-on: ubuntu-latest
+    # Manual, and only manual: this job runs when the workflow is dispatched from Actions, on the
+    # branch chosen in the Run workflow dropdown (``dev`` before a release), and on nothing else.
+    # #255 allows the cheaper shape, and the measurement is the argument: 3m49s for the job, a
+    # 4.19 GB image, and the GitHub Actions layer cache added more than twelve minutes of upload on
+    # top of a three-minute build. It is the long pole because a cold build installs the whole
+    # Python environment (torch, transformers, spaCy), the 542 MB spaCy pipeline wheel, compiles
+    # psycopg2 from source and builds the SPA.
+    if: github.event_name == 'workflow_dispatch'
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: The compose file validates
+        # The file the install guide ships, resolved the way an operator's Compose resolves it, and
+        # before the expensive build: a typo in it then fails in seconds instead of in minutes.
+        run: docker compose -f docker-compose.yml config -q
+
+      - name: Build the application image
+        # Plain ``docker build``: for a manual, occasional run the layer cache is not worth its
+        # weight — the GitHub Actions backend was measured to upload several GB and stretch the
+        # build step past twelve minutes, and a hosted runner has no local layers to reuse.
+        run: docker build -t scrinalia-app:ci .
+
+      - name: The application composes inside the image
+        # The entrypoint's ``alembic upgrade head`` needs a database, so this bypasses the entrypoint
+        # and proves the application layer: the imports the server performs at start-up, against the
+        # environment the image actually ships.
+        run: |
+          docker run --rm --entrypoint python scrinalia-app:ci \
+            -c "import scrinalia.asgi; scrinalia.asgi.create_app()"
+
+      - name: The image carries the SPA build and the migration revisions
+        # A stale ``COPY`` is the failure that would otherwise reach an installer: ``create_app()``
+        # mounts the SPA only when ``apps/curator/dist`` exists (an image without it starts and
+        # serves an API with no UI), and a missing ``migrations/`` only surfaces when the entrypoint
+        # runs Alembic against a real database. Assert the files, not just the import.
+        run: |
+          docker run --rm -i --entrypoint python scrinalia-app:ci - <<'PY'
+          from pathlib import Path
+
+          required = [
+              Path("/app/apps/curator/dist/index.html"),
+              Path("/app/alembic.ini"),
+              Path("/app/migrations/env.py"),
+          ]
+          missing = [str(path) for path in required if not path.is_file()]
+          assert not missing, f"missing from the image: {missing}"
+          assert any(Path("/app/migrations/versions").glob("*.py")), "no migration revision in the image"
+          print("the image carries the SPA build and the migrations")
+          PY
 
   docs:
     name: Documentation (strict build)

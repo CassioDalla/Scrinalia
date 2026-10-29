@@ -3049,3 +3049,60 @@ with short or full shas, and part of a `## <date> — <title>` entry.
   Litestar test client with the settings patched, not a live API process configured without storage,
   and the `thumbnail` worker was not run against an absent bucket — its refusal path is unchanged
   and covered by its existing tests.
+
+## 2026-10-29 — the application image is built by CI (#255)
+
+- **Range:** `2e63989..34fdd84`
+- **Pages:**
+  - `guides/install.md` — **updated**: the container section now says the `image` job builds the
+    image on every pull request and every push, runs `create_app()` inside it, checks that the SPA
+    build, the Alembic configuration and the migration revisions are present, and resolves the
+    Compose file with `config -q` — so a `Dockerfile` that stops building fails the pull request
+    instead of the next installer.
+  - `guides/install.pt.md` — **updated**: the same paragraph in Portuguese.
+  - `guides/operate.md` — **no-change**: it declares `ci.yml` for the documentation-site section,
+    and that section did not change. The new job builds the application image, which the install
+    page owns; the workflow's job list is not documented on the operations page.
+- **The Dockerfile fix in the range.** `84d446e` copies `pyproject.toml` into the SPA stage, which
+  `vite.config.ts` reads for the version the footer renders. Without it the image had not built
+  since `01be422`: measured, `docker build -t scrinalia-app:ci .` stopped at `bun run --cwd
+  apps/curator build` with `ENOENT: no such file or directory, open '/app/pyproject.toml'`.
+- **What the round measured.** The rebuilt image (after the fix) builds, is **4.19 GB**, and serves
+  a bundle carrying `1.7.0` — the value read from `pyproject.toml`, which is the fix working;
+  `create_app()` inside the image answers in **2.2 s**; the file assertion and `docker compose -f
+  docker-compose.yml config -q` are green; `zizmor@1.30.1 --persona=pedantic` on
+  `.github/workflows` reports no findings; the docs suite is **29 passed** and `mkdocs build
+  --strict` is green.
+- **Not verified.** The `image` job has not run on GitHub at the time of this entry, so the
+  `type=gha` cache and the hosted runner's disk headroom are reasoned from the local build and not
+  measured on a runner; the entrypoint's migration was not exercised, because it needs a database
+  and the job checks the application layer instead (the DoD of #255).
+
+## 2026-10-29 — the image gate is a manual run (#255)
+
+- **Range:** `34fdd84..62ee30d`
+- **Pages:**
+  - `guides/install.md` — **updated**: this revises the entry above. The paragraph said the `image`
+    job ran on every pull request and every push; it now names the manual path — Actions → CI →
+    *Run workflow*, on `dev` before a release — and says why: the build takes minutes and installs
+    the whole Python and spaCy environment. The three checks are unchanged.
+  - `guides/install.pt.md` — **updated**: the same paragraph in Portuguese.
+  - `guides/operate.md` — **no-change**: `ci.yml` moved again (the `image` job is gated on
+    `workflow_dispatch` now); the page's CI text documents the documentation site, which did not
+    change.
+- **Why the shape changed in this round.** The job measured **6m13s** cold on its first run, and
+  **3m49s** after the free-disk step was removed. The GitHub Actions layer cache never engaged from
+  a `run` step — buildx only activates `type=gha` when `ACTIONS_RUNTIME_TOKEN` and
+  `ACTIONS_CACHE_URL` are in the environment (`build/opt.go`, `isActive`) — and behind
+  `docker/build-push-action` the cache export kept the build step over **twelve minutes** before
+  that run was canceled. The gate is now on demand, without the cache, with plain `docker build`.
+- **What the round measured.** The pull-request run of the same commit skips the job; a
+  `workflow_dispatch` of CI on the branch ran it green in **3m25s**. The image built locally is
+  **4.19 GB**, its bundle carries `1.7.0` (the value read from `pyproject.toml`), `create_app()`
+  inside it answers in **2.2 s**, and the file assertion and `docker compose -f docker-compose.yml
+  config -q` pass. `zizmor@1.30.1 --persona=pedantic` on `.github/workflows` reports no findings;
+  the docs suite is **29 passed** and `mkdocs build --strict` is green.
+- **Not verified.** The dispatch was run on the feature branch, not on `dev`; the workflow reads
+  whichever branch is selected in the Actions dropdown. The entrypoint's `alembic upgrade head` is
+  still not exercised — it needs a database, and the job checks the application layer, which is the
+  definition of done in #255.

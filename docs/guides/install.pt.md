@@ -399,6 +399,14 @@ docker compose --profile app logs -f scheduler
 O serviço `app` fica atrás do profile `app` de propósito, então o `docker compose up -d` — e
 portanto o `bun run dev` — continua subindo só a infraestrutura.
 
+O job `image` de `.github/workflows/ci.yml` constrói e confere esta imagem **sob demanda**, não em
+toda pull request: Actions → CI → *Run workflow*, no branch que importa (`dev` antes de um release).
+O build leva minutos e instala todo o ambiente Python e do spaCy, então ele roda quando alguém pede.
+Ele roda `create_app()` dentro da imagem, confere que o pacote da interface, a configuração do
+Alembic e as revisões de migração estão lá, e resolve o arquivo acima com
+`docker compose -f docker-compose.yml config -q`. Rode-o antes de um release: um `Dockerfile` que
+deixou de construir falha ali, e não no `docker compose up` do próximo instalador.
+
 O profile também traz um serviço `runner` e um `scheduler`: a mesma imagem, sem porta publicada, o
 módulo dos workers como entrypoint do runner e o módulo do scheduler como entrypoint do scheduler. É o formato CPU de uma instalação de um host só; um host com GPU roda a imagem
 naquela máquina com uma build CUDA e um caminho privado até o banco, como em [a rede e a
