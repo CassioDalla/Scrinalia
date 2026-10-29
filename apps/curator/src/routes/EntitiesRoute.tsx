@@ -33,6 +33,9 @@ import { Notice } from "@/components/ui/Notice";
 import { Tabs } from "@/components/ui/Tabs";
 import { Typeahead, type TypeaheadOption } from "@/components/ui/Typeahead";
 import { PageBody } from "@/components/layout/PageBody";
+import { useCopy } from "@/i18n/context";
+import { fill } from "@/i18n/maps";
+import { Trans } from "@/i18n/trans";
 import { ACTION } from "@/lib/copy";
 import {
   ENTITY_MERGE_FLAG_HINT,
@@ -66,17 +69,6 @@ export type EntitiesSearch = {
 };
 
 const TYPE_VALUES: ReclassifyTarget[] = ["ORG", "PER", "LOC"];
-
-/**
- * The two questions one entity card answers: what carries this name, and what it is called.
- *
- * The same pair the category card has, and deliberately the same shape — one body, not two, because
- * the pencil beside the name and the expansion under it are one object being read and corrected.
- */
-const ENTITY_CARD_TABS = [
-  { id: "descricoes", label: "Descrições" },
-  { id: "editar", label: "Editar" },
-];
 
 /**
  * One entity a merge panel may absorb.
@@ -116,6 +108,7 @@ export function EntitiesRoute() {
   const search = routeApi.useSearch();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const messages = useCopy();
 
   const [selected, setSelected] = useState<number[]>([]);
 
@@ -180,9 +173,10 @@ export function EntitiesRoute() {
         pending={relevance.isPending}
         status={
           relevance.data
-            ? `${formatCount(rows.length)} nomes por relevância · ${formatCount(
-              rows.reduce((sum, row) => sum + row.total_usage, 0),
-            )} vínculos entre os listados`
+            ? fill(messages.pages.entitiesScreen.status, {
+                names: formatCount(rows.length),
+                links: formatCount(rows.reduce((sum, row) => sum + row.total_usage, 0)),
+              })
             : undefined
         }
         actions={
@@ -190,25 +184,31 @@ export function EntitiesRoute() {
             size="sm"
             variant="danger"
             disabled={purgeOrphans.isPending}
-            title="Excluir as entidades que nenhuma descrição carrega — não há como desfazer."
+            title={messages.pages.entitiesScreen.purgeTitle}
             onClick={() => purgeOrphans.mutate()}
           >
-            {purgeOrphans.isPending ? ACTION.exclude.pending : "Excluir órfãs"}
+            {purgeOrphans.isPending ? ACTION.exclude.pending : messages.pages.entitiesScreen.purgeOrphans}
           </Button>
         }
       />
 
       <PageBody>
         <Notice tone="accent">
-          <strong>Reclassificar não é renomear um rótulo.</strong> Ao corrigir o tipo, o extrator passa
-          a reconhecer aquela grafia com o tipo novo em toda extração futura. E{" "}
-          <strong>mesclar tem desfazer</strong>: o painel mostra o impacto antes do clique, e cada
-          entidade absorvida fica registrada antes de a mesclagem acontecer.
+          <Trans
+            text={messages.pages.entitiesScreen.notice}
+            values={{
+              reclassify: <strong>{messages.pages.entitiesScreen.noticeReclassify}</strong>,
+              merge: <strong>{messages.pages.entitiesScreen.noticeMerge}</strong>,
+            }}
+          />
         </Notice>
 
         {purgeOrphans.data ? (
           <p className="text-xs text-(--color-muted)">
-            {routeMessage(purgeOrphans.data)} {formatCount(purgeOrphans.data.entities_deleted)} excluídas.
+            {routeMessage(purgeOrphans.data)}{" "}
+            {fill(messages.pages.entitiesScreen.purgedCount, {
+              count: formatCount(purgeOrphans.data.entities_deleted),
+            })}
           </p>
         ) : null}
         {purgeOrphans.error ? <ErrorState error={purgeOrphans.error} /> : null}
@@ -221,8 +221,8 @@ export function EntitiesRoute() {
 
         <Tabs
           items={[
-            { id: "relevancia", label: "Relevância" },
-            { id: "similaridade", label: "Similaridade" },
+            { id: "relevancia", label: messages.pages.entitiesScreen.tabRelevance },
+            { id: "similaridade", label: messages.pages.entitiesScreen.tabSimilarity },
           ]}
           active={tab}
           onChange={(aba) => navigate({ to: "/entidades/lista", search: { ...search, aba: aba as EntitiesSearch["aba"] } })}
@@ -248,7 +248,7 @@ export function EntitiesRoute() {
                 variant={search.tipo === undefined ? "primary" : "secondary"}
                 onClick={() => navigate({ to: "/entidades/lista", search: { ...search, tipo: undefined } })}
               >
-                Todos os tipos
+                {messages.pages.entitiesScreen.allTypes}
               </Button>
               {TYPE_VALUES.map((type) => (
                 <Button
@@ -263,12 +263,10 @@ export function EntitiesRoute() {
               ))}
               {selected.length > 0 ? (
                 <span className="text-xs text-(--color-muted)">
-                  Marcadas: {formatCount(selected.length)} · marque ao menos duas para mesclar
+                  {fill(messages.pages.entitiesScreen.markedHint, { count: formatCount(selected.length) })}
                 </span>
               ) : (
-                <span className="text-xs text-(--color-muted)">
-                  Marque duas ou mais para mesclar; o tipo se corrige na própria linha.
-                </span>
+                <span className="text-xs text-(--color-muted)">{messages.pages.entitiesScreen.markHint}</span>
               )}
             </div>
 
@@ -276,8 +274,8 @@ export function EntitiesRoute() {
             {relevance.isPending ? <Spinner /> : null}
             {relevance.data && rows.length === 0 ? (
               <EmptyState
-                title="Nenhuma entidade neste tipo"
-                hint="A extração de nomes ainda não rodou neste acervo, ou o tipo escolhido não tem nomes."
+                title={messages.pages.entitiesScreen.emptyTitle}
+                hint={messages.pages.entitiesScreen.emptyHint}
               />
             ) : null}
 
@@ -367,6 +365,7 @@ function EntityRow({
   const [tab, setTab] = useState<string>("descricoes");
   const [draftName, setDraftName] = useState(entity.name);
   const [keepOldSpelling, setKeepOldSpelling] = useState(true);
+  const messages = useCopy();
 
   const reclassify = useMutation({
     mutationFn: (newType: ReclassifyTarget) => reclassifyEntity(entity.entity_id, { new_type: newType }),
@@ -402,14 +401,14 @@ function EntityRow({
       <Disclosure
         open={open}
         onOpenChange={onOpenChange}
-        toggleLabel={`Ver as descrições de ${entity.name}`}
+        toggleLabel={fill(messages.pages.entitiesScreen.openDescriptions, { name: entity.name })}
         header={
           <div className="flex min-w-0 flex-wrap items-center gap-2">
             <span className="truncate text-sm font-medium">{entity.name}</span>
             <Badge tone={ENTITY_TYPE_TONE[entity.entity_type] ?? "neutral"}>
               {labelOf(ENTITY_TYPE_LABEL, entity.entity_type)}
             </Badge>
-            <Badge tone="neutral" title="Descrições que carregam este nome">
+            <Badge tone="neutral" title={messages.pages.entitiesScreen.usageBadgeTitle}>
               {descricoes(entity.total_usage)}
             </Badge>
           </div>
@@ -420,10 +419,10 @@ function EntityRow({
               type="checkbox"
               checked={checked}
               onChange={onToggle}
-              aria-label={`Selecionar ${entity.name}`}
+              aria-label={fill(messages.pages.entitiesScreen.selectEntity, { name: entity.name })}
             />
             <label className="flex items-center gap-1 text-xs text-(--color-muted)">
-              Tipo
+              {messages.pages.entitiesScreen.typeField}
               <Select
                 className="h-7 w-32 text-xs"
                 value={entity.entity_type}
@@ -441,8 +440,8 @@ function EntityRow({
             <Button
               size="sm"
               variant="ghost"
-              title="Corrigir a grafia deste nome, sem mesclar com outra entidade"
-              aria-label={`Renomear ${entity.name}`}
+              title={messages.pages.entitiesScreen.renameTitle}
+              aria-label={fill(messages.pages.entitiesScreen.renameAria, { name: entity.name })}
               onClick={openRename}
             >
               {ACTION.rename.label}
@@ -453,7 +452,7 @@ function EntityRow({
                 size="sm"
                 variant="danger"
                 disabled={remove.isPending}
-                title="Nenhuma descrição carrega este nome: excluir não perde vínculo, e não há como desfazer."
+                title={messages.pages.entitiesScreen.deleteOrphanTitle}
                 onClick={() => remove.mutate()}
               >
                 {ACTION.exclude.label}
@@ -463,11 +462,18 @@ function EntityRow({
         }
       >
         <div className="grid gap-3">
-          <Tabs items={ENTITY_CARD_TABS} active={tab} onChange={setTab} />
+          <Tabs
+            items={[
+              { id: "descricoes", label: messages.pages.entitiesScreen.tabDescriptions },
+              { id: "editar", label: messages.common.edit },
+            ]}
+            active={tab}
+            onChange={setTab}
+          />
 
           {tab === "editar" ? (
             <div className="grid gap-2">
-              <Field label="Nome">
+              <Field label={messages.pages.entitiesScreen.nameField}>
                 <Input
                   value={draftName}
                   maxLength={255}
@@ -482,11 +488,7 @@ function EntityRow({
                   checked={keepOldSpelling}
                   onChange={(event) => setKeepOldSpelling(event.target.checked)}
                 />
-                <span>
-                  Manter a grafia antiga como sinônimo — é o que faz a grafia antiga continuar levando a
-                  esta entidade nas próximas extrações. Desmarque quando a grafia antiga for um erro de
-                  digitação.
-                </span>
+                <span>{messages.pages.entitiesScreen.keepOldSpelling}</span>
               </label>
 
               <div className="flex flex-wrap items-center gap-2">
@@ -498,15 +500,17 @@ function EntityRow({
                 >
                   {rename.isPending ? ACTION.save.pending : ACTION.save.label}
                 </Button>
-                {dirty ? <span className="text-xs text-(--color-muted)">alterações não salvas</span> : null}
+                {dirty ? (
+                  <span className="text-xs text-(--color-muted)">{messages.pages.entitiesScreen.unsaved}</span>
+                ) : null}
               </div>
 
               {rename.data ? (
                 <p className="text-xs text-(--color-muted)">
                   {routeMessage(rename.data)}{" "}
                   {rename.data.kept_old_spelling
-                    ? "A grafia antiga continua levando a esta entidade. O desfazer está no histórico, no fim desta tela."
-                    : "A grafia antiga não foi mantida. O desfazer está no histórico, no fim desta tela."}
+                    ? messages.pages.entitiesScreen.renameKept
+                    : messages.pages.entitiesScreen.renameNotKept}
                 </p>
               ) : null}
 
@@ -520,8 +524,8 @@ function EntityRow({
               onPage={onPage}
               onPreview={onPreview}
               empty={{
-                title: "Nenhuma descrição carrega este nome",
-                hint: "O nome existe no vocabulário e nenhuma descrição o carrega — é a linha que a exclusão de órfãs remove.",
+                title: messages.pages.entitiesScreen.noDescriptionsTitle,
+                hint: messages.pages.entitiesScreen.noDescriptionsHint,
               }}
             />
           )}
@@ -564,6 +568,7 @@ type MergeCandidate = EntityCandidate & { hint: string };
  */
 function MergeCard({ onMerged }: { onMerged: () => void }) {
   const [members, setMembers] = useState<MergeCandidate[]>([]);
+  const messages = useCopy();
 
   const add = (option: TypeaheadOption) => {
     const entityId = Number(option.value);
@@ -583,21 +588,19 @@ function MergeCard({ onMerged }: { onMerged: () => void }) {
 
   return (
     <Disclosure
-      triggerLabel="+ Mesclar pelo nome"
-      toggleLabel="Mesclar duas entidades escritas pelo nome"
+      triggerLabel={messages.pages.entitiesScreen.mergeByNameTrigger}
+      toggleLabel={messages.pages.entitiesScreen.mergeByNameToggle}
       header={
         <div className="grid gap-1">
-          <span className="text-sm font-semibold">Mesclar pelo nome</span>
-          <span className="text-xs text-(--color-muted)">
-            Mesclagem manual de termos que não apareceram nas sugestões automáticas. Digite as duas grafias para mesclá-las em um único termo. Itens selecionados na aba Relevância não são transferidos para cá.
-          </span>
+          <span className="text-sm font-semibold">{messages.pages.entitiesScreen.mergeByNameTitle}</span>
+          <span className="text-xs text-(--color-muted)">{messages.pages.entitiesScreen.mergeByNameHint}</span>
         </div>
       }
     >
       <div className="grid gap-3">
         <Typeahead
-          placeholder="digite ao menos 2 letras: smu…"
-          emptyLabel="nenhuma entidade com esse trecho"
+          placeholder={messages.pages.entitiesScreen.mergeSearchPlaceholder}
+          emptyLabel={messages.pages.entitiesScreen.mergeSearchEmpty}
           onSearch={async (term) =>
             (await searchEntities(term)).map((result) => ({
               value: String(result.entity_id),
@@ -609,9 +612,7 @@ function MergeCard({ onMerged }: { onMerged: () => void }) {
         />
 
         {members.length === 0 ? (
-          <p className="text-xs text-(--color-muted)">
-            Nenhum nome escolhido ainda. Escreva as duas grafias que você já sabe que são uma só.
-          </p>
+          <p className="text-xs text-(--color-muted)">{messages.pages.entitiesScreen.noMembersHint}</p>
         ) : (
           <ul className="divide-y divide-(--color-line) text-xs">
             {members.map((member) => (
@@ -629,14 +630,12 @@ function MergeCard({ onMerged }: { onMerged: () => void }) {
         )}
 
         {members.length < 2 ? (
-          <p className="text-xs text-(--color-muted)">
-            Uma mesclagem precisa de duas grafias — com menos do que isso, nada é mesclado.
-          </p>
+          <p className="text-xs text-(--color-muted)">{messages.pages.entitiesScreen.needTwoHint}</p>
         ) : (
           <MergePanel
             members={members}
-            title="Mesclar os nomes escolhidos"
-            hint="A canônica é escolha sua. O desfazer de cada entidade absorvida fica no histórico, no fim desta tela."
+            title={messages.pages.entitiesScreen.mergeChosenTitle}
+            hint={messages.pages.entitiesScreen.mergeChosenHint}
             onChanged={onMerged}
             onDone={() => {
               clear();
@@ -675,6 +674,7 @@ function MergePanel({
 }) {
   const [canonicalId, setCanonicalId] = useState(members[0]?.entity_id ?? 0);
   const [newName, setNewName] = useState("");
+  const messages = useCopy();
   const nameOf = (id: number) => members.find((member) => member.entity_id === id)?.name ?? `#${id}`;
 
   const absorbed = members.filter((member) => member.entity_id !== canonicalId);
@@ -714,7 +714,9 @@ function MergePanel({
   return (
     <Card className="ring-(--color-warn)/40">
       <CardBody className="grid gap-3">
-        <p className="text-sm font-semibold">{title ?? `Mesclar ${formatCount(members.length)} entidades`}</p>
+        <p className="text-sm font-semibold">
+          {title ?? fill(messages.pages.entitiesScreen.mergeCount, { count: formatCount(members.length) })}
+        </p>
         {hint ? <p className="text-xs text-(--color-muted)">{hint}</p> : null}
 
         <div className="grid gap-2 text-xs">
@@ -728,13 +730,15 @@ function MergePanel({
               />
               <span className={canonicalId === member.entity_id ? "font-medium" : "text-(--color-muted)"}>
                 {member.name} <code className="text-[10px]">#{member.entity_id}</code>
-                {canonicalId === member.entity_id ? " — mantida (canônica)" : " — absorvida"}
+                {canonicalId === member.entity_id
+                  ? messages.pages.entitiesScreen.canonicalSuffix
+                  : messages.pages.entitiesScreen.absorbedSuffix}
               </span>
             </label>
           ))}
         </div>
 
-        <Field label="Renomear a Canônica (opcional; o nome antigo vira sinônimo)">
+        <Field label={messages.pages.entitiesScreen.renameCanonicalField}>
           <Input
             value={newName}
             onChange={(event) => setNewName(event.target.value)}
@@ -744,13 +748,19 @@ function MergePanel({
         </Field>
 
         {/* The dry run, before the click: the same planner the merge executes computes these. */}
-        {preview.isPending ? <Spinner label="Calculando o impacto…" /> : null}
+        {preview.isPending ? <Spinner label={messages.pages.entitiesScreen.previewPending} /> : null}
         {preview.error ? <ErrorState error={preview.error} /> : null}
         {preview.data ? (
           <p className="text-xs text-(--color-muted)">
-            {formatCount(preview.data.documents_updated)} descrição(ões) passam a carregar{" "}
-            <strong>{nameOf(canonicalId)}</strong> · {formatCount(preview.data.links_rewritten)} vínculo(s)
-            movido(s) · {formatCount(preview.data.entities_deleted?.length ?? 0)} entidade(s) absorvida(s).
+            <Trans
+              text={messages.pages.entitiesScreen.previewSummary}
+              values={{
+                descriptions: formatCount(preview.data.documents_updated),
+                canonical: <strong>{nameOf(canonicalId)}</strong>,
+                links: formatCount(preview.data.links_rewritten),
+                entities: formatCount(preview.data.entities_deleted?.length ?? 0),
+              }}
+            />
           </p>
         ) : null}
         {preview.data && (preview.data.review_flags ?? []).length > 0 ? (
@@ -766,10 +776,14 @@ function MergePanel({
         ) : null}
 
         <Notice tone="warn">
-          As <strong>{formatCount(absorbed.length)}</strong> entidades absorvidas deixam de existir e
-          seus vínculos passam para <strong>{nameOf(canonicalId)}</strong>. As grafias viram sinônimos,
-          e o extrator continua reconhecendo-as. A mesclagem é registrada{" "}
-          <strong>antes</strong> de acontecer — o desfazer restaura a linha, os vínculos e as grafias.
+          <Trans
+            text={messages.pages.entitiesScreen.absorbNotice}
+            values={{
+              count: <strong>{formatCount(absorbed.length)}</strong>,
+              name: <strong>{nameOf(canonicalId)}</strong>,
+              before: <strong>{messages.pages.entitiesScreen.beforeMerge}</strong>,
+            }}
+          />
         </Notice>
 
         <div className="flex items-center gap-2">
@@ -777,8 +791,14 @@ function MergePanel({
             {merge.isPending
               ? ACTION.merge.pending
               : absorbed.length === 1
-                ? `Mesclar ${absorbed[0]?.name} em ${nameOf(canonicalId)}`
-                : `Mesclar ${formatCount(absorbed.length)} nomes em ${nameOf(canonicalId)}`}
+                ? fill(messages.pages.entitiesScreen.mergeOne, {
+                    absorbed: absorbed[0]?.name ?? "",
+                    canonical: nameOf(canonicalId),
+                  })
+                : fill(messages.pages.entitiesScreen.mergeMany, {
+                    count: formatCount(absorbed.length),
+                    canonical: nameOf(canonicalId),
+                  })}
           </Button>
           <Button variant="ghost" onClick={onCancel}>
             {ACTION.cancel.label}
@@ -788,9 +808,14 @@ function MergePanel({
         {merge.data ? (
           <div className="grid gap-1 text-xs text-(--color-muted)">
             <p>
-              {formatCount(merge.data.documents_updated)} vínculo(s) movido(s) ·{" "}
-              {formatCount(merge.data.entities_deleted)} entidade(s) absorvida(s) · registros{" "}
-              <code>{(merge.data.merge_ids ?? []).join(", ") || "—"}</code> no histórico.
+              <Trans
+                text={messages.pages.entitiesScreen.mergeResult}
+                values={{
+                  links: formatCount(merge.data.documents_updated),
+                  entities: formatCount(merge.data.entities_deleted),
+                  ids: <code>{(merge.data.merge_ids ?? []).join(", ") || "—"}</code>,
+                }}
+              />
             </p>
             {(merge.data.merge_ids ?? []).length > 0 ? (
               <div className="flex items-center gap-2">
@@ -798,12 +823,12 @@ function MergePanel({
                   size="sm"
                   variant="secondary"
                   disabled={undo.isPending}
-                  title="Restaura cada entidade absorvida, seus vínculos e as grafias."
+                  title={messages.pages.entitiesScreen.undoTitle}
                   onClick={() => undo.mutate(merge.data.merge_ids ?? [])}
                 >
-                  {undo.isPending ? "Desfazendo…" : "Desfazer esta mesclagem"}
+                  {undo.isPending ? ACTION.undo.pending : messages.pages.entitiesScreen.undoMerge}
                 </Button>
-                <span>O desfazer também está no histórico abaixo.</span>
+                <span>{messages.pages.entitiesScreen.undoAlsoInLedger}</span>
               </div>
             ) : null}
           </div>
@@ -827,6 +852,7 @@ const ENTITY_MERGE_LOG_PAGE_SIZE = 50;
 function EntityMergeLedger({ onChanged }: { onChanged: () => void }) {
   const [term, setTerm] = useState("");
   const [limit, setLimit] = useState(ENTITY_MERGE_LOG_PAGE_SIZE);
+  const messages = useCopy();
 
   const log = useQuery(queries.entityMergeLog(limit, term.trim() || undefined));
 
@@ -837,31 +863,36 @@ function EntityMergeLedger({ onChanged }: { onChanged: () => void }) {
 
   return (
     <Card>
-      <CardHeader className="text-sm font-semibold">Histórico dos nomes: mesclagens e renomeações</CardHeader>
+      <CardHeader className="text-sm font-semibold">{messages.pages.entitiesScreen.ledgerTitle}</CardHeader>
       <CardBody className="grid gap-2">
         <p className="text-xs text-(--color-muted)">
-          Aqui só entram decisões já concluídas. Cada linha guarda o <strong>estado anterior</strong> —
-          na mesclagem, a entidade, seus vínculos, suas grafias e o nome que a canônica perdeu; na
-          renomeação, o nome antigo e se ele ficou como sinônimo — e o desfazer restaura tudo.
+          <Trans
+            text={messages.pages.entitiesScreen.ledgerHint}
+            values={{ state: <strong>{messages.pages.entitiesScreen.ledgerState}</strong> }}
+          />
         </p>
         <Input
           className="max-w-xs"
           value={term}
-          placeholder="buscar por grafia absorvida ou canônica…"
+          placeholder={messages.pages.entitiesScreen.ledgerSearchPlaceholder}
           onChange={(event) => {
             setTerm(event.target.value);
             setLimit(ENTITY_MERGE_LOG_PAGE_SIZE);
           }}
         />
-        {log.isPending ? <Spinner label="Lendo o histórico…" /> : null}
+        {log.isPending ? <Spinner label={messages.pages.entitiesScreen.ledgerReading} /> : null}
         {log.error ? <ErrorState error={log.error} /> : null}
         {log.data && (log.data.items ?? []).length === 0 ? (
           <EmptyState
-            title={term.trim() ? `Nenhum registro para “${term.trim()}”` : "Nenhuma decisão sobre nomes ainda"}
+            title={
+              term.trim()
+                ? fill(messages.pages.entitiesScreen.ledgerEmptyTerm, { term: term.trim() })
+                : messages.pages.entitiesScreen.ledgerEmpty
+            }
             hint={
               term.trim()
-                ? "A busca cobre as duas grafias de cada linha: a absorvida (ou a antiga) e a canônica."
-                : "O histórico registra cada entidade absorvida numa mesclagem e cada nome renomeado, com o estado anterior."
+                ? messages.pages.entitiesScreen.ledgerEmptyTermHint
+                : messages.pages.entitiesScreen.ledgerEmptyHint
             }
           />
         ) : null}
@@ -874,8 +905,10 @@ function EntityMergeLedger({ onChanged }: { onChanged: () => void }) {
                   <span className="text-(--color-muted)"> → {entry.canonical_name}</span>
                   <span className="text-(--color-muted)">
                     {" "}
-                    · renomeação · {formatDateTime(entry.changed_at)}
-                    {entry.changed_by ? ` · por ${entry.changed_by}` : ""}
+                    {fill(messages.pages.entitiesScreen.ledgerRename, { date: formatDateTime(entry.changed_at) })}
+                    {entry.changed_by
+                      ? ` ${fill(messages.pages.entitiesScreen.ledgerBy, { name: entry.changed_by })}`
+                      : ""}
                   </span>
                 </span>
               ) : (
@@ -884,14 +917,25 @@ function EntityMergeLedger({ onChanged }: { onChanged: () => void }) {
                   <span className="text-(--color-muted)"> → {entry.canonical_name}</span>
                   <span className="text-(--color-muted)">
                     {" "}
-                    · {formatCount(entry.document_count)} doc(s) · {formatDateTime(entry.changed_at)}
-                    {entry.changed_by ? ` · por ${entry.changed_by}` : ""}
-                    {entry.canonical_renamed_from ? ` · canônica era “${entry.canonical_renamed_from}”` : ""}
+                    {fill(messages.pages.entitiesScreen.ledgerDocs, {
+                      count: formatCount(entry.document_count),
+                      date: formatDateTime(entry.changed_at),
+                    })}
+                    {entry.changed_by
+                      ? ` ${fill(messages.pages.entitiesScreen.ledgerBy, { name: entry.changed_by })}`
+                      : ""}
+                    {entry.canonical_renamed_from
+                      ? ` ${fill(messages.pages.entitiesScreen.ledgerCanonicalWas, {
+                          name: entry.canonical_renamed_from,
+                        })}`
+                      : ""}
                   </span>
                 </span>
               )}
               {entry.is_undone ? (
-                <Badge tone="neutral">desfeito em {formatDateTime(entry.undone_at)}</Badge>
+                <Badge tone="neutral">
+                  {fill(messages.pages.entitiesScreen.ledgerUndone, { date: formatDateTime(entry.undone_at) })}
+                </Badge>
               ) : (
                 <Button
                   size="sm"
@@ -899,12 +943,12 @@ function EntityMergeLedger({ onChanged }: { onChanged: () => void }) {
                   disabled={undo.isPending}
                   title={
                     entry.is_rename
-                      ? "Devolve o nome anterior e desfaz o sinônimo que a renomeação criou."
-                      : "Restaura a entidade, seus vínculos, suas grafias e o nome da canônica."
+                      ? messages.pages.entitiesScreen.undoRenameTitle
+                      : messages.pages.entitiesScreen.undoMergeTitle
                   }
                   onClick={() => undo.mutate(entry.merge_id)}
                 >
-                  Desfazer
+                  {ACTION.undo.label}
                 </Button>
               )}
             </li>
@@ -914,10 +958,13 @@ function EntityMergeLedger({ onChanged }: { onChanged: () => void }) {
         {log.data && log.data.total > (log.data.items ?? []).length ? (
           <div className="flex items-center gap-2">
             <Button size="sm" variant="ghost" onClick={() => setLimit((current) => current + ENTITY_MERGE_LOG_PAGE_SIZE)}>
-              Ver mais
+              {messages.pages.entitiesScreen.seeMore}
             </Button>
             <span className="text-xs text-(--color-muted)">
-              {formatCount((log.data.items ?? []).length)} de {formatCount(log.data.total)}
+              {fill(messages.pages.entitiesScreen.ledgerCount, {
+                shown: formatCount((log.data.items ?? []).length),
+                total: formatCount(log.data.total),
+              })}
             </span>
           </div>
         ) : null}
@@ -930,6 +977,7 @@ function EntityMergeLedger({ onChanged }: { onChanged: () => void }) {
 function SimilarityTab({ onMerged }: { onMerged: () => void }) {
   const [target, setTarget] = useState("");
   const [threshold, setThreshold] = useState(0.5);
+  const messages = useCopy();
   /** One pair opened by its own button: the panel renders right under it. */
   const [openPair, setOpenPair] = useState<EntityPairSimilarity | null>(null);
   /** Entities marked across rows, for the case one merge has to span several pairs. */
@@ -985,15 +1033,15 @@ function SimilarityTab({ onMerged }: { onMerged: () => void }) {
   return (
     <div className="grid gap-3">
       <div className="flex flex-wrap items-end gap-3">
-        <Field label="Nome-Alvo (vazio: todos os pares parecidos)">
+        <Field label={messages.pages.entitiesScreen.similarityTargetField}>
           <Input
             value={target}
             onChange={(event) => setTarget(event.target.value)}
-            placeholder="ex.: prefeitura"
+            placeholder={messages.pages.entitiesScreen.similarityTargetPlaceholder}
             className="w-72"
           />
         </Field>
-        <Field label="Limiar de similaridade">
+        <Field label={messages.pages.entitiesScreen.similarityThresholdField}>
           <Input
             type="number"
             min={0.1}
@@ -1006,19 +1054,14 @@ function SimilarityTab({ onMerged }: { onMerged: () => void }) {
         </Field>
       </div>
 
-      <p className="text-xs text-(--color-muted)">
-        O par é evidência, não decisão: nomes parecidos na grafia também podem ser nomes diferentes. A
-        canônica é escolha sua, e mesclar aqui é a mesma operação da aba Relevância — o histórico guarda
-        cada absorvida e o desfazer restaura. Para mesclar mais de um par de uma vez, marque as linhas e
-        use a barra que aparece embaixo.
-      </p>
+      <p className="text-xs text-(--color-muted)">{messages.pages.entitiesScreen.similarityHint}</p>
 
       {pull.error ? <ErrorState error={pull.error} /> : null}
       {pull.isPending ? <Spinner /> : null}
       {pull.data && data.length === 0 ? (
         <EmptyState
-          title="Nenhum par acima do limiar"
-          hint="Com esse limiar e nenhum par, o vocabulário pode já estar limpo — ou o alvo não existe."
+          title={messages.pages.entitiesScreen.similarityEmptyTitle}
+          hint={messages.pages.entitiesScreen.similarityEmptyHint}
         />
       ) : null}
 
@@ -1029,8 +1072,8 @@ function SimilarityTab({ onMerged }: { onMerged: () => void }) {
       {clusterOpen && marked.length >= 2 ? (
         <MergePanel
           members={marked}
-          title={`Mesclar ${formatCount(marked.length)} entidades marcadas`}
-          hint="Estas entidades vieram de linhas diferentes da lista: a canônica é escolhida abaixo. O histórico guarda cada absorvida e o desfazer restaura."
+          title={fill(messages.pages.entitiesScreen.mergeMarkedTitle, { count: formatCount(marked.length) })}
+          hint={messages.pages.entitiesScreen.mergeMarkedHint}
           onChanged={onMerged}
           onDone={afterMerge}
           onCancel={clearMarked}
@@ -1039,7 +1082,7 @@ function SimilarityTab({ onMerged }: { onMerged: () => void }) {
 
       {!showAll && all.length > data.length ? (
         <Button variant="secondary" onClick={() => setShowAll(true)}>
-          Mostrar todos os {formatCount(all.length)} pares
+          {fill(messages.pages.entitiesScreen.showAllPairs, { count: formatCount(all.length) })}
         </Button>
       ) : null}
 
@@ -1062,7 +1105,7 @@ function SimilarityTab({ onMerged }: { onMerged: () => void }) {
                       to the one that has them instead of offering a button it cannot honour.
                     */}
                   <span className="text-xs text-(--color-muted)">
-                    vizinho de “{target}” — para mesclar, deixe o nome-alvo vazio e use a lista de pares
+                    {fill(messages.pages.entitiesScreen.neighbourHint, { target })}
                   </span>
                 </CardBody>
               </Card>
@@ -1077,8 +1120,11 @@ function SimilarityTab({ onMerged }: { onMerged: () => void }) {
                       type="checkbox"
                       checked={rowMarked(pair)}
                       onChange={() => toggleRow(pair)}
-                      title="Marcar as duas entidades desta linha para mesclar em conjunto"
-                      aria-label={`Marcar ${pair.name_1} e ${pair.name_2}`}
+                      title={messages.pages.entitiesScreen.markRowTitle}
+                      aria-label={fill(messages.pages.entitiesScreen.markRowAria, {
+                        first: pair.name_1,
+                        second: pair.name_2,
+                      })}
                     />
                     <span className="font-medium">{pair.name_1}</span>
                     <span className="text-(--color-muted)">({pair.type_1})</span>
@@ -1100,7 +1146,7 @@ function SimilarityTab({ onMerged }: { onMerged: () => void }) {
                     variant="secondary"
                     onClick={() => setOpenPair(openPair === pair ? null : pair)}
                   >
-                    {openPair === pair ? ACTION.close.label : "Mesclar ↦"}
+                    {openPair === pair ? ACTION.close.label : messages.pages.entitiesScreen.mergeArrow}
                   </Button>
                 </CardBody>
               </Card>
@@ -1115,11 +1161,9 @@ function SimilarityTab({ onMerged }: { onMerged: () => void }) {
                     { entity_id: pair.id_1, name: pair.name_1 },
                     { entity_id: pair.id_2, name: pair.name_2 },
                   ]}
-                  title="Escolher a canônica e mesclar"
+                  title={messages.pages.entitiesScreen.chooseCanonicalTitle}
                   hint={
-                    pair.name_1 === pair.name_2
-                      ? "Os dois nomes são idênticos nesta linha: confira os identificadores antes de decidir."
-                      : undefined
+                    pair.name_1 === pair.name_2 ? messages.pages.entitiesScreen.identicalNamesHint : undefined
                   }
                   onChanged={onMerged}
                   onDone={afterMerge}
@@ -1134,13 +1178,16 @@ function SimilarityTab({ onMerged }: { onMerged: () => void }) {
         <div className="pointer-events-none fixed inset-x-0 bottom-6 z-40 flex justify-center">
           <div className="pointer-events-auto flex flex-wrap items-center gap-3 rounded-full bg-(--color-ink) px-4 py-2 text-sm text-white shadow-lg">
             <span>
-              {formatCount(marked.length)} entidades marcadas em {formatCount(markedRows)} linha(s)
+              {fill(messages.pages.entitiesScreen.markedStatus, {
+                count: formatCount(marked.length),
+                rows: formatCount(markedRows),
+              })}
             </span>
             <Button size="sm" variant="primary" onClick={() => setClusterOpen(true)}>
-              Mesclar entidades
+              {messages.pages.entitiesScreen.mergeEntities}
             </Button>
             <button className="text-xs text-white/70 hover:text-white" onClick={clearMarked}>
-              Limpar
+              {messages.pages.entitiesScreen.clearMarked}
             </button>
           </div>
         </div>
@@ -1148,8 +1195,21 @@ function SimilarityTab({ onMerged }: { onMerged: () => void }) {
 
       {all.length > 0 ? (
         <p className="text-xs text-(--color-muted)">
-          Veja também os <Link to="/entidades/conflitos" className="underline">conflitos com o eixo de assunto</Link>{" "}
-          e a tela <Link to="/entidades/excecoes" className="underline">Remover de Entidades</Link>.
+          <Trans
+            text={messages.pages.entitiesScreen.seeAlso}
+            values={{
+              conflicts: (
+                <Link to="/entidades/conflitos" className="underline">
+                  {messages.pages.entitiesScreen.conflictsLink}
+                </Link>
+              ),
+              exclusions: (
+                <Link to="/entidades/excecoes" className="underline">
+                  {messages.screens.nerExclusions.label}
+                </Link>
+              ),
+            }}
+          />
         </p>
       ) : null}
     </div>

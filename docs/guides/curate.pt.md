@@ -169,6 +169,23 @@ depende da tela: um script com a senha que foi impressa num terminal, ou digitad
 administrador, recebe a mesma frase e nenhum acesso ao acervo. A troca abre o resto da API na mesma
 sessão.
 
+### A interface fala duas línguas
+
+A interface de curadoria é escrita em português e inglês, e a escolha é da **conta**, não da
+instalação: *Automático*, *Português* e *English* ficam no rodapé da conta, no menu. Uma conta nova
+começa em *Automático*, que é guardado como "nenhuma escolha" e segue o navegador — `pt*` abre em
+português, `en*` em inglês e todo o resto em português, a língua da instalação. Depois de entrar, a
+escolha da conta vence: uma estação compartilhada não pode entregar a um arquivista a língua do
+anterior.
+
+A língua não é uma preferência de cliente pintada sobre um servidor em português: toda requisição
+leva `Accept-Language`, e a API compõe a sua `message` — a confirmação de uma escrita e a recusa de
+outra — na língua pedida (ADR 0020 §4). A troca não recarrega a página; o shell re-renderiza com o
+catálogo novo, e datas, números e plurais a acompanham via `Intl`.
+
+O que não muda entre as duas línguas: os caminhos continuam em português (`/acervo/lista`), o que a
+#239 acompanha, e o conteúdo do registro nunca é traduzido.
+
 ### O menu esconde; nunca concede
 
 A casca filtra as entradas pela área em que a tela **escreve**

@@ -6,16 +6,14 @@ import { Tabs } from "@/components/ui/Tabs";
 import { RunsLedger, validateSystemRunsSearch, type SystemRunsSearch } from "@/components/workers/RunsLedger";
 import { WorkersPanel } from "@/components/workers/WorkersPanel";
 import { asEnum } from "@/lib/search";
+import { useCopy } from "@/i18n/context";
 
 const routeApi = getRouteApi("/sistema/workers");
 
 /** The two questions the screen answers, and the tab each one is. */
 export type WorkersTab = "painel" | "execucoes";
 
-const TABS: { id: WorkersTab; label: string }[] = [
-  { id: "painel", label: "Painel" },
-  { id: "execucoes", label: "Execuções" },
-];
+const TAB_IDS: readonly WorkersTab[] = ["painel", "execucoes"];
 
 /**
  * The merged search: the tab, plus the ledger's filters.
@@ -30,7 +28,7 @@ export type SystemWorkersSearch = SystemRunsSearch & { aba?: WorkersTab };
 export function validateSystemWorkersSearch(search: Record<string, unknown>): SystemWorkersSearch {
   return {
     ...validateSystemRunsSearch(search),
-    aba: asEnum(search.aba, TABS.map((tab) => tab.id)),
+    aba: asEnum(search.aba, TAB_IDS),
   };
 }
 
@@ -48,6 +46,8 @@ export function validateSystemWorkersSearch(search: Record<string, unknown>): Sy
  * would double the reads for a screen nobody is looking at.
  */
 export function SystemWorkersRoute() {
+  const messages = useCopy();
+  const TABS = TAB_IDS.map((id) => ({ id, label: messages.pages.workers[id] }));
   const search = routeApi.useSearch();
   const navigate = useNavigate();
 

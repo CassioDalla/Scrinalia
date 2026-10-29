@@ -14,6 +14,7 @@ import { PageBody } from "@/components/layout/PageBody";
 import { formatCount, formatDateTime } from "@/lib/format";
 import { ISAD_FIELDS } from "@/lib/isad";
 import { asNumber, asString } from "@/lib/search";
+import { useCopy } from "@/i18n/context";
 
 const routeApi = getRouteApi("/acervo/excluidas");
 
@@ -86,6 +87,7 @@ export function validateDeletionsSearch(search: Record<string, unknown>): Deleti
 export function DeletionsRoute() {
   const search = routeApi.useSearch();
   const navigate = useNavigate();
+  const messages = useCopy();
 
   const offset = search.offset ?? 0;
   const page = useQuery(queries.deletions(search.termo, offset));
@@ -103,24 +105,24 @@ export function DeletionsRoute() {
         pending={page.isPending}
         status={
           page.data
-            ? `${formatCount(total)} item(ns) no histórico de exclusões${search.termo ? ` para “${search.termo}”` : ""}`
+            ? (search.termo
+                ? messages.pages.deletions.statusTerm
+                : messages.pages.deletions.status
+              )
+                .replace("{count}", formatCount(total))
+                .replace("{term}", search.termo ?? "")
             : undefined
         }
       />
 
       <PageBody>
-        <Notice tone="warn">
-          Histórico permanente de exclusões.
-          Os itens desta lista foram excluídos em definitivo e não podem ser restaurados.
-          Esta página preserva os dados originais e o responsável
-          pela ação apenas para fins de consulta e auditoria.
-        </Notice>
+        <Notice tone="warn">{messages.pages.deletions.notice}</Notice>
 
         <div className="flex flex-wrap items-center gap-2">
           <SearchBox value={search.termo} onSearch={(termo) => patch({ termo })} />
           {search.termo ? (
             <Button size="sm" variant="ghost" onClick={() => patch({ termo: undefined })}>
-              Limpar busca
+              {messages.pages.deletions.clearSearch}
             </Button>
           ) : null}
         </div>
@@ -136,11 +138,13 @@ export function DeletionsRoute() {
 
         {page.data && total === 0 ? (
           <EmptyState
-            title={search.termo ? `Nenhum item excluído encontrado para “${search.termo}”` : "Nenhum item excluído até o momento"}
-            hint={
+            title={
               search.termo
-                ? "Tente pesquisar por outro termo, código de referência ou ID."
-                : "O acervo não possui registros de exclusão. Quando um item for removido, o histórico completo de dados aparecerá aqui para consulta."
+                ? messages.pages.deletions.emptyTitleTerm.replace("{term}", search.termo)
+                : messages.pages.deletions.emptyTitleNone
+            }
+            hint={
+              search.termo ? messages.pages.deletions.emptyHintTerm : messages.pages.deletions.emptyHintNone
             }
             action={
               search.termo ? (
@@ -161,7 +165,7 @@ export function DeletionsRoute() {
                     <div className="flex min-w-0 flex-wrap items-center gap-2">
                       <span className="truncate text-sm font-medium">{entry.title}</span>
                       {entry.level_name ? <Badge tone="neutral">{entry.level_name}</Badge> : null}
-                      <Badge tone="neutral" title="ID do registro">
+                      <Badge tone="neutral" title={messages.pages.deletions.recordId}>
                         {entry.description_id}
                       </Badge>
                     </div>
@@ -172,11 +176,11 @@ export function DeletionsRoute() {
                     {entry.reference_code ? (
                       <code className="rounded bg-black/[0.05] px-1">{entry.reference_code}</code>
                     ) : (
-                      <span>Sem código de referência</span>
+                      <span>{messages.pages.deletions.noReference}</span>
                     )}
-                    <span>· Excluído por {entry.deleted_by ?? "usuário não identificado"}</span>
+                    <span>{messages.pages.deletions.deletedBy.replace("{name}", entry.deleted_by ?? messages.pages.deletions.unknownUser)}</span>
                     {entry.children_count > 0 ? (
-                      <span>· Continha {formatCount(entry.children_count)} item(ns) vinculado(s)</span>
+                      <span>{messages.pages.deletions.children.replace("{count}", formatCount(entry.children_count))}</span>
                     ) : null}
                   </div>
 
@@ -213,7 +217,7 @@ export function DeletionsRoute() {
               disabled={offset === 0}
               onClick={() => navigate({ to: "/acervo/excluidas", search: { ...search, offset: Math.max(0, offset - DELETIONS_PAGE_SIZE) } })}
             >
-              ← Anterior
+              {messages.common.previous}
             </Button>
             <span className="text-xs text-(--color-muted)">
               {formatCount(offset + 1)}–{formatCount(Math.min(offset + DELETIONS_PAGE_SIZE, total))} de{" "}
@@ -226,7 +230,7 @@ export function DeletionsRoute() {
                 navigate({ to: "/acervo/excluidas", search: { ...search, offset: offset + DELETIONS_PAGE_SIZE } })
               }
             >
-              Próxima →
+              {messages.common.next}
             </Button>
           </div>
         ) : null}
@@ -242,6 +246,7 @@ export function DeletionsRoute() {
  * button works.
  */
 function SearchBox({ value, onSearch }: { value: string | undefined; onSearch: (term: string | undefined) => void }) {
+  const messages = useCopy();
   const fromUrl = value ?? "";
   const [term, setTerm] = useState(fromUrl);
   const [seen, setSeen] = useState(fromUrl);
@@ -264,7 +269,7 @@ function SearchBox({ value, onSearch }: { value: string | undefined; onSearch: (
     <Input
       value={term}
       className="max-w-md"
-      placeholder="Buscar por código, título ou ID..."
+      placeholder={messages.pages.deletions.searchPlaceholder}
       onChange={(event) => setTerm(event.target.value)}
     />
   );

@@ -24,6 +24,9 @@ import { EmptyState, ErrorState, Skeleton } from "@/components/ui/Feedback";
 import { Field } from "@/components/ui/Field";
 import { Input } from "@/components/ui/Input";
 import { SidePanel, SidePanelClose } from "@/components/ui/SidePanel";
+import { useCopy } from "@/i18n/context";
+import { activeMessages } from "@/i18n/locale";
+import { fill, stringMap } from "@/i18n/maps";
 import { formatCount, formatDateTime } from "@/lib/format";
 import { can } from "@/lib/permissions";
 import { RUN_STATUS_LABEL, RUN_STATUS_TONE } from "@/lib/system";
@@ -39,6 +42,7 @@ import { RUN_STATUS_LABEL, RUN_STATUS_TONE } from "@/lib/system";
  * their own link to `/acervo/nova` (#205/#206).
  */
 export function OriginsRoute() {
+  const messages = useCopy();
   const { data, isPending, error } = useQuery({
     ...queries.ingestionOrigins(),
     // A queued run changes when a runner appears; a running one changes every few seconds.
@@ -63,8 +67,11 @@ export function OriginsRoute() {
         pending={isPending}
         status={
           sources.length === 0
-            ? "Nenhuma origem configurada"
-            : `${formatCount(sources.length)} ${sources.length === 1 ? "origem configurada" : "origens configuradas"} · ${formatCount(active)} ${active === 1 ? "ativa" : "ativas"}`
+            ? messages.pages.origins.statusNone
+            : fill(sources.length === 1 ? messages.pages.origins.statusOne : messages.pages.origins.statusMany, {
+                count: formatCount(sources.length),
+                active: formatCount(active),
+              })
         }
       />
 
@@ -73,11 +80,7 @@ export function OriginsRoute() {
 
         <Card>
           <CardBody className="grid gap-2">
-            <p className="text-sm text-(--color-muted)">
-              A ingestão lê a origem, guarda o registro <span className="font-mono text-xs">bruto</span> e o
-              deixa <span className="font-mono text-xs">estruturado</span>, pronto para a transferência.
-              Cada origem tem a sua fila, a sua agenda e a sua configuração.
-            </p>
+            <p className="text-sm text-(--color-muted)">{messages.pages.origins.intro}</p>
             <div className="flex flex-wrap items-center gap-2">
               {/*
                 The two tabs of the merged operations screen (#207), named the way the tab bar names
@@ -86,12 +89,12 @@ export function OriginsRoute() {
               */}
               <Link to="/sistema/workers">
                 <Button size="sm" variant="secondary">
-                  Painel
+                  {messages.pages.workers.painel}
                 </Button>
               </Link>
               <Link to="/sistema/workers" search={{ aba: "execucoes" }}>
                 <Button size="sm" variant="ghost">
-                  Execuções
+                  {messages.pages.workers.execucoes}
                 </Button>
               </Link>
             </div>
@@ -101,15 +104,12 @@ export function OriginsRoute() {
         <section className="grid gap-3">
           <div className="flex flex-wrap items-end justify-between gap-2">
             <div>
-              <h2 className="text-sm font-semibold">Origens</h2>
-              <p className="text-xs text-(--color-muted)">
-                As fontes que esta instalação lê: adicione uma origem disponível, configure, agende,
-                pause e enfileire uma execução.
-              </p>
+              <h2 className="text-sm font-semibold">{messages.pages.origins.originsTitle}</h2>
+              <p className="text-xs text-(--color-muted)">{messages.pages.origins.originsHint}</p>
             </div>
             {canOperate && available.length > 0 && sources.length > 0 ? (
               <Button size="sm" variant="primary" onClick={() => setPickerOpen(true)}>
-                Adicionar origem
+                {messages.pages.origins.addOrigin}
               </Button>
             ) : null}
           </div>
@@ -122,15 +122,15 @@ export function OriginsRoute() {
             </div>
           ) : sources.length === 0 ? (
             <EmptyState
-              title="Nenhuma origem configurada"
-              hint="A instalação ainda não lê nenhum site. Adicione uma origem disponível; a entrada manual e a importação CSV ficam no Acervo, em Nova Descrição."
+              title={messages.pages.origins.emptyTitle}
+              hint={messages.pages.origins.emptyHint}
               action={
                 canOperate && available.length > 0 ? (
                   <Button size="sm" variant="primary" onClick={() => setPickerOpen(true)}>
                     Adicionar origem
                   </Button>
                 ) : canOperate ? (
-                  <p className="text-xs text-(--color-muted)">Todas as origens disponíveis já estão configuradas.</p>
+                  <p className="text-xs text-(--color-muted)">{messages.pages.origins.allConfigured}</p>
                 ) : null
               }
             />
@@ -139,18 +139,15 @@ export function OriginsRoute() {
           )}
 
           {!isPending && sources.length > 0 && canOperate && available.length === 0 ? (
-            <p className="text-xs text-(--color-muted)">Todas as origens disponíveis já estão configuradas.</p>
+            <p className="text-xs text-(--color-muted)">{messages.pages.origins.allConfigured}</p>
           ) : null}
         </section>
 
         {entries.length > 0 ? (
           <section className="grid gap-3">
             <div>
-              <h2 className="text-sm font-semibold">Entradas</h2>
-              <p className="text-xs text-(--color-muted)">
-                A entrada manual e a importação CSV não são origens de leitura: o registro é criado no
-                Acervo, e estas linhas só mostram o estado de cada uma.
-              </p>
+              <h2 className="text-sm font-semibold">{messages.pages.origins.entriesTitle}</h2>
+              <p className="text-xs text-(--color-muted)">{messages.pages.origins.entriesHint}</p>
             </div>
             {entries.map((origin) => (
               <EntryCard key={origin.code} origin={origin} />
@@ -165,13 +162,14 @@ export function OriginsRoute() {
 }
 
 /** The three kinds the registry can produce; the badge says which one this card is. */
-const ORIGIN_KIND_LABEL: Record<string, string> = {
-  MANUAL: "manual",
-  CSV: "csv",
-  SCRAPER: "site",
-};
+const ORIGIN_KIND_LABEL = stringMap((m) => ({
+  MANUAL: m.pages.origins.kindManual,
+  CSV: m.pages.origins.kindCsv,
+  SCRAPER: m.pages.origins.kindSite,
+}));
 
 function OriginCard({ origin, canOperate }: { origin: IngestionOrigin; canOperate: boolean }) {
+  const messages = useCopy();
   const [open, setOpen] = useState(false);
   const [panel, setPanel] = useState<"none" | "config" | "schedule">("none");
 
@@ -190,38 +188,40 @@ function OriginCard({ origin, canOperate }: { origin: IngestionOrigin; canOperat
         controlled ? (
           <div className="flex flex-wrap items-center gap-2">
             <Button size="sm" variant="secondary" onClick={() => setPanel(panel === "config" ? "none" : "config")}>
-              Configurar
+              {messages.pages.origins.configure}
             </Button>
             <Button size="sm" variant="ghost" onClick={() => setPanel(panel === "schedule" ? "none" : "schedule")}>
-              Agenda
+              {messages.pages.origins.scheduleTab}
             </Button>
             <LifecycleButton origin={origin} />
           </div>
         ) : null
       }
-      toggleLabel="Ver fila, execução e configuração"
+      toggleLabel={messages.pages.origins.viewDetails}
     >
       <div className="grid gap-3">
         <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-          <Fact label="Fila">
+          <Fact label={messages.pages.origins.queue}>
             <span className="text-2xl leading-none font-semibold tabular-nums">
               {origin.pending == null ? "—" : formatCount(origin.pending)}
             </span>
             <p className="mt-1 text-xs text-(--color-muted)">
-              {origin.pending_reason ?? "O que a próxima execução desta origem vai ler."}
+              {origin.pending_reason ?? messages.pages.origins.queueHint}
             </p>
           </Fact>
-          <Fact label="Processados">
+          <Fact label={messages.pages.origins.processed}>
             <span className="text-2xl leading-none font-semibold tabular-nums">
               {origin.processed == null ? "—" : formatCount(origin.processed)}
             </span>
             <p className="mt-1 text-xs text-(--color-muted)">
-              {origin.failed ? `${formatCount(origin.failed)} com erro definitivo` : "sem erro definitivo"}
+              {origin.failed
+                ? fill(messages.pages.origins.failedCount, { count: formatCount(origin.failed) })
+                : messages.pages.origins.noFatal}
             </p>
           </Fact>
-          <Fact label="Última execução">
+          <Fact label={messages.pages.origins.lastRun}>
             {origin.last_run_id == null ? (
-              <span className="text-sm text-(--color-muted)">nenhuma</span>
+              <span className="text-sm text-(--color-muted)">{messages.pages.origins.none}</span>
             ) : (
               <>
                 <span className="flex flex-wrap items-center gap-1">
@@ -239,16 +239,19 @@ function OriginCard({ origin, canOperate }: { origin: IngestionOrigin; canOperat
               </>
             )}
           </Fact>
-          <Fact label="Agenda">
+          <Fact label={messages.pages.origins.schedule}>
             {origin.schedule?.cron ? (
               <>
                 <span className="font-mono text-xs">{origin.schedule.cron}</span>
                 <p className="mt-1 text-xs text-(--color-muted)">
-                  {origin.schedule.timezone} · próxima {formatDateTime(origin.schedule.next_run_at)}
+                  {fill(messages.pages.origins.nextRun, {
+                    tz: origin.schedule.timezone ?? "",
+                    when: formatDateTime(origin.schedule.next_run_at),
+                  })}
                 </p>
               </>
             ) : (
-              <span className="text-sm text-(--color-muted)">sem agenda</span>
+              <span className="text-sm text-(--color-muted)">{messages.pages.origins.noSchedule}</span>
             )}
           </Fact>
         </div>
@@ -257,17 +260,17 @@ function OriginCard({ origin, canOperate }: { origin: IngestionOrigin; canOperat
           {controlled ? (
             <RunNowButton origin={origin} disabled={active} />
           ) : (
-            <p className="text-xs text-(--color-muted)">Configuração, agenda e execução ficam com o operador.</p>
+            <p className="text-xs text-(--color-muted)">{messages.pages.origins.operatorOnly}</p>
           )}
           {active ? (
             <Badge tone="accent">
-              {origin.active_run_status ? RUN_STATUS_LABEL[origin.active_run_status] : "em execução"} #{origin.active_run_id}
+              {origin.active_run_status ? RUN_STATUS_LABEL[origin.active_run_status] : messages.pages.origins.running} #{origin.active_run_id}
             </Badge>
           ) : null}
           {origin.runner_available ? (
-            <Badge tone="ok">a fila vai andar</Badge>
+            <Badge tone="ok">{messages.pages.origins.queueWillRun}</Badge>
           ) : (
-            <Badge tone="warn">a fila vai esperar</Badge>
+            <Badge tone="warn">{messages.pages.origins.queueWillWait}</Badge>
           )}
         </div>
 
@@ -279,12 +282,13 @@ function OriginCard({ origin, canOperate }: { origin: IngestionOrigin; canOperat
 }
 
 function OriginHeader({ origin }: { origin: IngestionOrigin }) {
+  const messages = useCopy();
   return (
     <div className="grid gap-0.5">
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-sm font-medium">{origin.label}</span>
         <Badge tone="neutral">{ORIGIN_KIND_LABEL[origin.kind] ?? origin.kind.toLowerCase()}</Badge>
-        <Badge tone={origin.enabled ? "ok" : "neutral"}>{origin.enabled ? "ativa" : "pausada"}</Badge>
+        <Badge tone={origin.enabled ? "ok" : "neutral"}>{origin.enabled ? messages.pages.origins.activeBadge : messages.pages.origins.pausedBadge}</Badge>
         <span className="text-xs text-(--color-muted)">{origin.description}</span>
       </div>
       <span className="text-xs text-(--color-muted)">{configSummary(origin)}</span>
@@ -302,11 +306,12 @@ function configSummary(origin: IngestionOrigin): string {
   });
   return parts.length > 0
     ? parts.join(" · ")
-    : "Sem configuração própria: a origem usa os valores da instalação quando existem.";
+    : activeMessages().pages.origins.noOwnConfig;
 }
 
 /** Pausing is the lifecycle, not a removal: the row, the agenda and the runs stay. */
 function LifecycleButton({ origin }: { origin: IngestionOrigin }) {
+  const messages = useCopy();
   const queryClient = useQueryClient();
   const toggle = useMutation({
     mutationFn: () =>
@@ -328,7 +333,11 @@ function LifecycleButton({ origin }: { origin: IngestionOrigin }) {
         disabled={toggle.isPending}
         onClick={() => toggle.mutate()}
       >
-        {toggle.isPending ? "Salvando…" : origin.enabled ? "Pausar" : "Reativar"}
+        {toggle.isPending
+          ? messages.pages.origins.saving
+          : origin.enabled
+            ? messages.pages.origins.pause
+            : messages.pages.origins.reactivate}
       </Button>
       {toggle.error ? <ErrorState error={toggle.error} /> : null}
     </div>
@@ -336,6 +345,7 @@ function LifecycleButton({ origin }: { origin: IngestionOrigin }) {
 }
 
 function RunNowButton({ origin, disabled }: { origin: IngestionOrigin; disabled: boolean }) {
+  const messages = useCopy();
   const queryClient = useQueryClient();
   const run = useMutation({
     mutationFn: () =>
@@ -353,11 +363,17 @@ function RunNowButton({ origin, disabled }: { origin: IngestionOrigin; disabled:
   return (
     <div className="grid gap-1">
       <Button size="sm" variant="primary" disabled={disabled || paused || run.isPending} onClick={() => run.mutate()}>
-        {paused ? "Origem pausada" : disabled ? "Já há uma execução" : run.isPending ? "Enfileirando…" : "Enfileirar execução"}
+        {paused
+          ? messages.pages.origins.pausedOrigin
+          : disabled
+            ? messages.pages.origins.alreadyRunning
+            : run.isPending
+              ? messages.pages.origins.enqueuing
+              : messages.pages.origins.enqueueRun}
       </Button>
       {run.data ? (
         <span className="text-xs text-(--color-muted)">
-          Execução #{run.data.run_id} na fila; ela ainda não começou.
+          {fill(messages.pages.origins.queuedLine, { id: String(run.data.run_id) })}
         </span>
       ) : null}
       {run.error ? <ErrorState error={run.error} /> : null}
@@ -366,6 +382,7 @@ function RunNowButton({ origin, disabled }: { origin: IngestionOrigin; disabled:
 }
 
 function OriginConfigForm({ origin }: { origin: IngestionOrigin }) {
+  const messages = useCopy();
   const queryClient = useQueryClient();
   const configFields = origin.config_fields ?? [];
   const optionFields = origin.option_fields ?? [];
@@ -392,7 +409,7 @@ function OriginConfigForm({ origin }: { origin: IngestionOrigin }) {
   return (
     <div className="grid gap-3 rounded-md bg-black/[0.02] p-3 ring-1 ring-(--color-line)">
       {configFields.length === 0 ? (
-        <p className="text-xs text-(--color-muted)">Esta origem não tem campos de configuração.</p>
+        <p className="text-xs text-(--color-muted)">{messages.pages.origins.noConfigFields}</p>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2">
           {configFields.map((field) => (
@@ -423,7 +440,7 @@ function OriginConfigForm({ origin }: { origin: IngestionOrigin }) {
 
       {optionFields.length > 0 ? (
         <details className="grid gap-2">
-          <summary className="cursor-pointer text-xs font-medium">Opções da execução agendada</summary>
+          <summary className="cursor-pointer text-xs font-medium">{messages.pages.origins.scheduledOptions}</summary>
           <div className="mt-2 grid gap-3 sm:grid-cols-2">
             {optionFields.map((option) => (
               <Field key={option.name} label={option.label}>
@@ -454,9 +471,9 @@ function OriginConfigForm({ origin }: { origin: IngestionOrigin }) {
 
       <div className="flex flex-wrap items-center gap-2">
         <Button size="sm" variant="primary" disabled={save.isPending} onClick={() => save.mutate()}>
-          {save.isPending ? "Salvando…" : "Salvar configuração"}
+          {save.isPending ? messages.pages.origins.saving : messages.pages.origins.saveConfig}
         </Button>
-        {save.data ? <span className="text-xs text-(--color-muted)">Configuração salva.</span> : null}
+        {save.data ? <span className="text-xs text-(--color-muted)">{messages.pages.origins.configSaved}</span> : null}
       </div>
       {save.error ? <ErrorState error={save.error} /> : null}
     </div>
@@ -464,6 +481,7 @@ function OriginConfigForm({ origin }: { origin: IngestionOrigin }) {
 }
 
 function OriginScheduleForm({ origin }: { origin: IngestionOrigin }) {
+  const messages = useCopy();
   const queryClient = useQueryClient();
   const [cron, setCron] = useState(origin.schedule?.cron ?? "0 2 * * *");
   const [timezone, setTimezone] = useState(origin.schedule?.timezone ?? "America/Sao_Paulo");
@@ -483,24 +501,21 @@ function OriginScheduleForm({ origin }: { origin: IngestionOrigin }) {
 
   return (
     <div className="grid gap-3 rounded-md bg-black/[0.02] p-3 ring-1 ring-(--color-line)">
-      <p className="text-xs text-(--color-muted)">
-        Cinco campos (minuto, hora, dia do mês, mês, dia da semana), avaliados no fuso indicado. Um período
-        que chega com uma ingestão em andamento é <strong>pulado</strong>, não enfileirado.
-      </p>
+      <p className="text-xs text-(--color-muted)">{messages.pages.origins.cronHint}</p>
       <div className="grid gap-3 sm:grid-cols-2">
-        <Field label="Agendamento">
+        <Field label={messages.pages.origins.scheduleField}>
           <Input value={cron} onChange={(event) => setCron(event.target.value)} placeholder="0 2 * * *" />
         </Field>
-        <Field label="Fuso Horário">
+        <Field label={messages.pages.origins.timezoneField}>
           <Input value={timezone} onChange={(event) => setTimezone(event.target.value)} placeholder="America/Sao_Paulo" />
         </Field>
       </div>
       <div className="flex flex-wrap items-center gap-2">
         <Button size="sm" variant="primary" disabled={save.isPending || cron.trim().length === 0} onClick={() => save.mutate()}>
-          {save.isPending ? "Salvando…" : "Salvar agenda"}
+          {save.isPending ? messages.pages.origins.saving : messages.pages.origins.saveSchedule}
         </Button>
         <Button size="sm" variant="ghost" disabled={remove.isPending || !origin.schedule} onClick={() => remove.mutate()}>
-          Remover agenda
+          {messages.pages.origins.removeSchedule}
         </Button>
       </div>
       {save.error ? <ErrorState error={save.error} /> : null}
@@ -511,23 +526,24 @@ function OriginScheduleForm({ origin }: { origin: IngestionOrigin }) {
 
 /** A manual/CSV entry: its row is kept for provenance, not for the operator to configure. */
 function EntryCard({ origin }: { origin: IngestionOrigin }) {
+  const messages = useCopy();
   return (
     <Card>
       <CardBody className="grid gap-2">
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-sm font-medium">{origin.label}</span>
           <Badge tone="neutral">{ORIGIN_KIND_LABEL[origin.kind] ?? origin.kind.toLowerCase()}</Badge>
-          <Badge tone={origin.enabled ? "ok" : "neutral"}>{origin.enabled ? "ativa" : "pausada"}</Badge>
-          <Badge tone="neutral">não configurável</Badge>
+          <Badge tone={origin.enabled ? "ok" : "neutral"}>{origin.enabled ? messages.pages.origins.activeBadge : messages.pages.origins.pausedBadge}</Badge>
+          <Badge tone="neutral">{messages.pages.origins.notConfigurable}</Badge>
         </div>
         <p className="text-xs text-(--color-muted)">{origin.description}</p>
         {origin.pending ? (
-          <p className="text-xs text-(--color-muted)">{formatCount(origin.pending)} aguardando transferência.</p>
+          <p className="text-xs text-(--color-muted)">{fill(messages.pages.origins.awaitingTransfer, { count: formatCount(origin.pending) })}</p>
         ) : null}
         <div>
           <Link to="/acervo/nova" search={origin.kind === "CSV" ? { modo: "csv" } : {}}>
             <Button size="sm" variant="secondary">
-              Abrir a entrada
+              {messages.pages.origins.openEntry}
             </Button>
           </Link>
         </div>
@@ -538,6 +554,7 @@ function EntryCard({ origin }: { origin: IngestionOrigin }) {
 
 /** The picker: the definitions the package ships and this installation has no row for yet. */
 function AddOriginPanel({ available, onClose }: { available: OriginAvailable[]; onClose: () => void }) {
+  const messages = useCopy();
   const queryClient = useQueryClient();
   const add = useMutation({
     mutationFn: (code: string) => updateIngestionOrigin(code, { enabled: true, config: {}, options: {} }),
@@ -549,15 +566,13 @@ function AddOriginPanel({ available, onClose }: { available: OriginAvailable[]; 
 
   return (
     <SidePanel
-      label="Adicionar origem"
+      label={messages.pages.origins.addTitle}
       onClose={onClose}
       footer={
         <div className="flex items-center justify-between gap-2">
-          <span className="text-xs text-(--color-muted)">
-            A origem já vem pronta com o sistema; adicioná-la aqui só a ativa nesta instalação.
-          </span>
+          <span className="text-xs text-(--color-muted)">{messages.pages.origins.addNote}</span>
           <Button size="sm" variant="ghost" onClick={onClose}>
-            Fechar
+            {messages.common.close}
           </Button>
         </div>
       }
@@ -565,10 +580,8 @@ function AddOriginPanel({ available, onClose }: { available: OriginAvailable[]; 
       <div className="grid gap-3">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <h2 className="text-base font-semibold">Adicionar origem</h2>
-            <p className="mt-0.5 text-xs text-(--color-muted)">
-              Escolha uma origem que ainda não está configurada.
-            </p>
+            <h2 className="text-base font-semibold">{messages.pages.origins.addTitle}</h2>
+            <p className="mt-0.5 text-xs text-(--color-muted)">{messages.pages.origins.addHint}</p>
           </div>
           <SidePanelClose onClose={onClose} />
         </div>
@@ -577,8 +590,8 @@ function AddOriginPanel({ available, onClose }: { available: OriginAvailable[]; 
 
         {available.length === 0 ? (
           <EmptyState
-            title="Todas as origens já estão configuradas"
-            hint="Não há outra origem de leitura para adicionar."
+            title={messages.pages.origins.allAddedTitle}
+            hint={messages.pages.origins.allAddedHint}
           />
         ) : (
           available.map((item) => (
@@ -596,7 +609,9 @@ function AddOriginPanel({ available, onClose }: { available: OriginAvailable[]; 
                     disabled={add.isPending}
                     onClick={() => add.mutate(item.code)}
                   >
-                    {add.isPending && add.variables === item.code ? "Adicionando…" : "Adicionar"}
+                    {add.isPending && add.variables === item.code
+                      ? messages.pages.origins.adding
+                      : messages.pages.origins.add}
                   </Button>
                 </div>
               </CardBody>

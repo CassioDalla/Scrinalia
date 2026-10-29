@@ -19,6 +19,10 @@ import { EmptyState, ErrorState, Skeleton } from "@/components/ui/Feedback";
 import { Field } from "@/components/ui/Field";
 import { Input, Select } from "@/components/ui/Input";
 import { Notice } from "@/components/ui/Notice";
+import { useCopy } from "@/i18n/context";
+import { fill } from "@/i18n/maps";
+import type { Messages } from "@/i18n/pt";
+import { Trans } from "@/i18n/trans";
 import { ACTION } from "@/lib/copy";
 import { formatCount, formatDateTime } from "@/lib/format";
 import {
@@ -44,10 +48,6 @@ const MAX_INDENT_DEPTH = 6;
 
 /** How far one nested list shifts the next level. */
 const INDENT_STEP = 18;
-
-/** The branch toggle and the card's own toggle must not read alike. */
-const BRANCH_EXPAND_LABEL = "Expandir os degraus abaixo";
-const BRANCH_COLLAPSE_LABEL = "Recolher os degraus abaixo";
 
 /**
  * The URL is the state, as in the collection list: the tab, the flag filter, the code search and the
@@ -121,13 +121,18 @@ function pruneNestedCodes(codes: ReadonlySet<string>, tree: readonly PlanNode[])
 }
 
 /** "12 degraus ocultos · 4 aguardando decisão", with the singular for a branch of one. */
-function hiddenSentence(hidden: number, pending: number): string {
-  const rungs = hidden === 1 ? "1 degrau oculto" : `${formatCount(hidden)} degraus ocultos`;
-  const waiting = pending === 1 ? "1 aguardando decisão" : `${formatCount(pending)} aguardando decisão`;
-  return `${rungs} · ${waiting}`;
+function hiddenSentence(
+  hidden: number,
+  pending: number,
+  copy: Messages["pages"]["plan"]["hidden"],
+): string {
+  const rungs = hidden === 1 ? copy.one : fill(copy.many, { count: formatCount(hidden) });
+  const waiting = pending === 1 ? copy.pendingOne : fill(copy.pendingMany, { count: formatCount(pending) });
+  return fill(copy.sentence, { rungs, waiting });
 }
 
 export function PlanRoute() {
+  const messages = useCopy();
   const search = routeApi.useSearch();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -211,8 +216,16 @@ export function PlanRoute() {
         status={
           plans.data ? (
             <>
-              {formatCount(matching)} de {formatCount(catalogueTotal)} degraus
-              {search.status ? ` · ${labelOf(PLAN_STATUS_LABEL, search.status)}` : ""}
+              {search.status
+                ? fill(messages.pages.plan.statusWithFilter, {
+                    matching: formatCount(matching),
+                    total: formatCount(catalogueTotal),
+                    status: labelOf(PLAN_STATUS_LABEL, search.status),
+                  })
+                : fill(messages.pages.plan.status, {
+                    matching: formatCount(matching),
+                    total: formatCount(catalogueTotal),
+                  })}
             </>
           ) : undefined
         }
@@ -225,12 +238,12 @@ export function PlanRoute() {
               between "the button is missing" and "the button is next door".
             */}
             <Link to="/acervo/arvore">
-              <Button size="sm" variant="secondary" title="Declarar um nó que a importação não trouxe">
-                Criar nó na árvore ↗
+              <Button size="sm" variant="secondary" title={messages.pages.plan.createNodeTitle}>
+                {messages.pages.plan.createNode}
               </Button>
             </Link>
             <Button onClick={() => suggest.mutate()} disabled={suggest.isPending}>
-              {suggest.isPending ? "Propondo…" : "Propor níveis"}
+              {suggest.isPending ? messages.pages.plan.suggesting : messages.pages.plan.suggest}
             </Button>
           </div>
         }
@@ -239,23 +252,24 @@ export function PlanRoute() {
       <div className="flex min-h-0">
         <div className="min-w-0 flex-1 px-6 py-5">
           <p className="mb-4 max-w-3xl text-sm text-(--color-muted)">
-            A máquina lê os códigos de referência e propõe os degraus; a decisão é sua. Nada é criado no acervo até a
-            materialização — e uma decisão tomada nunca é sobrescrita por uma nova proposta. O sinal à esquerda recolhe
-            o ramo; o cartão abre no clique para decidir o degrau.
+            {messages.pages.plan.intro}
           </p>
 
           {suggest.data ? (
             <Notice tone="ok" className="mb-4">
-              Proposta: {formatCount(suggest.data.created)} degrau(s) novo(s), {formatCount(suggest.data.refreshed)}{" "}
-              atualizado(s), {formatCount(suggest.data.preserved)} decisão(ões) preservada(s). Total no catálogo:{" "}
-              {formatCount(suggest.data.total)}.
+              {fill(messages.pages.plan.suggestion, {
+                created: formatCount(suggest.data.created),
+                refreshed: formatCount(suggest.data.refreshed),
+                preserved: formatCount(suggest.data.preserved),
+                total: formatCount(suggest.data.total),
+              })}
             </Notice>
           ) : null}
           {suggest.error ? <ErrorState error={suggest.error} /> : null}
 
           <div className="flex flex-wrap items-center gap-2 pb-2">
             <Button size="sm" variant={search.status ? "secondary" : "primary"} onClick={() => patch({ status: undefined })}>
-              Todos {plans.data ? `(${formatCount(catalogueTotal)})` : ""}
+              {messages.pages.textTemplates.allStatuses} {plans.data ? `(${formatCount(catalogueTotal)})` : ""}
             </Button>
             {(vocabulary.data?.plan_statuses ?? STATUSES).map((status) => (
               <Button
@@ -272,7 +286,7 @@ export function PlanRoute() {
               value={search.flag ?? ""}
               onChange={(event) => patch({ flag: event.target.value || undefined })}
             >
-              <option value="">Todos os avisos</option>
+              <option value="">{messages.pages.plan.filters.allFlags}</option>
               {flags.map((flag) => (
                 <option key={flag} value={flag}>
                   {labelOf(PLAN_FLAG_LABEL, flag)}
@@ -281,16 +295,16 @@ export function PlanRoute() {
             </Select>
             <Input
               className="max-w-xs"
-              placeholder="Filtrar por código…"
+              placeholder={messages.pages.plan.filters.codePlaceholder}
               defaultValue={search.q ?? ""}
               onChange={(event) => patch({ q: event.target.value || undefined })}
             />
           </div>
 
           <div className="flex flex-wrap items-center gap-2 pb-3">
-            <span className="text-xs text-(--color-muted)">Ramos:</span>
+            <span className="text-xs text-(--color-muted)">{messages.pages.plan.filters.branches}</span>
             <Button size="sm" variant="ghost" onClick={expandAll} disabled={collapsed.size === 0}>
-              Expandir tudo
+              {messages.pages.plan.filters.expandAll}
             </Button>
             <Button
               size="sm"
@@ -298,22 +312,22 @@ export function PlanRoute() {
               onClick={collapseAll}
               disabled={!rows.some((row) => row.hasChildren && !row.forced)}
             >
-              Recolher tudo
+              {messages.pages.plan.filters.collapseAll}
             </Button>
             <Button
               size="sm"
               variant="ghost"
               onClick={collapseDecided}
               disabled={decidedVisible.size === 0}
-              title="Fecha os ramos que não têm nenhum degrau aguardando decisão."
+              title={messages.pages.plan.filters.collapseDecidedTitle}
             >
-              Recolher os decididos
+              {messages.pages.plan.filters.collapseDecided}
             </Button>
           </div>
 
           {filterActive ? (
             <p className="pb-3 text-xs text-(--color-muted)">
-              O filtro mostra os degraus que casam, os pais e os ramos deles.
+              {messages.pages.plan.filters.notice}
             </p>
           ) : null}
 
@@ -328,11 +342,11 @@ export function PlanRoute() {
 
           {plans.data && catalogueTotal === 0 ? (
             <EmptyState
-              title="Nenhum degrau proposto"
-              hint="A proposta lê os códigos de referência do acervo e lista o que há para decidir — nada é criado no acervo."
+              title={messages.pages.plan.empty.noneTitle}
+              hint={messages.pages.plan.empty.noneHint}
               action={
                 <Button onClick={() => suggest.mutate()} disabled={suggest.isPending}>
-                  Propor níveis
+                  {messages.pages.plan.suggest}
                 </Button>
               }
             />
@@ -340,11 +354,11 @@ export function PlanRoute() {
 
           {plans.data && catalogueTotal > 0 && matching === 0 ? (
             <EmptyState
-              title="Nenhum degrau com este filtro"
-              hint="Há degraus no catálogo, mas nenhum corresponde ao aviso ou ao código digitado."
+              title={messages.pages.plan.empty.filteredTitle}
+              hint={messages.pages.plan.empty.filteredHint}
               action={
                 <Button size="sm" onClick={clearFilters}>
-                  Limpar filtros
+                  {messages.pages.plan.empty.clearFilters}
                 </Button>
               }
             />
@@ -402,6 +416,7 @@ function PlanBranch({
   onToggle: (code: string) => void;
   id?: string;
 }) {
+  const messages = useCopy();
   const shown = nodes.filter((node) => rowsByCode.has(node.plan.code));
   if (shown.length === 0) return null;
 
@@ -420,7 +435,11 @@ function PlanBranch({
         return (
           <li
             key={node.plan.code}
-            title={depth > MAX_INDENT_DEPTH ? `profundidade ${node.plan.depth} (recuada no limite)` : undefined}
+            title={
+              depth > MAX_INDENT_DEPTH
+                ? fill(messages.pages.plan.branch.depthTitle, { depth: node.plan.depth })
+                : undefined
+            }
           >
             <div className="flex items-start gap-2">
               <div className="w-5 shrink-0 pt-2.5">
@@ -430,8 +449,8 @@ function PlanBranch({
                     onClick={() => onToggle(node.plan.code)}
                     aria-expanded={!row.collapsed}
                     aria-controls={childrenId(node.plan.plan_id)}
-                    aria-label={row.collapsed ? BRANCH_EXPAND_LABEL : BRANCH_COLLAPSE_LABEL}
-                    title={row.collapsed ? BRANCH_EXPAND_LABEL : BRANCH_COLLAPSE_LABEL}
+                    aria-label={row.collapsed ? messages.pages.plan.branch.expand : messages.pages.plan.branch.collapse}
+                    title={row.collapsed ? messages.pages.plan.branch.expand : messages.pages.plan.branch.collapse}
                     className="grid size-5 place-items-center rounded border border-(--color-line) text-[11px] leading-none text-(--color-muted) hover:bg-black/[0.04]"
                   >
                     {row.collapsed ? "+" : "−"}
@@ -497,6 +516,7 @@ function PlanCard({
   hidden: number;
   hiddenPending: number;
 }) {
+  const messages = useCopy();
   const queryClient = useQueryClient();
   const [levelId, setLevelId] = useState<number | null>(plan.level_id ?? null);
   const [title, setTitle] = useState(plan.title ?? "");
@@ -527,7 +547,7 @@ function PlanCard({
   return (
     <Disclosure
       className={isSuggested ? "ring-(--color-accent)/40" : undefined}
-      toggleLabel={isSuggested ? "Decidir este degrau" : "Ver a decisão e as amostras"}
+      toggleLabel={isSuggested ? messages.pages.plan.card.toggleDecide : messages.pages.plan.card.toggleView}
       header={
         <div className="flex flex-col gap-1.5">
           <div className="flex flex-wrap items-center gap-2">
@@ -538,38 +558,46 @@ function PlanCard({
                 {labelOf(PLAN_FLAG_LABEL, flag)}
               </Badge>
             ))}
-            {plan.materialised_description_id ? <Badge tone="ok">materializado</Badge> : null}
+            {plan.materialised_description_id ? <Badge tone="ok">{messages.pages.plan.card.materialised}</Badge> : null}
             {isSuggested ? (
-              <span className="text-xs font-medium text-(--color-accent)">aguardando decisão</span>
+              <span className="text-xs font-medium text-(--color-accent)">{messages.pages.plan.card.awaiting}</span>
             ) : null}
           </div>
 
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-(--color-muted)">
-            <span>profundidade {plan.depth}</span>
-            <span>· pai: {plan.parent_code ?? "raiz"}</span>
-            <span>· {formatCount(plan.document_count ?? 0)} descrição(ões)</span>
-            <span>· níveis declarados: {declaredLevels.join(", ") || "nenhum"}</span>
+            <span>{fill(messages.pages.plan.card.depth, { depth: plan.depth })}</span>
+            <span>{fill(messages.pages.plan.card.parent, { parent: plan.parent_code ?? messages.pages.plan.card.root })}</span>
+            <span>{fill(messages.pages.plan.card.documents, { count: formatCount(plan.document_count ?? 0) })}</span>
+            <span>{fill(messages.pages.plan.card.declaredLevels, { levels: declaredLevels.join(", ") || messages.pages.plan.card.none })}</span>
           </div>
 
           {!isSuggested ? (
             <p className="text-xs text-(--color-muted)">
-              nível: <strong className="text-(--color-ink)">{plan.level ?? "—"}</strong>
-              {plan.title ? ` · título: ${plan.title}` : ""}
-              {plan.decided_by ? ` · decidido por ${plan.decided_by}` : ""}
-              {plan.decided_at ? ` · ${formatDateTime(plan.decided_at)}` : ""}
-              {plan.decision_note ? ` · nota: ${plan.decision_note}` : ""}
+              <Trans
+                text={messages.pages.plan.card.level}
+                values={{ level: <strong className="text-(--color-ink)">{plan.level ?? "—"}</strong> }}
+              />
+              {plan.title ? fill(messages.pages.plan.card.title, { title: plan.title }) : ""}
+              {plan.decided_by ? fill(messages.pages.plan.card.decidedBy, { name: plan.decided_by }) : ""}
+              {plan.decided_at ? fill(messages.pages.plan.card.decidedAt, { date: formatDateTime(plan.decided_at) }) : ""}
+              {plan.decision_note ? fill(messages.pages.plan.card.note, { note: plan.decision_note }) : ""}
             </p>
           ) : null}
 
           {plan.collapse_into_code ? (
             <p className="text-xs text-(--color-accent)">
-              Este degrau <strong>é</strong> <code>{plan.collapse_into_code}</code>: na materialização, o ramo abaixo
-              sobe para ele.
+              <Trans
+                text={messages.pages.plan.card.collapseInto}
+                values={{
+                  emphasis: <strong>é</strong>,
+                  code: <code>{plan.collapse_into_code}</code>,
+                }}
+              />
             </p>
           ) : null}
 
           {branchCollapsed ? (
-            <span className="block text-xs text-(--color-muted)">{hiddenSentence(hidden, hiddenPending)}</span>
+            <span className="block text-xs text-(--color-muted)">{hiddenSentence(hidden, hiddenPending, messages.pages.plan.hidden)}</span>
           ) : null}
         </div>
       }
@@ -579,17 +607,17 @@ function PlanCard({
             size="sm"
             variant="ghost"
             disabled={decide.isPending}
-            title="Devolve o degrau para “sugerido”: a próxima proposta pode atualizar a evidência de novo."
+            title={messages.pages.plan.card.reopenTitle}
             onClick={() => decide.mutate("SUGGESTED")}
           >
-            Reabrir decisão
+            {messages.pages.plan.card.reopen}
           </Button>
         )
       }
     >
       {samples.length > 0 ? (
         <div className="flex flex-wrap items-center gap-2 pb-3 text-xs">
-          <span className="text-(--color-muted)">amostras:</span>
+          <span className="text-(--color-muted)">{messages.pages.plan.card.samples}</span>
           {samples.map((id) => (
             <Link
               key={id}
@@ -607,13 +635,17 @@ function PlanCard({
         <div className="flex flex-col gap-2">
           <div className="grid gap-2 sm:grid-cols-2">
             <Field
-              label={<>Nível de Descrição {flags.includes("ORDINAL_INFERRED") ? "(inferido, não declarado)" : ""}</>}
+              label={
+                flags.includes("ORDINAL_INFERRED")
+                  ? messages.pages.plan.card.levelInferred
+                  : messages.pages.newDescription.levelLabel
+              }
             >
               <Select
                 value={levelId ?? ""}
                 onChange={(event) => setLevelId(event.target.value ? Number(event.target.value) : null)}
               >
-                <option value="">Escolha o nível</option>
+                <option value="">{messages.pages.plan.card.chooseLevel}</option>
                 {levels.map((level) => (
                   <option key={level.level_id} value={level.level_id}>
                     {level.ordinal}. {level.name}
@@ -621,7 +653,7 @@ function PlanCard({
                 ))}
               </Select>
             </Field>
-            <Field label="Título do Nó">
+            <Field label={messages.pages.plan.card.titleField}>
               <Input
                 value={title}
                 onChange={(event) => setTitle(event.target.value)}
@@ -629,11 +661,11 @@ function PlanCard({
                 maxLength={300}
               />
             </Field>
-            <Field label="Fundir em (este degrau é o mesmo nível que…)">
+            <Field label={messages.pages.plan.card.mergeField}>
               <Input
                 value={collapse}
                 onChange={(event) => setCollapse(event.target.value)}
-                placeholder="código de outro degrau"
+                placeholder={messages.pages.plan.card.mergePlaceholder}
                 list={`codes-${plan.plan_id}`}
                 maxLength={500}
               />
@@ -645,14 +677,14 @@ function PlanCard({
                   ))}
               </datalist>
             </Field>
-            <Field label="Nota da Decisão">
+            <Field label={messages.pages.conflicts.noteField}>
               <Input value={note} onChange={(event) => setNote(event.target.value)} />
             </Field>
           </div>
 
           {!canApprove ? (
             <p className="text-xs text-(--color-warn)">
-              Para aprovar, escolha o nível de descrição: sem ele a aprovação é recusada.
+              {messages.pages.plan.card.approveNeedsLevel}
             </p>
           ) : null}
 
@@ -663,16 +695,16 @@ function PlanCard({
               disabled={!canApprove || decide.isPending}
               onClick={() => decide.mutate("APPROVED")}
             >
-              {decide.isPending ? ACTION.save.pending : "Aprovar"}
+              {decide.isPending ? ACTION.save.pending : messages.pages.textTemplates.approve}
             </Button>
             <Button size="sm" variant="danger" disabled={decide.isPending} onClick={() => decide.mutate("REJECTED")}>
-              Rejeitar
+              {messages.pages.textTemplates.reject}
             </Button>
           </div>
         </div>
       ) : (
         <p className="text-xs text-(--color-muted)">
-          Reabrir devolve o degrau para “sugerido”: a próxima proposta volta a atualizar a evidência.
+          {messages.pages.plan.card.reopenHint}
         </p>
       )}
 

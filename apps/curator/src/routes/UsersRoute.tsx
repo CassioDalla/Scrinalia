@@ -23,6 +23,7 @@ import { Notice } from "@/components/ui/Notice";
 import { PageBody } from "@/components/layout/PageBody";
 import { ACTION } from "@/lib/copy";
 import { useCopy } from "@/i18n/context";
+import { fill } from "@/i18n/maps";
 import { formatDateTime } from "@/lib/format";
 import { routeMessage } from "@/lib/messages";
 import { ROLES } from "@/lib/permissions";
@@ -50,6 +51,7 @@ import { ROLES } from "@/lib/permissions";
  * decision whose author no longer exists is a worse record than a closed account.
  */
 export function UsersRoute() {
+  const messages = useCopy();
   const queryClient = useQueryClient();
   const users = useQuery(queries.users());
   // The signed-in account, to mark "você" on its own row. Read from the shell's cache, so it costs
@@ -66,19 +68,15 @@ export function UsersRoute() {
       <PageHeader
         screen="users"
         pending={users.isPending}
-        status={users.data ? `${rows.length} contas · ${active} ativas` : undefined}
+        status={
+          users.data
+            ? fill(messages.pages.users.status, { accounts: String(rows.length), active: String(active) })
+            : undefined
+        }
       />
 
       <PageBody>
-        <Notice tone="accent">
-          A senha criada aqui é <strong>temporária</strong>: a conta troca a senha no primeiro acesso,
-          antes de chegar às telas. Desativar uma conta encerra todas as sessões dela na hora. A última
-          conta de administrador ativa não pode ser desativada nem ter o papel trocado — promova outra
-          antes.
-          Várias tentativas de acesso falhas <strong>bloqueiam a conta</strong> por um tempo que dobra a
-          cada novo bloqueio, até um limite; redefinir a senha destrava a conta e encerra as sessões
-          dela.
-        </Notice>
+        <Notice tone="accent">{messages.pages.users.notice}</Notice>
 
         {users.error ? <ErrorState error={users.error} /> : null}
         {users.isPending ? (
@@ -128,33 +126,30 @@ function CreateUserCard({ onCreated }: { onCreated: () => void }) {
 
   return (
     <Disclosure
-      triggerLabel="+ Nova conta"
-      toggleLabel="Criar uma conta"
+      triggerLabel={copy.pages.users.newAccount}
+      toggleLabel={copy.pages.users.createTitle}
       header={
         <div className="grid gap-1">
-          <span className="text-sm font-semibold">Criar uma conta</span>
-          <span className="text-xs text-(--color-muted)">
-            O papel decide o que a conta alcança. A senha é temporária e precisa ter o tamanho mínimo
-            da instalação; não pode ser o próprio e-mail.
-          </span>
+          <span className="text-sm font-semibold">{copy.pages.users.createTitle}</span>
+          <span className="text-xs text-(--color-muted)">{copy.pages.users.createHint}</span>
         </div>
       }
     >
       <div className="grid gap-2">
         <div className="grid gap-2 sm:grid-cols-4">
           <label className="flex flex-col gap-1 text-xs sm:col-span-2">
-            <span className="text-(--color-muted)">E-mail</span>
+            <span className="text-(--color-muted)">{copy.pages.users.email}</span>
             <Input
               type="email"
               value={email}
               onChange={(event) => setEmail(event.target.value)}
-              placeholder="nome@instituicao.org"
+              placeholder={copy.pages.users.emailPlaceholder}
             />
           </label>
-          <Field label="Nome">
+          <Field label={copy.pages.users.name}>
             <Input value={name} onChange={(event) => setName(event.target.value)} maxLength={120} />
           </Field>
-          <Field label="Papel">
+          <Field label={copy.pages.users.role}>
             <Select value={role} onChange={(event) => setRole(event.target.value as AuthUser["role"])}>
               {ROLES.map((value) => (
                 <option key={value} value={value}>
@@ -164,7 +159,7 @@ function CreateUserCard({ onCreated }: { onCreated: () => void }) {
             </Select>
           </Field>
         </div>
-        <Field label="Senha temporária">
+        <Field label={copy.pages.users.tempPassword}>
           <Input
             type="password"
             value={password}
@@ -174,10 +169,12 @@ function CreateUserCard({ onCreated }: { onCreated: () => void }) {
         </Field>
         <div className="flex items-center gap-3">
           <Button variant="primary" disabled={!valid || create.isPending} onClick={() => create.mutate()}>
-            {create.isPending ? ACTION.create.pending : `${ACTION.create.label} conta`}
+            {create.isPending ? ACTION.create.pending : copy.pages.users.createButton}
           </Button>
           {create.data ? (
-            <span className="text-xs text-(--color-ok)">Conta {create.data.email} criada.</span>
+            <span className="text-xs text-(--color-ok)">
+              {fill(copy.pages.users.created, { email: create.data.email })}
+            </span>
           ) : null}
         </div>
         {create.error ? <ErrorState error={create.error} /> : null}
@@ -241,31 +238,37 @@ function UserCard({ user, isSelf, onChanged }: { user: AuthUser; isSelf: boolean
       open={open}
       onOpenChange={setOpen}
       className={user.is_active ? undefined : "opacity-80"}
-      toggleLabel="Editar esta conta"
+      toggleLabel={copy.pages.users.editAccount}
       header={
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-sm font-medium">{user.name}</span>
           <span className="text-xs text-(--color-muted)">{user.email}</span>
           <Badge tone="accent">{copy.roles[user.role]}</Badge>
-          {user.is_active ? <Badge tone="ok">ativa</Badge> : <Badge tone="neutral">desativada</Badge>}
-          {isSelf ? <Badge tone="neutral">você</Badge> : null}
+          {user.is_active ? (
+            <Badge tone="ok">{copy.pages.users.activeBadge}</Badge>
+          ) : (
+            <Badge tone="neutral">{copy.pages.users.inactiveBadge}</Badge>
+          )}
+          {isSelf ? <Badge tone="neutral">{copy.pages.users.selfBadge}</Badge> : null}
           {user.must_change_password ? (
-            <Badge tone="warn" title="Ainda usa a senha temporária">
-              troca pendente
+            <Badge tone="warn" title={copy.pages.users.mustChangeTitle}>
+              {copy.pages.users.mustChangeBadge}
             </Badge>
           ) : null}
           {user.is_locked ? (
-            <Badge tone="danger" title="Bloqueada por tentativas de acesso: a senha correta também é recusada até o prazo.">
-              bloqueada até {formatDateTime(user.locked_until)}
+            <Badge tone="danger" title={copy.pages.users.lockedTitle}>
+              {fill(copy.pages.users.lockedBadge, { date: formatDateTime(user.locked_until) })}
             </Badge>
           ) : null}
           {!user.is_locked && (user.failed_attempts ?? 0) > 0 ? (
-            <Badge tone="warn" title="Tentativas de acesso falhas desde o último acesso bem-sucedido">
-              tentativas de acesso falhas: {user.failed_attempts}
+            <Badge tone="warn" title={copy.pages.users.failedTitle}>
+              {fill(copy.pages.users.failedBadge, { count: String(user.failed_attempts) })}
             </Badge>
           ) : null}
           <span className="w-full text-xs text-(--color-muted)">
-            último acesso: {user.last_login_at ? formatDateTime(user.last_login_at) : "nunca"}
+            {fill(copy.pages.users.lastLogin, {
+              date: user.last_login_at ? formatDateTime(user.last_login_at) : copy.pages.users.never,
+            })}
           </span>
         </div>
       }
@@ -279,7 +282,7 @@ function UserCard({ user, isSelf, onChanged }: { user: AuthUser; isSelf: boolean
               setOpen(true);
             }}
           >
-            Redefinir senha
+            {copy.pages.users.resetPassword}
           </Button>
           <Button
             size="sm"
@@ -294,10 +297,10 @@ function UserCard({ user, isSelf, onChanged }: { user: AuthUser; isSelf: boolean
     >
       <div className="grid gap-4">
         <div className="grid gap-2 sm:grid-cols-3">
-          <Field label="Nome">
+          <Field label={copy.pages.users.name}>
             <Input value={name} onChange={(event) => setName(event.target.value)} maxLength={120} />
           </Field>
-          <Field label="Papel">
+          <Field label={copy.pages.users.role}>
             <Select value={role} onChange={(event) => setRole(event.target.value as AuthUser["role"])}>
               {ROLES.map((value) => (
                 <option key={value} value={value}>
@@ -320,10 +323,7 @@ function UserCard({ user, isSelf, onChanged }: { user: AuthUser; isSelf: boolean
         {toggleActive.error ? <ErrorState error={toggleActive.error} /> : null}
 
         <div className="grid gap-2 border-t border-(--color-line) pt-3">
-          <p className="text-xs text-(--color-muted)">
-            Redefinir a senha encerra todas as sessões desta conta. É o caminho quando alguém perdeu o
-            acesso.
-          </p>
+          <p className="text-xs text-(--color-muted)">{copy.pages.users.resetHint}</p>
           {/*
             The reset revokes **every** session of the account, and unlike ``change_password`` it does
             not spare the caller's. An administrator who resets their own account is signed out by the
@@ -331,15 +331,11 @@ function UserCard({ user, isSelf, onChanged }: { user: AuthUser; isSelf: boolean
             ordinary way to replace your own password is "Trocar senha", which keeps this session.
           */}
           {isSelf ? (
-            <Notice tone="warn">
-              Esta é a sua conta: redefinir a senha aqui <strong>encerra a sua própria sessão</strong> e
-              desconecta você. Para trocar a senha sabendo a atual, use <strong>Trocar senha</strong>, no
-              rodapé do menu — com o menu recolhido, o ícone de chave —, que mantém esta sessão aberta.
-            </Notice>
+            <Notice tone="warn">{copy.pages.users.selfNotice}</Notice>
           ) : null}
           <div className="flex flex-wrap items-end gap-2">
             <label className="flex min-w-56 flex-1 flex-col gap-1 text-xs">
-              <span className="text-(--color-muted)">Nova senha temporária</span>
+              <span className="text-(--color-muted)">{copy.pages.users.newTempPassword}</span>
               <Input
                 ref={focusPassword}
                 type="password"
@@ -354,14 +350,14 @@ function UserCard({ user, isSelf, onChanged }: { user: AuthUser; isSelf: boolean
                 checked={mustChange}
                 onChange={(event) => setMustChange(event.target.checked)}
               />
-              <span>exigir troca no próximo acesso</span>
+              <span>{copy.pages.users.mustChangeCheck}</span>
             </label>
             <Button
               variant="secondary"
               disabled={password.length === 0 || reset.isPending}
               onClick={() => reset.mutate()}
             >
-              {reset.isPending ? "Redefinindo…" : "Redefinir senha"}
+              {reset.isPending ? copy.pages.users.resetting : copy.pages.users.resetPassword}
             </Button>
           </div>
           {reset.data ? <p className="text-xs text-(--color-ok)">{routeMessage(reset.data)}</p> : null}
@@ -382,6 +378,7 @@ function UserCard({ user, isSelf, onChanged }: { user: AuthUser; isSelf: boolean
  * marked: ending the session you are using is a decision worth seeing coming.
  */
 function SessionList({ userId }: { userId: number }) {
+  const messages = useCopy();
   const queryClient = useQueryClient();
   const sessions = useQuery(queries.userSessions(userId));
 
@@ -402,21 +399,21 @@ function SessionList({ userId }: { userId: number }) {
   return (
     <div className="grid gap-2 border-t border-(--color-line) pt-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-xs font-medium">Sessões ativas</p>
+        <p className="text-xs font-medium">{messages.pages.users.sessionsTitle}</p>
         <Button
           size="sm"
           variant="danger"
           disabled={rows.length === 0 || revokeAll.isPending}
           onClick={() => revokeAll.mutate()}
         >
-          {revokeAll.isPending ? "Encerrando…" : "Encerrar todas"}
+          {revokeAll.isPending ? messages.pages.users.revoking : messages.pages.users.revokeAll}
         </Button>
       </div>
 
       {sessions.isPending ? <Skeleton className="h-10" /> : null}
       {sessions.error ? <ErrorState error={sessions.error} /> : null}
       {!sessions.isPending && rows.length === 0 ? (
-        <p className="text-xs text-(--color-muted)">Nenhuma sessão ativa.</p>
+        <p className="text-xs text-(--color-muted)">{messages.pages.users.noSessions}</p>
       ) : null}
 
       <ul className="grid gap-1">
@@ -426,18 +423,20 @@ function SessionList({ userId }: { userId: number }) {
             className="flex flex-wrap items-center gap-2 rounded-md bg-black/[0.02] px-2 py-1.5 text-xs"
           >
             <span className="min-w-40 flex-1 truncate" title={session.user_agent ?? undefined}>
-              {session.user_agent ?? "navegador não informado"}
+              {session.user_agent ?? messages.pages.users.unknownBrowser}
             </span>
             <span className="text-(--color-muted)">{session.ip_address ?? "—"}</span>
-            <span className="text-(--color-muted)">último uso em {formatDateTime(session.last_seen_at)}</span>
-            {session.is_current ? <Badge tone="accent">esta sessão</Badge> : null}
+            <span className="text-(--color-muted)">
+              {fill(messages.pages.users.lastUsed, { date: formatDateTime(session.last_seen_at) })}
+            </span>
+            {session.is_current ? <Badge tone="accent">{messages.pages.users.thisSession}</Badge> : null}
             <Button
               size="sm"
               variant="ghost"
               disabled={revoke.isPending}
               onClick={() => revoke.mutate(session.session_id)}
             >
-              Encerrar
+              {messages.pages.users.end}
             </Button>
           </li>
         ))}

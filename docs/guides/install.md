@@ -272,6 +272,8 @@ first can create that account;
 succeed, but the lock cannot close the window (ADR 0011). **Configure the instance before exposing
 it.**
 
+The interface opens in Portuguese. Each account can switch to English in the account menu; the choice is stored on the account, and the API answers in the language the request asks for.
+
 ### 7. Start the API
 
 ```bash

@@ -12,6 +12,8 @@ import { cn } from "@/lib/cn";
 import { formatCount, formatDate, REVIEW_STATUS_LABEL, REVIEW_STATUS_TONE } from "@/lib/format";
 import { ANOMALY_REASON_HINT, anomalyReasonCode, anomalyReasonLabel } from "@/lib/quality";
 import { asNumber } from "@/lib/search";
+import { useCopy } from "@/i18n/context";
+import { Trans } from "@/i18n/trans";
 
 const routeApi = getRouteApi("/qualidade/anomalias");
 
@@ -47,6 +49,7 @@ export function validateAnomaliesSearch(search: Record<string, unknown>): Anomal
  * a rule is a catalogue entry, and "which rule flagged this?" is the question worth asking.
  */
 export function AnomaliesRoute() {
+  const messages = useCopy();
   const search = routeApi.useSearch();
   const navigate = useNavigate();
 
@@ -66,10 +69,10 @@ export function AnomaliesRoute() {
       <PageHeader
         screen="anomalies"
         pending={page.isPending}
-        status={page.data ? `${formatCount(total)} descrições com anomalia` : undefined}
+        status={page.data ? messages.pages.anomalies.status.replace("{count}", formatCount(total)) : undefined}
         actions={
           <Link to="/qualidade/regras">
-            <Button size="sm">Regras</Button>
+            <Button size="sm">{messages.pages.anomalies.rules}</Button>
           </Link>
         }
       />
@@ -77,29 +80,31 @@ export function AnomaliesRoute() {
       <PageBody>
         {inbox.data && (queue?.count ?? 0) === 0 ? (
           <EmptyState
-            title="Nenhuma anomalia detectada"
+            title={messages.pages.anomalies.emptyTitle}
             hint={
-              <>
-                Pode ser que o acervo não tenha nenhum dos defeitos que a verificação procura, ou que
-                ela ainda não tenha rodado. Regras que só sinalizam acrescentam outros motivos. Veja as{" "}
-                <Link to="/qualidade/regras" className="underline">
-                  regras de limpeza
-                </Link>
-                .
-              </>
+              <Trans
+                text={messages.pages.anomalies.emptyHint}
+                values={{
+                  link: (
+                    <Link to="/qualidade/regras" className="underline">
+                      {messages.pages.anomalies.cleaningRulesLink}
+                    </Link>
+                  ),
+                }}
+              />
             }
           />
         ) : null}
 
         {reasons.length > 0 ? (
           <div className="flex flex-wrap items-center gap-2 text-xs">
-            <span className="text-(--color-muted)">motivos encontrados:</span>
+            <span className="text-(--color-muted)">{messages.pages.anomalies.reasonsFound}</span>
             {reasons.map((item) => (
               <button
                 key={item.key}
                 type="button"
                 title={
-                  ANOMALY_REASON_HINT[anomalyReasonCode(item.key)] ?? "Motivo registrado pelo validador de qualidade"
+                  ANOMALY_REASON_HINT[anomalyReasonCode(item.key)] ?? messages.pages.anomalies.reasonHint
                 }
                 onClick={() =>
                   navigate({
@@ -168,10 +173,7 @@ export function AnomaliesRoute() {
                     </div>
                   ) : null}
 
-                  <p className="text-xs text-(--color-muted)">
-                    Corrigir é revisar a ficha: a edição fica no histórico e marca a descrição como revisada por
-                    humano; a partir daí a IA não a sobrescreve.
-                  </p>
+                  <p className="text-xs text-(--color-muted)">{messages.pages.anomalies.fixHint}</p>
                 </CardBody>
               </Card>
             </li>
@@ -190,11 +192,13 @@ export function AnomaliesRoute() {
                 })
               }
             >
-              ← Anterior
+              {messages.common.previous}
             </Button>
             <span className="text-xs text-(--color-muted)">
-              {formatCount(offset + 1)}–{formatCount(Math.min(offset + ANOMALIES_PAGE_SIZE, total))} de{" "}
-              {formatCount(total)}
+              {messages.common.range
+                .replace("{from}", formatCount(offset + 1))
+                .replace("{to}", formatCount(Math.min(offset + ANOMALIES_PAGE_SIZE, total)))
+                .replace("{total}", formatCount(total))}
             </span>
             <Button
               size="sm"
@@ -206,7 +210,7 @@ export function AnomaliesRoute() {
                 })
               }
             >
-              Próxima →
+              {messages.common.next}
             </Button>
           </div>
         ) : null}

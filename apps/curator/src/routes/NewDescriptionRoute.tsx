@@ -16,6 +16,10 @@ import { IsadFieldControl } from "@/components/description/IsadFieldControl";
 import { CsvImportPanel } from "@/components/ingestion/CsvImportPanel";
 import { PageBody } from "@/components/layout/PageBody";
 import { PageHeader } from "@/components/layout/PageHeader";
+import { useCopy } from "@/i18n/context";
+import { activeMessages } from "@/i18n/locale";
+import { fill } from "@/i18n/maps";
+import type { Messages } from "@/i18n/pt";
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { Disclosure } from "@/components/ui/Disclosure";
@@ -24,7 +28,7 @@ import { Field } from "@/components/ui/Field";
 import { Input, Select } from "@/components/ui/Input";
 import { Notice } from "@/components/ui/Notice";
 import { Tabs } from "@/components/ui/Tabs";
-import { DIGITAL_OBJECT } from "@/lib/copy";
+import { ACTION, DIGITAL_OBJECT } from "@/lib/copy";
 import { descricoes, formatCount, formatDate } from "@/lib/format";
 import { fieldsOfArea, ISAD_AREAS, type IsadAreaId } from "@/lib/isad";
 import { routeMessage } from "@/lib/messages";
@@ -43,10 +47,7 @@ export function validateNewDescriptionSearch(search: Record<string, unknown>): N
   return { modo: asEnum(search.modo, ["digitar", "csv"] as const) };
 }
 
-const MODES: { id: NewDescriptionMode; label: string }[] = [
-  { id: "digitar", label: "Digitar" },
-  { id: "csv", label: "Importar CSV" },
-];
+
 
 /**
  * The type-ahead of the access points: the catalogue tags that match, with the weight and the
@@ -58,7 +59,9 @@ async function searchTagOptions(term: string) {
     tagId: result.tag_id,
     name: result.name,
     hint: `${descricoes(result.document_count)}${
-      result.macro_category_name ? ` · ${result.macro_category_name}` : " · sem categoria"
+      result.macro_category_name
+        ? ` · ${result.macro_category_name}`
+        : ` · ${activeMessages().pages.newDescription.noCategory}`
     }`,
   }));
 }
@@ -69,15 +72,18 @@ async function previewAccessPointOptions(indexingPoints: string): Promise<Access
   return response.items;
 }
 
-const ACCESS_POINTS_COPY = {
-  placeholder: "Busque uma tag ou digite um termo novo",
-  add: (term: string) => `Adicionar “${term}”`,
-  remove: (name: string) => `Remover ${name}`,
-  searching: "Buscando…",
-  searchFailed: "Não foi possível buscar no catálogo. Pressione Enter para usar o termo digitado.",
-  duplicate: (term: string) => `“${term}” já está na lista.`,
-  previewFailed: "Não foi possível conferir os pontos de acesso; eles serão enviados como digitados.",
-};
+function accessPointsCopy(messages: Messages) {
+  const copy = messages.pages.newDescription;
+  return {
+    placeholder: copy.accessPlaceholder,
+    add: (term: string) => fill(copy.accessAdd, { term }),
+    remove: (name: string) => fill(copy.accessRemove, { name }),
+    searching: copy.accessSearching,
+    searchFailed: copy.accessSearchFailed,
+    duplicate: (term: string) => fill(copy.accessDuplicate, { term }),
+    previewFailed: copy.accessPreviewFailed,
+  };
+}
 
 /**
  * The one sentence the field says about the whole string.
@@ -88,21 +94,18 @@ const ACCESS_POINTS_COPY = {
  * The chips themselves are never rewritten or removed here; the decision stays with the person.
  */
 function describeAccessPoints(items: AccessPointPreviewItem[]): ReactNode {
+  const copy = activeMessages().pages.newDescription;
   const groups = groupAccessPointPreview(items);
   const lines: ReactNode[] = [];
 
   // The warning first: a term that will be discarded is the one that asks for an action.
   for (const item of groups.dropped) {
     const reason =
-      item.status === "STOPWORD"
-        ? "é um termo bloqueado"
-        : item.status === "TOO_SHORT"
-          ? "é curto demais (mínimo de 3 caracteres)"
-          : "é longo demais (máximo de 100 caracteres)";
-    const label = item.status === "TOO_LONG" ? `“${item.input.slice(0, 30)}…”` : `“${item.input}”`;
+      item.status === "STOPWORD" ? copy.reasonStopword : item.status === "TOO_SHORT" ? copy.reasonTooShort : copy.reasonTooLong;
+    const label = item.status === "TOO_LONG" ? `${item.input.slice(0, 30)}…` : item.input;
     lines.push(
       <li key={`dropped-${item.status}-${item.input}`} className="text-(--color-warn)">
-        {label} {reason} e será descartado.
+        {fill(copy.dropped, { label, reason })}
       </li>,
     );
   }
@@ -110,13 +113,13 @@ function describeAccessPoints(items: AccessPointPreviewItem[]): ReactNode {
   if (groups.created.length > 0) {
     const labels = groups.created.map((item) => {
       const name = item.name ?? item.input;
-      return name === item.input ? `“${name}”` : `“${item.input}” → “${name}”`;
+      return name === item.input ? name : `${item.input} → ${name}`;
     });
     lines.push(
       <li key="created" className="text-(--color-muted)">
         {groups.created.length === 1
-          ? `${labels[0]} será criado no arquivamento.`
-          : `Serão criados no arquivamento: ${labels.join(", ")}.`}
+          ? fill(copy.createdOne, { label: labels[0] ?? "" })
+          : fill(copy.createdMany, { labels: labels.join(", ") })}
       </li>,
     );
   }
@@ -124,7 +127,7 @@ function describeAccessPoints(items: AccessPointPreviewItem[]): ReactNode {
   for (const item of groups.synonyms) {
     lines.push(
       <li key={`synonym-${item.input}`} className="text-(--color-muted)">
-        “{item.input}” será ligado a “{item.name ?? item.input}”.
+        {fill(copy.synonym, { input: item.input, name: item.name ?? item.input })}
       </li>,
     );
   }
@@ -132,7 +135,7 @@ function describeAccessPoints(items: AccessPointPreviewItem[]): ReactNode {
   for (const item of groups.respelled) {
     lines.push(
       <li key={`respelled-${item.input}`} className="text-(--color-muted)">
-        “{item.input}” já está no catálogo como “{item.name}”.
+        {fill(copy.respelled, { input: item.input, name: item.name ?? "" })}
       </li>,
     );
   }
@@ -159,6 +162,11 @@ function describeAccessPoints(items: AccessPointPreviewItem[]): ReactNode {
  * cannot grow two vocabularies for one norm.
  */
 export function NewDescriptionRoute() {
+  const messages = useCopy();
+  const MODES: { id: NewDescriptionMode; label: string }[] = [
+    { id: "digitar", label: messages.pages.newDescription.typeTab },
+    { id: "csv", label: messages.pages.newDescription.csvTab },
+  ];
   const search = routeApi.useSearch();
   const navigate = useNavigate();
   const modo = search.modo ?? "digitar";
@@ -189,9 +197,7 @@ export function NewDescriptionRoute() {
 
       <PageBody className="gap-3">
         {!canCurate ? (
-          <Notice tone="warn" as="div">
-            Sua conta não pode criar descrições. Peça a um curador ou a um administrador da instalação.
-          </Notice>
+          <Notice tone="warn" as="div">{messages.pages.newDescription.notAllowed}</Notice>
         ) : null}
 
         {/*
@@ -213,6 +219,7 @@ export function NewDescriptionRoute() {
 
 /** The typed record: the whole ISAD(G) form, with its own draft and its own result. */
 function ManualEntryForm({ canCurate }: { canCurate: boolean }) {
+  const messages = useCopy();
   const queryClient = useQueryClient();
 
   const levels = useQuery(queries.levels());
@@ -275,26 +282,27 @@ function ManualEntryForm({ canCurate }: { canCurate: boolean }) {
           <p className="font-mono text-xs">{submit.data.data.description_id}</p>
           {submit.data.data.document_date ? (
             <p className="text-xs">
-              Data registrada: <strong>{formatDate(submit.data.data.document_date)}</strong>
               {submit.data.data.date_expression
-                ? ` — como está na fonte: “${submit.data.data.date_expression}”.`
-                : "."}
+                ? fill(messages.pages.newDescription.dateRecordedWithSource, {
+                    date: formatDate(submit.data.data.document_date),
+                    expr: submit.data.data.date_expression,
+                  })
+                : fill(messages.pages.newDescription.dateRecorded, {
+                    date: formatDate(submit.data.data.document_date),
+                  })}
             </p>
           ) : null}
-          <p className="text-xs">
-            O registro aparece no acervo quando a transferência rodar. Até lá, o dossiê ainda pode
-            responder “não encontrado”.
-          </p>
+          <p className="text-xs">{messages.pages.newDescription.pendingNote}</p>
           <div className="flex flex-wrap items-center gap-2">
             <Link
               to="/acervo/$descriptionId"
               params={{ descriptionId: submit.data.data.description_id }}
               className="text-sm underline"
             >
-              Abrir o dossiê
+              {messages.pages.newDescription.openDossier}
             </Link>
             <Button size="sm" variant="secondary" onClick={reset}>
-              Criar outra em branco
+              {messages.pages.newDescription.createBlank}
             </Button>
           </div>
         </Notice>
@@ -315,7 +323,7 @@ function ManualEntryForm({ canCurate }: { canCurate: boolean }) {
             </span>
           }
           defaultOpen
-          toggleLabel="Abrir a área"
+          toggleLabel={messages.pages.newDescription.openArea}
         >
           <div className="grid gap-3 sm:grid-cols-2">
             {/*
@@ -328,10 +336,11 @@ function ManualEntryForm({ canCurate }: { canCurate: boolean }) {
             <Field
               label={
                 <>
-                  Título <span aria-hidden="true" className="text-(--color-danger)">*</span>
+                  {messages.pages.newDescription.titleLabel}{" "}
+                  <span aria-hidden="true" className="text-(--color-danger)">*</span>
                 </>
               }
-              hint="Campo obrigatório."
+              hint={messages.pages.newDescription.requiredHint}
             >
               <Input
                 required
@@ -341,9 +350,9 @@ function ManualEntryForm({ canCurate }: { canCurate: boolean }) {
                 onChange={(event) => setValue("title", event.target.value)}
               />
             </Field>
-            <Field label="Nível de Descrição">
+            <Field label={messages.pages.newDescription.levelLabel}>
               <Select value={valueOf("level")} onChange={(event) => setValue("level", event.target.value)}>
-                <option value="">— não classificado —</option>
+                <option value="">{messages.pages.newDescription.unclassified}</option>
                 {levels.data?.map((level) => (
                   <option key={level.level_id} value={level.name}>
                     {level.name} ({formatCount(level.document_count)})
@@ -353,21 +362,20 @@ function ManualEntryForm({ canCurate }: { canCurate: boolean }) {
             </Field>
 
             <Field
-              label="Unidade Pai / Superior"
-              hint="Selecione o código da unidade à qual esta pertence."
+              label={messages.pages.newDescription.parentLabel}
+              hint={messages.pages.newDescription.parentHint}
             >
               <Input
                 value={valueOf("parent_reference_code")}
                 maxLength={500}
-                placeholder="BR PRADAP SMU"
+                placeholder={messages.pages.newDescription.parentPlaceholder}
                 onChange={(event) => setValue("parent_reference_code", event.target.value)}
               />
             </Field>
 
             {needsParent ? (
               <p className="text-xs text-(--color-warn) sm:col-span-2">
-                O nível “{selectedLevel?.name}” pede uma unidade superior. Você pode gravar assim mesmo:
-                o registro entra pendente e o vínculo se faz na aba Arranjo do dossiê.
+                {fill(messages.pages.newDescription.needsParent, { level: selectedLevel?.name ?? "" })}
               </p>
             ) : null}
 
@@ -396,11 +404,11 @@ function ManualEntryForm({ canCurate }: { canCurate: boolean }) {
                   <span className="text-sm font-semibold">{area.title}</span>
                   <span className="text-xs text-(--color-muted)">{area.hint}</span>
                   {filled > 0 ? (
-                    <span className="rounded bg-black/[0.05] px-1.5 text-xs">{filled} preenchido(s)</span>
+                    <span className="rounded bg-black/[0.05] px-1.5 text-xs">{fill(messages.pages.newDescription.filled, { count: String(filled) })}</span>
                   ) : null}
                 </span>
               }
-              toggleLabel="Abrir a área"
+              toggleLabel={messages.pages.newDescription.openArea}
             >
               <div className="grid gap-3 sm:grid-cols-2">
                 {fields.map((field) => (
@@ -416,8 +424,8 @@ function ManualEntryForm({ canCurate }: { canCurate: boolean }) {
                 ))}
                 {area.id === "context" ? (
                   <Field
-                    label="URL da Fonte"
-                    hint="Página de onde o registro veio, quando houver."
+                    label={messages.pages.newDescription.sourceUrlLabel}
+                    hint={messages.pages.newDescription.sourceUrlHint}
                   >
                     <Input
                       value={valueOf("original_url")}
@@ -434,11 +442,11 @@ function ManualEntryForm({ canCurate }: { canCurate: boolean }) {
         <Disclosure
           header={
             <span className="flex flex-wrap items-baseline gap-2">
-              <span className="text-sm font-semibold">Pontos de Acesso</span>
-              <span className="text-xs text-(--color-muted)">Os assuntos que viraram tags no acervo.</span>
+              <span className="text-sm font-semibold">{messages.pages.newDescription.accessSection}</span>
+              <span className="text-xs text-(--color-muted)">{messages.pages.newDescription.accessHintShort}</span>
             </span>
           }
-          toggleLabel="Abrir a área"
+          toggleLabel={messages.pages.newDescription.openArea}
         >
           {/*
             Access points are chips over the catalogue: the type-ahead brings what already exists,
@@ -448,8 +456,8 @@ function ManualEntryForm({ canCurate }: { canCurate: boolean }) {
             key carry — so this screen does not change the contract (#229).
           */}
           <Field
-            label="Pontos de Acesso"
-            hint="Escolha tags do catálogo ou digite termos novos. Termos novos viram tags quando a descrição for arquivada."
+            label={messages.pages.newDescription.accessLabel}
+            hint={messages.pages.newDescription.accessFieldHint}
             htmlFor="manual-access-points"
             hintId="manual-access-points-hint"
           >
@@ -461,7 +469,7 @@ function ManualEntryForm({ canCurate }: { canCurate: boolean }) {
               search={searchTagOptions}
               preview={previewAccessPointOptions}
               describe={describeAccessPoints}
-              copy={ACCESS_POINTS_COPY}
+              copy={accessPointsCopy(messages)}
               describedBy="manual-access-points-hint"
             />
           </Field>
@@ -486,8 +494,8 @@ function ManualEntryForm({ canCurate }: { canCurate: boolean }) {
               <p className="text-xs text-(--color-muted)">{DIGITAL_OBJECT.hint}</p>
             </div>
             <Field
-              label="URL da Imagem"
-              hint="Se a imagem já está publicada em outro lugar, a cópia para o acervo é feita automaticamente."
+              label={messages.pages.newDescription.imageUrlLabel}
+              hint={messages.pages.newDescription.imageUrlHint}
             >
               <Input
                 value={valueOf("thumb_down_link")}
@@ -505,15 +513,15 @@ function ManualEntryForm({ canCurate }: { canCurate: boolean }) {
               variant="primary"
               disabled={submit.isPending || titleMissing || !canCurate}
             >
-              {submit.isPending ? "Salvando…" : "Salvar"}
+              {submit.isPending ? ACTION.save.pending : ACTION.save.label}
             </Button>
             {/* The reason the button is greyed out, where the archivist is looking when it happens:
                 the asterisk on the field is at the top of a form of ~30 controls. */}
             {titleMissing && canCurate ? (
-              <span className="text-xs text-(--color-danger)">Falta preencher o título.</span>
+              <span className="text-xs text-(--color-danger)">{messages.pages.newDescription.titleMissing}</span>
             ) : null}
             <span className="text-xs text-(--color-muted)">
-              id do formulário: <span className="font-mono">{descriptionId}</span>
+              {fill(messages.pages.newDescription.formId, { id: descriptionId })}
             </span>
           </CardBody>
         </Card>

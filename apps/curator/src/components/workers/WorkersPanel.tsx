@@ -18,6 +18,9 @@ import { Hint } from "@/components/ui/Hint";
 import { Input, Select, Textarea } from "@/components/ui/Input";
 import { Notice } from "@/components/ui/Notice";
 import { WorkerOptionsFields, initialOptionValues, optionsForRequest } from "@/components/workers/WorkerOptionsFields";
+import { useCopy } from "@/i18n/context";
+import { fill } from "@/i18n/maps";
+import { Trans } from "@/i18n/trans";
 import { ACTION } from "@/lib/copy";
 import { formatCount, formatDateTime } from "@/lib/format";
 import {
@@ -97,24 +100,30 @@ export function WorkersPanel() {
  * leaving the operator to infer it from a `QUEUED` row that never moves.
  */
 function RunnersCard({ runners }: { runners: WorkerRunner[] }) {
+  const messages = useCopy();
   const online = runners.filter((runner) => runner.online);
 
   return (
     <Card>
       <CardBody className="grid gap-3">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-[11px] font-semibold tracking-wide text-(--color-muted) uppercase">Executores</span>
-          <Badge tone={online.length > 0 ? "ok" : "warn"}>{online.length} online</Badge>
-          {runners.length > online.length ? <Badge tone="neutral">{runners.length - online.length} offline</Badge> : null}
+          <span className="text-[11px] font-semibold tracking-wide text-(--color-muted) uppercase">
+            {messages.pages.workersPanel.runners}
+          </span>
+          <Badge tone={online.length > 0 ? "ok" : "warn"}>
+            {fill(messages.pages.workersPanel.onlineCount, { count: online.length })}
+          </Badge>
+          {runners.length > online.length ? (
+            <Badge tone="neutral">
+              {fill(messages.pages.workersPanel.offlineCount, { count: runners.length - online.length })}
+            </Badge>
+          ) : null}
         </div>
 
         {online.length === 0 ? (
           <Notice tone="warn" as="div" className="grid gap-1">
-            <p className="font-medium">Nenhum executor conectado</p>
-            <p>
-              Uma execução enfileirada espera até um executor ficar disponível. O painel apenas
-              enfileira; as execuções são feitas por um processo separado.
-            </p>
+            <p className="font-medium">{messages.pages.workersPanel.noRunnerTitle}</p>
+            <p>{messages.pages.workersPanel.noRunnerHint}</p>
           </Notice>
         ) : null}
 
@@ -127,7 +136,9 @@ function RunnersCard({ runners }: { runners: WorkerRunner[] }) {
               >
                 <div className="flex items-center justify-between gap-2">
                   <span className="truncate text-sm font-medium">{runner.name}</span>
-                  <Badge tone={runner.online ? "ok" : "neutral"}>{runner.online ? "online" : "offline"}</Badge>
+                  <Badge tone={runner.online ? "ok" : "neutral"}>
+                    {runner.online ? messages.pages.workersPanel.online : messages.pages.workersPanel.offline}
+                  </Badge>
                 </div>
                 <p className="mt-1 font-mono text-[11px] text-(--color-muted)">
                   {runner.hostname}
@@ -136,17 +147,22 @@ function RunnersCard({ runners }: { runners: WorkerRunner[] }) {
                 <p className="mt-1 text-xs text-(--color-muted)">
                   {(runner.capabilities ?? []).length > 0
                     ? (runner.capabilities ?? []).join(", ")
-                    : "nenhuma etapa"}
+                    : messages.pages.workersPanel.noCapabilities}
                 </p>
                 <p className="mt-1 text-[11px] text-(--color-muted)">
-                  último contato {formatDateTime(runner.last_heartbeat_at)}
+                  {fill(messages.pages.workersPanel.lastContact, {
+                    date: formatDateTime(runner.last_heartbeat_at),
+                  })}
                 </p>
               </div>
             ))}
           </div>
         ) : (
           <p className="text-xs text-(--color-muted)">
-            Nenhum executor se registrou ainda. Inicie um com <span className="font-mono">runner_daemon</span>.
+            <Trans
+              text={messages.pages.workersPanel.noRunnerRegistered}
+              values={{ daemon: <span className="font-mono">runner_daemon</span> }}
+            />
           </p>
         )}
       </CardBody>
@@ -155,6 +171,7 @@ function RunnersCard({ runners }: { runners: WorkerRunner[] }) {
 }
 
 function WorkerCard({ worker }: { worker: WorkerStatus }) {
+  const messages = useCopy();
   const [open, setOpen] = useState(false);
   const [panel, setPanel] = useState<"none" | "run">("none");
   const [feedback, setFeedback] = useState<ReactNode | null>(null);
@@ -174,7 +191,7 @@ function WorkerCard({ worker }: { worker: WorkerStatus }) {
         setOpen(next);
         if (!next) setPanel("none");
       }}
-      toggleLabel="Ver detalhes e enfileirar"
+      toggleLabel={messages.pages.workersPanel.showDetails}
       className={active ? "ring-(--color-accent)/40" : undefined}
       header={<WorkerHeader worker={worker} />}
       actions={
@@ -187,17 +204,17 @@ function WorkerCard({ worker }: { worker: WorkerStatus }) {
         worker.name === "ingestion" ? (
           <Link to="/sistema/ingestao">
             <Button size="sm" variant="secondary">
-              Abrir origens
+              {messages.pages.workersPanel.openOrigins}
             </Button>
           </Link>
         ) : (
           <div className="flex items-center gap-1">
-            <Hint label={`Sobre a execução de ${worker.label}`} align="end">
+            <Hint label={fill(messages.pages.workersPanel.runHintLabel, { worker: worker.label })} align="end">
               {active
-                ? "Há uma execução em andamento; espere ela terminar para enfileirar outra."
+                ? messages.pages.workersPanel.runBusy
                 : worker.runner_available
-                  ? "Enfileira uma execução com a configuração em uso. Um executor disponível a pega na fila."
-                  : "Nenhum executor disponível aceita esta etapa: a execução fica na fila até um aparecer."}
+                  ? messages.pages.workersPanel.runAvailable
+                  : messages.pages.workersPanel.unavailable}
             </Hint>
             <Button size="sm" variant="primary" onClick={() => openPanel("run")} disabled={active}>
               {active ? RUN_STATUS_LABEL[worker.active_run!.status] : ACTION.run.label}
@@ -209,39 +226,39 @@ function WorkerCard({ worker }: { worker: WorkerStatus }) {
       <div className="grid gap-4">
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <Fact
-            label="Configuração em Uso"
+            label={messages.pages.workersPanel.inUse}
             info={
-              <Hint label={`Sobre a configuração em uso de ${worker.label}`} align="start">
-                O motor, o preset e os ajustes formam a configuração em uso. "padrão salvo" quer dizer
-                que existe uma configuração salva para esta etapa; sem ela, vale o padrão do sistema.
+              <Hint
+                label={fill(messages.pages.workersPanel.inUseHintLabel, { worker: worker.label })}
+                align="start"
+              >
+                {messages.pages.workersPanel.inUseHint}
               </Hint>
             }
           >
-            <span className="font-mono text-xs">{worker.settings.engine_name ?? "sem modelo"}</span>
+            <span className="font-mono text-xs">{worker.settings.engine_name ?? messages.system.noModel}</span>
             {worker.settings.preset ? <span className="text-(--color-muted)"> · {worker.settings.preset}</span> : null}
             <p className="mt-1 text-xs text-(--color-muted)">{describeConfig(worker.settings.config)}</p>
             {worker.settings.overridden ? (
               <Badge tone="accent" className="mt-1">
-                padrão salvo
+                {messages.pages.workersPanel.savedDefault}
               </Badge>
             ) : (
               <Badge tone="neutral" className="mt-1">
-                padrão do sistema
+                {messages.pages.workersPanel.systemDefault}
               </Badge>
             )}
           </Fact>
 
-          <Fact label={`Fila (${UNIT_LABEL[worker.unit]})`}>
+          <Fact label={fill(messages.pages.workersPanel.queue, { unit: UNIT_LABEL[worker.unit] })}>
             {worker.pending == null ? (
-              <span className="text-sm text-(--color-warn)">sem contagem</span>
+              <span className="text-sm text-(--color-warn)">{messages.pages.workersPanel.noCount}</span>
             ) : (
               <span className="text-2xl leading-none font-semibold tabular-nums">
                 {formatCount(worker.pending)}
               </span>
             )}
-            <p className="mt-1 text-xs text-(--color-muted)">
-              O que a próxima execução vai ler. Não é o total já processado.
-            </p>
+            <p className="mt-1 text-xs text-(--color-muted)">{messages.pages.workersPanel.queueHint}</p>
           </Fact>
 
           {/*
@@ -250,7 +267,14 @@ function WorkerCard({ worker }: { worker: WorkerStatus }) {
             see the difference — on the reference collection 4.831 stamped against 4.813 pending —
             instead of reading the breakdown as a decomposition of the queue.
           */}
-          <Fact label={`${worker.stamp_breakdown ? "Já Processados" : "Processados"} (${UNIT_LABEL[worker.unit]})`}>
+          <Fact
+            label={fill(
+              worker.stamp_breakdown
+                ? messages.pages.workersPanel.alreadyProcessed
+                : messages.pages.workersPanel.processed,
+              { unit: UNIT_LABEL[worker.unit] },
+            )}
+          >
             {worker.stamp_breakdown ? (
               <>
                 <span className="text-2xl leading-none font-semibold tabular-nums">
@@ -262,11 +286,24 @@ function WorkerCard({ worker }: { worker: WorkerStatus }) {
                   )}
                 </span>
                 <p className="mt-1 text-xs text-(--color-muted)">
-                  {formatCount(worker.stamp_breakdown.fingerprinted)} com produtor identificado
-                  {` · ${formatCount(worker.stamp_breakdown.legacy)} sem produtor conhecido`}
-                  {` · ${formatCount(worker.stamp_breakdown.unrecorded)} sem registro`}
-                  {worker.stamp_breakdown.failed ? ` · ${formatCount(worker.stamp_breakdown.failed)} com falha` : ""}
-                  {" — o total desta etapa, não a fila."}
+                  {fill(messages.pages.workersPanel.withProducer, {
+                    count: formatCount(worker.stamp_breakdown.fingerprinted),
+                  })}
+                  {" · "}
+                  {fill(messages.pages.workersPanel.unknownProducer, {
+                    count: formatCount(worker.stamp_breakdown.legacy),
+                  })}
+                  {" · "}
+                  {fill(messages.pages.workersPanel.unrecorded, {
+                    count: formatCount(worker.stamp_breakdown.unrecorded),
+                  })}
+                  {worker.stamp_breakdown.failed
+                    ? ` · ${fill(messages.pages.workersPanel.withFailure, {
+                        count: formatCount(worker.stamp_breakdown.failed),
+                      })}`
+                    : ""}
+                  {" — "}
+                  {messages.pages.workersPanel.notTheQueue}
                 </p>
               </>
             ) : (
@@ -275,15 +312,18 @@ function WorkerCard({ worker }: { worker: WorkerStatus }) {
                   {formatCount(worker.processed ?? 0)}
                 </span>
                 <p className="mt-1 text-xs text-(--color-muted)">
-                  já processados
-                  {worker.failed ? ` · ${formatCount(worker.failed)} com falha` : ""} — o total desta
-                  etapa, não a fila.
+                  {messages.pages.workersPanel.processedLower}
+                  {worker.failed
+                    ? ` · ${fill(messages.pages.workersPanel.withFailure, { count: formatCount(worker.failed) })}`
+                    : ""}
+                  {" — "}
+                  {messages.pages.workersPanel.notTheQueue}
                 </p>
               </>
             )}
           </Fact>
 
-          <Fact label="Última Execução">
+          <Fact label={messages.pages.workersPanel.lastRun}>
             {worker.last_run ? (
               <>
                 <Badge tone={RUN_STATUS_TONE[worker.last_run.status]}>{RUN_STATUS_LABEL[worker.last_run.status]}</Badge>
@@ -291,7 +331,10 @@ function WorkerCard({ worker }: { worker: WorkerStatus }) {
                   {formatDateTime(worker.last_run.queued_at)} · {formatDuration(worker.last_run.duration_ms)} ·{" "}
                   {TRIGGER_LABEL[worker.last_run.trigger]}
                   {worker.last_run.attempt > 1
-                    ? ` · tentativa ${worker.last_run.attempt}/${MAX_ATTEMPTS}`
+                    ? ` · ${fill(messages.pages.workersPanel.attempt, {
+                        attempt: worker.last_run.attempt,
+                        max: MAX_ATTEMPTS,
+                      })}`
                     : ""}
                   {worker.last_run.runner_id ? ` · ${worker.last_run.runner_id}` : ""}
                 </p>
@@ -308,32 +351,36 @@ function WorkerCard({ worker }: { worker: WorkerStatus }) {
                   search={{ aba: "execucoes", worker: worker.name, run: worker.last_run.run_id }}
                   className="mt-1 inline-block text-xs underline"
                 >
-                  ver em Execuções
+                  {messages.pages.workersPanel.seeInExecutions}
                 </Link>
               </>
             ) : (
-              <span className="text-sm text-(--color-muted)">nenhuma execução ainda</span>
+              <span className="text-sm text-(--color-muted)">{messages.pages.workersPanel.noRun}</span>
             )}
           </Fact>
 
-          <Fact label="Agenda">
+          <Fact label={messages.pages.workersPanel.schedule}>
             {worker.schedule ? (
               <>
                 <span className="font-mono text-xs">{worker.schedule.cron}</span>
                 <p className="mt-1 text-xs text-(--color-muted)">
                   {worker.schedule.timezone} ·{" "}
                   {worker.schedule.enabled
-                    ? `próxima ${formatDateTime(worker.schedule.next_run_at)}`
-                    : "pausada"}
+                    ? fill(messages.pages.workersPanel.nextRun, {
+                        date: formatDateTime(worker.schedule.next_run_at),
+                      })
+                    : messages.pages.workersPanel.paused}
                 </p>
                 {worker.schedule.last_skipped_at ? (
                   <p className="mt-1 text-xs text-(--color-muted)">
-                    pulada em {formatDateTime(worker.schedule.last_skipped_at)} (há uma execução em andamento)
+                    {fill(messages.pages.workersPanel.skipped, {
+                      date: formatDateTime(worker.schedule.last_skipped_at),
+                    })}
                   </p>
                 ) : null}
               </>
             ) : (
-              <span className="text-sm text-(--color-muted)">sem agenda</span>
+              <span className="text-sm text-(--color-muted)">{messages.pages.workersPanel.noSchedule}</span>
             )}
           </Fact>
         </div>
@@ -349,10 +396,7 @@ function WorkerCard({ worker }: { worker: WorkerStatus }) {
         ) : null}
 
         {!worker.governed ? (
-          <p className="text-xs text-(--color-muted)">
-            Esta etapa não respeita o bloqueio de revisão humana — é uma exceção prevista e documentada,
-            não um descuido.
-          </p>
+          <p className="text-xs text-(--color-muted)">{messages.pages.workersPanel.notGoverned}</p>
         ) : null}
 
         {feedback ? (
@@ -368,6 +412,7 @@ function WorkerCard({ worker }: { worker: WorkerStatus }) {
 }
 
 function WorkerHeader({ worker }: { worker: WorkerStatus }) {
+  const messages = useCopy();
   const active = isActiveRun(worker.active_run);
   return (
     <span className="flex min-w-0 flex-wrap items-center gap-2">
@@ -376,16 +421,22 @@ function WorkerHeader({ worker }: { worker: WorkerStatus }) {
       </span>
       <span className="text-sm font-medium">{worker.label}</span>
       <span className="font-mono text-[11px] text-(--color-muted)">{worker.name}</span>
-      {worker.settings.overridden ? <Badge tone="accent">padrão salvo</Badge> : null}
+      {worker.settings.overridden ? (
+        <Badge tone="accent">{messages.pages.workersPanel.savedDefault}</Badge>
+      ) : null}
       {active ? <Badge tone="accent">{RUN_STATUS_LABEL[worker.active_run!.status]}</Badge> : null}
-      {!worker.runner_available ? <Badge tone="warn">sem executor</Badge> : null}
+      {!worker.runner_available ? <Badge tone="warn">{messages.pages.workersPanel.noRunner}</Badge> : null}
       {worker.schedule ? (
         <Badge tone={worker.schedule.enabled ? "accent" : "neutral"}>
-          {worker.schedule.enabled ? `agenda ${worker.schedule.cron}` : "agenda pausada"}
+          {worker.schedule.enabled
+            ? fill(messages.pages.workersPanel.scheduleEnabled, { cron: worker.schedule.cron })
+            : messages.pages.workersPanel.schedulePaused}
         </Badge>
       ) : null}
       {worker.pending != null && worker.pending > 0 ? (
-        <Badge tone="warn">{formatCount(worker.pending)} na fila</Badge>
+        <Badge tone="warn">
+          {fill(messages.pages.workersPanel.inQueue, { count: formatCount(worker.pending) })}
+        </Badge>
       ) : null}
       {/*
         The engine, the preset and the model stay on the collapsed row: "with which model is this
@@ -393,15 +444,23 @@ function WorkerHeader({ worker }: { worker: WorkerStatus }) {
         hide the answer behind the very interaction it is meant to avoid.
       */}
       <span className="w-full font-mono text-[11px] text-(--color-muted)">
-        {worker.settings.engine_name ?? "sem modelo"}
+        {worker.settings.engine_name ?? messages.system.noModel}
         {worker.settings.preset ? ` · ${worker.settings.preset}` : ""}
         {worker.settings.engine_name ? ` — ${describeConfig(worker.settings.config)}` : ""}
       </span>
       {worker.active_run?.runner_id ? (
         <span className="w-full font-mono text-[11px] text-(--color-muted)">
-          executor {worker.active_run.runner_id}
-          {worker.active_run.heartbeat_at ? ` · contato ${formatDateTime(worker.active_run.heartbeat_at)}` : ""}
-          {worker.active_run.not_before ? ` · recomeça às ${formatDateTime(worker.active_run.not_before)}` : ""}
+          {fill(messages.pages.workersPanel.runner, { id: worker.active_run.runner_id })}
+          {worker.active_run.heartbeat_at
+            ? ` · ${fill(messages.pages.workersPanel.contact, {
+                date: formatDateTime(worker.active_run.heartbeat_at),
+              })}`
+            : ""}
+          {worker.active_run.not_before
+            ? ` · ${fill(messages.pages.workersPanel.restartsAt, {
+                date: formatDateTime(worker.active_run.not_before),
+              })}`
+            : ""}
         </span>
       ) : null}
       <span className="w-full text-xs text-(--color-muted)">{worker.description}</span>
@@ -423,6 +482,7 @@ function Fact({ label, children, info }: { label: string; children: React.ReactN
 
 /** The per-run overrides. Nothing here is persisted; the defaults are the settings panel. */
 function RunPanel({ worker, onDone }: { worker: WorkerStatus; onDone: (message: ReactNode) => void }) {
+  const messages = useCopy();
   const queryClient = useQueryClient();
   const settings = worker.settings;
   const [engine, setEngine] = useState(settings.engine_name ?? "");
@@ -453,17 +513,20 @@ function RunPanel({ worker, onDone }: { worker: WorkerStatus; onDone: (message: 
     onSuccess: (created) => {
       void queryClient.invalidateQueries({ queryKey: ["system"] });
       onDone(
-        <>
-          Execução #{created.run_id} enfileirada;{" "}
-          <Link
-            to="/sistema/workers"
-            search={{ aba: "execucoes", worker: worker.name, run: created.run_id }}
-            className="underline"
-          >
-            ver em Execuções
-          </Link>
-          .
-        </>,
+        <Trans
+          text={fill(messages.pages.workersPanel.enqueued, { run: created.run_id })}
+          values={{
+            executions: (
+              <Link
+                to="/sistema/workers"
+                search={{ aba: "execucoes", worker: worker.name, run: created.run_id }}
+                className="underline"
+              >
+                {messages.pages.workersPanel.seeInExecutions}
+              </Link>
+            ),
+          }}
+        />,
       );
     },
   });
@@ -471,20 +534,16 @@ function RunPanel({ worker, onDone }: { worker: WorkerStatus; onDone: (message: 
   return (
     <Card className="bg-black/[0.02]">
       <CardBody className="grid gap-3">
-        <p className="text-xs text-(--color-muted)">
-          Esta execução usa a configuração em uso acima, ajustada só desta vez. Nada aqui vira padrão.
-        </p>
+        <p className="text-xs text-(--color-muted)">{messages.pages.workersPanel.overridesHint}</p>
 
         {!worker.runner_available ? (
-          <Notice tone="warn">
-            Nenhum executor disponível aceita esta etapa: a execução fica na fila até um aparecer.
-          </Notice>
+          <Notice tone="warn">{messages.pages.workersPanel.unavailable}</Notice>
         ) : null}
 
         {settings.engine_source === "signature" ? (
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="flex flex-col gap-1 text-xs">
-              Motor
+              {messages.pages.workersPanel.engineField}
               <Select
                 value={engine}
                 onChange={(event) => {
@@ -500,9 +559,9 @@ function RunPanel({ worker, onDone }: { worker: WorkerStatus; onDone: (message: 
               </Select>
             </label>
             <label className="flex flex-col gap-1 text-xs">
-              Preset
+              {messages.pages.workersPanel.presetField}
               <Select value={preset} onChange={(event) => setPreset(event.target.value)}>
-                <option value="">(o padrão)</option>
+                <option value="">{messages.pages.workersPanel.presetDefault}</option>
                 {presets.map((item) => (
                   <option key={item.name} value={item.name}>
                     {item.name} — {describeConfig(item.config)}
@@ -514,14 +573,14 @@ function RunPanel({ worker, onDone }: { worker: WorkerStatus; onDone: (message: 
         ) : (
           <p className="text-xs text-(--color-muted)">
             {settings.engine_source === "llm_check_rule"
-              ? "O motor e o preset desta etapa vêm da regra de limpeza ativa; aqui você ajusta só os parâmetros da execução."
-              : "Esta etapa não carrega modelo."}
+              ? messages.pages.workersPanel.engineFromRule
+              : messages.pages.workersPanel.noModel}
           </p>
         )}
 
         <div className="grid gap-3 sm:grid-cols-2">
           <label className="flex flex-col gap-1 text-xs">
-            Tamanho do Lote (vazio = o do sistema)
+            {messages.pages.workersPanel.batchField}
             <Input
               type="number"
               min={1}
@@ -545,19 +604,24 @@ function RunPanel({ worker, onDone }: { worker: WorkerStatus; onDone: (message: 
           the axis already hands the engine — a value outside that list is the engine's to refuse.
         */}
         <Disclosure
-          toggleLabel="Ajustes do motor (avançado)"
+          toggleLabel={messages.pages.workersPanel.advancedToggle}
           className="bg-black/[0.02]"
           header={
             <span className="text-xs text-(--color-muted)">
-              Ajustes repassados diretamente ao motor — valem só para esta execução e não viram padrão.
-              {(settings.engine_option_names ?? []).length > 0
-                ? ` Esta etapa já envia ao motor: ${(settings.engine_option_names ?? []).join(", ")}.`
-                : ""}
+              {messages.pages.workersPanel.advancedHint}
+              {(settings.engine_option_names ?? []).length > 0 ? (
+                <>
+                  {" "}
+                  {fill(messages.pages.workersPanel.advancedForwarded, {
+                    names: (settings.engine_option_names ?? []).join(", "),
+                  })}
+                </>
+              ) : null}
             </span>
           }
         >
           <label className="flex flex-col gap-1 text-xs">
-            Ajustes do Motor (JSON; ex.: {"{\"device\": \"cpu\"}"})
+            {messages.pages.workersPanel.engineOptionsField}
             <Textarea
               rows={2}
               value={engineText}
@@ -571,12 +635,15 @@ function RunPanel({ worker, onDone }: { worker: WorkerStatus; onDone: (message: 
 
         <div className="flex items-center gap-2">
           <Button variant="primary" onClick={() => run.mutate()} disabled={run.isPending}>
-            {run.isPending ? "Enfileirando…" : ACTION.run.label}
+            {run.isPending ? ACTION.run.pending : ACTION.run.label}
           </Button>
           <span className="text-xs text-(--color-muted)">
             {worker.pending == null
-              ? "Não é possível contar a fila desta etapa."
-              : `${formatCount(worker.pending)} ${UNIT_LABEL[worker.unit]} na fila.`}
+              ? messages.pages.workersPanel.queueUnknown
+              : fill(messages.pages.workersPanel.queueCount, {
+                  count: formatCount(worker.pending),
+                  unit: UNIT_LABEL[worker.unit],
+                })}
           </span>
         </div>
       </CardBody>

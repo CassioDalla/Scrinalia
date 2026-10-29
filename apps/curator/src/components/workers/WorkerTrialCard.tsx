@@ -24,6 +24,9 @@ import { Field } from "@/components/ui/Field";
 import { Input, Select } from "@/components/ui/Input";
 import { Notice } from "@/components/ui/Notice";
 import { WorkerOptionsFields, initialOptionValues } from "@/components/workers/WorkerOptionsFields";
+import { useCopy } from "@/i18n/context";
+import { fill } from "@/i18n/maps";
+import { Trans } from "@/i18n/trans";
 import { ACTION } from "@/lib/copy";
 import { formatCount } from "@/lib/format";
 import { RUN_STATUS_LABEL, RUN_STATUS_TONE, describeOptions, formatDuration, isActiveRun } from "@/lib/system";
@@ -47,6 +50,7 @@ export function WorkerTrialCard({
   worker: WorkerSettingsItem;
   onSaved: (message: string) => void;
 }) {
+  const messages = useCopy();
   const settings = worker.settings;
   const queryClient = useQueryClient();
   const [sample, setSample] = useState("50");
@@ -96,18 +100,16 @@ export function WorkerTrialCard({
       // A pending count from the previously chosen configuration would be a number about another
       // body under the button that promises this one.
       preview.reset();
-      setNotice("Padrão salvo a partir do ensaio; a próxima execução usa esta configuração.");
+      setNotice(messages.pages.workerTrial.savedNotice);
       invalidate();
-      onSaved("Padrão salvo a partir do ensaio.");
+      onSaved(messages.pages.workerTrial.savedFeedback);
     },
   });
 
   const runAll = useMutation({
     mutationFn: () => triggerWorkerRun(worker.name, {}),
     onSuccess: (created) => {
-      setNotice(
-        `Execução #${created.run_id} enfileirada com o padrão salvo; acompanhe em Execuções.`,
-      );
+      setNotice(fill(messages.pages.workerTrial.queuedNotice, { run: created.run_id }));
       invalidate();
     },
   });
@@ -121,21 +123,22 @@ export function WorkerTrialCard({
   return (
     <div className="grid gap-3 rounded-lg bg-black/[0.02] p-3 ring-1 ring-(--color-line)">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <span className="text-sm font-medium">Comparar configurações</span>
-        <span className="text-xs text-(--color-muted)">o ensaio não altera o acervo</span>
+        <span className="text-sm font-medium">{messages.pages.workerTrial.title}</span>
+        <span className="text-xs text-(--color-muted)">{messages.pages.workerTrial.doesNotChange}</span>
       </div>
 
       <p className="text-xs text-(--color-muted)">
-        O ensaio aplica cada configuração à mesma amostra e mostra a concordância com as correções
-        humanas de tipologia. Ele ocupa a vaga desta etapa como uma execução; a escolha só vira padrão
-        quando você clicar em <strong>Salvar como padrão</strong>.
+        <Trans
+          text={messages.pages.workerTrial.intro}
+          values={{ save: <strong>{messages.pages.workerSettings.saveAsDefault}</strong> }}
+        />
       </p>
 
       <div className="grid gap-3 lg:grid-cols-2">
         {configs.map((config, index) => (
           <ConfigEditor
             key={index}
-            title={`Configuração ${index === 0 ? "A" : "B"}`}
+            title={index === 0 ? messages.pages.workerTrial.configA : messages.pages.workerTrial.configB}
             settings={settings}
             config={config}
             onChange={(next) =>
@@ -146,7 +149,10 @@ export function WorkerTrialCard({
       </div>
 
       <div className="flex flex-wrap items-end gap-3">
-        <Field label="Descrições na Amostra (5 a 500)" hint="As correções humanas são lidas até o mesmo limite.">
+        <Field
+          label={messages.pages.workerTrial.sampleField}
+          hint={messages.pages.workerTrial.sampleHint}
+        >
           <Input
             type="number"
             min={5}
@@ -160,11 +166,13 @@ export function WorkerTrialCard({
           variant="primary"
           onClick={() => trial.mutate(body)}
           disabled={trial.isPending || busy || !sampleValid}
-          title={busy ? "Já há um ensaio ou uma execução desta etapa em andamento." : undefined}
+          title={busy ? messages.pages.workerTrial.busyTitle : undefined}
         >
-          {trial.isPending ? "Enfileirando…" : "Enfileirar ensaio"}
+          {trial.isPending ? ACTION.run.pending : messages.pages.workerTrial.enqueueTrial}
         </Button>
-        {!sampleValid ? <span className="text-xs text-(--color-danger)">A amostra vai de 5 a 500.</span> : null}
+        {!sampleValid ? (
+          <span className="text-xs text-(--color-danger)">{messages.pages.workerTrial.sampleInvalid}</span>
+        ) : null}
       </div>
 
       {trial.error ? <ErrorState error={trial.error} /> : null}
@@ -187,12 +195,12 @@ export function WorkerTrialCard({
       {run.data?.trial_result ? (
         <div className="grid gap-2 border-t border-(--color-line) pt-3">
           <p className="text-xs font-semibold tracking-wide text-(--color-muted) uppercase">
-            Rodar no acervo inteiro
+            {messages.pages.workerTrial.wholeCollection}
           </p>
           <p className="text-xs text-(--color-muted)">
             {savedBody
-              ? "Primeiro confira a fila do padrão que acabou de ser salvo; o número é o que a execução vai ler."
-              : "Escolha uma configuração acima para salvá-la como padrão."}
+              ? messages.pages.workerTrial.previewFirst
+              : messages.pages.workerTrial.chooseFirst}
           </p>
           <div className="flex flex-wrap items-center gap-2">
             <Button
@@ -208,17 +216,19 @@ export function WorkerTrialCard({
               disabled={!savedBody || preview.data === undefined || runAll.isPending || preview.data.pending === 0}
               title={
                 preview.data?.pending === 0
-                  ? "A fila está vazia com este padrão."
-                  : "Enfileira a execução com o padrão salvo, sem ajustes só desta vez."
+                  ? messages.pages.workerTrial.emptyQueueTitle
+                  : messages.pages.workerTrial.runSavedTitle
               }
             >
-              {runAll.isPending ? "Enfileirando…" : "Enfileirar execução"}
+              {runAll.isPending ? ACTION.run.pending : ACTION.run.label}
             </Button>
             {preview.data ? (
               <span className="text-xs text-(--color-muted)">
                 {preview.data.pending == null
-                  ? (preview.data.pending_reason ?? "Não é possível contar a fila.")
-                  : `${formatCount(preview.data.pending)} na fila com o padrão salvo.`}
+                  ? (preview.data.pending_reason ?? messages.pages.workerTrial.queueUnknown)
+                  : fill(messages.pages.workerTrial.queuedWithSaved, {
+                      count: formatCount(preview.data.pending),
+                    })}
               </span>
             ) : null}
           </div>
@@ -259,6 +269,7 @@ function ConfigEditor({
   config: WorkerSettingsRequest;
   onChange: (next: WorkerSettingsRequest) => void;
 }) {
+  const messages = useCopy();
   const engines = settings.available_engines ?? [];
   const presets = engines.find((engine) => engine.name === config.engine_name)?.presets ?? [];
 
@@ -266,12 +277,12 @@ function ConfigEditor({
     <div className="grid gap-2 rounded-md bg-(--color-surface) p-3 ring-1 ring-(--color-line)">
       <span className="text-xs font-semibold tracking-wide text-(--color-muted) uppercase">{title}</span>
       <div className="grid gap-2 sm:grid-cols-2">
-        <Field label="Motor">
+        <Field label={messages.pages.workerSettings.engineField}>
           <Select
             value={config.engine_name ?? ""}
             onChange={(event) => onChange({ ...config, engine_name: event.target.value || null, preset: null })}
           >
-            <option value="">(o padrão do sistema)</option>
+            <option value="">{messages.pages.workerTrial.systemDefault}</option>
             {engines.map((engine) => (
               <option key={engine.name} value={engine.name}>
                 {engine.name}
@@ -279,12 +290,12 @@ function ConfigEditor({
             ))}
           </Select>
         </Field>
-        <Field label="Preset">
+        <Field label={messages.pages.workerSettings.presetField}>
           <Select
             value={config.preset ?? ""}
             onChange={(event) => onChange({ ...config, preset: event.target.value || null })}
           >
-            <option value="">(o padrão do sistema)</option>
+            <option value="">{messages.pages.workerTrial.systemDefault}</option>
             {presets.map((preset) => (
               <option key={preset.name} value={preset.name}>
                 {preset.name}
@@ -293,7 +304,7 @@ function ConfigEditor({
           </Select>
         </Field>
       </div>
-      <Field label="Tamanho do Lote (vazio = o do sistema)">
+      <Field label={messages.pages.workerTrial.batchField}>
         <Input
           type="number"
           min={1}
@@ -315,19 +326,28 @@ function ConfigEditor({
 
 /** The queued/running/failed trial: its state, and where to watch it. */
 function TrialRunPanel({ run }: { run: WorkerRunDetail }) {
+  const messages = useCopy();
   return (
     <div className="flex flex-wrap items-center gap-2 text-xs text-(--color-muted)">
       <Badge tone={RUN_STATUS_TONE[run.status]}>{RUN_STATUS_LABEL[run.status]}</Badge>
       <span>
-        Ensaio #{run.run_id} · {formatDuration(run.duration_ms)}
+        {fill(messages.pages.workerTrial.trialRun, {
+          run: run.run_id,
+          duration: formatDuration(run.duration_ms),
+        })}
       </span>
       {isActiveRun(run) ? (
         <span>
-          o resultado aparece quando a execução terminar; acompanhe em{" "}
-          <Link to="/sistema/workers" search={{ aba: "execucoes" }} className="underline">
-            Execuções
-          </Link>
-          .
+          <Trans
+            text={messages.pages.workerTrial.trialWaiting}
+            values={{
+              executions: (
+                <Link to="/sistema/workers" search={{ aba: "execucoes" }} className="underline">
+                  {messages.pages.workers.execucoes}
+                </Link>
+              ),
+            }}
+          />
         </span>
       ) : null}
       {run.status === "FAILED" && run.error ? (
@@ -347,6 +367,7 @@ function TrialComparison({
   onUse: (config: WorkerTrialConfig) => void;
   using: boolean;
 }) {
+  const messages = useCopy();
   const configs = result.configs ?? [];
   const verdictIds = result.sample.verdict_ids ?? [];
   const sampledIds = result.sample.description_ids ?? [];
@@ -357,37 +378,47 @@ function TrialComparison({
   return (
     <div className="grid gap-2">
       <p className="text-xs text-(--color-muted)">
-        {result.sample.verdicts_available} veredito(s) humano(s) de tipologia no acervo ·{" "}
-        {verdictIds.length} usado(s) neste ensaio · amostra aleatória de {sampledIds.length} descrição(ões).
+        {fill(messages.pages.workerTrial.verdicts, {
+          verdicts: result.sample.verdicts_available,
+          used: verdictIds.length,
+          sampled: sampledIds.length,
+        })}
         {result.sample.verdicts_available === 0 ? (
           <>
             {" "}
-            A concordância ainda não pode ser medida: corrija uma recusa em{" "}
-            <Link to="/arranjo/tipologias" className="underline">
-              Tipologias
-            </Link>{" "}
-            para criar o primeiro veredito.
+            <Trans
+              text={messages.pages.workerTrial.noVerdicts}
+              values={{
+                typologies: (
+                  <Link to="/arranjo/tipologias" className="underline">
+                    {messages.screens.typologies.label}
+                  </Link>
+                ),
+              }}
+            />
           </>
         ) : null}
       </p>
 
       {unknown.length > 0 ? (
-        <Notice tone="warn">Vereditos fora do catálogo ativo (contam como erro): {unknown.join(", ")}.</Notice>
+        <Notice tone="warn">
+          {fill(messages.pages.workerTrial.unknownVerdicts, { codes: unknown.join(", ") })}
+        </Notice>
       ) : null}
 
       <div className="overflow-x-auto">
         <table className="w-full text-xs">
           <thead>
             <tr className="text-left text-(--color-muted)">
-              <th className="py-1 pr-3 font-medium">Configuração</th>
-              <th className="py-1 pr-3 font-medium">Concordância</th>
-              <th className="py-1 pr-3 font-medium">Cobertura</th>
-              <th className="py-1 pr-3 font-medium">Abstenção</th>
-              <th className="py-1 pr-3 font-medium">Maior Rótulo</th>
-              <th className="py-1 pr-3 font-medium">Entropia</th>
-              <th className="py-1 pr-3 font-medium">s/descrição</th>
-              <th className="py-1 pr-3 font-medium">Fila</th>
-              <th className="py-1 pr-3 font-medium">Projeção</th>
+              <th className="py-1 pr-3 font-medium">{messages.pages.workerTrial.columns.config}</th>
+              <th className="py-1 pr-3 font-medium">{messages.pages.workerTrial.columns.agreement}</th>
+              <th className="py-1 pr-3 font-medium">{messages.pages.workerTrial.columns.coverage}</th>
+              <th className="py-1 pr-3 font-medium">{messages.pages.workerTrial.columns.abstention}</th>
+              <th className="py-1 pr-3 font-medium">{messages.pages.workerTrial.columns.largest}</th>
+              <th className="py-1 pr-3 font-medium">{messages.pages.workerTrial.columns.entropy}</th>
+              <th className="py-1 pr-3 font-medium">{messages.pages.workerTrial.columns.perDocument}</th>
+              <th className="py-1 pr-3 font-medium">{messages.pages.workerTrial.columns.queue}</th>
+              <th className="py-1 pr-3 font-medium">{messages.pages.workerTrial.columns.projection}</th>
               <th className="py-1 font-medium" />
             </tr>
           </thead>
@@ -400,7 +431,9 @@ function TrialComparison({
                     {config.preset ? ` · ${config.preset}` : ""}
                   </span>
                   <span className="block text-[11px] text-(--color-muted)">{describeOptions(config.options)}</span>
-                  {best !== null && config.agreement === best ? <Badge tone="ok">melhor concordância</Badge> : null}
+                  {best !== null && config.agreement === best ? (
+                    <Badge tone="ok">{messages.pages.workerTrial.bestAgreement}</Badge>
+                  ) : null}
                 </td>
                 <td className="py-2 pr-3 tabular-nums">
                   {config.agreement == null ? "—" : `${(config.agreement * 100).toFixed(1)}%`}
@@ -422,7 +455,7 @@ function TrialComparison({
                 </td>
                 <td className="py-2">
                   <Button size="sm" variant="secondary" onClick={() => onUse(config)} disabled={using}>
-                    Salvar como padrão
+                    {messages.pages.workerSettings.saveAsDefault}
                   </Button>
                 </td>
               </tr>
@@ -432,8 +465,7 @@ function TrialComparison({
       </div>
 
       <p className="text-[11px] text-(--color-muted)">
-        Cobertura = vereditos em que a configuração deu um rótulo. A projeção usa a fila desta
-        configuração no ritmo medido e não inclui o carregamento do modelo.
+        {messages.pages.workerTrial.footnote}
       </p>
     </div>
   );

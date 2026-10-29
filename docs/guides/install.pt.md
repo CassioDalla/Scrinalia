@@ -243,6 +243,8 @@ quem alcançar a instância primeiro pode criar essa conta; o `POST /api/v1/setu
 por um lock de tabela, então duas tentativas simultâneas não podem dar certo as duas, mas o lock não
 fecha a janela (ADR 0011). **Configure a instância antes de expô-la.**
 
+A interface abre em português. Cada conta pode passar para inglês no menu da conta; a escolha fica guardada na conta, e a API responde na língua que a requisição pede.
+
 ### 7. Suba a API
 
 ```bash

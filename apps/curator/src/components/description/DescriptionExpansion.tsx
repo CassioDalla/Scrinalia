@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { EmptyState, ErrorState, Spinner } from "@/components/ui/Feedback";
 import { formatCount, formatDate, REVIEW_STATUS_LABEL, REVIEW_STATUS_TONE } from "@/lib/format";
+import { useCopy } from "@/i18n/context";
 
 /**
  * The descriptions one object holds, paged, read through the collection search.
@@ -39,13 +40,14 @@ export function DescriptionExpansion({
   onPreview: (descriptionId: string) => void;
   empty: { title: string; hint: string };
 }) {
+  const messages = useCopy();
   const documents = useQuery(queries.documents({ ...params, limit: pageSize, offset }));
 
   const items = documents.data?.items ?? [];
   const total = documents.data?.total ?? 0;
 
   if (documents.error) return <ErrorState error={documents.error} />;
-  if (documents.isPending) return <Spinner label="Lendo as descrições…" />;
+  if (documents.isPending) return <Spinner label={messages.common.readingDescriptions} />;
 
   if (items.length === 0) return <EmptyState title={empty.title} hint={empty.hint} />;
 
@@ -87,10 +89,10 @@ export function DescriptionExpansion({
             ← Anterior
           </Button>
           <span className="text-xs text-(--color-muted)">
-            {formatCount(offset + 1)}–{formatCount(Math.min(offset + pageSize, total))} de {formatCount(total)}
+            {messages.common.range.replace("{from}", formatCount(offset + 1)).replace("{to}", formatCount(Math.min(offset + pageSize, total))).replace("{total}", formatCount(total))}
           </span>
           <Button size="sm" disabled={offset + pageSize >= total} onClick={() => onPage(offset + pageSize)}>
-            Próxima →
+            {messages.common.next}
           </Button>
         </div>
       ) : null}

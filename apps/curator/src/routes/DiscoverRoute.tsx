@@ -17,6 +17,7 @@ import { PageBody } from "@/components/layout/PageBody";
 import { ACTION } from "@/lib/copy";
 import { formatCount } from "@/lib/format";
 import { routeMessage } from "@/lib/messages";
+import { useCopy } from "@/i18n/context";
 
 /**
  * Discovering a drawer the vocabulary does not have yet.
@@ -31,6 +32,7 @@ import { routeMessage } from "@/lib/messages";
  * an empty list would read as "the collection has no subjects".
  */
 export function DiscoverRoute() {
+  const messages = useCopy();
   const [sourceType, setSourceType] = useState<"tags" | "documents">("tags");
   /** ``null`` means "the code's defaults": nothing is sent, and the route resolves them itself. */
   const [columns, setColumns] = useState<string[] | null>(null);
@@ -66,39 +68,37 @@ export function DiscoverRoute() {
         screen="discover"
         actions={
           <Link to="/assuntos/categorias">
-            <Button size="sm">Categorias Atuais</Button>
+            <Button size="sm">{messages.pages.discover.currentCategories}</Button>
           </Link>
         }
       />
 
       <PageBody>
         <Card>
-          <CardHeader className="text-sm font-semibold">Agrupar por tema</CardHeader>
+          <CardHeader className="text-sm font-semibold">{messages.pages.discover.groupByTheme}</CardHeader>
           <CardBody className="grid gap-2">
-            <p className="text-xs text-(--color-muted)">
-              O agrupamento é processado sob demanda e leva poucos segundos. As listas abaixo são apenas sugestões: nenhum termo é alterado no vocabulário sem a sua aprovação.
-            </p>
+            <p className="text-xs text-(--color-muted)">{messages.pages.discover.intro}</p>
             <div className="flex flex-wrap items-center gap-2">
               <Button
                 size="sm"
                 variant={sourceType === "tags" ? "primary" : "secondary"}
                 onClick={() => setSourceType("tags")}
               >
-                A partir das Tags
+                {messages.pages.discover.fromTags}
               </Button>
               <Button
                 size="sm"
                 variant={sourceType === "documents" ? "primary" : "secondary"}
                 onClick={() => setSourceType("documents")}
               >
-                A partir dos Documentos
+                {messages.pages.discover.fromDocuments}
               </Button>
               <Button
                 variant="primary"
                 disabled={suggest.isPending || noColumnChosen}
                 onClick={() => suggest.mutate()}
               >
-                {suggest.isPending ? "Agrupando… (pode levar alguns segundos)" : "Propor Categorias"}
+                {suggest.isPending ? messages.pages.discover.grouping : messages.pages.discover.propose}
               </Button>
             </div>
             {/*
@@ -109,7 +109,7 @@ export function DiscoverRoute() {
             */}
             {sourceType === "documents" ? (
               <div className="grid gap-1">
-                <span className="text-xs text-(--color-muted)">O agrupamento lê o texto destes campos.</span>
+                <span className="text-xs text-(--color-muted)">{messages.pages.discover.readColumns}</span>
                 {catalogue.isError ? <ErrorState error={catalogue.error} /> : null}
                 {catalogue.data ? (
                   <div className="flex flex-wrap items-center gap-3">
@@ -118,14 +118,14 @@ export function DiscoverRoute() {
                         <input type="checkbox" checked={selected.includes(column)} onChange={() => toggleColumn(column)} />
                         <code>{column}</code>
                         {catalogue.data.defaults.includes(column) ? (
-                          <span className="text-(--color-muted)">(padrão)</span>
+                          <span className="text-(--color-muted)">{messages.pages.discover.defaultColumn}</span>
                         ) : null}
                       </label>
                     ))}
                   </div>
                 ) : null}
                 {noColumnChosen ? (
-                  <span className="text-xs text-(--color-danger)">Escolha ao menos um campo.</span>
+                  <span className="text-xs text-(--color-danger)">{messages.pages.discover.chooseColumn}</span>
                 ) : null}
               </div>
             ) : null}
@@ -143,8 +143,8 @@ export function DiscoverRoute() {
 
             {suggestions.length === 0 && !routeMessage(suggest.data) ? (
               <EmptyState
-                title="Nenhuma proposta nova"
-                hint="O agrupamento não encontrou tema novo, ou as propostas já foram descartadas."
+                title={messages.pages.discover.emptyTitle}
+                hint={messages.pages.discover.emptyHint}
               />
             ) : null}
           </>
@@ -170,6 +170,7 @@ function SuggestionCard({
   category: MacroCategorySuggested;
   onDismiss: () => void;
 }) {
+  const messages = useCopy();
   const [name, setName] = useState(category.suggested_name);
 
   const create = useMutation({
@@ -183,11 +184,11 @@ function SuggestionCard({
       asked yet; the samples that justify the name are one click away, next to the button.
     */
     <Disclosure
-      toggleLabel="Ver as amostras do agrupamento"
+      toggleLabel={messages.pages.discover.seeSamples}
       header={
         <div className="flex flex-wrap items-center gap-2">
-          <Badge tone="accent">{formatCount(category.estimate_count)} estimativas</Badge>
-          <Badge tone="neutral">tema #{category.topic_id}</Badge>
+          <Badge tone="accent">{messages.pages.discover.estimates.replace("{count}", formatCount(category.estimate_count))}</Badge>
+          <Badge tone="neutral">{messages.pages.discover.topic.replace("{id}", String(category.topic_id))}</Badge>
           <span className="text-sm font-medium">{category.suggested_name}</span>
         </div>
       }
@@ -199,7 +200,7 @@ function SuggestionCard({
             disabled={name.trim().length === 0 || create.isPending || create.isSuccess}
             onClick={() => create.mutate()}
           >
-            {create.isSuccess ? "Criada" : create.isPending ? ACTION.create.pending : `${ACTION.create.label} categoria`}
+            {create.isSuccess ? messages.pages.discover.created : create.isPending ? ACTION.create.pending : messages.pages.discover.createCategory}
           </Button>
           <Button size="sm" variant="ghost" onClick={onDismiss}>
             {ACTION.discard.label}
@@ -208,7 +209,7 @@ function SuggestionCard({
       }
     >
       <div className="grid gap-2">
-        <Field label="Nome da Categoria">
+        <Field label={messages.pages.discover.categoryName}>
           <Input value={name} onChange={(event) => setName(event.target.value)} maxLength={100} />
         </Field>
 
@@ -223,7 +224,7 @@ function SuggestionCard({
         ) : null}
 
         <p className="text-xs text-(--color-muted)">
-          A categoria só é usada quando a classificação rodar de novo.
+          {messages.pages.discover.usedOnNextRun}
         </p>
 
         {create.error ? <ErrorState error={create.error} /> : null}

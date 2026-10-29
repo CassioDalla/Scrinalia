@@ -6,16 +6,22 @@
  * of it, or a kind added on the back-end would render as a raw code.
  */
 
+import { activeMessages } from "@/i18n/locale";
+import type { Messages } from "@/i18n/pt";
 import type { BadgeTone } from "@/lib/hierarchy";
 
-export const TERM_KIND_LABEL: Record<string, string> = {
-  DISTRICT: "Bairro",
-  MUNICIPALITY: "Município",
-  STATE: "Estado",
-  REGION: "Região",
-  COUNTRY: "País",
-  PERSON: "Pessoa",
-};
+type TermKind = keyof Messages["vocabulary"]["termKind"];
+
+function termKindField(field: "label" | "hint"): Record<string, string> {
+  return new Proxy({} as Record<string, string>, {
+    get(_target, key) {
+      const kind = String(key) as TermKind;
+      return activeMessages().vocabulary.termKind[kind]?.[field] ?? (field === "label" ? String(key) : "");
+    },
+  });
+}
+
+export const TERM_KIND_LABEL = termKindField("label");
 
 export const TERM_KIND_TONE: Record<string, BadgeTone> = {
   DISTRICT: "accent",
@@ -34,14 +40,7 @@ export const TERM_KIND_TONE: Record<string, BadgeTone> = {
  * reasoning that retired the ``Pessoa`` drawer. A screen that did not distinguish the two would make
  * "não é assunto" look like "não serve para nada" (ADR 0013).
  */
-export const TERM_KIND_HINT: Record<string, string> = {
-  DISTRICT: "Um bairro: o lugar mais fino que a coleção distingue. O eixo de entidades o carrega.",
-  MUNICIPALITY: "Um município, inclusive uma cidade estrangeira. O eixo de entidades o carrega.",
-  STATE: "Um estado ou província. O eixo de entidades o carrega.",
-  REGION: "Uma região mais ampla que um município. O eixo de entidades o carrega.",
-  COUNTRY: "Um país que os registros do acervo alcançam. O eixo de entidades o carrega.",
-  PERSON: "Um nome de pessoa: o produtor ou a pessoa retratada, nunca um assunto.",
-};
+export const TERM_KIND_HINT = termKindField("hint");
 
 /** The kind label, falling back to the raw code so a new kind is visible instead of blank. */
 export function termKindLabel(kind: string): string {

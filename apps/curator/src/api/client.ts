@@ -1,6 +1,6 @@
 import createClient from "openapi-fetch";
 
-import { activeLocale, type Locale } from "@/i18n/locale";
+import { activeLocale, activeMessages, type Locale } from "@/i18n/locale";
 
 import type { components, paths } from "./schema";
 
@@ -78,7 +78,9 @@ async function unwrap<T>(result: ApiResult): Promise<T> {
     throw new ApiError(
       result.response.status,
       payload?.error_code ?? "UNKNOWN",
-      payload?.message ?? payload?.detail ?? `Não foi possível concluir a operação (erro ${result.response.status}).`,
+      payload?.message ??
+        payload?.detail ??
+        activeMessages().errors.requestFailed.replace("{status}", String(result.response.status)),
       result.response.headers.get("X-Request-ID") ?? undefined,
       payload?.details,
     );

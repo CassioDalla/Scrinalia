@@ -2,6 +2,7 @@ import { ImageOff } from "lucide-react";
 import { useState } from "react";
 
 import { cn } from "@/lib/cn";
+import { useCopy } from "@/i18n/context";
 
 /**
  * The description's miniature, in the two places the archive shows it.
@@ -28,9 +29,10 @@ export function DocumentThumbnail({
   title: string;
   variant: "dossier" | "list";
 }) {
+  const messages = useCopy();
   const [failed, setFailed] = useState(false);
   const list = variant === "list";
-  const label = failed ? "Imagem indisponível" : "Sem imagem";
+  const label = failed ? messages.pages.thumbnail.unavailable : messages.pages.thumbnail.none;
 
   const box =
     !url || failed ? (
@@ -51,7 +53,7 @@ export function DocumentThumbnail({
         src={url}
         // The list's title sits beside the image, so repeating it there would make a screen reader
         // say the same description twice. In the dossier the image is the content, and it is named.
-        alt={list ? "" : `Imagem da descrição: ${title}`}
+        alt={list ? "" : messages.pages.thumbnail.alt.replace("{title}", title)}
         loading={list ? "lazy" : "eager"}
         decoding="async"
         onError={() => setFailed(true)}
@@ -66,12 +68,16 @@ export function DocumentThumbnail({
     return box;
   }
 
-  const heading = failed ? "Imagem Indisponível" : url ? "Miniatura Armazenada" : "Sem imagem de origem";
-  const caption = failed
-    ? "A imagem guardada não pôde ser lida"
+  const heading = failed
+    ? messages.pages.thumbnail.unavailableHeading
     : url
-      ? "Guardada no acervo; o dossiê mostra a miniatura, não o arquivo original."
-      : "A origem deste registro não publica uma imagem; a descrição continua completa sem ela.";
+      ? messages.pages.thumbnail.storedHeading
+      : messages.pages.thumbnail.noSourceHeading;
+  const caption = failed
+    ? messages.pages.thumbnail.unreadable
+    : url
+      ? messages.pages.thumbnail.storedCaption
+      : messages.pages.thumbnail.noSourceCaption;
 
   return (
     <div className="flex flex-col items-center gap-4 sm:flex-row sm:items-center">

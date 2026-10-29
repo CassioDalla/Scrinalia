@@ -1,4 +1,6 @@
 import type { DocumentSummary, DocumentUpdateRequest } from "@/api/client";
+import { activeMessages } from "@/i18n/locale";
+import type { Messages } from "@/i18n/pt";
 
 /**
  * The ISAD(G) record, area by area, named once.
@@ -26,43 +28,30 @@ export type IsadArea = {
   hint: string;
 };
 
-export const ISAD_AREAS: readonly IsadArea[] = [
-  {
-    id: "identity",
-    title: "3.1 Identidade",
-    hint: "O que a descrição é: código, nível, datas e dimensão.",
-  },
-  {
-    id: "context",
-    title: "3.2 Contexto",
-    hint: "Quem produziu, como o conjunto chegou até aqui e de onde o registro veio.",
-  },
-  {
-    id: "content",
-    title: "3.3 Conteúdo e Estrutura",
-    hint: "O que o documento diz e como o conjunto está organizado.",
-  },
-  {
-    id: "access",
-    title: "3.4 Acesso e Uso",
-    hint: "Quem pode consultar, como reproduzir e o que é preciso para usar o documento.",
-  },
-  {
-    id: "allied",
-    title: "3.5 Materiais Relacionados",
-    hint: "Onde estão os originais e as cópias, e que outras descrições se relacionam com esta.",
-  },
-  {
-    id: "notes",
-    title: "3.6 Notas",
-    hint: "Observações gerais e sobre o estado de conservação.",
-  },
-  {
-    id: "control",
-    title: "3.7 Controle da Descrição",
-    hint: "Quem descreveu, sob que regras e quando.",
-  },
+const AREA_IDS: readonly IsadAreaId[] = [
+  "identity",
+  "context",
+  "content",
+  "access",
+  "allied",
+  "notes",
+  "control",
 ];
+
+/** The area's copy, read when the screen renders so a language change re-renders it. */
+function area(id: IsadAreaId): IsadArea {
+  return {
+    id,
+    get title() {
+      return activeMessages().isad.areas[id].title;
+    },
+    get hint() {
+      return activeMessages().isad.areas[id].hint;
+    },
+  };
+}
+
+export const ISAD_AREAS: readonly IsadArea[] = AREA_IDS.map(area);
 
 /** The control a field needs. A screen that does not know the kind falls back to a text input. */
 export type IsadControl = "text" | "long_text" | "date" | "language" | "entity";
@@ -85,184 +74,50 @@ export type IsadField = {
   manualEntry?: boolean;
 };
 
+/** One field's metadata; the label and the help are the catalogue's, read at render time. */
+type IsadFieldName = keyof Messages["isad"]["fields"];
+
+function field(name: IsadFieldName, area: IsadAreaId, control: IsadControl, manualEntry = true): IsadField {
+  return {
+    name,
+    area,
+    control,
+    manualEntry,
+    get label() {
+      return activeMessages().isad.fields[name].label;
+    },
+    get help() {
+      return activeMessages().isad.fields[name].help;
+    },
+  };
+}
+
 export const ISAD_FIELDS: readonly IsadField[] = [
-  {
-    name: "reference_code",
-    label: "Código de Referência",
-    area: "identity",
-    control: "text",
-    help: "O código que identifica a unidade de descrição no arranjo.",
-  },
-  {
-    name: "document_date",
-    label: "Data do Documento",
-    area: "identity",
-    control: "date",
-    help: "AAAA-MM-DD, ou a expressão como está na fonte (Década de 1980, 1951-1953).",
-  },
-  {
-    name: "dimension_support",
-    label: "Dimensão e Suporte",
-    area: "identity",
-    control: "text",
-    help: "Quantidade e o suporte do material. Ex: 2 folhas; 1 fotografia em papel; 3,5 m de documentos textuais.",
-  },
-  {
-    name: "producers",
-    label: "Produtor(es)",
-    area: "context",
-    control: "entity",
-    help: "Quem produziu o conjunto: a instituição ou a pessoa. A lista sugere nomes das entidades; escolher um copia o nome, sem criar vínculo.",
-  },
-  {
-    name: "admin_bio_history",
-    label: "História Administrativa / Biografia",
-    area: "context",
-    control: "long_text",
-    help: "A trajetória da entidade ou pessoa produtora para contextualizar a criação e o uso dos documentos.",
-  },
-  {
-    name: "admin_archival_history",
-    label: "História Arquivística",
-    area: "context",
-    control: "long_text",
-    help: "Informações sobre a custódia, proveniência, acumulação, mudanças de propriedade ou alterações na organização do acervo ao longo do tempo.",
-  },
-  {
-    name: "provenance",
-    label: "Procedência",
-    area: "context",
-    control: "long_text",
-    help: "Identificação da fonte imediata de aquisição ou transferência do acervo (doador, alienante, recolhedor ou custodiante anterior).",
-  },
-  {
-    name: "scope_content",
-    label: "Âmbito e Conteúdo",
-    area: "content",
-    control: "long_text",
-    help: "Síntese do tema central, alcance temporal, funções/atividades representadas e principais entidades ou indivíduos mencionados no acervo.",
-  },
-  {
-    name: "appraisal_destruction",
-    label: "Avaliação e Temporalidade",
-    area: "content",
-    control: "long_text",
-    help: "O prazo de guarda e a decisão de eliminação, quando houver.",
-  },
-  {
-    name: "accruals",
-    label: "Incorporações",
-    area: "content",
-    control: "text",
-    help: "Indica se são esperados acréscimos ou novas entradas de documentos a esta unidade de descrição (acervo aberto ou fechado).",
-  },
-  {
-    name: "arrangement",
-    label: "Sistema de Arranjo",
-    area: "content",
-    control: "long_text",
-    help: "Informações sobre a estrutura de organização, plano de classificação e critérios de ordenação interna da unidade de descrição.",
-  },
-  {
-    name: "access_conditions",
-    label: "Condições de Acesso",
-    area: "access",
-    control: "long_text",
-    help: "Informações sobre o estatuto legal ou regulamentos que restringem ou autorizam a consulta pública à unidade de descrição.",
-  },
-  {
-    name: "reproduction_conditions",
-    label: "Condições de Reprodução",
-    area: "access",
-    control: "long_text",
-    help: "Restrições relativas a direitos autorais, reprodução (cópias, fotografias) ou publicação dos documentos.",
-  },
-  {
-    name: "language_name",
-    label: "Idioma",
-    area: "access",
-    control: "language",
-    help: "O idioma predominante do documento.",
-  },
-  {
-    name: "physical_characteristics",
-    label: "Características Físicas",
-    area: "access",
-    control: "long_text",
-    help: "Informações sobre o estado de conservação, suporte físico e exigências técnicas ou de preservação para a consulta dos documentos.",
-  },
-  {
-    name: "finding_aids",
-    label: "Instrumentos de Pesquisa",
-    area: "access",
-    control: "long_text",
-    help: "Referência a guias, inventários, repertórios ou bases de dados que facilitem a localização e o acesso à unidade de descrição.",
-  },
-  {
-    name: "originals_location",
-    label: "Existência e Localização dos Originais",
-    area: "allied",
-    control: "text",
-    help: "Endereço ou instituição detentora da documentação original quando a unidade de descrição for constituída por cópias.",
-  },
-  {
-    name: "copies_location",
-    label: "Existência e Localização de Cópias",
-    area: "allied",
-    control: "text",
-    help: "Informações sobre cópias em outros formatos ou suportes, bem como sua localização ou identificação no acervo.",
-  },
-  {
-    name: "related_units",
-    label: "Unidades de Descrição Relacionadas",
-    area: "allied",
-    control: "text",
-    help: "Referências cruzadas a outras unidades de descrição com as quais este acervo guarda proveniência ou relação temática.",
-  },
-  {
-    name: "publication_notes",
-    label: "Notas de Publicação",
-    area: "allied",
-    control: "long_text",
-    help: "Referências bibliográficas de publicações baseadas na pesquisa, uso ou reprodução da unidade de descrição.",
-  },
-  {
-    name: "general_notes",
-    label: "Notas Gerais",
-    area: "notes",
-    control: "long_text",
-    help: "Informações adicionais que não puderam ser incluídas nos campos anteriores da descrição arquivística.",
-  },
-  {
-    name: "conservation_notes",
-    label: "Notas de Conservação",
-    area: "notes",
-    control: "long_text",
-    help: "Registro de danos, condições de preservação e tratamentos conservativos ou restaurativos aplicados ou requeridos.",
-  },
-  {
-    name: "archivist_notes",
-    label: "Notas do Arquivista",
-    area: "control",
-    control: "long_text",
-    help: "Anotações relativas ao trabalho do responsável pela descrição, procedimentos adotados e decisões arquivísticas.",
-  },
-  {
-    name: "rules_conventions",
-    label: "Regras ou Convenções",
-    area: "control",
-    control: "text",
-    help: "Identificação dos padrões internacionais, nacionais ou institucionais utilizados na elaboração do registro.",
-  },
-  {
-    name: "description_dates",
-    label: "Datas da Descrição",
-    area: "control",
-    control: "text",
-    help: "Registro cronológico da elaboração, revisão e atualizações da ficha arquivística.",
-    // Not asked at creation: the record is being described now, and the archive knows when.
-    manualEntry: false,
-  },
+  field("reference_code", "identity", "text"),
+  field("document_date", "identity", "date"),
+  field("dimension_support", "identity", "text"),
+  field("producers", "context", "entity"),
+  field("admin_bio_history", "context", "long_text"),
+  field("admin_archival_history", "context", "long_text"),
+  field("provenance", "context", "long_text"),
+  field("scope_content", "content", "long_text"),
+  field("appraisal_destruction", "content", "long_text"),
+  field("accruals", "content", "text"),
+  field("arrangement", "content", "long_text"),
+  field("access_conditions", "access", "long_text"),
+  field("reproduction_conditions", "access", "long_text"),
+  field("language_name", "access", "language"),
+  field("physical_characteristics", "access", "long_text"),
+  field("finding_aids", "access", "long_text"),
+  field("originals_location", "allied", "text"),
+  field("copies_location", "allied", "text"),
+  field("related_units", "allied", "text"),
+  field("publication_notes", "allied", "long_text"),
+  field("general_notes", "notes", "long_text"),
+  field("conservation_notes", "notes", "long_text"),
+  field("archivist_notes", "control", "long_text"),
+  field("rules_conventions", "control", "text"),
+  field("description_dates", "control", "text", false),
 ];
 
 /** The fields of one area, in the order they are typed. */

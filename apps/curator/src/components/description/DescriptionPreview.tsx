@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/Badge";
 import { ErrorState, Spinner } from "@/components/ui/Feedback";
 import { SidePanel, SidePanelClose } from "@/components/ui/SidePanel";
 import { formatDate, REVIEW_STATUS_LABEL, REVIEW_STATUS_TONE } from "@/lib/format";
+import { useCopy } from "@/i18n/context";
 
 /**
  * The read-only preview: enough of the record to recognise it, and nothing that writes.
@@ -32,12 +33,13 @@ export function DescriptionPreview({
   editTab: string;
   onClose: () => void;
 }) {
+  const messages = useCopy();
   const document = useQuery(queries.document(descriptionId));
   const title = document.data ? document.data.final_title || document.data.original_title : descriptionId;
 
   return (
     <SidePanel
-      label={`Prévia de ${title}`}
+      label={messages.pages.preview.panelLabel.replace("{title}", title)}
       onClose={onClose}
       footer={
         <div className="flex items-center justify-between gap-2">
@@ -47,7 +49,7 @@ export function DescriptionPreview({
             search={{ aba: editTab }}
             className="rounded bg-(--color-brand) px-3 py-1.5 text-sm font-medium text-white"
           >
-            Editar
+            {messages.common.edit}
           </Link>
         </div>
       }
@@ -59,7 +61,7 @@ export function DescriptionPreview({
         </div>
 
         {document.error ? <ErrorState error={document.error} /> : null}
-        {document.isPending ? <Spinner label="Lendo a descrição…" /> : null}
+        {document.isPending ? <Spinner label={messages.common.readingDescription} /> : null}
 
         {document.data ? <DescriptionPreviewBody document={document.data} /> : null}
       </div>
@@ -69,6 +71,7 @@ export function DescriptionPreview({
 
 /** The fields the panel shows, each one only when the description carries it. */
 function DescriptionPreviewBody({ document }: { document: DocumentSummary }) {
+  const messages = useCopy();
   const tags = document.tags ?? [];
 
   return (
@@ -77,26 +80,30 @@ function DescriptionPreviewBody({ document }: { document: DocumentSummary }) {
         <Badge tone={REVIEW_STATUS_TONE[document.review_status]}>
           {REVIEW_STATUS_LABEL[document.review_status]}
         </Badge>
-        {document.is_published ? <Badge tone="ok">publicada</Badge> : <Badge tone="neutral">não publicada</Badge>}
-        {document.is_anomaly ? <Badge tone="warn">anomalia</Badge> : null}
+        {document.is_published ? (
+          <Badge tone="ok">{messages.pages.preview.published}</Badge>
+        ) : (
+          <Badge tone="neutral">{messages.pages.preview.notPublished}</Badge>
+        )}
+        {document.is_anomaly ? <Badge tone="warn">{messages.pages.preview.anomaly}</Badge> : null}
       </div>
 
       <dl className="grid grid-cols-[9rem_1fr] gap-x-3 gap-y-1 text-xs">
         {document.reference_code ? (
           <>
-            <dt className="text-(--color-muted)">Código de Referência</dt>
+            <dt className="text-(--color-muted)">{messages.isad.fields.reference_code.label}</dt>
             <dd>
               <code>{document.reference_code}</code>
             </dd>
           </>
         ) : null}
-        <dt className="text-(--color-muted)">Data</dt>
+        <dt className="text-(--color-muted)">{messages.pages.preview.data}</dt>
         <dd>{formatDate(document.document_date)}</dd>
-        <dt className="text-(--color-muted)">Nível</dt>
+        <dt className="text-(--color-muted)">{messages.pages.preview.level}</dt>
         <dd>{document.level ?? "—"}</dd>
-        <dt className="text-(--color-muted)">Tipologia</dt>
+        <dt className="text-(--color-muted)">{messages.pages.preview.typology}</dt>
         <dd>{document.typology ?? "—"}</dd>
-        <dt className="text-(--color-muted)">Arranjo</dt>
+        <dt className="text-(--color-muted)">{messages.pages.preview.arrangement}</dt>
         <dd className="break-all">{document.path ?? "—"}</dd>
       </dl>
 
@@ -105,9 +112,9 @@ function DescriptionPreviewBody({ document }: { document: DocumentSummary }) {
       ) : null}
 
       <div className="grid gap-1">
-        <p className="text-xs font-medium text-(--color-muted)">Tags e Categoria</p>
+        <p className="text-xs font-medium text-(--color-muted)">{messages.pages.preview.tagsAndCategory}</p>
         {tags.length === 0 ? (
-          <p className="text-xs text-(--color-muted)">Nenhuma tag nesta descrição.</p>
+          <p className="text-xs text-(--color-muted)">{messages.pages.preview.noTags}</p>
         ) : (
           <ul className="grid gap-1">
             {tags.map((tag) => (
@@ -116,8 +123,8 @@ function DescriptionPreviewBody({ document }: { document: DocumentSummary }) {
                 {tag.macro_category_name ? (
                   <Badge tone="accent">{tag.macro_category_name}</Badge>
                 ) : (
-                  <Badge tone="neutral" title="Esta tag ainda não tem categoria">
-                    sem categoria
+                  <Badge tone="neutral" title={messages.pages.preview.noCategoryTitle}>
+                    {messages.pages.preview.noCategory}
                   </Badge>
                 )}
               </li>

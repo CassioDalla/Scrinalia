@@ -15,8 +15,12 @@ import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { EmptyState, ErrorState, Skeleton } from "@/components/ui/Feedback";
 import { Select } from "@/components/ui/Input";
 import { Notice } from "@/components/ui/Notice";
+import { useCopy } from "@/i18n/context";
+import { fill } from "@/i18n/maps";
+import { Trans } from "@/i18n/trans";
 import { formatCount, formatDateTime } from "@/lib/format";
 import { cn } from "@/lib/cn";
+import { ACTION } from "@/lib/copy";
 import { routeMessage } from "@/lib/messages";
 import { asEnum, asNumber, asString } from "@/lib/search";
 import {
@@ -90,6 +94,7 @@ export function RunsLedger({
   search: SystemRunsSearch;
   patch: (changes: Partial<SystemRunsSearch>) => void;
 }) {
+  const messages = useCopy();
   const offset = search.offset ?? 0;
   const page = useQuery({
     ...queries.systemRuns(search.worker, search.status, offset, search.fingerprint, search.origin),
@@ -122,10 +127,8 @@ export function RunsLedger({
   return (
     <>
       <p className="text-xs text-(--color-muted)">
-        {page.data ? `Execuções registradas: ${formatCount(total)}. ` : ""}
-        Toda execução aparece aqui, venha do painel, da agenda ou da linha de comando. O registro
-        guarda a configuração que foi usada — modelo e preset —, então continua legível depois que a
-        configuração padrão mudar.
+        {page.data ? `${fill(messages.pages.runs.registered, { count: formatCount(total) })} ` : ""}
+        {messages.pages.runs.intro}
       </p>
 
         <FailuresPanel
@@ -146,7 +149,7 @@ export function RunsLedger({
             value={search.worker ?? ""}
             onChange={(event) => patch({ worker: event.target.value || undefined })}
           >
-            <option value="">todas as etapas</option>
+            <option value="">{messages.pages.runs.allWorkers}</option>
             {(catalogue.data?.workers ?? []).map((worker) => (
               <option key={worker.name} value={worker.name}>
                 {worker.label}
@@ -159,7 +162,7 @@ export function RunsLedger({
             value={search.origin ?? ""}
             onChange={(event) => patch({ origin: event.target.value || undefined })}
           >
-            <option value="">todas as origens</option>
+            <option value="">{messages.pages.runs.allOrigins}</option>
             {(origins.data?.origins ?? []).map((origin) => (
               <option key={origin.code} value={origin.code}>
                 {origin.label}
@@ -172,7 +175,7 @@ export function RunsLedger({
             value={search.status ?? ""}
             onChange={(event) => patch({ status: (event.target.value || undefined) as WorkerRunStatus | undefined })}
           >
-            <option value="">todos os estados</option>
+            <option value="">{messages.pages.runs.allStatuses}</option>
             {RUN_STATUSES.map((status) => (
               <option key={status} value={status}>
                 {RUN_STATUS_LABEL[status]}
@@ -188,7 +191,7 @@ export function RunsLedger({
                 patch({ worker: undefined, origin: undefined, status: undefined, fingerprint: undefined })
               }
             >
-              Limpar filtros
+              {messages.pages.runs.clearFilters}
             </Button>
           ) : null}
         </div>
@@ -196,10 +199,10 @@ export function RunsLedger({
         {search.fingerprint ? (
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-(--color-surface) px-4 py-2 ring-1 ring-(--color-line)">
             <span className="text-xs">
-              Só as execuções desta causa <span className="font-mono">{search.fingerprint}</span>
+              {messages.pages.runs.onlyCause} <span className="font-mono">{search.fingerprint}</span>
             </span>
             <Button size="sm" variant="ghost" onClick={() => patch({ fingerprint: undefined })}>
-              Ver todas
+              {messages.pages.runs.seeAll}
             </Button>
           </div>
         ) : null}
@@ -216,8 +219,8 @@ export function RunsLedger({
 
         {page.data && total === 0 ? (
           <EmptyState
-            title="Nenhuma execução registrada"
-            hint="Nenhuma execução foi registrada ainda. O botão 'Enfileirar execução', no painel, cria a primeira entrada."
+            title={messages.pages.runs.emptyTitle}
+            hint={messages.pages.runs.emptyHint}
           />
         ) : null}
 
@@ -236,13 +239,12 @@ export function RunsLedger({
                       <Badge tone={RUN_STATUS_TONE[run.status]}>{RUN_STATUS_LABEL[run.status]}</Badge>
                       <span className="truncate text-sm font-medium">{labelOf(run.worker_name)}</span>
                       <span className="font-mono text-[11px] text-(--color-muted)">{run.worker_name}</span>
-                      {run.origin_code ? <Badge tone="accent">origem {run.origin_code}</Badge> : null}
+                      {run.origin_code ? (
+                        <Badge tone="accent">{fill(messages.pages.runs.originBadge, { code: run.origin_code })}</Badge>
+                      ) : null}
                       {run.trial ? (
-                        <Badge
-                          tone="accent"
-                          title="Um ensaio compara configurações e não altera o acervo."
-                        >
-                          ensaio
+                        <Badge tone="accent" title={messages.pages.runs.trialBadgeTitle}>
+                          {messages.pages.runs.trialBadge}
                         </Badge>
                       ) : null}
                       <Badge tone="neutral">{TRIGGER_LABEL[run.trigger]}</Badge>
@@ -254,20 +256,24 @@ export function RunsLedger({
 
                   <p className="text-xs text-(--color-muted)">
                     {run.trial ? (
-                      <>
-                        comparação de configurações · o resultado e a escolha ficam em{" "}
-                        <Link to="/configuracoes/workers" className="underline">
-                          Configurações › {labelOf(run.worker_name)}
-                        </Link>
-                      </>
+                      <Trans
+                        text={messages.pages.runs.trialLine}
+                        values={{
+                          settings: (
+                            <Link to="/configuracoes/workers" className="underline">
+                              {fill(messages.pages.runs.settingsLink, { worker: labelOf(run.worker_name) })}
+                            </Link>
+                          ),
+                        }}
+                      />
                     ) : (
                       <>
-                        <span className="font-mono">{run.engine_name ?? "sem modelo"}</span>
+                        <span className="font-mono">{run.engine_name ?? messages.pages.runs.noEngine}</span>
                         {run.preset ? ` · ${run.preset}` : ""}
                         {run.engine_name ? ` · ${describeConfig(run.config)}` : ""}
                       </>
                     )}
-                    {run.requested_by ? ` · pedido por ${run.requested_by}` : ""}
+                    {run.requested_by ? ` · ${fill(messages.pages.runs.requestedBy, { name: run.requested_by })}` : ""}
                   </p>
 
                   {/*
@@ -282,20 +288,28 @@ export function RunsLedger({
 
                   {run.attempt > 1 || run.retry_of || (run.not_before && run.status === "QUEUED") ? (
                     <p className="text-xs text-(--color-muted)">
-                      {run.attempt > 1 ? `tentativa ${run.attempt}/${MAX_ATTEMPTS}` : ""}
-                      {run.retry_of ? `${run.attempt > 1 ? " · " : ""}nova tentativa de #${run.retry_of}` : ""}
+                      {run.attempt > 1 ? fill(messages.pages.runs.attempt, { attempt: run.attempt, max: MAX_ATTEMPTS }) : ""}
+                      {run.retry_of
+                        ? `${run.attempt > 1 ? " · " : ""}${fill(messages.pages.runs.retryOf, { id: run.retry_of })}`
+                        : ""}
                       {run.not_before && run.status === "QUEUED"
-                        ? `${run.attempt > 1 || run.retry_of ? " · " : ""}começa em ${formatDateTime(run.not_before)}`
+                        ? `${run.attempt > 1 || run.retry_of ? " · " : ""}${fill(messages.pages.runs.startsAt, {
+                            when: formatDateTime(run.not_before),
+                          })}`
                         : ""}
                     </p>
                   ) : null}
 
                   {run.runner_id ? (
                     <p className="font-mono text-[11px] text-(--color-muted)">
-                      executor {run.runner_id}
-                      {run.heartbeat_at ? ` · contato ${formatDateTime(run.heartbeat_at)}` : ""}
+                      {fill(messages.pages.runs.runner, { id: run.runner_id })}
+                      {run.heartbeat_at
+                        ? ` · ${fill(messages.pages.runs.contact, { when: formatDateTime(run.heartbeat_at) })}`
+                        : ""}
                       {run.lease_expires_at && isActiveRun(run)
-                        ? ` · reservado até ${formatDateTime(run.lease_expires_at)}`
+                        ? ` · ${fill(messages.pages.runs.reservedUntil, {
+                            when: formatDateTime(run.lease_expires_at),
+                          })}`
                         : ""}
                     </p>
                   ) : null}
@@ -312,7 +326,11 @@ export function RunsLedger({
         {total > RUNS_PAGE_SIZE ? (
           <div className="flex items-center justify-between gap-2">
             <span className="text-xs text-(--color-muted)">
-              {offset + 1}–{Math.min(offset + RUNS_PAGE_SIZE, total)} de {formatCount(total)}
+              {fill(messages.common.range, {
+                from: offset + 1,
+                to: Math.min(offset + RUNS_PAGE_SIZE, total),
+                total: formatCount(total),
+              })}
             </span>
             <div className="flex gap-2">
               <Button
@@ -321,7 +339,7 @@ export function RunsLedger({
                 disabled={offset === 0}
                 onClick={() => patch({ offset: Math.max(0, offset - RUNS_PAGE_SIZE) })}
               >
-                Anteriores
+                {messages.pages.runs.previous}
               </Button>
               <Button
                 size="sm"
@@ -329,7 +347,7 @@ export function RunsLedger({
                 disabled={offset + RUNS_PAGE_SIZE >= total}
                 onClick={() => patch({ offset: offset + RUNS_PAGE_SIZE })}
               >
-                Próximas
+                {messages.pages.runs.next}
               </Button>
             </div>
           </div>
@@ -348,6 +366,7 @@ export function RunsLedger({
  * the request, because releasing the slot before then would let a second run overlap it (#72).
  */
 function RunCancel({ run }: { run: WorkerRun }) {
+  const messages = useCopy();
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
 
@@ -369,9 +388,12 @@ function RunCancel({ run }: { run: WorkerRun }) {
   if (isCancelRequested(run)) {
     return (
       <p className="text-xs text-(--color-warn)">
-        Cancelamento pedido em {formatDateTime(run.cancel_requested_at)}
-        {run.cancel_requested_by ? ` por ${run.cancel_requested_by}` : ""}. A execução para no fim do lote
-        atual; o que já foi gravado fica.
+        {run.cancel_requested_by
+          ? fill(messages.pages.runs.cancelRequestedBy, {
+              when: formatDateTime(run.cancel_requested_at),
+              by: run.cancel_requested_by,
+            })
+          : fill(messages.pages.runs.cancelRequested, { when: formatDateTime(run.cancel_requested_at) })}
       </p>
     );
   }
@@ -380,23 +402,19 @@ function RunCancel({ run }: { run: WorkerRun }) {
     <div className="grid gap-2">
       <div>
         <Button size="sm" variant="danger" onClick={() => setOpen((current) => !current)}>
-          {open ? "Fechar" : "Cancelar execução…"}
+          {open ? ACTION.close.label : messages.pages.runs.cancelOpen}
         </Button>
       </div>
 
       {open ? (
         <Notice tone="warn" as="div" className="grid gap-2">
-          <p>
-            A execução para no fim do lote atual e o que já foi gravado fica. Se ela ainda não começou, é
-            cancelada agora. O lote em curso não é interrompido: a parada acontece entre um lote e o
-            próximo.
-          </p>
+          <p>{messages.pages.runs.cancelNotice}</p>
           <div className="flex flex-wrap items-center gap-2">
             <Button size="sm" variant="danger" disabled={cancel.isPending} onClick={() => cancel.mutate()}>
-              {cancel.isPending ? "Cancelando…" : "Confirmar cancelamento"}
+              {cancel.isPending ? messages.pages.runs.cancelPending : messages.pages.runs.cancelConfirm}
             </Button>
             <Button size="sm" variant="ghost" disabled={cancel.isPending} onClick={() => setOpen(false)}>
-              Voltar
+              {messages.pages.runs.back}
             </Button>
           </div>
           {cancel.error ? <ErrorState error={cancel.error} /> : null}
@@ -433,26 +451,28 @@ function FailuresPanel({
   labelOf: (name: string) => string;
   onSelect: (group: FailureGroup) => void;
 }) {
+  const messages = useCopy();
   const shown = groups.slice(0, FAILURES_PAGE_SIZE);
 
   return (
     <Card>
       <CardHeader className="flex items-center justify-between gap-2">
-        <span className="text-sm font-medium">Falhas agrupadas por causa</span>
+        <span className="text-sm font-medium">{messages.pages.runs.failuresTitle}</span>
         <span className="text-xs text-(--color-muted)">
-          {pending ? "lendo…" : `${formatCount(total)} causa(s) nos últimos 30 dias`}
+          {pending
+            ? messages.pages.runs.failuresReading
+            : fill(messages.pages.runs.failuresCount, { count: formatCount(total) })}
         </span>
       </CardHeader>
       <CardBody className="grid gap-2">
-        {failed ? <p className="text-xs text-(--color-danger)">Não foi possível ler as falhas agrupadas.</p> : null}
+        {failed ? (
+          <p className="text-xs text-(--color-danger)">{messages.pages.runs.failuresError}</p>
+        ) : null}
 
         {pending ? <Skeleton className="h-16" /> : null}
 
         {!pending && !failed && shown.length === 0 ? (
-          <p className="text-xs text-(--color-muted)">
-            Nenhuma falha nos últimos 30 dias. As execuções que falharam e os erros inesperados do
-            sistema aparecem aqui agrupados pela causa, e não um a um.
-          </p>
+          <p className="text-xs text-(--color-muted)">{messages.pages.runs.failuresEmpty}</p>
         ) : null}
 
         {shown.map((group) => (
@@ -479,25 +499,24 @@ function FailuresPanel({
                 ? ` · ${(group.worker_names ?? []).map(labelOf).join(", ")}`
                 : ""}
               {group.last_path ? ` · ${group.last_path}` : ""}
-              {` · última em ${formatDateTime(group.last_seen)}`}
+              {` · ${fill(messages.pages.runs.failuresLastAt, { when: formatDateTime(group.last_seen) })}`}
             </p>
 
             {group.last_request_id ? (
-              <p className="font-mono text-[11px] text-(--color-muted)">referência: {group.last_request_id}</p>
+              <p className="font-mono text-[11px] text-(--color-muted)">
+                {fill(messages.pages.runs.failuresReference, { id: group.last_request_id })}
+              </p>
             ) : null}
           </button>
         ))}
 
         {shown.length > 0 ? (
-          <p className="text-xs text-(--color-muted)">
-            Clique numa causa para ver só as execuções dela. A referência de uma falha é o que identifica o
-            erro no registro do sistema.
-          </p>
+          <p className="text-xs text-(--color-muted)">{messages.pages.runs.failuresHint}</p>
         ) : null}
 
         {total > shown.length ? (
           <p className="text-xs text-(--color-muted)">
-            Há mais {formatCount(total - shown.length)} causa(s) nos últimos 30 dias; as mais recentes estão acima.
+            {fill(messages.pages.runs.failuresMore, { count: formatCount(total - shown.length) })}
           </p>
         ) : null}
       </CardBody>

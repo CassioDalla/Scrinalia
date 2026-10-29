@@ -5,6 +5,7 @@ import { EntityNameField } from "@/components/description/EntityNameField";
 import { Field } from "@/components/ui/Field";
 import { Input, Select, Textarea } from "@/components/ui/Input";
 import type { IsadField } from "@/lib/isad";
+import { useCopy } from "@/i18n/context";
 
 /**
  * One ISAD(G) control, rendered from the catalogue instead of from a list of labels.
@@ -36,6 +37,7 @@ export function IsadFieldControl({
   dateAs?: "iso" | "expression";
 }) {
   const fieldId = useId();
+  const messages = useCopy();
   const hintId = `${fieldId}-hint`;
   const wide = field.control === "long_text" ? "sm:col-span-2" : "";
 
@@ -63,7 +65,7 @@ export function IsadFieldControl({
         <Input
           type="text"
           value={value}
-          placeholder={field.control === "date" ? "Ex.: 1985-03-14, década de 1980 ou intervalo" : undefined}
+          placeholder={field.control === "date" ? messages.isad.datePlaceholder : undefined}
           onChange={(event) => onChange(event.target.value)}
         />
       )}
@@ -87,11 +89,12 @@ export function LanguageSelect({
   languages: readonly Language[];
   onChange: (value: string) => void;
 }) {
+  const messages = useCopy();
   const known = value === "" || languages.some((language) => language.name === value);
 
   return (
     <Select value={value} onChange={(event) => onChange(event.target.value)}>
-      <option value="">— não informado —</option>
+      <option value="">{messages.common.notInformed}</option>
       {known ? null : <option value={value}>{value} (fora da lista)</option>}
       {languages.map((language) => (
         <option key={language.code} value={language.name}>
