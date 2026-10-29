@@ -64,7 +64,7 @@ export function ErrorState({ error }: { error: unknown }) {
   return (
     <Notice tone="danger" as="div" className="rounded-lg px-4 py-3 text-sm">
       {message}
-      {ref ? <span className="mt-1 block text-xs opacity-70">referência: {ref}</span> : null}
+      {ref ? <span className="mt-1 block text-xs opacity-70">Referência: {ref}</span> : null}
     </Notice>
   );
 }

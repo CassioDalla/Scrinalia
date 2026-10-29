@@ -2,6 +2,7 @@
 
 from typing import Any
 
+from scrinalia.core.i18n import t
 from scrinalia.domains.archive.domain.hierarchy import (
     HierarchyIssue,
     NodeShape,
@@ -71,7 +72,7 @@ class HierarchyService:
         if root_id is not None:
             root = self.repo.get_node(root_id)
             if root is None:
-                raise HierarchyNodeNotFoundError(f"Descrição '{root_id}' não encontrada no acervo.")
+                raise HierarchyNodeNotFoundError(t("Descrição '{root_id}' não encontrada no acervo.", root_id=root_id))
             root_path = root.path
 
         nodes, total = self.repo.list_subtree(root_path, max_depth, limit, offset)
@@ -194,7 +195,11 @@ class HierarchyService:
     def diagnostics(self, issue: str, limit: int, offset: int) -> HierarchyDiagnosticListResponse:
         if issue not in DIAGNOSTIC_ISSUES:
             raise InvalidHierarchyMoveError(
-                f"Diagnóstico '{issue}' não existe. Válidos: {', '.join(DIAGNOSTIC_ISSUES)}."
+                t(
+                    "Diagnóstico '{issue}' não existe. Válidos: {diagnostic_issues}.",
+                    issue=issue,
+                    diagnostic_issues=", ".join(DIAGNOSTIC_ISSUES),
+                )
             )
 
         if issue == str(HierarchyIssue.ORPHAN):
@@ -269,7 +274,9 @@ class HierarchyService:
     def _require_node(self, description_id: str) -> ArchiveDocument:
         node = self.repo.get_node(description_id)
         if node is None:
-            raise HierarchyNodeNotFoundError(f"Descrição '{description_id}' não encontrada no acervo.")
+            raise HierarchyNodeNotFoundError(
+                t("Descrição '{description_id}' não encontrada no acervo.", description_id=description_id)
+            )
         return node
 
     @staticmethod
@@ -309,4 +316,4 @@ class HierarchyService:
             "PARENT_ALLOWS_NO_CHILDREN": "O nível da unidade superior escolhida não admite filhos.",
             "REQUIRED_LEVEL_WITHOUT_PARENT": "Este nível não pode ficar na raiz: escolha uma unidade superior.",
         }
-        return " ".join(messages.get(str(violation), str(violation)) for violation in violations)
+        return " ".join(t(messages.get(str(violation), str(violation))) for violation in violations)

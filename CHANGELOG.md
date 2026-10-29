@@ -7,6 +7,117 @@ All notable changes to this project are documented here. The format is
 `1.0.0` was the first release; the newest one is at the top. Entries describe **behaviour**, not
 commits — the history is the detail.
 
+## [1.7.0] - 2026-10-28
+
+### Added
+
+- **The interface speaks Portuguese and English** (issue #45, ADR 0020). The curator SPA reads every
+  screen's copy from a catalogue: `src/i18n/pt.ts` is the source and `en.ts` is typed as it, so a
+  message without a translation fails `tsc`. The language belongs to the **account** — *Automático*,
+  *Português* and *English* sit in the account footer, a fresh account stores "no choice" and follows
+  the browser (`pt*` Portuguese, `en*` English, anything else the product's Portuguese), and the
+  migration adds `auth_users.locale` behind a check constraint. The server is not painted over: every
+  request carries `Accept-Language` and the API composes its `message` and its refusals in the
+  language that was asked — a wrong password answers "Invalid e-mail or password." with `en-US` — with
+  refusals now travelling as a **code plus facts** (`core/i18n.py`, `refusal_translations.py` covers
+  the 193 raise sites) and the same placeholders on both sides. Dates, numbers and plurals follow the
+  locale through `Intl`. The screen paths stay Portuguese on purpose (#239): a path is an identifier,
+  not copy. The absolute gate retires the last Portuguese literal outside `src/i18n/`, with the stored
+  `SEM TÍTULO` sentinel and a URL declared as data and not copy, and the 28 screens were rendered in
+  both locales.
+
+- **One hint element for the explanations that do not deserve a paragraph** (issue #208). `Hint` is
+  the single discreet explanation: a real `<button>` named per use, a `role="tooltip"` panel described
+  by `aria-describedby` with the text kept in the DOM while closed, opening on hover and focus,
+  toggling on click/tap and closing on Escape or an outside pointer. `Field.info` puts it beside a
+  label, outside the `<label>`, so the input's accessible name stays its own, and `asChild` lets a
+  control that is already a button (a tab) be the trigger. The native `title` retires as the default
+  explanation; it survives only where the text is not the only way to know.
+
+- **One operations screen for the panel and the ledger** (issue #207). `/sistema/workers` carries both
+  reads as tabs in the URL (`?aba=painel`, default, and `?aba=execucoes`) instead of two doors off the
+  same landing. The last run of a worker links to the ledger filtered by that worker with the exact row
+  highlighted, `/sistema/execucoes` redirects there with the search preserved, and only the mounted tab
+  runs its queries — 5 s while a run is in flight, 15 s while one is queued.
+
+- **"Nova descrição" belongs to the Acervo, with the CSV import beside it** (issue #205). Manual entry
+  and CSV import are the two ways into the collection, not origins, so they live on `/acervo/nova` as
+  tabs in the URL — **Digitar** (the whole ISAD(G) form) and **Importar CSV** (`?modo=csv`, parsed in
+  the browser) — and `/sistema/ingestao/nova` redirects there. Both panes stay mounted while the other
+  is active, so a thirty-field draft survives a look at the import.
+
+- **The origin is configured on its own page** (issue #206). `/sistema/ingestao` reads the rows:
+  `GET /api/v1/ingestion/origins` returns the configured origins with `configurable` and the
+  definitions still **available**, which feeds the picker; adding activates, pausing is the lifecycle,
+  and the manual/CSV rows are shown read-only in **Entradas** with a link to `/acervo/nova`. The screen
+  is `OPERATE`; its read routes stay authenticated, so a curator who follows a direct URL sees the
+  cards read-only.
+
+- **Access points are chips over the tag catalogue** (issue #229). The manual form's access points are
+  now a chip field: the type-ahead picks an existing tag, **Adicionar** keeps a term the catalogue does
+  not have, and one summary says what the transfer will do with the string — discard (banned, shorter
+  than 3 characters, longer than 100), create, or map to a synonym. `POST /api/v1/taxonomy/tags/preview`
+  is a read-only POST (pinned in `READ_ONLY_POSTS`) and `classify_indexing_points` is the one classifier,
+  so the preview and the transfer cannot disagree. The wire is still `indexing_points: str`: there is
+  no tag-creation endpoint, and the transfer remains the only writer.
+
+- **The producer field autocompletes over the entity catalogue** (issue #230). `Produtor(es)` — on the
+  manual form and in the dossier, from one `control: "entity"` entry in `lib/isad.ts` — lists what the
+  catalogue knows, with `entity_type · N descrições` as the hint. Picking copies the **name** verbatim,
+  never the `entity_id`, and replaces only the fragment between two separators (`,` `;` `|` newline), so
+  the archivist's spacing and the other names survive; the caret lands after the copied name. The wire
+  is still `producers: str`, and a name the catalogue does not have stays typeable.
+
+- **The arrangement plan is a tree, and a branch collapses its subtree** (issue #233). The screen draws
+  the forest the payload already carried (`code`/`parent_code`): nested lists, collapsing a branch hides
+  everything inside it, a filter keeps the matches with their ancestors and forces the ancestors open so
+  a match can never be hidden, and a `parent_code` cycle is cut at its smallest code so every row renders
+  once. `decidedBranchCodes` closes the maximal branches with no `SUGGESTED` rung.
+
+- **The blocked spellings are a screen, not a tab of Tags** (issue #232). The ban list is
+  **Grafias bloqueadas** at `/assuntos/grafias`, one click from **Não é Assunto**, with its own
+  description and a name that says what it acts on: a verdict is about what a term **means**, a blocked
+  spelling is what may never be **written**. The destructive write — deleting the tags a ban names —
+  stays under the impact preview and the ledger, and the two screens link to each other in both
+  directions. `/assuntos/tags?aba=stopwords` redirects to the new screen.
+
+### Changed
+
+- **The screen copy is written for the archivist, not for the engineer** (issue #235). The canon lives
+  in `.dsh/skills/curator-ui/SKILL.md` and was applied in two passes (nine files, then fifty-three):
+  the pipeline's internals are not copy, the archivist's vocabulary stays (*Fundo*, *Série*, *ISAD(G)*,
+  *âmbito e conteúdo*), field labels are Title Case and every other sentence is imperative and about the
+  task. The screens and the guides that name them were renamed together.
+
+- **The queue's copy leaves the contract** (issue #231, ADR 0020). `CurationQueue` now carries the
+  identity and the facts — `key` (the new `QueueKey` enum), `count` and `route` — and no `label` or
+  `description`; the nine labels and their one-liners live in the catalogue and are read through
+  `apps/curator/src/lib/queues.ts`, whose `Record<QueueKey, …>` and exhaustiveness check make a queue
+  added to the contract without copy fail `tsc` instead of rendering a blank card. A client that is
+  not the SPA carries its own labels.
+
+- **The conflict views are tabs, not buttons** (issue #209). `/entidades/conflitos` renders its three
+  reads as the shared `Tabs` under the header, before the `Disclosure`, so the active view no longer
+  competes with the resolution actions; `?ver=` is unchanged, and the pair/entity rows stay filters.
+
+- **The dependency groups move** (issues #224, #225): `alembic` 1.20.1, `boto3` 1.43.118, `pandas`
+  3.1.0, `ruff` 0.17.2, `mkdocs-material` 9.8.0, and `astral-sh/setup-uv` 10.3.2 in CI.
+
+### Fixed
+
+- **`Configurar` and `Agenda` open the card they live in** (issue #234). The origin card's two actions
+  set only which panel the body shows, and the body exists only while the card is open — which is never,
+  on a card that starts collapsed. One click now opens the card and shows the panel, the second closes
+  the panel and leaves the card open, both buttons carry `aria-expanded`/`aria-controls` and a visible
+  pressed state, and the panel scrolls itself into view. Closing the card resets the panel, so reopening
+  shows the facts and never a form nobody asked for.
+
+### Security
+
+- **Two `seroval` advisories are resolved by a floor at 1.7.3** (GHSA-f86p-h4j2-7qgj,
+  GHSA-9wx9-5pv9-3349, reached through TanStack Router). The override forces the patched version without
+  adding a runtime dependency at the root; the audit is clean and the SPA builds.
+
 ## [1.6.0] - 2026-10-26
 
 ### Added
@@ -1207,7 +1318,8 @@ commits — the history is the detail.
   reads the **runtime** export and not the development environment: an advisory in a tool that never
   reaches an installation no longer hides the ones that do.
 
-[Unreleased]: https://github.com/CassioDalla/Scrinalia/compare/v1.6.0...HEAD
+[Unreleased]: https://github.com/CassioDalla/Scrinalia/compare/v1.7.0...HEAD
+[1.7.0]: https://github.com/CassioDalla/Scrinalia/releases/tag/v1.7.0
 [1.6.0]: https://github.com/CassioDalla/Scrinalia/releases/tag/v1.6.0
 [1.5.0]: https://github.com/CassioDalla/Scrinalia/releases/tag/v1.5.0
 [1.4.0]: https://github.com/CassioDalla/Scrinalia/releases/tag/v1.4.0

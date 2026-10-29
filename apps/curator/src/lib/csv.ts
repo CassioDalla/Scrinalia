@@ -13,6 +13,8 @@
  * them.
  */
 
+import { activeMessages } from "@/i18n/locale";
+
 export type CsvDelimiter = "," | ";";
 
 export interface ParsedCsvRow {
@@ -166,22 +168,22 @@ export function parseCsv(text: string, options: { delimiter?: CsvDelimiter } = {
   }
 
   if (inQuotes) {
-    throw new CsvParseError("O arquivo tem aspas sem fechamento.", recordLine);
+    throw new CsvParseError(activeMessages().csv.parse.unclosedQuote, recordLine);
   }
   if (current !== "" || cells.length > 0) {
     pushRecord();
   }
   if (records.length === 0) {
-    throw new CsvParseError("O arquivo está vazio.");
+    throw new CsvParseError(activeMessages().csv.parse.empty);
   }
 
   const header = records[0];
   if (!header) {
-    throw new CsvParseError("O arquivo está vazio.");
+    throw new CsvParseError(activeMessages().csv.parse.empty);
   }
   const headers = header.cells.map((cell) => cell.trim());
   if (headers.some((value) => value === "")) {
-    throw new CsvParseError("Há uma coluna sem cabeçalho.", header.line);
+    throw new CsvParseError(activeMessages().csv.parse.headerWithoutName, header.line);
   }
 
   return { headers, rows: records.slice(1), delimiter };

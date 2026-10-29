@@ -61,8 +61,8 @@ A trial run:
   panel should never show two executions of one worker at once;
 - **writes no archival content**: it does not touch `typology_id`, `execution_log` or the review
   queue. The only write is the ledger row's `trial_result`;
-- **is distinguishable** in `/sistema/execucoes` by the `trial` flag, and the production `last_run`
-  shown by the panel is a real run, not a trial.
+- **is distinguishable** in the execution ledger — the *Execuções* tab of `/sistema/workers` — by
+  the `trial` flag, and the production `last_run` shown by the panel is a real run, not a trial.
 
 The trial's per-configuration execution happens **inside the one row**, sequentially. The row is the
 comparison: one sample, two or more configurations, each with its own measured seconds. The

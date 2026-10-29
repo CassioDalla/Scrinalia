@@ -26,6 +26,8 @@ import { SectionTitle } from "@/components/ui/SectionTitle";
 import { ACTION } from "@/lib/copy";
 import { formatCount } from "@/lib/format";
 import { TERM_KIND_HINT, TERM_KIND_TONE, termKindLabel } from "@/lib/vocabulary";
+import { useCopy } from "@/i18n/context";
+import { fill } from "@/i18n/maps";
 
 /**
  * What *this* collection declares, as opposed to what the software or the language fixes.
@@ -46,6 +48,7 @@ import { TERM_KIND_HINT, TERM_KIND_TONE, termKindLabel } from "@/lib/vocabulary"
  * and keeps the record that it existed.
  */
 export function VocabularyRoute() {
+  const messages = useCopy();
   const vocabulary = useQuery(queries.collectionVocabulary());
 
   const arrangement = vocabulary.data?.arrangement_terms ?? [];
@@ -60,19 +63,17 @@ export function VocabularyRoute() {
         pending={vocabulary.isPending}
         status={
           vocabulary.data
-            ? `${arrangement.length} nomes de arranjo · ${terms.length} termos do acervo (${active} ativos)`
+            ? fill(messages.pages.vocabulary.status, {
+                arrangement: String(arrangement.length),
+                terms: String(terms.length),
+                active: String(active),
+              })
             : undefined
         }
       />
 
       <PageBody>
-        <Notice tone="accent">
-          Estas duas listas são <strong>dados do acervo</strong>, não regras do sistema. O que é
-          propriedade da língua portuguesa — <em>rua</em>, <em>avenida</em>, <em>não identificado</em>,{" "}
-          <em>303 anos</em>, um ano solto — fica no perfil de idioma e <strong>não</strong> aparece aqui:
-          mudá-lo seria mudar o significado que o sistema dá à palavra. Aposentar um termo não o exclui, e
-          um termo aposentado volta a ser tratado como assunto na próxima execução do classificador.
-        </Notice>
+        <Notice tone="accent">{messages.pages.vocabulary.notice}</Notice>
 
         {vocabulary.error ? <ErrorState error={vocabulary.error} /> : null}
         {vocabulary.isPending ? (
@@ -84,12 +85,8 @@ export function VocabularyRoute() {
         ) : null}
 
         <section className="grid gap-2">
-          <SectionTitle>Vocabulário de arranjo</SectionTitle>
-          <p className="text-xs text-(--color-muted)">
-            O nome que a proposta de arranjo sugere para um degrau do código de referência. O código
-            inteiro tem precedência sobre o último token, então <code>BR PRADAP</code> pode ter um nome
-            próprio e <code>SMU</code> o da secretaria.
-          </p>
+          <SectionTitle>{messages.pages.vocabulary.arrangementSection}</SectionTitle>
+          <p className="text-xs text-(--color-muted)">{messages.pages.vocabulary.arrangementHint}</p>
           <CreateArrangementTermCard />
           {arrangement.map((term) => (
             <ArrangementTermCard key={term.term_id} term={term} />
@@ -97,12 +94,8 @@ export function VocabularyRoute() {
         </section>
 
         <section className="grid gap-2">
-          <SectionTitle>Termos do acervo</SectionTitle>
-          <p className="text-xs text-(--color-muted)">
-            O que o acervo carrega e <strong>não</strong> é assunto. Um lugar continua alcançável pela
-            faceta Lugar; um nome de pessoa é o produtor e não vai a lugar nenhum. É essa diferença que o
-            tipo registra.
-          </p>
+          <SectionTitle>{messages.pages.vocabulary.collectionSection}</SectionTitle>
+          <p className="text-xs text-(--color-muted)">{messages.pages.vocabulary.collectionHint}</p>
           <CreateCollectionTermCard kinds={kinds} />
           {terms.map((term) => (
             <CollectionTermCard key={term.term_id} term={term} kinds={kinds} />
@@ -121,6 +114,7 @@ function useVocabularyInvalidation() {
 }
 
 function ArrangementTermCard({ term }: { term: ArrangementTerm }) {
+  const messages = useCopy();
   const invalidate = useVocabularyInvalidation();
   const [displayName, setDisplayName] = useState(term.display_name);
 
@@ -134,13 +128,17 @@ function ArrangementTermCard({ term }: { term: ArrangementTerm }) {
 
   return (
     <Disclosure
-      toggleLabel="Editar este nome"
+      toggleLabel={messages.pages.vocabulary.editName}
       className={term.is_active ? undefined : "opacity-80"}
       header={
         <div className="flex flex-wrap items-center gap-2">
           <code className="rounded bg-black/[0.05] px-1.5 py-0.5 text-xs">{term.token}</code>
           <span className="text-sm font-medium">{term.display_name}</span>
-          {term.is_active ? <Badge tone="ok">ativo</Badge> : <Badge tone="neutral">aposentado</Badge>}
+          {term.is_active ? (
+              <Badge tone="ok">{messages.pages.categories.activeBadge}</Badge>
+            ) : (
+              <Badge tone="neutral">{messages.pages.categories.retiredBadge}</Badge>
+            )}
         </div>
       }
       actions={
@@ -150,8 +148,8 @@ function ArrangementTermCard({ term }: { term: ArrangementTerm }) {
           disabled={save.isPending}
           title={
             term.is_active
-              ? "A proposta deixa de sugerir este nome."
-              : "A proposta volta a sugerir este nome."
+              ? messages.pages.vocabulary.retireName
+              : messages.pages.vocabulary.reactivateName
           }
           onClick={() => save.mutate({ is_active: !term.is_active })}
         >
@@ -160,7 +158,7 @@ function ArrangementTermCard({ term }: { term: ArrangementTerm }) {
       }
     >
       <div className="grid gap-2">
-        <Field label="Nome sugerido">
+        <Field label={messages.pages.vocabulary.suggestedName}>
           <Input
             value={displayName}
             onChange={(event) => setDisplayName(event.target.value)}
@@ -176,7 +174,7 @@ function ArrangementTermCard({ term }: { term: ArrangementTerm }) {
           >
             {save.isPending ? ACTION.save.pending : ACTION.save.label}
           </Button>
-          {dirty ? <span className="text-xs text-(--color-muted)">alterações não salvas</span> : null}
+          {dirty ? <span className="text-xs text-(--color-muted)">{messages.pages.vocabulary.unsaved}</span> : null}
         </div>
         {save.error ? <ErrorState error={save.error} /> : null}
       </div>
@@ -185,6 +183,7 @@ function ArrangementTermCard({ term }: { term: ArrangementTerm }) {
 }
 
 function CreateArrangementTermCard() {
+  const messages = useCopy();
   const invalidate = useVocabularyInvalidation();
   const empty: ArrangementTermCreateRequest = { token: "", display_name: "" };
   const [draft, setDraft] = useState<ArrangementTermCreateRequest>(empty);
@@ -201,40 +200,38 @@ function CreateArrangementTermCard() {
 
   return (
     <Disclosure
-      triggerLabel="+ Novo nome"
-      triggerCloseLabel="fechar"
-      toggleLabel="Criar um nome de arranjo"
+      triggerLabel={messages.pages.vocabulary.newName}
+      triggerCloseLabel={messages.common.close}
+      toggleLabel={messages.pages.vocabulary.createArrangement}
       header={
         <div className="grid gap-1">
-          <span className="text-sm font-semibold">Criar um nome de arranjo</span>
-          <span className="text-xs text-(--color-muted)">
-            Um token do código (<code>SMU</code>) ou o código inteiro (<code>BR PRADAP</code>).
-          </span>
+          <span className="text-sm font-semibold">{messages.pages.vocabulary.createArrangement}</span>
+          <span className="text-xs text-(--color-muted)">{messages.pages.vocabulary.segmentHint}</span>
         </div>
       }
     >
       <div className="grid gap-2">
         <div className="grid gap-2 sm:grid-cols-2">
-          <Field label="Token ou código">
+          <Field label={messages.pages.vocabulary.segmentField}>
             <Input
               value={draft.token}
               onChange={(event) => setDraft({ ...draft, token: event.target.value })}
-              placeholder="ex.: SMU"
+              placeholder={messages.pages.vocabulary.segmentPlaceholder}
               maxLength={100}
             />
           </Field>
-          <Field label="Nome sugerido">
+          <Field label="Nome Sugerido">
             <Input
               value={draft.display_name}
               onChange={(event) => setDraft({ ...draft, display_name: event.target.value })}
-              placeholder="ex.: SMU - Secretaria Municipal de Urbanismo"
+              placeholder={messages.pages.vocabulary.namePlaceholder}
               maxLength={200}
             />
           </Field>
         </div>
         <div>
           <Button variant="primary" disabled={!valid || create.isPending} onClick={() => create.mutate()}>
-            {create.isPending ? ACTION.create.pending : `${ACTION.create.label} nome`}
+            {create.isPending ? ACTION.create.pending : messages.pages.vocabulary.createNameButton}
           </Button>
         </div>
         {create.error ? <ErrorState error={create.error} /> : null}
@@ -244,6 +241,7 @@ function CreateArrangementTermCard() {
 }
 
 function CollectionTermCard({ term, kinds }: { term: CollectionTerm; kinds: CollectionTermKind[] }) {
+  const messages = useCopy();
   const invalidate = useVocabularyInvalidation();
   const [spelling, setSpelling] = useState(term.term);
   const [kind, setKind] = useState<CollectionTermKind>(term.kind);
@@ -258,14 +256,14 @@ function CollectionTermCard({ term, kinds }: { term: CollectionTerm; kinds: Coll
 
   return (
     <Disclosure
-      toggleLabel="Editar este termo"
+      toggleLabel={messages.pages.vocabulary.editTerm}
       className={term.is_active ? undefined : "opacity-80"}
       header={
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-sm font-medium">{term.term}</span>
           <Badge tone={TERM_KIND_TONE[term.kind] ?? "neutral"}>{termKindLabel(term.kind)}</Badge>
           {term.is_active ? <Badge tone="ok">ativo</Badge> : <Badge tone="neutral">aposentado</Badge>}
-          <Badge tone="neutral" title="Tags com exatamente esta grafia">
+          <Badge tone="neutral" title={messages.pages.vocabulary.tagsBadgeTitle}>
             {formatCount(term.tag_count ?? 0)} tags
           </Badge>
         </div>
@@ -277,8 +275,8 @@ function CollectionTermCard({ term, kinds }: { term: CollectionTerm; kinds: Coll
           disabled={save.isPending}
           title={
             term.is_active
-              ? "O termo volta a ser tratado como assunto na próxima execução."
-              : "O termo volta a ser recusado pelo guarda."
+              ? messages.pages.vocabulary.retireTerm
+              : messages.pages.vocabulary.reactivateTerm
           }
           onClick={() => save.mutate({ is_active: !term.is_active })}
         >
@@ -288,14 +286,14 @@ function CollectionTermCard({ term, kinds }: { term: CollectionTerm; kinds: Coll
     >
       <div className="grid gap-2">
         <div className="grid gap-2 sm:grid-cols-2">
-          <Field label="Grafia como aparece no acervo">
+          <Field label={messages.pages.vocabulary.spellingField}>
             <Input
               value={spelling}
               onChange={(event) => setSpelling(event.target.value)}
               maxLength={200}
             />
           </Field>
-          <Field label="Tipo">
+          <Field label={messages.pages.vocabulary.kindField}>
             <Select
               value={kind}
               onChange={(event) => setKind(event.target.value as CollectionTermKind)}
@@ -318,7 +316,7 @@ function CollectionTermCard({ term, kinds }: { term: CollectionTerm; kinds: Coll
           >
             {save.isPending ? ACTION.save.pending : ACTION.save.label}
           </Button>
-          {dirty ? <span className="text-xs text-(--color-muted)">alterações não salvas</span> : null}
+          {dirty ? <span className="text-xs text-(--color-muted)">{messages.pages.vocabulary.unsaved}</span> : null}
         </div>
         {save.error ? <ErrorState error={save.error} /> : null}
       </div>
@@ -327,6 +325,7 @@ function CollectionTermCard({ term, kinds }: { term: CollectionTerm; kinds: Coll
 }
 
 function CreateCollectionTermCard({ kinds }: { kinds: CollectionTermKind[] }) {
+  const messages = useCopy();
   const invalidate = useVocabularyInvalidation();
   const empty: CollectionTermCreateRequest = { term: "", kind: "DISTRICT" };
   const [draft, setDraft] = useState<CollectionTermCreateRequest>(empty);
@@ -343,25 +342,23 @@ function CreateCollectionTermCard({ kinds }: { kinds: CollectionTermKind[] }) {
 
   return (
     <Disclosure
-      triggerLabel="+ Novo termo"
+      triggerLabel={messages.pages.vocabulary.newTerm}
       triggerCloseLabel="fechar"
-      toggleLabel="Criar um termo do acervo"
+      toggleLabel={messages.pages.vocabulary.createCollectionTerm}
       header={
         <div className="grid gap-1">
-          <span className="text-sm font-semibold">Criar um termo do acervo</span>
-          <span className="text-xs text-(--color-muted)">
-            Uma grafia que o acervo carrega e que não é assunto.
-          </span>
+          <span className="text-sm font-semibold">{messages.pages.vocabulary.createCollectionTerm}</span>
+          <span className="text-xs text-(--color-muted)">{messages.pages.vocabulary.termHint}</span>
         </div>
       }
     >
       <div className="grid gap-2">
         <div className="grid gap-2 sm:grid-cols-2">
-          <Field label="Grafia">
+          <Field label={messages.pages.vocabulary.spellingFieldShort}>
             <Input
               value={draft.term}
               onChange={(event) => setDraft({ ...draft, term: event.target.value })}
-              placeholder="ex.: batel"
+              placeholder={messages.pages.vocabulary.spellingPlaceholder}
               maxLength={200}
             />
           </Field>
@@ -381,7 +378,7 @@ function CreateCollectionTermCard({ kinds }: { kinds: CollectionTermKind[] }) {
         <p className="text-xs text-(--color-muted)">{TERM_KIND_HINT[draft.kind] ?? ""}</p>
         <div>
           <Button variant="primary" disabled={!valid || create.isPending} onClick={() => create.mutate()}>
-            {create.isPending ? ACTION.create.pending : `${ACTION.create.label} termo`}
+            {create.isPending ? ACTION.create.pending : messages.pages.vocabulary.createTermButton}
           </Button>
         </div>
         {create.error ? <ErrorState error={create.error} /> : null}

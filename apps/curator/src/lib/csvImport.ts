@@ -14,6 +14,8 @@
 
 import type { components } from "@/api/schema";
 
+import { activeMessages } from "@/i18n/locale";
+
 import { toCsv, type ParsedCsv } from "./csv";
 
 export type CsvSpec = components["schemas"]["CsvImportSpecResponse"];
@@ -101,18 +103,19 @@ export function mapCsv(parsed: ParsedCsv, spec: CsvSpec, idFactory: () => string
   const titleField = fields.find((field) => field.required) ?? fields[0];
   const idHeaderIndex = headers.findIndex((header) => header.isId);
 
+  const copy = activeMessages().csv.import;
   const blocking: string[] = [];
   if (parsed.rows.length === 0) {
-    blocking.push("O arquivo não tem linhas de dados.");
+    blocking.push(copy.headerOnly);
   }
   if (parsed.rows.length > spec.max_rows) {
-    blocking.push(`O arquivo tem ${parsed.rows.length} linhas; o limite é ${spec.max_rows}. Divida-o em partes.`);
+    blocking.push(copy.tooManyRows.replace("{rows}", String(parsed.rows.length)).replace("{limit}", String(spec.max_rows)));
   }
   if (missingRequired.length > 0) {
-    blocking.push(`Faltam as colunas obrigatórias: ${missingRequired.join(", ")}.`);
+    blocking.push(copy.missingRequired.replace("{columns}", missingRequired.join(", ")));
   }
   if (duplicateFields.length > 0) {
-    blocking.push(`Mais de uma coluna aponta para o mesmo campo: ${duplicateFields.join(", ")}.`);
+    blocking.push(copy.duplicateFields.replace("{fields}", duplicateFields.join(", ")));
   }
 
   const seenIds = new Map<string, number>();
@@ -121,7 +124,10 @@ export function mapCsv(parsed: ParsedCsv, spec: CsvSpec, idFactory: () => string
   for (const row of parsed.rows) {
     if (row.cells.length !== parsed.headers.length) {
       blocking.push(
-        `A linha ${row.line} tem ${row.cells.length} colunas; o cabeçalho tem ${parsed.headers.length}.`,
+        copy.columnCount
+          .replace("{line}", String(row.line))
+          .replace("{cells}", String(row.cells.length))
+          .replace("{headers}", String(parsed.headers.length)),
       );
       continue;
     }
@@ -138,11 +144,11 @@ export function mapCsv(parsed: ParsedCsv, spec: CsvSpec, idFactory: () => string
 
     const issues: string[] = [];
     if (descriptionId.length > 50) {
-      issues.push("O identificador tem mais de 50 caracteres.");
+      issues.push(copy.idTooLong);
     }
     const firstSeen = seenIds.get(descriptionId);
     if (firstSeen !== undefined) {
-      issues.push(`O identificador repete a linha ${firstSeen}.`);
+      issues.push(copy.duplicateId.replace("{line}", String(firstSeen)));
     } else {
       seenIds.set(descriptionId, row.line);
     }
@@ -150,11 +156,11 @@ export function mapCsv(parsed: ParsedCsv, spec: CsvSpec, idFactory: () => string
       const value = values[field.label];
       if (value === undefined) continue;
       if (field.required && value.trim() === "") {
-        issues.push(`O campo '${field.label}' é obrigatório.`);
+        issues.push(copy.required.replace("{label}", field.label));
       }
       const limit = fieldLimit(field, spec);
       if (value.length > limit) {
-        issues.push(`O campo '${field.label}' passa do limite de ${limit} caracteres.`);
+        issues.push(copy.maxLength.replace("{label}", field.label).replace("{max}", String(limit)));
       }
     }
 
@@ -164,7 +170,9 @@ export function mapCsv(parsed: ParsedCsv, spec: CsvSpec, idFactory: () => string
   const payloadBytes = new TextEncoder().encode(JSON.stringify(rows.map((row) => row.fields))).length;
   if (payloadBytes > spec.max_bytes) {
     blocking.push(
-      `As linhas somam ${(payloadBytes / (1024 * 1024)).toFixed(1)} MB; o limite é ${spec.max_bytes / (1024 * 1024)} MB.`,
+      copy.fileTooLarge
+        .replace("{mb}", (payloadBytes / (1024 * 1024)).toFixed(1))
+        .replace("{limit}", String(spec.max_bytes / (1024 * 1024))),
     );
   }
 

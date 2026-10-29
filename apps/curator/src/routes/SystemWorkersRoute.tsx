@@ -1,549 +1,83 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
-import { useState } from "react";
+import { getRouteApi, useNavigate } from "@tanstack/react-router";
 
-import {
-  triggerWorkerRun,
-  type WorkerRunRequest,
-  type WorkerRunner,
-  type WorkerStatus,
-} from "@/api/client";
-import { queries } from "@/api/queries";
-import { PageHeader } from "@/components/layout/PageHeader";
-import { Badge } from "@/components/ui/Badge";
-import { Button } from "@/components/ui/Button";
-import { Card, CardBody } from "@/components/ui/Card";
-import { Disclosure } from "@/components/ui/Disclosure";
-import { ErrorState, Skeleton } from "@/components/ui/Feedback";
-import { Input, Select, Textarea } from "@/components/ui/Input";
-import { Notice } from "@/components/ui/Notice";
-import { WorkerOptionsFields, initialOptionValues, optionsForRequest } from "@/components/workers/WorkerOptionsFields";
 import { PageBody } from "@/components/layout/PageBody";
-import { ACTION } from "@/lib/copy";
-import { formatCount, formatDateTime } from "@/lib/format";
-import {
-  describeConfig,
-  formatDuration,
-  isActiveRun,
-  MAX_ATTEMPTS,
-  parseOptions,
-  RUN_STATUS_LABEL,
-  RUN_STATUS_TONE,
-  TRIGGER_LABEL,
-  UNIT_LABEL,
-} from "@/lib/system";
+import { PageHeader } from "@/components/layout/PageHeader";
+import { Tabs } from "@/components/ui/Tabs";
+import { RunsLedger, validateSystemRunsSearch, type SystemRunsSearch } from "@/components/workers/RunsLedger";
+import { WorkersPanel } from "@/components/workers/WorkersPanel";
+import { asEnum } from "@/lib/search";
+import { useCopy } from "@/i18n/context";
+
+const routeApi = getRouteApi("/sistema/workers");
+
+/** The two questions the screen answers, and the tab each one is. */
+export type WorkersTab = "painel" | "execucoes";
+
+const TAB_IDS: readonly WorkersTab[] = ["painel", "execucoes"];
 
 /**
- * The machine view of the AI workers: what is in each queue, which runners are connected, and
- * enqueueing one run.
+ * The merged search: the tab, plus the ledger's filters.
  *
- * The configuration side left this screen in issue #53 — the persisted default of each worker and
- * its revisions are `/configuracoes/workers` now. What stays is the operational question: the
- * catalogue is read as a panel, each row answers what the machine is doing (pending, processed,
- * last and active run), and the two writes here are "enqueue one run" and nothing else. The API
- * only enqueues since ADR 0014; a runner outside the API claims the row, so a run whose row is
- * `QUEUED` is waiting for one. A worker with a run in flight disables the button, because the
- * partial unique index would refuse a second one anyway.
+ * The filters belong to the route and not to the tab component, because the URL is the state and a
+ * deep link (`?aba=execucoes&worker=ner&run=42`) has to survive a reload and a share. The tab is
+ * validated against `TABS`, so a hand-written `?aba=` lands on the panel instead of an empty body;
+ * the ledger's half is `validateSystemRunsSearch`, the one definition of what that list accepts.
+ */
+export type SystemWorkersSearch = SystemRunsSearch & { aba?: WorkersTab };
+
+export function validateSystemWorkersSearch(search: Record<string, unknown>): SystemWorkersSearch {
+  return {
+    ...validateSystemRunsSearch(search),
+    aba: asEnum(search.aba, TAB_IDS),
+  };
+}
+
+/**
+ * The operations screen: what the machine is doing, and what it did.
  *
- * ``runner_available`` is the panel's answer to "will anyone pick it up?": the runner cards say who
- * is online and which workers each accepts, and a worker no online runner accepts still accepts the
- * click — the row waits (ADR 0014). The effective configuration stays read-only: "with which model
- * is this running?" is what the screen exists to answer.
+ * One route with two tabs in the URL since #207, reached from the Configurações landing. The panel
+ * enqueues and the ledger answers what happened; keeping them a tab apart is the point — the
+ * operator used to enqueue on one screen and leave for another to see the result. The configuration
+ * stays a screen of its own (`/configuracoes/workers`, #53): it answers a different question, and
+ * this issue changed the door, not the meaning. The old ledger path redirects here, filters and all.
+ *
+ * Only the active tab is mounted, so only its queries run: the panel polls at 5 s while a run is in
+ * flight and 15 s while one is queued, and the ledger at 5 s while an entry is active. Mounting both
+ * would double the reads for a screen nobody is looking at.
  */
 export function SystemWorkersRoute() {
-  const { data, isPending, error } = useQuery({
-    ...queries.systemWorkers(),
-    // Poll while a run is in flight. A running one changes every few seconds; a queued one changes
-    // when a runner appears, which does not justify the whole panel at the running cadence. The
-    // counts are not free — the transfer's counter validates the whole staging table.
-    refetchInterval: (query) => {
-      const workers = query.state.data?.workers ?? [];
-      if (workers.some((worker) => worker.active_run?.status === "RUNNING")) return 5_000;
-      if (workers.some((worker) => worker.active_run?.status === "QUEUED")) return 15_000;
-      return false;
-    },
-  });
+  const messages = useCopy();
+  const TABS = TAB_IDS.map((id) => ({ id, label: messages.pages.workers[id] }));
+  const search = routeApi.useSearch();
+  const navigate = useNavigate();
+
+  /**
+   * The URL is the state, and a filter change returns to the first page.
+   *
+   * `run` is dropped by anything that is not itself: it highlights the row the panel's link pointed
+   * at, and after a filter change that row may not even be in the list — a ring around nothing reads
+   * as a filter that is not there. Pagination drops it for the same reason.
+   */
+  const patch = (changes: Partial<SystemWorkersSearch>) =>
+    navigate({
+      to: "/sistema/workers",
+      search: {
+        ...search,
+        ...changes,
+        run: "run" in changes ? changes.run : undefined,
+        offset: changes.offset,
+      },
+    });
 
   return (
     <>
       <PageHeader screen="workers" />
-      <PageBody className="gap-3">
-        {error ? <ErrorState error={error} /> : null}
-
-        {isPending ? (
-          <div className="grid gap-3">
-            {Array.from({ length: 5 }).map((_, index) => (
-              <Skeleton key={index} className="h-24" />
-            ))}
-          </div>
-        ) : null}
-
-        {data ? <RunnersCard runners={data.runners ?? []} /> : null}
-
-        {(data?.workers ?? []).map((worker) => <WorkerCard key={worker.name} worker={worker} />)}
+      <div className="px-6">
+        <Tabs items={TABS} active={search.aba ?? "painel"} onChange={(id) => patch({ aba: id as WorkersTab })} />
+      </div>
+      <PageBody>
+        {search.aba === "execucoes" ? <RunsLedger search={search} patch={patch} /> : <WorkersPanel />}
       </PageBody>
     </>
-  );
-}
-
-/**
- * Who is connected, and what each one accepts.
- *
- * The other half of the panel since ADR 0014: the API enqueues and a runner outside it claims the
- * row. Without a runner the queue is a waiting room, so the card says it in words instead of
- * leaving the operator to infer it from a `QUEUED` row that never moves.
- */
-function RunnersCard({ runners }: { runners: WorkerRunner[] }) {
-  const online = runners.filter((runner) => runner.online);
-
-  return (
-    <Card>
-      <CardBody className="grid gap-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-[11px] font-semibold tracking-wide text-(--color-muted) uppercase">Runners</span>
-          <Badge tone={online.length > 0 ? "ok" : "warn"}>{online.length} online</Badge>
-          {runners.length > online.length ? <Badge tone="neutral">{runners.length - online.length} offline</Badge> : null}
-        </div>
-
-        {online.length === 0 ? (
-          <Notice tone="warn" as="div" className="grid gap-1">
-            <p className="font-medium">Nenhum runner conectado</p>
-            <p>
-              Uma execução enfileirada espera até um runner subir. O painel só enfileira: o processo que
-              roda os workers fora da API (ADR 0014).
-            </p>
-          </Notice>
-        ) : null}
-
-        {runners.length > 0 ? (
-          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-            {runners.map((runner) => (
-              <div
-                key={runner.runner_id}
-                className="rounded-md bg-black/[0.02] px-3 py-2 ring-1 ring-(--color-line)"
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <span className="truncate text-sm font-medium">{runner.name}</span>
-                  <Badge tone={runner.online ? "ok" : "neutral"}>{runner.online ? "online" : "offline"}</Badge>
-                </div>
-                <p className="mt-1 font-mono text-[11px] text-(--color-muted)">
-                  {runner.hostname}
-                  {runner.version ? ` · v${runner.version}` : ""} · {runner.concurrency}×
-                </p>
-                <p className="mt-1 text-xs text-(--color-muted)">
-                  {(runner.capabilities ?? []).length > 0
-                    ? (runner.capabilities ?? []).join(", ")
-                    : "nenhum worker"}
-                </p>
-                <p className="mt-1 text-[11px] text-(--color-muted)">
-                  último sinal {formatDateTime(runner.last_heartbeat_at)}
-                </p>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <p className="text-xs text-(--color-muted)">
-            Nenhum runner se registrou ainda. Suba um com <span className="font-mono">runner_daemon</span>.
-          </p>
-        )}
-      </CardBody>
-    </Card>
-  );
-}
-
-function WorkerCard({ worker }: { worker: WorkerStatus }) {
-  const [open, setOpen] = useState(false);
-  const [panel, setPanel] = useState<"none" | "run">("none");
-  const [feedback, setFeedback] = useState<string | null>(null);
-
-  const active = isActiveRun(worker.active_run);
-
-  const openPanel = (next: "run") => {
-    setFeedback(null);
-    setPanel((current) => (current === next ? "none" : next));
-    setOpen(true);
-  };
-
-  return (
-    <Disclosure
-      open={open}
-      onOpenChange={(next) => {
-        setOpen(next);
-        if (!next) setPanel("none");
-      }}
-      toggleLabel="Ver detalhes e enfileirar"
-      className={active ? "ring-(--color-accent)/40" : undefined}
-      header={<WorkerHeader worker={worker} />}
-      actions={
-        /*
-          The ingestion stage is in this catalogue because the panel must show the stage, but its
-          run is about an origin: the generic route refuses it (there is no origin in a
-          `WorkerRunRequest`), so the row points at the screen that owns the origin instead of
-          offering a button the API would answer 422 to.
-        */
-        worker.name === "ingestion" ? (
-          <Link to="/sistema/ingestao">
-            <Button size="sm" variant="secondary">
-              Abrir ingestão
-            </Button>
-          </Link>
-        ) : (
-          <Button
-            size="sm"
-            variant="primary"
-            onClick={() => openPanel("run")}
-            disabled={active}
-            title={
-              active
-                ? "Há uma execução em andamento"
-                : worker.runner_available
-                  ? "Enfileirar uma execução com a configuração efetiva"
-                  : "Nenhum runner online aceita este worker: a execução espera na fila"
-            }
-          >
-            {active ? RUN_STATUS_LABEL[worker.active_run!.status] : ACTION.run.label}
-          </Button>
-        )
-      }
-    >
-      <div className="grid gap-4">
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <Fact label="Configuração efetiva">
-            <span className="font-mono text-xs">{worker.settings.engine_name ?? "sem modelo"}</span>
-            {worker.settings.preset ? <span className="text-(--color-muted)"> · {worker.settings.preset}</span> : null}
-            <p className="mt-1 text-xs text-(--color-muted)">{describeConfig(worker.settings.config)}</p>
-            {worker.settings.overridden ? (
-              <Badge tone="accent" className="mt-1">
-                padrão alterado
-              </Badge>
-            ) : (
-              <Badge tone="neutral" className="mt-1">
-                padrão do código
-              </Badge>
-            )}
-          </Fact>
-
-          <Fact label={`Fila (${UNIT_LABEL[worker.unit]})`}>
-            {worker.pending == null ? (
-              <span className="text-sm text-(--color-warn)">não mensurável</span>
-            ) : (
-              <span className="text-2xl leading-none font-semibold tabular-nums">
-                {formatCount(worker.pending)}
-              </span>
-            )}
-            <p className="mt-1 text-xs text-(--color-muted)">
-              O predicado da fila: o que a próxima execução leria. Não é o ledger do worker.
-            </p>
-          </Fact>
-
-          {/*
-            The breakdown in its own fact, not under the queue (#150): these four numbers cover the
-            worker's whole ledger, and ``pending`` is a different set. Side by side the operator can
-            see the difference — on the reference collection 4.831 stamped against 4.813 pending —
-            instead of reading the breakdown as a decomposition of the queue.
-          */}
-          <Fact label={`${worker.stamp_breakdown ? "Carimbos" : "Processados"} (${UNIT_LABEL[worker.unit]})`}>
-            {worker.stamp_breakdown ? (
-              <>
-                <span className="text-2xl leading-none font-semibold tabular-nums">
-                  {formatCount(
-                    worker.stamp_breakdown.fingerprinted +
-                      worker.stamp_breakdown.legacy +
-                      worker.stamp_breakdown.failed +
-                      worker.stamp_breakdown.unrecorded,
-                  )}
-                </span>
-                <p className="mt-1 text-xs text-(--color-muted)">
-                  {formatCount(worker.stamp_breakdown.fingerprinted)} com produtor
-                  {` · ${formatCount(worker.stamp_breakdown.legacy)} sem produtor conhecido`}
-                  {` · ${formatCount(worker.stamp_breakdown.unrecorded)} sem registro`}
-                  {worker.stamp_breakdown.failed ? ` · ${formatCount(worker.stamp_breakdown.failed)} com falha` : ""}
-                  {" — o ledger inteiro do worker, não a fila."}
-                </p>
-              </>
-            ) : (
-              <>
-                <span className="text-2xl leading-none font-semibold tabular-nums">
-                  {formatCount(worker.processed ?? 0)}
-                </span>
-                <p className="mt-1 text-xs text-(--color-muted)">
-                  já processados
-                  {worker.failed ? ` · ${formatCount(worker.failed)} com falha` : ""} — o ledger do
-                  worker, não a fila.
-                </p>
-              </>
-            )}
-          </Fact>
-
-          <Fact label="Última execução">
-            {worker.last_run ? (
-              <>
-                <Badge tone={RUN_STATUS_TONE[worker.last_run.status]}>{RUN_STATUS_LABEL[worker.last_run.status]}</Badge>
-                <p className="mt-1 text-xs text-(--color-muted)">
-                  {formatDateTime(worker.last_run.queued_at)} · {formatDuration(worker.last_run.duration_ms)} ·{" "}
-                  {TRIGGER_LABEL[worker.last_run.trigger]}
-                  {worker.last_run.attempt > 1
-                    ? ` · tentativa ${worker.last_run.attempt}/${MAX_ATTEMPTS}`
-                    : ""}
-                  {worker.last_run.runner_id ? ` · ${worker.last_run.runner_id}` : ""}
-                </p>
-                {worker.last_run.error ? (
-                  <p className="mt-1 text-xs text-(--color-danger)">{worker.last_run.error}</p>
-                ) : null}
-              </>
-            ) : (
-              <span className="text-sm text-(--color-muted)">nunca rodou</span>
-            )}
-          </Fact>
-
-          <Fact label="Agenda">
-            {worker.schedule ? (
-              <>
-                <span className="font-mono text-xs">{worker.schedule.cron}</span>
-                <p className="mt-1 text-xs text-(--color-muted)">
-                  {worker.schedule.timezone} ·{" "}
-                  {worker.schedule.enabled
-                    ? `próxima ${formatDateTime(worker.schedule.next_run_at)}`
-                    : "pausada"}
-                </p>
-                {worker.schedule.last_skipped_at ? (
-                  <p className="mt-1 text-xs text-(--color-muted)">
-                    pulada em {formatDateTime(worker.schedule.last_skipped_at)} (execução ativa)
-                  </p>
-                ) : null}
-              </>
-            ) : (
-              <span className="text-sm text-(--color-muted)">sem agenda</span>
-            )}
-          </Fact>
-        </div>
-
-        {worker.pending_reason ? (
-          <Notice tone="warn">
-            {worker.pending_reason}
-          </Notice>
-        ) : null}
-
-        {worker.settings.note ? (
-          <p className="text-xs text-(--color-muted)">{worker.settings.note}</p>
-        ) : null}
-
-        {!worker.governed ? (
-          <p className="text-xs text-(--color-muted)">
-            Este worker não respeita o bloqueio de revisão humana — é uma exceção documentada, não um descuido.
-          </p>
-        ) : null}
-
-        {feedback ? (
-          <Notice tone="ok">
-            {feedback}
-          </Notice>
-        ) : null}
-
-        {panel === "run" ? <RunPanel worker={worker} onDone={setFeedback} /> : null}
-      </div>
-    </Disclosure>
-  );
-}
-
-function WorkerHeader({ worker }: { worker: WorkerStatus }) {
-  const active = isActiveRun(worker.active_run);
-  return (
-    <span className="flex min-w-0 flex-wrap items-center gap-2">
-      <span className="grid size-6 shrink-0 place-items-center rounded bg-black/5 text-xs font-semibold tabular-nums">
-        {worker.order}
-      </span>
-      <span className="text-sm font-medium">{worker.label}</span>
-      <span className="font-mono text-[11px] text-(--color-muted)">{worker.name}</span>
-      {worker.settings.overridden ? <Badge tone="accent">padrão alterado</Badge> : null}
-      {active ? <Badge tone="accent">{RUN_STATUS_LABEL[worker.active_run!.status]}</Badge> : null}
-      {!worker.runner_available ? <Badge tone="warn">sem runner</Badge> : null}
-      {worker.schedule ? (
-        <Badge tone={worker.schedule.enabled ? "accent" : "neutral"}>
-          {worker.schedule.enabled ? `agenda ${worker.schedule.cron}` : "agenda pausada"}
-        </Badge>
-      ) : null}
-      {worker.pending != null && worker.pending > 0 ? (
-        <Badge tone="warn">{formatCount(worker.pending)} na fila</Badge>
-      ) : null}
-      {/*
-        The engine, the preset and the model stay on the collapsed row: "with which model is this
-        running?" is the question the screen exists to answer, and making it require a click would
-        hide the answer behind the very interaction it is meant to avoid.
-      */}
-      <span className="w-full font-mono text-[11px] text-(--color-muted)">
-        {worker.settings.engine_name ?? "sem modelo"}
-        {worker.settings.preset ? ` · ${worker.settings.preset}` : ""}
-        {worker.settings.engine_name ? ` — ${describeConfig(worker.settings.config)}` : ""}
-      </span>
-      {worker.active_run?.runner_id ? (
-        <span className="w-full font-mono text-[11px] text-(--color-muted)">
-          runner {worker.active_run.runner_id}
-          {worker.active_run.heartbeat_at ? ` · sinal ${formatDateTime(worker.active_run.heartbeat_at)}` : ""}
-          {worker.active_run.not_before ? ` · recomeça às ${formatDateTime(worker.active_run.not_before)}` : ""}
-        </span>
-      ) : null}
-      <span className="w-full text-xs text-(--color-muted)">{worker.description}</span>
-    </span>
-  );
-}
-
-function Fact({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="rounded-md bg-black/[0.02] px-3 py-2 ring-1 ring-(--color-line)">
-      <p className="mb-1 text-[11px] font-semibold tracking-wide text-(--color-muted) uppercase">{label}</p>
-      {children}
-    </div>
-  );
-}
-
-/** The per-run overrides. Nothing here is persisted; the defaults are the settings panel. */
-function RunPanel({ worker, onDone }: { worker: WorkerStatus; onDone: (message: string) => void }) {
-  const queryClient = useQueryClient();
-  const settings = worker.settings;
-  const [engine, setEngine] = useState(settings.engine_name ?? "");
-  const [preset, setPreset] = useState(settings.preset ?? "");
-  const [batch, setBatch] = useState(settings.db_batch_size ? String(settings.db_batch_size) : "");
-  const [optionValues, setOptionValues] = useState<Record<string, unknown>>(
-    initialOptionValues(settings.options ?? {}, settings.declared_options ?? [], "run"),
-  );
-  const [engineText, setEngineText] = useState("");
-
-  const presets = (settings.available_engines ?? []).find((item) => item.name === engine)?.presets ?? [];
-
-  const run = useMutation({
-    mutationFn: () => {
-      const parsed = parseOptions(engineText);
-      if (parsed.error) throw new Error(parsed.error);
-      const body: WorkerRunRequest = {
-        db_batch_size: batch ? Number(batch) : null,
-        options: optionsForRequest(optionValues, settings.declared_options ?? [], "run"),
-        engine_options: parsed.options ?? {},
-      };
-      if (settings.engine_source === "signature") {
-        body.engine_name = engine || null;
-        body.preset = preset || null;
-      }
-      return triggerWorkerRun(worker.name, body);
-    },
-    onSuccess: (created) => {
-      void queryClient.invalidateQueries({ queryKey: ["system"] });
-      onDone(`Execução #${created.run_id} enfileirada; acompanhe na aba Execuções.`);
-    },
-  });
-
-  return (
-    <Card className="bg-black/[0.02]">
-      <CardBody className="grid gap-3">
-        <p className="text-xs text-(--color-muted)">
-          Esta execução usa a configuração efetiva acima, ajustada só para esta vez. Nada aqui vira padrão.
-        </p>
-
-        {!worker.runner_available ? (
-          <Notice tone="warn">
-            Nenhum runner online aceita este worker: a execução fica na fila até um subir.
-          </Notice>
-        ) : null}
-
-        {settings.engine_source === "signature" ? (
-          <div className="grid gap-3 sm:grid-cols-2">
-            <label className="flex flex-col gap-1 text-xs">
-              Engine
-              <Select
-                value={engine}
-                onChange={(event) => {
-                  setEngine(event.target.value);
-                  setPreset("");
-                }}
-              >
-                {(settings.available_engines ?? []).map((item) => (
-                  <option key={item.name} value={item.name}>
-                    {item.name}
-                  </option>
-                ))}
-              </Select>
-            </label>
-            <label className="flex flex-col gap-1 text-xs">
-              Preset
-              <Select value={preset} onChange={(event) => setPreset(event.target.value)}>
-                <option value="">(o do código)</option>
-                {presets.map((item) => (
-                  <option key={item.name} value={item.name}>
-                    {item.name} — {describeConfig(item.config)}
-                  </option>
-                ))}
-              </Select>
-            </label>
-          </div>
-        ) : (
-          <p className="text-xs text-(--color-muted)">
-            {settings.engine_source === "llm_check_rule"
-              ? "A engine e o preset deste worker vivem na regra LLM_CHECK ativa; aqui só os parâmetros da execução."
-              : "Este worker não carrega modelo."}
-          </p>
-        )}
-
-        <div className="grid gap-3 sm:grid-cols-2">
-          <label className="flex flex-col gap-1 text-xs">
-            Tamanho do lote (vazio = o do código)
-            <Input
-              type="number"
-              min={1}
-              value={batch}
-              onChange={(event) => setBatch(event.target.value)}
-              placeholder={String(settings.db_batch_size ?? "")}
-            />
-          </label>
-        </div>
-
-        <WorkerOptionsFields
-          settings={settings}
-          mode="run"
-          values={optionValues}
-          onChange={setOptionValues}
-        />
-
-        {/*
-          The one free-form box left in the screen, and it is deliberately here: the pass-through is
-          for whoever knows the library, it is never persisted, and the contract enumerates the keys
-          the axis already hands the engine — a value outside that list is the engine's to refuse.
-        */}
-        <Disclosure
-          toggleLabel="Repasses ao engine (avançado)"
-          className="bg-black/[0.02]"
-          header={
-            <span className="text-xs text-(--color-muted)">
-              Parâmetros crus ao construtor do engine — valem só para esta execução e não viram padrão.
-              {(settings.engine_option_names ?? []).length > 0
-                ? ` Este eixo já repassa: ${(settings.engine_option_names ?? []).join(", ")}.`
-                : ""}
-            </span>
-          }
-        >
-          <label className="flex flex-col gap-1 text-xs">
-            Repasses (JSON; ex.: {"{\"device\": \"cpu\"}"})
-            <Textarea
-              rows={2}
-              value={engineText}
-              onChange={(event) => setEngineText(event.target.value)}
-              placeholder="{}"
-            />
-          </label>
-        </Disclosure>
-
-        {run.error ? <ErrorState error={run.error} /> : null}
-
-        <div className="flex items-center gap-2">
-          <Button variant="primary" onClick={() => run.mutate()} disabled={run.isPending}>
-            {run.isPending ? "Enviando…" : ACTION.run.label}
-          </Button>
-          <span className="text-xs text-(--color-muted)">
-            {worker.pending == null
-              ? "A fila não é mensurável a cada leitura."
-              : `${formatCount(worker.pending)} ${UNIT_LABEL[worker.unit]} na fila.`}
-          </span>
-        </div>
-      </CardBody>
-    </Card>
   );
 }

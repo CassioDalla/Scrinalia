@@ -46,7 +46,7 @@ def _path_of(route: str) -> str:
 
 def test_every_queue_card_points_at_a_screen_the_shell_can_open() -> None:
     openable = _implemented()
-    missing = sorted({_path_of(route) for _, _, route, _ in QUEUE_CATALOGUE if _path_of(route) not in openable})
+    missing = sorted({_path_of(route) for _, route in QUEUE_CATALOGUE if _path_of(route) not in openable})
     assert not missing, (
         f"the inbox renders these queues as 'tela pendente' although the screens exist: {missing}. "
         "Add the route to `IMPLEMENTED` in InboxRoute.tsx"

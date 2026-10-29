@@ -1,7 +1,8 @@
-import { createRootRoute, createRoute, createRouter } from "@tanstack/react-router";
+import { createRootRoute, createRoute, createRouter, redirect } from "@tanstack/react-router";
 
 import { AppShell } from "@/components/layout/AppShell";
 import { AnomaliesRoute, validateAnomaliesSearch } from "@/routes/AnomaliesRoute";
+import { BlockedSpellingsRoute, validateBlockedSpellingsSearch } from "@/routes/BlockedSpellingsRoute";
 import { CategoriesRoute, validateCategoriesSearch } from "@/routes/CategoriesRoute";
 import { CleaningRulesRoute } from "@/routes/CleaningRulesRoute";
 import { CollectionRoute, validateCollectionSearch } from "@/routes/CollectionRoute";
@@ -12,18 +13,18 @@ import { DiscoverRoute } from "@/routes/DiscoverRoute";
 import { DocumentRoute } from "@/routes/DocumentRoute";
 import { EntitiesRoute, validateEntitiesSearch } from "@/routes/EntitiesRoute";
 import { InboxRoute } from "@/routes/InboxRoute";
-import { IngestionRoute } from "@/routes/IngestionRoute";
-import { ManualEntryRoute } from "@/routes/ManualEntryRoute";
 import { LevelsRoute } from "@/routes/LevelsRoute";
 import { NerExclusionsRoute } from "@/routes/NerExclusionsRoute";
+import { NewDescriptionRoute, validateNewDescriptionSearch } from "@/routes/NewDescriptionRoute";
 import { NotFoundRoute } from "@/routes/NotFoundRoute";
+import { OriginsRoute } from "@/routes/OriginsRoute";
 import { PlanRoute, validatePlanSearch } from "@/routes/PlanRoute";
 import { SettingsRoute, validateSettingsSearch } from "@/routes/SettingsRoute";
-import { SubjectExclusionsRoute } from "@/routes/SubjectExclusionsRoute";
+import { SubjectExclusionsRoute, validateSubjectExclusionsSearch } from "@/routes/SubjectExclusionsRoute";
 import { SystemHealthRoute } from "@/routes/SystemHealthRoute";
-import { SystemRunsRoute, validateSystemRunsSearch } from "@/routes/SystemRunsRoute";
-import { SystemWorkersRoute } from "@/routes/SystemWorkersRoute";
-import { TagsRoute, validateTagsSearch } from "@/routes/TagsRoute";
+import { SystemWorkersRoute, validateSystemWorkersSearch } from "@/routes/SystemWorkersRoute";
+import { validateSystemRunsSearch } from "@/components/workers/RunsLedger";
+import { LEGACY_STOPWORDS_ABA, TagsRoute, validateTagsSearch } from "@/routes/TagsRoute";
 import { TextTemplatesRoute, validateTextTemplatesSearch } from "@/routes/TextTemplatesRoute";
 import { TreeRoute, validateTreeSearch } from "@/routes/TreeRoute";
 import { TypologiesRoute, validateTypologiesSearch } from "@/routes/TypologiesRoute";
@@ -89,6 +90,20 @@ const documentRoute = createRoute({
   }),
 });
 
+/**
+ * The way into the collection: one description typed in full, or a CSV imported (#205).
+ *
+ * A static segment beside the dossier, like ``/acervo/arvore``: TanStack ranks it above
+ * ``/acervo/$descriptionId``, so "/acervo/nova" can never resolve as a description id. The ``modo``
+ * is the screen's tab, so a link can open the CSV import directly.
+ */
+const newDescriptionRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/acervo/nova",
+  component: NewDescriptionRoute,
+  validateSearch: validateNewDescriptionSearch,
+});
+
 const planRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/arranjo/plano",
@@ -140,6 +155,26 @@ const tagsRoute = createRoute({
   path: "/assuntos/tags",
   component: TagsRoute,
   validateSearch: validateTagsSearch,
+  /**
+   * The tab that moved out (#232), and the bookmarks that still name it.
+   *
+   * `?aba=stopwords` used to open the blocked spellings inside this screen. It became a screen of
+   * its own because the only destructive write of the taxonomy was a sub-tab of a page whose
+   * description never mentioned it; the old address keeps working instead of landing on `Relevância`
+   * with no explanation, which is what the `Tags` button on the verdict screen used to do.
+   */
+  beforeLoad: ({ search }) => {
+    if (search.aba === LEGACY_STOPWORDS_ABA) {
+      throw redirect({ to: "/assuntos/grafias", replace: true });
+    }
+  },
+});
+
+const blockedSpellingsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/assuntos/grafias",
+  component: BlockedSpellingsRoute,
+  validateSearch: validateBlockedSpellingsSearch,
 });
 
 const categoriesRoute = createRoute({
@@ -159,6 +194,7 @@ const subjectExclusionsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/assuntos/excecoes",
   component: SubjectExclusionsRoute,
+  validateSearch: validateSubjectExclusionsSearch,
 });
 
 const entitiesRoute = createRoute({
@@ -206,34 +242,52 @@ const anomaliesRoute = createRoute({
  *
  * A section of its own, not a corner of another screen: the person asking "with which model is this
  * running?" is not doing archival curation, and mixing the two would put engine names in the middle
- * of the collection. Since issue #53 the configuration is a screen of its own
- * (`/configuracoes/workers`, below); this one keeps the machine.
+ * of the collection. Since issue #207 the ledger is the *Execuções* tab of this route and not a
+ * screen beside it — the panel enqueues and the ledger answers, and they are one question asked
+ * twice. Since issue #53 the configuration stays a screen of its own
+ * (`/configuracoes/workers`, below): it answers what the installation is *set* to do.
  */
 const systemWorkersRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/sistema/workers",
   component: SystemWorkersRoute,
+  validateSearch: validateSystemWorkersSearch,
 });
 
-const ingestionRoute = createRoute({
+const originsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/sistema/ingestao",
-  component: IngestionRoute,
+  component: OriginsRoute,
 });
 
-// The manual form has a screen of its own: the record is the whole ISAD(G) record, and a card with
-// thirty controls inside the ingestion screen would push the origin cards down by a screen.
-const manualEntryRoute = createRoute({
+/*
+ * The old path of the entry screen, kept as a redirect so a shared link and the guides that named it
+ * do not break (#205). It is a route without a screen: the copy gate lists it in
+ * ``REDIRECT_ROUTES`` instead of asking for a name in ``lib/screens.ts``, because a menu entry for
+ * a URL that only sends the browser elsewhere would lead nowhere.
+ */
+const legacyNewDescriptionRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/sistema/ingestao/nova",
-  component: ManualEntryRoute,
+  beforeLoad: () => {
+    throw redirect({ to: "/acervo/nova" });
+  },
 });
 
-const systemRunsRoute = createRoute({
+/*
+ * The old path of the ledger, kept as a redirect so a bookmark, a guide and a link inside an error
+ * state keep working (#207). The filters travel with it: `?worker=ner&run=42` lands on the
+ * *Execuções* tab of the merged screen with the same filter and the same highlighted row, and the
+ * `aba` is what the tab bar reads. Listed in ``REDIRECT_ROUTES`` for the same reason as the one
+ * above: a redirect has no heading to name in ``lib/screens.ts``.
+ */
+const legacySystemRunsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/sistema/execucoes",
-  component: SystemRunsRoute,
   validateSearch: validateSystemRunsSearch,
+  beforeLoad: ({ search }) => {
+    throw redirect({ to: "/sistema/workers", search: { ...search, aba: "execucoes" } });
+  },
 });
 
 const systemHealthRoute = createRoute({
@@ -288,6 +342,7 @@ export const router = createRouter({
   routeTree: rootRoute.addChildren([
     inboxRoute,
     collectionRoute,
+    newDescriptionRoute,
     deletionsRoute,
     treeRoute,
     documentRoute,
@@ -297,6 +352,7 @@ export const router = createRouter({
     typologiesRoute,
     vocabularyRoute,
     tagsRoute,
+    blockedSpellingsRoute,
     categoriesRoute,
     discoverRoute,
     subjectExclusionsRoute,
@@ -307,9 +363,9 @@ export const router = createRouter({
     cleaningRulesRoute,
     anomaliesRoute,
     systemWorkersRoute,
-    ingestionRoute,
-    manualEntryRoute,
-    systemRunsRoute,
+    originsRoute,
+    legacyNewDescriptionRoute,
+    legacySystemRunsRoute,
     systemHealthRoute,
     settingsRoute,
     usersRoute,

@@ -8,7 +8,10 @@ import { Badge } from "@/components/ui/Badge";
 import { Card, CardBody } from "@/components/ui/Card";
 import { EmptyState, ErrorState, Skeleton } from "@/components/ui/Feedback";
 import { PageBody } from "@/components/layout/PageBody";
-import { formatCount } from "@/lib/format";
+import { formatCount, formatDateTime } from "@/lib/format";
+import { QUEUE_COPY } from "@/lib/queues";
+import { useCopy } from "@/i18n/context";
+import { fill } from "@/i18n/maps";
 
 /**
  * Screens that exist today.
@@ -38,12 +41,14 @@ function QueueCard({ queue }: { queue: CurationQueue }) {
   const target = pathOf(queue.route);
   const ready = IMPLEMENTED.has(target);
   const empty = queue.count === 0;
+  const copy = QUEUE_COPY[queue.key];
+  const messages = useCopy();
 
   const body = (
     <CardBody className="flex h-full flex-col gap-2">
       <div className="flex items-start justify-between gap-3">
         <span className={empty ? "text-sm font-medium text-(--color-muted)" : "text-sm font-medium"}>
-          {queue.label}
+          {copy.label}
         </span>
         <span
           className={
@@ -55,17 +60,17 @@ function QueueCard({ queue }: { queue: CurationQueue }) {
           {formatCount(queue.count)}
         </span>
       </div>
-      <p className="text-xs text-(--color-muted)">{queue.description}</p>
+      <p className="text-xs text-(--color-muted)">{copy.description}</p>
       <div className="mt-auto pt-1">
         {!ready ? (
-          <Badge tone="neutral" title="Esta tela ainda não foi implementada">
-            tela pendente
+          <Badge tone="neutral" title={messages.pages.inbox.notReadyTitle}>
+            {messages.pages.inbox.notReady}
           </Badge>
         ) : empty ? (
           // Zero is not hidden: the archivist has to know the queue exists and is empty.
-          <Badge tone="neutral">nada pendente</Badge>
+          <Badge tone="neutral">{messages.pages.inbox.empty}</Badge>
         ) : (
-          <span className="text-xs font-medium text-(--color-accent)">abrir →</span>
+          <span className="text-xs font-medium text-(--color-accent)">{messages.pages.inbox.open}</span>
         )}
       </div>
     </CardBody>
@@ -96,6 +101,7 @@ function searchOf(route: string): Record<string, string> {
 }
 
 export function InboxRoute() {
+  const messages = useCopy();
   const { data, isPending, error } = useQuery(queries.inbox());
 
   return (
@@ -122,14 +128,14 @@ export function InboxRoute() {
 
         {data && (!data.queues || data.queues.length === 0) ? (
           <EmptyState
-            title="Nenhuma fila configurada"
-            hint="A API respondeu sem filas. Isso é um problema de contrato, não um acervo limpo."
+            title={messages.pages.inbox.emptyTitle}
+            hint={messages.pages.inbox.emptyHint}
           />
         ) : null}
 
         {data ? (
           <p className="mt-4 text-xs text-(--color-muted)">
-            Contagens geradas em {new Date(data.generated_at).toLocaleString("pt-BR")}.
+            {fill(messages.pages.inbox.countsGenerated, { date: formatDateTime(data.generated_at) })}
           </p>
         ) : null}
       </PageBody>

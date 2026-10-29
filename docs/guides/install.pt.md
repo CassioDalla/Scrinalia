@@ -243,13 +243,15 @@ quem alcançar a instância primeiro pode criar essa conta; o `POST /api/v1/setu
 por um lock de tabela, então duas tentativas simultâneas não podem dar certo as duas, mas o lock não
 fecha a janela (ADR 0011). **Configure a instância antes de expô-la.**
 
+A interface abre em português. Cada conta pode passar para inglês no menu da conta; a escolha fica guardada na conta, e a API responde na língua que a requisição pede.
+
 ### 7. Suba a API
 
 ```bash
 uv run uvicorn main:app --host 0.0.0.0 --port 8000 --workers 1
 ```
 
-Depois da migração, a origem `pmc` já existe em `ingestion_origins` (as URLs acima são semeadas nela quando presentes) e a origem `manual` está habilitada. A tela `/sistema/ingestao` é onde a instalação configura as duas.
+Depois da migração, uma instalação nova tem **nenhuma origem configurada**: `ingestion_origins` guarda só as linhas manual e CSV, que são as entradas e aparecem só para leitura. A tela `/sistema/ingestao` é onde o operador adiciona uma origem do pacote — a definição `pmc` está no seletor, e as URLs acima são o fallback dela quando os campos estão vazios — e uma descrição é digitada ou importada em `/acervo/nova`.
 
 A API fica em `http://localhost:8000/`, a interface no mesmo endereço e o documento OpenAPI em
 `/schema/swagger`. O `--reload` é de desenvolvimento (`bun run api:dev`), não de uma instalação.
@@ -512,8 +514,8 @@ interface serve imagens quebradas. Faça o backup das duas juntas e restaure as 
   contínuo nem envio de WAL; o ponto de recuperação é o dump.
 - **Uma descrição excluída.** O `DELETE /api/v1/documents/{id}` é a única operação que remove um
   registro. Ele fotografa a linha inteira em `archive_document_deletions` — código de referência,
-  título, nível, todo o conteúdo ISAD(G), quem excluiu e por quê —, mas a tela `Acervo › Excluídas`
-  é uma trilha, não uma lixeira: não há restauração. Um nó com filhos é recusado de saída, porque a
+  título, nível, todo o conteúdo ISAD(G), quem excluiu e por quê —, mas a tela `Acervo › Histórico de
+  exclusões` é só um registro, não uma lixeira: não há restauração. Um nó com filhos é recusado de saída, porque a
   chave estrangeira que referencia a própria tabela é `RESTRICT`.
 - **As miniaturas, se o bucket se perder.** O banco continua nomeando-as, e o worker poderia
   derivar uma de novo a partir de `original_thumbnail_url` enquanto o site de origem ainda servir a

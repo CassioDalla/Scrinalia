@@ -1,6 +1,8 @@
 import type { WorkerOption, WorkerSettings } from "@/api/client";
 import { Field } from "@/components/ui/Field";
 import { Input } from "@/components/ui/Input";
+import { useCopy } from "@/i18n/context";
+import { fieldMap } from "@/i18n/maps";
 
 /**
  * The declared options of a worker, rendered as controls instead of a JSON box (issue #120).
@@ -17,55 +19,17 @@ import { Input } from "@/components/ui/Input";
  * * `run` — the body **overrides** one execution: a flag is always sent (unchecking the box is a
  *   decision to turn off a persisted `force`), and an empty field still means "the default".
  *
- * The labels are Portuguese because a person reads them; the option's name stays visible under the
- * control, because the operator reads it in the guide and on the command line.
+ * The labels are the catalogue's (`pages.workerOptions.options`), keyed by the name the contract
+ * declares; the option's name stays visible under the control, because the operator reads it in the
+ * guide and on the command line. A name the catalogue does not carry renders itself as the label,
+ * which is the honest fallback for an option the contract added and the copy has not caught up with.
  */
 
-/** The Portuguese label of an option, and the one-line explanation under it. */
-const COPY: Record<string, { label: string; hint?: string }> = {
-  columns_to_extract: {
-    label: "Colunas lidas pela IA",
-    hint: "O texto que o worker lê. Vazio = a escolha do código.",
-  },
-  columns_to_classify: {
-    label: "Colunas lidas pela IA",
-    hint: "O texto que o worker lê. Vazio = a escolha do código.",
-  },
-  confidence_threshold: {
-    label: "Limite de confiança",
-    hint: "Abaixo dele o resultado não é vinculado.",
-  },
-  force: {
-    label: "Forçar",
-    hint: "Re-lê o que já foi carimbado por outro produtor.",
-  },
-  limit: {
-    label: "Limite de documentos",
-    hint: "Vale só para esta execução; não vira padrão.",
-  },
-  repeat_threshold: {
-    label: "Repetições para tratar como modelo",
-    hint: "Quantos títulos iguais caracterizam um resto de modelo.",
-  },
-  llm_confidence: {
-    label: "Confiança mínima do LLM",
-    hint: "Abaixo dela a revisão de título é descartada.",
-  },
-  similarity_threshold: {
-    label: "Similaridade mínima",
-    hint: "O trigram entre a tag e a entidade para entrar no julgamento.",
-  },
-  auto_resolve_threshold: {
-    label: "Confiança para resolver sozinho",
-    hint: "Abaixo dela o conflito vai para a fila de revisão.",
-  },
-};
+/** The label of a declared option, and the one-line explanation under it, read through the catalogue. */
+const OPTION_LABEL = fieldMap((m) => m.pages.workerOptions.options, "label");
+const OPTION_HINT = fieldMap((m) => m.pages.workerOptions.options, "hint");
 
 type OptionsMode = "settings" | "run";
-
-function labelOf(option: WorkerOption): { label: string; hint?: string } {
-  return COPY[option.name] ?? { label: option.name };
-}
 
 /** The options this screen may show: the run cap is not a default. */
 export function optionsForMode(options: WorkerOption[], mode: OptionsMode): WorkerOption[] {
@@ -114,9 +78,10 @@ export function WorkerOptionsFields({
   values: Record<string, unknown>;
   onChange: (next: Record<string, unknown>) => void;
 }) {
+  const messages = useCopy();
   const options = optionsForMode(settings.declared_options ?? [], mode);
   if (options.length === 0) {
-    return <p className="text-xs text-(--color-muted)">Este worker não declara opções além da engine e do lote.</p>;
+    return <p className="text-xs text-(--color-muted)">{messages.pages.workerOptions.none}</p>;
   }
 
   const set = (name: string, value: unknown) => {
@@ -129,7 +94,8 @@ export function WorkerOptionsFields({
   return (
     <div className="grid gap-3 sm:grid-cols-2">
       {options.map((option) => {
-        const copy = labelOf(option);
+        const label = OPTION_LABEL[option.name];
+        const hint = OPTION_HINT[option.name];
         const value = values[option.name];
         if (option.kind === "boolean") {
           return (
@@ -147,9 +113,9 @@ export function WorkerOptionsFields({
                 }}
               />
               <span className="grid gap-0.5">
-                <span>{copy.label}</span>
+                <span>{label}</span>
                 <span className="font-mono text-[11px] text-(--color-muted)">{option.name}</span>
-                {copy.hint ? <span className="text-(--color-muted)">{copy.hint}</span> : null}
+                {hint ? <span className="text-(--color-muted)">{hint}</span> : null}
               </span>
             </label>
           );
@@ -161,14 +127,14 @@ export function WorkerOptionsFields({
               className="sm:col-span-2"
               label={
                 <>
-                  {copy.label} <code className="font-mono text-[11px] text-(--color-muted)">{option.name}</code>
+                  {label} <code className="font-mono text-[11px] text-(--color-muted)">{option.name}</code>
                 </>
               }
-              hint={copy.hint}
+              hint={hint}
             >
               <div className="flex flex-wrap gap-x-4 gap-y-1 rounded-md bg-black/[0.02] px-3 py-2">
                 {(option.choices ?? []).length === 0 ? (
-                  <span className="text-(--color-muted)">O contrato não declara colunas para esta opção.</span>
+                  <span className="text-(--color-muted)">{messages.pages.workerOptions.noColumns}</span>
                 ) : null}
                 {(option.choices ?? []).map((column) => {
                   const selected = Array.isArray(value) ? (value as string[]) : [];
@@ -194,10 +160,10 @@ export function WorkerOptionsFields({
         }
         if (option.kind === "list") {
           return (
-            <Field key={option.name} label={copy.label} hint={copy.hint}>
+            <Field key={option.name} label={label} hint={hint}>
               <Input
                 value={Array.isArray(value) ? (value as string[]).join(", ") : ""}
-                placeholder="separadas por vírgula"
+                placeholder={messages.pages.workerOptions.listPlaceholder}
                 onChange={(event) => {
                   const parts = event.target.value
                     .split(",")
@@ -215,16 +181,20 @@ export function WorkerOptionsFields({
             key={option.name}
             label={
               <>
-                {copy.label} <code className="font-mono text-[11px] text-(--color-muted)">{option.name}</code>
+                {label} <code className="font-mono text-[11px] text-(--color-muted)">{option.name}</code>
               </>
             }
-            hint={copy.hint}
+            hint={hint}
           >
             <Input
               type={numeric ? "number" : "text"}
               step={option.kind === "number" ? "any" : undefined}
               value={value === undefined || value === null ? "" : String(value)}
-              placeholder={option.default === null || option.default === undefined ? "o do código" : String(option.default)}
+              placeholder={
+                option.default === null || option.default === undefined
+                  ? messages.pages.workerOptions.defaultPlaceholder
+                  : String(option.default)
+              }
               onChange={(event) => {
                 const text = event.target.value;
                 if (text === "") {

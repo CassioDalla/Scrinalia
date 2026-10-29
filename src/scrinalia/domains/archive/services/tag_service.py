@@ -1,10 +1,12 @@
-import re
 from collections.abc import Sequence
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Literal
 
 from scrinalia.core.author import Author
+from scrinalia.core.i18n import t
 from scrinalia.core.logger import logger
+from scrinalia.domains.archive.domain.access_points import AccessPointStatus, classify_indexing_points
 from scrinalia.domains.archive.domain.normalization import normalize_stopword, normalize_tag
 from scrinalia.domains.archive.domain.text_quality import AI_TEXT_COLUMNS, unknown_ai_columns
 from scrinalia.domains.archive.exceptions import (
@@ -19,6 +21,8 @@ from scrinalia.domains.archive.models.enums import StopwordMatch, StopwordsScope
 from scrinalia.domains.archive.ports.document import DocumentRepositoryPort
 from scrinalia.domains.archive.ports.taxonomy import StopwordSource, SubjectExclusionSource, TagRepositoryPort
 from scrinalia.domains.archive.schemas import (
+    AccessPointPreviewResponse,
+    AccessPointResolution,
     ArchiveMacroCategoryEntityDTO,
     ArchiveTagDTO,
     BatchMergeResponse,
@@ -90,6 +94,15 @@ MAX_MERGE_LOG_PAGE = 200
 MIN_SEARCH_TERM = 2
 
 
+@dataclass(frozen=True, slots=True)
+class TagResolution:
+    """What one spelling resolves to: the name the transfer links and whether it will create it."""
+
+    name: str
+    status: AccessPointStatus
+    tag_id: int | None
+
+
 class TagService:
     """
     Domain service responsible for auditing, sanitizing and unifying
@@ -116,37 +129,25 @@ class TagService:
 
     def extract_and_clean_tags(self, indexing_points: str | None) -> list[ArchiveTagDTO]:
         """
-        Reads the raw indexing points (comma-separated), applies
-        the stopwords dictionary from the database and returns the validated contracts.
+        Reads the raw access points into the DTOs the transfer links.
+
+        The reading is ``classify_indexing_points`` — the same one the creation form previews — so
+        the two cannot disagree about what a spelling becomes. A banned term is dropped only when it
+        is the whole tag, and the order of the string is preserved.
         """
         if not indexing_points:
             return []
 
-        # Fetches the active stopwords directly from the database
-        stopwords = self._get_stopwords()
+        candidates = classify_indexing_points(indexing_points, self._get_stopwords())
 
-        # The staging layer may join duplicate source keys with " | ", so both "|" and
-        # "," are treated as tag separators.
-        raw_tags = re.split(r"[,|]", indexing_points)
-        clean_tags = set()
-
-        for tag in raw_tags:
-            tag = tag.strip().lower()
-
-            # A stopword only removes the tag when it is the WHOLE tag. Removing it as a
-            # substring would destroy valid multi-word tags ("Rio Branco" -> "Branco").
-            if tag in stopwords:
-                continue
-
-            tag = re.sub(r"\s+", " ", tag)
-
-            if 2 < len(tag) <= 100:
-                clean_tags.add(tag)
-            elif len(tag) > 100:
-                logger.warning(f"⚠️ Tag ignored for being too long: '{tag[:50]}...'")
+        for candidate in candidates:
+            if candidate.dropped is AccessPointStatus.TOO_LONG:
+                logger.warning(f"⚠️ Tag ignored for being too long: '{candidate.normalized[:50]}...'")
 
         return [
-            ArchiveTagDTO(name=tag_name, macro_category_id=None, ai_confidence_score=None) for tag_name in clean_tags
+            ArchiveTagDTO(name=candidate.normalized, macro_category_id=None, ai_confidence_score=None)
+            for candidate in candidates
+            if candidate.dropped is None
         ]
 
     def process_worker_tags(self, dtos_from_worker: list[ArchiveTagDTO]) -> list[int]:
@@ -186,6 +187,80 @@ class TagService:
         # 5. Returns a set converted to a list to ensure the same document
         # does not receive the same tag ID twice (e.g. if "park" and "parks" come in the same document)
         return list(set(final_ids_for_document))
+
+    def resolve_tag_names(self, names: Sequence[str]) -> dict[str, TagResolution]:
+        """
+        What each spelling resolves to in the catalogue, without writing anything.
+
+        A synonym wins over the spelling itself, exactly as ``process_worker_tags`` decides; an
+        exact normalized name is ``EXISTING``; anything else is ``NEW``. The transfer's write path
+        is pinned to this reading by an integration test, so the preview cannot promise an outcome
+        the archive will not carry.
+        """
+        normalized = list(dict.fromkeys(normalize_tag(name) for name in names))
+        if not normalized:
+            return {}
+
+        synonyms = self.repo.get_synonyms_mapping(normalized)
+        existing = self.repo.get_tag_identities_by_names([name for name in normalized if name not in synonyms])
+        canonical = self.repo.get_tag_identities_by_ids(sorted(set(synonyms.values()))) if synonyms else {}
+
+        resolutions: dict[str, TagResolution] = {}
+        for name in normalized:
+            if name in synonyms:
+                canonical_id = synonyms[name]
+                identity = canonical.get(canonical_id)
+                if identity is None:
+                    # The foreign key makes a dangling synonym impossible; if one appears anyway,
+                    # treating it as new is better than promising to link a row that is not there.
+                    resolutions[name] = TagResolution(name=name, status=AccessPointStatus.NEW, tag_id=None)
+                else:
+                    resolutions[name] = TagResolution(
+                        name=identity.name, status=AccessPointStatus.SYNONYM, tag_id=canonical_id
+                    )
+            elif name in existing:
+                identity = existing[name]
+                resolutions[name] = TagResolution(
+                    name=identity.name, status=AccessPointStatus.EXISTING, tag_id=identity.tag_id
+                )
+            else:
+                resolutions[name] = TagResolution(name=name, status=AccessPointStatus.NEW, tag_id=None)
+
+        return resolutions
+
+    def preview_access_points(self, indexing_points: str | None) -> AccessPointPreviewResponse:
+        """
+        The reading the creation form shows under the field, before anything is written.
+
+        It is the classifier the transfer uses plus a read-only catalogue resolution: a term that is
+        already a tag, a synonym of one, or a spelling the transfer will create. A dropped entry
+        carries ``name=None`` and the reason in ``status``, so the form can quote what the archivist
+        typed and say what will happen to it.
+        """
+        if not indexing_points:
+            return AccessPointPreviewResponse(items=[])
+
+        candidates = classify_indexing_points(indexing_points, self._get_stopwords())
+        kept = [candidate for candidate in candidates if candidate.dropped is None]
+        resolutions = self.resolve_tag_names([candidate.normalized for candidate in kept])
+
+        items: list[AccessPointResolution] = []
+        for candidate in candidates:
+            if candidate.dropped is not None:
+                items.append(AccessPointResolution(input=candidate.input, status=candidate.dropped))
+                continue
+
+            resolution = resolutions[candidate.normalized]
+            items.append(
+                AccessPointResolution(
+                    input=candidate.input,
+                    name=resolution.name,
+                    status=resolution.status,
+                    tag_id=resolution.tag_id,
+                )
+            )
+
+        return AccessPointPreviewResponse(items=items)
 
     def save_new_stopwords(
         self,
@@ -324,7 +399,7 @@ class TagService:
         Searches for tags with typos or high similarity using the pg_trgm extension.
         """
         if not target_tag:
-            raise InvalidParam("O parametro 'target_tag' é obrigatório")
+            raise InvalidParam(t("O parametro 'target_tag' é obrigatório"))
 
         # Business rule: always search in lowercase
         target_lower = target_tag.strip().lower()
@@ -366,12 +441,17 @@ class TagService:
         table and this is the only trace the decision leaves.
         """
         if command.macro_category_id is not None and self.repo.get_macro_category(command.macro_category_id) is None:
-            raise MacroCategoryNotFoundError(f"Categoria macro {command.macro_category_id} não existe no catálogo.")
+            raise MacroCategoryNotFoundError(
+                t(
+                    "Categoria macro {macro_category_id} não existe no catálogo.",
+                    macro_category_id=command.macro_category_id,
+                )
+            )
 
         stamp = _curation_stamp(command.macro_category_id, command.changed_by)
         updated = self.repo.update_tag_macro_category(tag_id, command.macro_category_id, stamp)
         if updated is None:
-            raise TagNotFoundError(f"Tag {tag_id} não existe no vocabulário.")
+            raise TagNotFoundError(t("Tag {tag_id} não existe no vocabulário.", tag_id=tag_id))
 
         excluded = command.macro_category_id is None
         if excluded:
@@ -431,7 +511,7 @@ class TagService:
         cluster is not re-proposed after a human rejected it.
         """
         if not 0 < threshold <= 1:
-            raise InvalidParam("O parâmetro 'threshold' deve estar entre 0 e 1.")
+            raise InvalidParam(t("O parâmetro 'threshold' deve estar entre 0 e 1."))
 
         suggestions = self.repo.find_merge_suggestions(threshold=threshold, limit=limit)
         persisted = self.repo.upsert_merge_proposals(suggestions)
@@ -465,9 +545,14 @@ class TagService:
     ) -> TagMergeProposalListResponse:
         """One page of proposals with the total matching the same filters (no silent truncation)."""
         if limit <= 0 or limit > MAX_MERGE_PROPOSALS_PAGE:
-            raise InvalidParam(f"O parâmetro 'limit' deve estar entre 1 e {MAX_MERGE_PROPOSALS_PAGE}.")
+            raise InvalidParam(
+                t(
+                    "O parâmetro 'limit' deve estar entre 1 e {max_merge_proposals_page}.",
+                    max_merge_proposals_page=MAX_MERGE_PROPOSALS_PAGE,
+                )
+            )
         if offset < 0:
-            raise InvalidParam("O parâmetro 'offset' não pode ser negativo.")
+            raise InvalidParam(t("O parâmetro 'offset' não pode ser negativo."))
 
         total = self.repo.count_merge_proposals(
             status=status, reason=reason, min_documents=min_documents, flagged_only=flagged_only
@@ -495,7 +580,10 @@ class TagService:
         )
         if updated is None:
             raise TagMergeProposalNotFoundError(
-                f"Proposta de mesclagem {proposal_id} não encontrada no catálogo de curadoria."
+                t(
+                    "Proposta de mesclagem {proposal_id} não encontrada no catálogo de curadoria.",
+                    proposal_id=proposal_id,
+                )
             )
         return updated
 
@@ -522,7 +610,12 @@ class TagService:
         """
         proposal_ids = list(dict.fromkeys(command.proposal_ids))
         if len(proposal_ids) > MAX_MERGE_BATCH_CLUSTERS:
-            raise InvalidParam(f"O lote aceita no máximo {MAX_MERGE_BATCH_CLUSTERS} clusters por requisição.")
+            raise InvalidParam(
+                t(
+                    "O lote aceita no máximo {max_merge_batch_clusters} clusters por requisição.",
+                    max_merge_batch_clusters=MAX_MERGE_BATCH_CLUSTERS,
+                )
+            )
 
         entries: list[MergeBatchEntry] = []
         failures: list[MergeBatchFailure] = []
@@ -607,9 +700,14 @@ class TagService:
     ) -> MergeLogListResponse:
         """The audit trail of the merges, with the total matching the same filters."""
         if limit <= 0 or limit > MAX_MERGE_LOG_PAGE:
-            raise InvalidParam(f"O parâmetro 'limit' deve estar entre 1 e {MAX_MERGE_LOG_PAGE}.")
+            raise InvalidParam(
+                t(
+                    "O parâmetro 'limit' deve estar entre 1 e {max_merge_log_page}.",
+                    max_merge_log_page=MAX_MERGE_LOG_PAGE,
+                )
+            )
         if offset < 0:
-            raise InvalidParam("O parâmetro 'offset' não pode ser negativo.")
+            raise InvalidParam(t("O parâmetro 'offset' não pode ser negativo."))
 
         total = self.repo.count_merge_log(
             canonical_id=canonical_id, changed_by_name=changed_by_name, include_undone=include_undone, term=term
@@ -653,29 +751,34 @@ class TagService:
             proposal = self.repo.get_merge_proposal(command.proposal_id)
             if proposal is None:
                 raise TagMergeProposalNotFoundError(
-                    f"Proposta de mesclagem {command.proposal_id} não encontrada no catálogo de curadoria."
+                    t(
+                        "Proposta de mesclagem {proposal_id} não encontrada no catálogo de curadoria.",
+                        proposal_id=command.proposal_id,
+                    )
                 )
             if proposal.canonical_id is None:
-                raise InvalidParam("A proposta não tem mais uma tag canônica válida para simular.")
+                raise InvalidParam(t("A proposta não tem mais uma tag canônica válida para simular."))
 
             ids = [member.tag_id for member in proposal.members if member.tag_id != proposal.canonical_id]
             return proposal.canonical_id, ids
 
         if command.canonical_id is None:
-            raise InvalidParam("Informe 'proposal_id' ou 'canonical_id' com 'ids_to_merge'.")
+            raise InvalidParam(t("Informe 'proposal_id' ou 'canonical_id' com 'ids_to_merge'."))
         return command.canonical_id, list(command.ids_to_merge)
 
     def _validate_merge_inputs(self, canonical_id: int, ids_to_merge: Sequence[int]) -> None:
         """The business rules a merge (and its dry-run, identically) has to respect."""
         if not ids_to_merge:
-            raise InvalidParam("A lista de tags para mesclar não pode estar vazia.")
+            raise InvalidParam(t("A lista de tags para mesclar não pode estar vazia."))
 
         if canonical_id in ids_to_merge:
-            raise InvalidMergeError("O ID da tag canônica não pode estar na lista de exclusão.")
+            raise InvalidMergeError(t("O ID da tag canônica não pode estar na lista de exclusão."))
 
         canonical_exists = self.repo.get_by_id(canonical_id)
         if not canonical_exists:
-            raise InvalidParam(f"A tag canônica informada (ID {canonical_id}) não existe no acervo.")
+            raise InvalidParam(
+                t("A tag canônica informada (ID {canonical_id}) não existe no acervo.", canonical_id=canonical_id)
+            )
 
     def get_text_to_suggest_macro_category(
         self,
@@ -689,7 +792,7 @@ class TagService:
         logger.info(f"🔍 Starting topic discovery using source_type:{source_type}...")
 
         if source_type not in ["tags", "documents"]:
-            raise InvalidParam("O parâmetro 'source_type' deve ser obrigatoriamente 'tags' ou 'documents'.")
+            raise InvalidParam(t("O parâmetro 'source_type' deve ser obrigatoriamente 'tags' ou 'documents'."))
 
         if source_type == "tags":
             texts_to_analyze = self.repo.fetch_tags_for_clustering()
@@ -704,8 +807,11 @@ class TagService:
             unknown = unknown_ai_columns(columns_to_extract or [])
             if unknown:
                 raise InvalidParam(
-                    f"Estas colunas não fazem parte do texto da IA: {', '.join(unknown)}. "
-                    f"O texto da IA tem: {', '.join(AI_TEXT_COLUMNS)}."
+                    t(
+                        "Estas colunas não fazem parte do texto da IA: {unknown}. O texto da IA tem: {ai_text_columns}.",
+                        unknown=", ".join(unknown),
+                        ai_text_columns=", ".join(AI_TEXT_COLUMNS),
+                    )
                 )
             texts_to_analyze = self.document_repo.fetch_documents_for_clustering(columns_to_extract=columns_to_extract)
 
@@ -745,7 +851,7 @@ class TagService:
         """
         clean_words = [normalize_tag(word) for word in words if word.strip()]
         if not clean_words:
-            raise InvalidParam("Nenhum termo válido foi informado.")
+            raise InvalidParam(t("Nenhum termo válido foi informado."))
         return self.repo.plan_subject_exclusions(clean_words)
 
     def exclude_terms_from_subjects(
@@ -807,7 +913,7 @@ class TagService:
         """
         name = command.name.strip()
         if not name:
-            raise InvalidParam("O nome da macro categoria não pode ser vazio.")
+            raise InvalidParam(t("O nome da macro categoria não pode ser vazio."))
 
         logger.info(f"🏷️ Registering macro category '{name}'...")
         label = command.classifier_label.strip() if command.classifier_label else None
@@ -822,7 +928,7 @@ class TagService:
         if "name" in changes and changes["name"] is not None:
             changes["name"] = changes["name"].strip()
             if not changes["name"]:
-                raise InvalidParam("O nome da macro categoria não pode ser vazio.")
+                raise InvalidParam(t("O nome da macro categoria não pode ser vazio."))
 
         # Blanking the label is how the curator falls back to the bare name; storing "" would
         # send the model an empty hypothesis, which is worse than the name it replaced.
@@ -832,6 +938,8 @@ class TagService:
 
         updated = self.repo.update_macro_category(category_id, changes)
         if updated is None:
-            raise MacroCategoryNotFoundError(f"Macro categoria {category_id} não encontrada no acervo.")
+            raise MacroCategoryNotFoundError(
+                t("Macro categoria {category_id} não encontrada no acervo.", category_id=category_id)
+            )
 
         return updated

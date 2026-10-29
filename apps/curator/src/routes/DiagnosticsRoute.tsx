@@ -10,6 +10,7 @@ import { EmptyState, ErrorState, Spinner } from "@/components/ui/Feedback";
 import { formatCount } from "@/lib/format";
 import { DETAIL_LABEL, ISSUE_ACTION, ISSUE_HINT, ISSUE_LABEL, labelOf } from "@/lib/hierarchy";
 import { asNumber, asString } from "@/lib/search";
+import { useCopy } from "@/i18n/context";
 
 const routeApi = getRouteApi("/arranjo/diagnostico");
 
@@ -35,6 +36,7 @@ export function validateDiagnosticsSearch(search: Record<string, unknown>): Diag
 export function DiagnosticsRoute() {
   const search = routeApi.useSearch();
   const navigate = useNavigate();
+  const messages = useCopy();
 
   const vocabulary = useQuery(queries.hierarchyVocabulary());
   const summary = useQuery(queries.diagnosticSummary());
@@ -61,14 +63,14 @@ export function DiagnosticsRoute() {
         screen="diagnostics"
         actions={
           <Link to="/arranjo/plano">
-            <Button size="sm">Plano de arranjo</Button>
+            <Button size="sm">{messages.pages.diagnostics.openPlan}</Button>
           </Link>
         }
       />
 
       <div className="flex min-h-0">
         <aside className="w-80 shrink-0 border-r border-(--color-line) bg-(--color-surface)">
-          {summary.isPending ? <Spinner label="Contando os problemas…" /> : null}
+          {summary.isPending ? <Spinner label={messages.pages.diagnostics.counting} /> : null}
           {summary.error ? (
             <div className="p-4">
               <ErrorState error={summary.error} />
@@ -106,8 +108,9 @@ export function DiagnosticsRoute() {
             })}
           </ul>
           <p className="px-4 py-3 text-xs text-(--color-muted)">
-            As contagens se sobrepõem de propósito — um Dossiê na raiz é ao mesmo tempo{" "}
-            <code>ORPHAN</code> e <code>DOSSIER_WITHOUT_PARENT</code> — por isso não há um total geral.
+            {messages.pages.diagnostics.overlap
+              .replace("{orphan}", labelOf(ISSUE_LABEL, "ORPHAN"))
+              .replace("{dossier}", labelOf(ISSUE_LABEL, "DOSSIER_WITHOUT_PARENT"))}
           </p>
         </aside>
 
@@ -126,8 +129,8 @@ export function DiagnosticsRoute() {
 
           {page.data && page.data.total === 0 ? (
             <EmptyState
-              title="Nenhuma descrição com este problema"
-              hint="O diagnóstico rodou e não encontrou nada deste tipo. Isto é o esperado para PATH_DIVERGENCE: a invariante do caminho é garantida por quem escreve."
+              title={messages.pages.diagnostics.emptyTitle}
+              hint={messages.pages.diagnostics.emptyHint}
             />
           ) : null}
 
@@ -146,14 +149,14 @@ export function DiagnosticsRoute() {
                         {item.title || item.description_id}
                       </Link>
                       <div className="flex items-center gap-2">
-                        {item.level ? <Badge tone="neutral">{item.level}</Badge> : <Badge tone="warn">sem nível</Badge>}
+                        {item.level ? <Badge tone="neutral">{item.level}</Badge> : <Badge tone="warn">{messages.pages.diagnostics.noLevel}</Badge>}
                         <code className="text-xs text-(--color-muted)">{item.description_id}</code>
                       </div>
                     </div>
 
                     <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-(--color-muted)">
                       <span>
-                        código: <code>{item.reference_code ?? "—"}</code>
+                        {messages.pages.diagnostics.codeLabel} <code>{item.reference_code ?? "—"}</code>
                       </span>
                       <span title={item.path}>
                         caminho: <code>{item.path.length > 40 ? `…${item.path.slice(-40)}` : item.path}</code>
@@ -185,7 +188,7 @@ export function DiagnosticsRoute() {
                           search={{ aba: "arranjo" }}
                         >
                           <Button size="sm" variant="secondary">
-                            {action?.label ?? "abrir a descrição"}
+                            {action?.label ?? messages.pages.diagnostics.openDescription}
                           </Button>
                         </Link>
                       )}
@@ -203,7 +206,7 @@ export function DiagnosticsRoute() {
                 disabled={offset === 0}
                 onClick={() => navigate({ to: "/arranjo/diagnostico", search: { issue, offset: Math.max(0, offset - DIAGNOSTICS_PAGE_SIZE) } })}
               >
-                ← Anterior
+                {messages.common.previous}
               </Button>
               <span className="text-xs text-(--color-muted)">
                 {formatCount(offset + 1)}–{formatCount(Math.min(offset + DIAGNOSTICS_PAGE_SIZE, page.data.total))} de{" "}
@@ -219,7 +222,7 @@ export function DiagnosticsRoute() {
                   })
                 }
               >
-                Próxima →
+                {messages.common.next}
               </Button>
             </div>
           ) : null}

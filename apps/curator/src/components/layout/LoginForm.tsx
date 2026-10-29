@@ -5,6 +5,8 @@ import { ApiError, login } from "@/api/client";
 import { Lockup } from "@/components/brand/Lockup";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { useCopy } from "@/i18n/context";
+import { Trans } from "@/i18n/trans";
 
 /**
  * The way in.
@@ -26,6 +28,7 @@ import { Input } from "@/components/ui/Input";
  * pretending otherwise would leave somebody waiting for something that was never going to arrive.
  */
 export function LoginForm() {
+  const copy = useCopy();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const queryClient = useQueryClient();
@@ -63,7 +66,7 @@ export function LoginForm() {
 
         <div className="p-6">
           <label className="block pb-3 text-sm">
-            <span className="pb-1 block text-(--color-muted)">E-mail</span>
+            <span className="pb-1 block text-(--color-muted)">{copy.auth.login.email}</span>
             <Input
               type="email"
               value={email}
@@ -74,7 +77,7 @@ export function LoginForm() {
           </label>
 
           <label className="block pb-5 text-sm">
-            <span className="pb-1 block text-(--color-muted)">Senha</span>
+            <span className="pb-1 block text-(--color-muted)">{copy.auth.login.password}</span>
             <Input
               type="password"
               value={password}
@@ -85,7 +88,7 @@ export function LoginForm() {
 
           {failure ? (
             <p className="pb-4 text-sm text-(--color-danger)">
-              {failure instanceof ApiError ? failure.message : "Não foi possível entrar."}
+              {failure instanceof ApiError ? failure.message : copy.auth.login.failure}
             </p>
           ) : null}
 
@@ -95,13 +98,8 @@ export function LoginForm() {
             className="w-full"
             disabled={signIn.isPending || !email || !password}
           >
-            {signIn.isPending ? "Entrando…" : "Entrar"}
+            {signIn.isPending ? copy.auth.login.signingIn : copy.auth.login.signIn}
           </Button>
-
-          <p className="pt-4 text-xs text-(--color-muted)">
-            Sem recuperação por e-mail. Quem esqueceu a senha pede a um administrador da instalação, que a
-            redefine na tela de contas.
-          </p>
 
           {/*
           A native `details`, like the deletion trail's snapshot: the copy is one small block that must
@@ -109,21 +107,15 @@ export function LoginForm() {
           disclosure control a screen reader announces as one.
         */}
           <details className="pt-3 text-xs">
-            <summary className="cursor-pointer text-(--color-muted)">Esqueci minha senha</summary>
+            <summary className="cursor-pointer text-(--color-muted)">{copy.auth.login.forgot}</summary>
             <div className="grid gap-2 pt-2 text-(--color-muted)">
               <p>
-                Nenhuma mensagem é enviada por esta tela. Um administrador redefine a sua senha em{" "}
-                <strong>Configurações → Usuários</strong>, na conta certa.
+                <Trans
+                  text={copy.auth.login.noMessage}
+                  values={{ settings: <strong>{copy.auth.login.settingsPath}</strong> }}
+                />
               </p>
-              <p>
-                A senha que ele define é <strong>temporária</strong>: a conta a troca no primeiro acesso. A
-                redefinição também <strong>encerra todas as sessões</strong> dessa conta — o que a retira de
-                qualquer dispositivo aberto — e destrava a conta se ela estiver bloqueada por tentativas falhas.
-              </p>
-              <p>
-                Se a conta for a última de administrador ativa e ninguém conseguir entrar, o acesso é
-                recolocado pelo terminal do servidor, por quem opera a máquina (guia de operação).
-              </p>
+              <p>{copy.auth.login.lastAdmin}</p>
             </div>
           </details>
         </div>

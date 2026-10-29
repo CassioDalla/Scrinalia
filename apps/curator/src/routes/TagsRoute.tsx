@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { getRouteApi, useNavigate } from "@tanstack/react-router";
+import { getRouteApi, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 
 import {
@@ -10,22 +10,15 @@ import {
   decideMergeProposal,
   mergeTags,
   previewMerge,
-  previewStopwordPurge,
   previewTagPair,
-  purgeStopwords,
   suggestMergeProposals,
-  setStopwordMatch,
-  unbanStopwords,
   undoMerge,
-  undoStopwordPurge,
   type BatchMergeResponse,
   type MacroCategory,
   type MergePreview,
   type MergeReason,
   type MergeResponse,
   type ProposalStatus,
-  type StopwordMatch,
-  type StopwordPurgePreview,
   type StopwordsScope,
   type TagCatalogRow,
   type TagCatalogState,
@@ -39,10 +32,12 @@ import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { EmptyState, ErrorState, Skeleton, Spinner } from "@/components/ui/Feedback";
 import { Input, Select } from "@/components/ui/Input";
-import { LedgerList } from "@/components/ui/LedgerList";
 import { Notice } from "@/components/ui/Notice";
 import { Tabs } from "@/components/ui/Tabs";
 import { PageBody } from "@/components/layout/PageBody";
+import { useCopy } from "@/i18n/context";
+import { fill } from "@/i18n/maps";
+import { Trans } from "@/i18n/trans";
 import { ACTION } from "@/lib/copy";
 import { formatCount, formatDateTime } from "@/lib/format";
 import { asBoolean, asEnum, asNumber, asString } from "@/lib/search";
@@ -56,35 +51,42 @@ import {
   PROPOSAL_STATUS_TONE,
   REVIEW_FLAG_HINT,
   REVIEW_FLAG_LABEL,
-  STOPWORD_MATCH_HINT,
-  STOPWORD_MATCH_LABEL,
   STOPWORD_SCOPE_HINT,
   STOPWORD_SCOPE_LABEL,
-  STOPWORD_SOURCE_HINT,
-  STOPWORD_SOURCE_LABEL,
   labelOf,
 } from "@/lib/taxonomy";
+import { Hint } from "@/components/ui/Hint";
 
 const routeApi = getRouteApi("/assuntos/tags");
 
 const TABS = [
-  { id: "relevancia", label: "Relevância" },
-  { id: "similaridade", label: "Similaridade" },
-  { id: "propostas", label: "Propostas de merge" },
-  { id: "stopwords", label: "Stopwords" },
+  { id: "relevancia", key: "relevance" },
+  { id: "similaridade", key: "similarity" },
+  { id: "propostas", key: "proposals" },
   /**
    * The decision queue, and the tab the home screen's cards open.
    *
    * Appended rather than placed first: the four analysis tabs have had this order since the screen
    * existed, and the cards carry ``aba`` explicitly — a deep link does not depend on the default.
    */
-  { id: "classificar", label: "Classificar" },
-];
+  { id: "classificar", key: "classify" },
+] as const;
+
+/**
+ * The tab id that moved out, defined once.
+ *
+ * `stopwords` left the strip in #232: the blocked spellings are `/assuntos/grafias`, a screen of
+ * their own beside *Não é Assunto*, because this screen's description never mentioned that its
+ * fourth tab held the only write that deletes a tag. The id stays accepted here so the route's
+ * `beforeLoad` can send a bookmark to the new screen instead of silently opening `Relevância`, which
+ * is exactly what the old `Tags` button on the verdict screen did.
+ */
+export const LEGACY_STOPWORDS_ABA = "stopwords";
+const LEGACY_ABAS = [LEGACY_STOPWORDS_ABA];
+const ABAS: string[] = [...TABS.map((tab) => tab.id), ...LEGACY_ABAS];
 
 const REASONS: MergeReason[] = ["TRIGRAM", "PLURAL", "MIXED"];
 const SCOPE_VALUES: StopwordsScope[] = ["TAG", "ENTITY", "ALL"];
-/** The two ways a ban matches, in the order the screen offers them (#160). */
-const MATCH_VALUES: StopwordMatch[] = ["TOKEN", "EXACT"];
 const CATALOG_STATES: TagCatalogState[] = ["ALL", "PENDING", "NOT_SUBJECT", "LOW_CONFIDENCE"];
 
 /**
@@ -111,7 +113,6 @@ export type TagsSearch = {
   min?: number;
   flag?: boolean;
   offset?: number;
-  escopo?: StopwordsScope;
   /** The catalogue's filter by the state of the subject decision. */
   subject_state?: TagCatalogState;
   /** The drawer the catalogue is restricted to, when the archivist picked one. */
@@ -122,7 +123,7 @@ export type TagsSearch = {
 
 export function validateTagsSearch(search: Record<string, unknown>): TagsSearch {
   return {
-    aba: asEnum(search.aba, TABS.map((tab) => tab.id)) ?? "relevancia",
+    aba: asEnum(search.aba, ABAS) ?? "relevancia",
     metodo: asEnum(search.metodo, ["count", "tfidf"]) ?? "count",
     limiar: asNumber(search.limiar) ?? 0.65,
     alvo: asString(search.alvo),
@@ -132,7 +133,6 @@ export function validateTagsSearch(search: Record<string, unknown>): TagsSearch 
     min: asNumber(search.min),
     flag: asBoolean(search.flag),
     offset: asNumber(search.offset),
-    escopo: asEnum(search.escopo, SCOPE_VALUES),
     // Only the decision tab has a state, and it opens on the queue the home screen counts; keeping
     // the key off the other four tabs is what stops the address bar from carrying a filter that
     // nothing on screen reads.
@@ -150,13 +150,17 @@ export function validateTagsSearch(search: Record<string, unknown>): TagsSearch 
  * ``alvenarias`` weighs little, finds its near-duplicate, and decides whether to absorb it. The
  * active question is in the URL, so a colleague can be sent the exact list.
  *
- * The stopwords subtab manages the banned terms **and** the one destructive write in the taxonomy
- * that has no undo. Banning and purging are separate steps on purpose: banning a word deletes
- * nothing, and the purge shows what it would destroy before destroying it.
+ * The blocked spellings used to be the fourth subtab, and they are `/assuntos/grafias` since #232 —
+ * a screen of their own, beside *Não é Assunto*, because this page never described the only write
+ * that deletes a tag. What stayed here is the ban as a consequence of a merge decision: the axis is
+ * chosen before the click, banning a word deletes nothing, and the exclusion of the tags lives on
+ * that other screen, behind its own preview.
  */
 export function TagsRoute() {
   const search = routeApi.useSearch();
   const navigate = useNavigate();
+  const messages = useCopy();
+  const tabs = TABS.map((tab) => ({ id: tab.id, label: messages.pages.tags.tabs[tab.key] }));
 
   /**
    * The URL is the state, as everywhere else.
@@ -175,7 +179,7 @@ export function TagsRoute() {
 
       <div className="px-6">
         <Tabs
-          items={TABS}
+          items={tabs}
           active={search.aba ?? "relevancia"}
           onChange={(id) => patch({ aba: id })}
         />
@@ -186,8 +190,6 @@ export function TagsRoute() {
           <SimilarityTab search={search} patch={patch} />
         ) : search.aba === "propostas" ? (
           <ProposalsTab search={search} patch={patch} />
-        ) : search.aba === "stopwords" ? (
-          <StopwordsTab search={search} patch={patch} />
         ) : search.aba === "classificar" ? (
           <ClassificarTab search={search} patch={patch} />
         ) : (
@@ -209,6 +211,7 @@ function RelevanceTab({
   search: TagsSearch;
   patch: (changes: Partial<TagsSearch>) => void;
 }) {
+  const messages = useCopy();
   const method = search.metodo ?? "count";
   const [limit, setLimit] = useState(30);
   const relevance = useQuery(queries.tagRelevance(method, limit));
@@ -219,23 +222,31 @@ function RelevanceTab({
     <div className="grid gap-3">
       <div className="flex flex-wrap items-center gap-2">
         <Select className="w-48" value={method} onChange={(event) => patch({ metodo: event.target.value as "count" | "tfidf" })}>
-          <option value="count">Contagem de uso</option>
-          <option value="tfidf">TF-IDF (pune o genérico)</option>
+          <option value="count">
+            <Trans
+              text={messages.pages.tags.relevance.countOption}
+              values={{ count: <strong>{messages.pages.tags.relevance.count}</strong> }}
+            />
+          </option>
+          <option value="tfidf">{messages.pages.tags.relevance.specificityOption}</option>
         </Select>
         <Select className="w-36" value={limit} onChange={(event) => setLimit(Number(event.target.value))}>
           {[30, 50, 100, 200].map((value) => (
             <option key={value} value={value}>
-              {value} tags
+              {fill(messages.pages.tags.relevance.perPage, { count: value })}
             </option>
           ))}
         </Select>
+        <Hint label={messages.pages.tags.relevance.hintLabel} className="max-w-3xl text-xs text-(--color-muted)">
+          <Trans
+            text={messages.pages.tags.relevance.hint}
+            values={{
+              usage: <strong>{messages.pages.tags.relevance.usage}</strong>,
+              specificity: <strong>{messages.pages.tags.relevance.specificityWord}</strong>,
+            }}
+          />
+        </Hint>
       </div>
-
-      <p className="max-w-3xl text-xs text-(--color-muted)">
-        A contagem mostra o que pesa no acervo; o TF-IDF mostra o que é específico, punindo o que aparece em toda
-        parte. As duas listas respondem perguntas diferentes de propósito — a primeira acha o que dominar, a segunda
-        o que caracteriza.
-      </p>
 
       {relevance.error ? <ErrorState error={relevance.error} /> : null}
       {relevance.isPending ? <Spinner /> : null}
@@ -246,14 +257,14 @@ function RelevanceTab({
             <table className="w-full text-sm">
               <thead className="border-b border-(--color-line) text-xs text-(--color-muted)">
                 <tr>
-                  <th className="px-3 py-2 text-left font-medium">Tag</th>
+                  <th className="px-3 py-2 text-left font-medium">{messages.pages.tags.columns.tag}</th>
                   {method === "count" ? (
-                    <th className="px-3 py-2 text-right font-medium">Documentos</th>
+                    <th className="px-3 py-2 text-right font-medium">{messages.pages.tags.columns.documents}</th>
                   ) : (
                     <>
-                      <th className="px-3 py-2 text-right font-medium">Frequência</th>
-                      <th className="px-3 py-2 text-right font-medium">IDF</th>
-                      <th className="px-3 py-2 text-right font-medium">TF-IDF</th>
+                      <th className="px-3 py-2 text-right font-medium">{messages.pages.tags.columns.frequency}</th>
+                      <th className="px-3 py-2 text-right font-medium">{messages.pages.tags.columns.rarity}</th>
+                      <th className="px-3 py-2 text-right font-medium">{messages.pages.tags.columns.specificity}</th>
                     </>
                   )}
                 </tr>
@@ -293,6 +304,7 @@ function SimilarityTab({
   search: TagsSearch;
   patch: (changes: Partial<TagsSearch>) => void;
 }) {
+  const messages = useCopy();
   const queryClient = useQueryClient();
   const threshold = search.limiar ?? 0.65;
   const [showAll, setShowAll] = useState(false);
@@ -364,15 +376,15 @@ function SimilarityTab({
    * Bans the whole selection, in one call.
    *
    * The route already takes a list and the marks *are* the list: twenty spellings that all mean
-   * "this is not worth considering" are twenty trips to the Stopwords tab and one click here. The
-   * axis is chosen before the click because a ban is *from* one axis — `domain_stopwords.word` is
-   * unique, so re-banning moves the term instead of adding a second row — and the NER veto is not
-   * the subject veto.
+   * "this is not worth considering" are twenty trips to the blocked-spellings screen and one click
+   * here. The axis is chosen before the click because a ban is *from* one axis —
+   * `domain_stopwords.word` is unique, so re-banning moves the term instead of adding a second row —
+   * and the NER veto is not the subject veto.
    *
-   * Banning **deletes nothing**: the tags stay in the collection, linked and reachable, and the step
-   * that removes them is the purge, in the Stopwords tab and behind its own preview. That is why the
-   * marks are **not** cleared: unlike a merge, this write took no row away, so the selection is still
-   * there and the merge it was made for is still possible.
+   * Banning **deletes nothing**: the tags stay in the collection, linked and reachable, and the
+   * step that removes them is the exclusion of tags, in `Grafias bloqueadas`, behind its own
+   * preview. That is why the marks are **not** cleared: unlike a merge, this write took no row
+   * away, so the selection is still there and the merge it was made for is still possible.
    */
   const banMarked = useMutation({
     mutationFn: () => banStopwords({ words: marked.map((member) => member.name), scope: banScope }),
@@ -394,7 +406,7 @@ function SimilarityTab({
    * names that are gone.
    */
   const afterMerge = (outcome: MergeResponse) => {
-    setLastMerge({ label: "Mesclagem aplicada", outcome });
+    setLastMerge({ label: messages.pages.tags.similarity.mergeApplied, outcome });
     setMarked([]);
     invalidate();
   };
@@ -409,7 +421,7 @@ function SimilarityTab({
     <div className="grid gap-3">
       <div className="flex flex-wrap items-center gap-2">
         <label className="flex items-center gap-2 text-xs">
-          <span className="text-(--color-muted)">limiar</span>
+          <span className="text-(--color-muted)">{messages.pages.tags.filters.threshold}</span>
           <Input
             type="number"
             step="0.05"
@@ -422,19 +434,14 @@ function SimilarityTab({
         </label>
         <Input
           className="max-w-xs"
-          placeholder="filtrar por nome…"
+          placeholder={messages.pages.tags.similarity.filterPlaceholder}
           defaultValue={search.nome ?? ""}
           onChange={(event) => patch({ nome: event.target.value || undefined })}
         />
       </div>
 
       <p className="max-w-3xl text-xs text-(--color-muted)">
-        Pares por similaridade de trigrama. É a evidência que a proposta de merge usa — mostrada crua, sem julgar:
-        <code> 'alameda cabral' </code> e <code> 'al. alameda cabral' </code> têm similaridade 1.000, e nenhum
-        limiar distingue sozinho o que é abreviação do que é outra coisa. Por isso o par traz o botão de mesclar e
-        a escolha da canônica: a decisão é sua, com o impacto na frente, e o ledger desfaz. Para mesclar mais de um
-        par de uma vez — “carlos de carvalho” aparece em várias linhas —, marque as linhas e use a barra que aparece
-        embaixo.
+        {messages.pages.tags.similarity.intro}
       </p>
 
       {similar.error ? <ErrorState error={similar.error} /> : null}
@@ -444,13 +451,21 @@ function SimilarityTab({
 
       {lastBan ? (
         <Notice tone="ok">
-          <strong>
-            {formatCount(lastBan.written)} grafia(s) no eixo{" "}
-            {labelOf(STOPWORD_SCOPE_LABEL, lastBan.scope).toLowerCase()}
-          </strong>
-          . Banir <strong>não exclui nada</strong>: as tags continuam no acervo e alcançáveis pela busca, e a marcação
-          segue de pé porque a mesclagem continua possível. O passo que exclui é a <strong>purga</strong>, na aba
-          Stopwords, atrás da prévia.
+          <Trans
+            text={messages.pages.tags.similarity.banNotice}
+            values={{
+              banned: (
+                <strong>
+                  {fill(messages.pages.tags.similarity.banCount, {
+                    count: formatCount(lastBan.written),
+                    scope: labelOf(STOPWORD_SCOPE_LABEL, lastBan.scope).toLowerCase(),
+                  })}
+                </strong>
+              ),
+              nothing: <strong>{messages.pages.tags.similarity.notExcludes}</strong>,
+              place: <Link to="/assuntos/grafias" className="font-semibold underline underline-offset-2">{messages.screens.blockedSpellings.label}</Link>,
+            }}
+          />
         </Notice>
       ) : null}
       {banMarked.error ? <ErrorState error={banMarked.error} /> : null}
@@ -462,8 +477,8 @@ function SimilarityTab({
       {clusterOpen && marked.length >= 2 ? (
         <TagMergePanel
           members={marked}
-          title={`Mesclar ${formatCount(marked.length)} tags marcadas`}
-          hint="Estas tags vieram de linhas diferentes da lista: a canônica é escolhida abaixo, e o impacto é recalculado para o conjunto inteiro."
+          title={fill(messages.pages.tags.similarity.mergeMarkedTitle, { count: formatCount(marked.length) })}
+          hint={messages.pages.tags.similarity.mergeMarkedHint}
           onMerged={afterMerge}
           onClose={closePanel}
         />
@@ -471,8 +486,8 @@ function SimilarityTab({
 
       {similar.data && pairs.length === 0 ? (
         <EmptyState
-          title="Nenhum par acima do limiar"
-          hint="Baixe o limiar para ver pares mais distantes, ou rode uma proposta de merge para registrar os agrupamentos."
+          title={messages.pages.tags.similarity.noPairsTitle}
+          hint={messages.pages.tags.similarity.noPairsHint}
         />
       ) : null}
 
@@ -480,12 +495,20 @@ function SimilarityTab({
         <Card>
           <CardHeader className="flex items-center justify-between text-xs text-(--color-muted)">
             <span>
-              {formatCount(visible.length)} par(es)
-              {term ? ` para “${search.nome}”` : ""} de {formatCount(pairs.length)}
+              {term
+                ? fill(messages.pages.tags.similarity.pairCountTerm, {
+                    count: formatCount(visible.length),
+                    term: search.nome ?? "",
+                    total: formatCount(pairs.length),
+                  })
+                : fill(messages.pages.tags.similarity.pairCountAll, {
+                    count: formatCount(visible.length),
+                    total: formatCount(pairs.length),
+                  })}
             </span>
             {marked.length > 0 ? (
               <Button size="sm" variant="ghost" onClick={clearMarked}>
-                limpar marcação ({formatCount(marked.length)})
+                {fill(messages.pages.tags.similarity.clearMarks, { count: formatCount(marked.length) })}
               </Button>
             ) : null}
           </CardHeader>
@@ -499,8 +522,11 @@ function SimilarityTab({
                         type="checkbox"
                         checked={rowMarked(pair)}
                         onChange={() => toggleRow(pair)}
-                        title="Marcar as duas tags desta linha para mesclar em conjunto"
-                        aria-label={`Marcar ${pair.name_1} e ${pair.name_2}`}
+                        title={messages.pages.tags.similarity.markRowTitle}
+                        aria-label={fill(messages.pages.tags.similarity.markPairAria, {
+                          first: pair.name_1,
+                          second: pair.name_2,
+                        })}
                       />
                       <span className="truncate">{pair.name_1}</span>
                       {/*
@@ -519,7 +545,7 @@ function SimilarityTab({
                         variant="secondary"
                         onClick={() => setOpenPair(openPair === pair ? null : pair)}
                       >
-                        {openPair === pair ? ACTION.close.label : "Mesclar ↦"}
+                        {openPair === pair ? ACTION.close.label : messages.pages.tags.similarity.mergeArrow}
                       </Button>
                     </span>
                   </div>
@@ -535,7 +561,7 @@ function SimilarityTab({
                           { tag_id: pair.id_1, name: pair.name_1 },
                           { tag_id: pair.id_2, name: pair.name_2 },
                         ]}
-                        title="Mesclar duas tags"
+                        title={messages.pages.tags.similarity.mergeTwoTitle}
                         onMerged={afterMerge}
                         onClose={closePanel}
                       />
@@ -561,10 +587,13 @@ function SimilarityTab({
         <div className="pointer-events-none fixed inset-x-0 bottom-6 z-40 flex justify-center">
           <div className="pointer-events-auto flex flex-wrap items-center gap-3 rounded-full bg-(--color-ink) px-4 py-2 text-sm text-white shadow-lg">
             <span>
-              {formatCount(marked.length)} tags marcadas em {formatCount(countRows(marked, pairs))} linha(s)
+              {fill(messages.pages.tags.similarity.markedBar, {
+                tags: formatCount(marked.length),
+                rows: formatCount(countRows(marked, pairs)),
+              })}
             </span>
             <Button size="sm" variant="primary" onClick={() => setClusterOpen(true)}>
-              Mesclar tags
+              {messages.pages.tags.merge.defaultTitle}
             </Button>
             {/*
               The other decision the same selection makes possible, and the one the marks were
@@ -580,7 +609,7 @@ function SimilarityTab({
               value={banScope}
               disabled={banMarked.isPending}
               title={STOPWORD_SCOPE_HINT[banScope]}
-              aria-label="Eixo do banimento"
+              aria-label={messages.pages.tags.similarity.banScopeAria}
               onChange={(event) => setBanScope(event.target.value as StopwordsScope)}
             >
               {SCOPE_VALUES.map((scope) => (
@@ -593,13 +622,17 @@ function SimilarityTab({
               size="sm"
               variant="secondary"
               disabled={banMarked.isPending || marked.length === 0}
-              title="Banir uma grafia não exclui nada: a tag continua no acervo. O passo que exclui é a purga, na aba Stopwords."
+              title={fill(messages.pages.tags.similarity.banTitle, {
+                place: messages.screens.blockedSpellings.label,
+              })}
               onClick={() => banMarked.mutate()}
             >
-              {banMarked.isPending ? ACTION.ban.pending : `Banir ${formatCount(marked.length)} marcadas`}
+              {banMarked.isPending
+                ? ACTION.ban.pending
+                : fill(messages.pages.tags.similarity.banMarked, { count: formatCount(marked.length) })}
             </Button>
             <button className="text-xs text-white/70 hover:text-white" onClick={clearMarked}>
-              limpar
+              {messages.pages.tags.clear}
             </button>
           </div>
         </div>
@@ -617,11 +650,18 @@ function SimilarityTab({
  * worked — which is the one thing a destructive-looking operation must never do.
  */
 function MergeOutcome({ label, outcome }: { label: string; outcome: MergeResponse }) {
+  const messages = useCopy();
   return (
     <Notice tone="ok">
-      <strong>{label}</strong> · {formatCount(outcome.documents_updated)} documento(s) atualizado(s) ·{" "}
-      {formatCount(outcome.tags_deleted)} tag(s) absorvida(s) · ledger{" "}
-      <code>{(outcome.merge_ids ?? []).join(", ") || "—"}</code>. O desfazer está no ledger de merges.
+      <Trans
+        text={messages.pages.tags.merge.outcome}
+        values={{
+          label: <strong>{label}</strong>,
+          documents: formatCount(outcome.documents_updated),
+          tags: formatCount(outcome.tags_deleted),
+          ids: <code>{(outcome.merge_ids ?? []).join(", ") || "—"}</code>,
+        }}
+      />
     </Notice>
   );
 }
@@ -660,6 +700,7 @@ function TagMergePanel({
   onMerged: (outcome: MergeResponse) => void;
   onClose: () => void;
 }) {
+  const messages = useCopy();
   const first = members[0];
   const [canonicalId, setCanonicalId] = useState(initialCanonicalId ?? first?.tag_id ?? 0);
   /**
@@ -743,7 +784,7 @@ function TagMergePanel({
   return (
     <Card className="ring-(--color-accent)/40">
       <CardBody className="grid gap-3">
-        <p className="text-sm font-semibold">{title ?? "Mesclar tags"}</p>
+        <p className="text-sm font-semibold">{title ?? messages.pages.tags.merge.defaultTitle}</p>
         {hint ? <p className="text-xs text-(--color-muted)">{hint}</p> : null}
 
         <div className="grid gap-2 text-xs">
@@ -763,8 +804,8 @@ function TagMergePanel({
                   checked={!out}
                   disabled={outcome !== null}
                   onChange={() => toggleMember(member.tag_id)}
-                  title={out ? "Trazer de volta para o agrupamento" : "Tirar do agrupamento"}
-                  aria-label={`Incluir ${member.name} no agrupamento`}
+                  title={out ? messages.pages.tags.merge.returnToGroup : messages.pages.tags.merge.removeFromGroup}
+                  aria-label={fill(messages.pages.tags.merge.includeInGroup, { name: member.name })}
                 />
                 <input
                   type="radio"
@@ -775,15 +816,15 @@ function TagMergePanel({
                     setCanonicalId(member.tag_id);
                     setOutcome(null);
                   }}
-                  title="Manter esta grafia"
+                  title={messages.pages.tags.merge.keepSpelling}
                 />
                 <span className={isCanonical ? "font-medium" : "text-(--color-muted)"}>
                   {member.name} <code className="text-[10px]">#{member.tag_id}</code>
                   {out
-                    ? " — fora do agrupamento"
+                    ? messages.pages.tags.merge.outOfGroup
                     : isCanonical
-                      ? " — mantida (canônica)"
-                      : " — absorvida"}
+                      ? messages.pages.tags.merge.keptCanonical
+                      : messages.pages.tags.merge.absorbed}
                 </span>
               </div>
             );
@@ -791,52 +832,76 @@ function TagMergePanel({
         </div>
 
         <p className="text-xs text-(--color-muted)">
-          A similaridade não diz qual delas é a boa: a lista vem crua. Desmarque o que não pertence ao conjunto —
-          “289 anos” não é “294 anos” — e o impacto é recalculado com o mesmo planejador da mesclagem.
+          {messages.pages.tags.merge.explain}
         </p>
 
-        {preview.isPending ? <Spinner label="Conferindo o impacto…" /> : null}
+        {preview.isPending ? <Spinner label={messages.pages.tags.merge.checkingImpact} /> : null}
         {preview.error ? <ErrorState error={preview.error} /> : null}
 
         {preview.data ? (
           <div className="grid gap-1 rounded-md bg-black/[0.02] p-3 text-xs ring-1 ring-(--color-line)">
-            <p className="font-medium">Nada foi escrito ainda. A mesclagem usa este mesmo planejador.</p>
+            <p className="font-medium">{messages.pages.tags.merge.nothingWritten}</p>
             <p className="text-(--color-muted)">
-              {formatCount(preview.data.documents_updated)} documento(s) atualizado(s) ·{" "}
-              {formatCount(preview.data.links_rewritten)} vínculo(s) reescrito(s) ·{" "}
-              {formatCount(tagsDeleted.length)} tag(s) absorvida(s)
+              {fill(messages.pages.tags.merge.counts, {
+                documents: formatCount(preview.data.documents_updated),
+                links: formatCount(preview.data.links_rewritten),
+                tags: formatCount(tagsDeleted.length),
+              })}
             </p>
             <ul className="text-(--color-muted)">
               {tagsDeleted.map((impact) => (
                 <li key={impact.tag_id}>
-                  {impact.name} <code className="text-[10px]">#{impact.tag_id}</code> (
-                  {formatCount(impact.document_count)} doc
-                  {impact.macro_category_id ? `, categoria ${categoryName(impact.macro_category_id)}` : ""})
+                  <Trans
+                    text={messages.pages.tags.merge.impactLine}
+                    values={{
+                      name: impact.name,
+                      id: <code className="text-[10px]">#{impact.tag_id}</code>,
+                      documents: formatCount(impact.document_count),
+                      category: impact.macro_category_id
+                        ? fill(messages.pages.tags.merge.categorySuffix, {
+                            category: categoryName(impact.macro_category_id),
+                          })
+                        : "",
+                    }}
+                  />
                 </li>
               ))}
             </ul>
             {(preview.data.synonyms_created ?? []).length > 0 ? (
               <p className="text-(--color-muted)">
-                grafias registradas: <code>{(preview.data.synonyms_created ?? []).join(", ")}</code>
+                <Trans
+                  text={messages.pages.tags.merge.synonymsCreated}
+                  values={{ list: <code>{(preview.data.synonyms_created ?? []).join(", ")}</code> }}
+                />
               </p>
             ) : null}
             {(preview.data.synonyms_repointed ?? []).length > 0 ? (
               <p className="text-(--color-muted)">
-                grafias reapontadas: <code>{(preview.data.synonyms_repointed ?? []).join(", ")}</code>
+                <Trans
+                  text={messages.pages.tags.merge.synonymsRepointed}
+                  values={{ list: <code>{(preview.data.synonyms_repointed ?? []).join(", ")}</code> }}
+                />
               </p>
             ) : null}
             {preview.data.category_would_be_lost ? (
               <Notice tone="danger">
-                Esta mesclagem <strong>exclui uma classificação de assunto</strong>: a tag absorvida está na categoria{" "}
-                <strong>{lostDrawers.join(", ") || "—"}</strong> e a canônica não tem categoria.
+                <Trans
+                  text={messages.pages.tags.merge.lostCategory}
+                  values={{
+                    excludes: <strong>{messages.pages.tags.merge.lostCategoryStrong}</strong>,
+                    drawers: <strong>{lostDrawers.join(", ") || "—"}</strong>,
+                  }}
+                />
               </Notice>
             ) : null}
           </div>
         ) : null}
 
         <Notice tone="ok">
-          Diferente do merge de entidades, este <strong>tem desfazer</strong>: o ledger da aba Propostas guarda a tag,
-          os vínculos, a classificação e as grafias, e restaura tudo.
+          <Trans
+            text={messages.pages.tags.merge.undoNotice}
+            values={{ hasUndo: <strong>{messages.pages.tags.merge.hasUndo}</strong> }}
+          />
         </Notice>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -845,18 +910,24 @@ function TagMergePanel({
             disabled={!preview.data || merge.isPending || outcome !== null || included.length < 2}
             title={
               included.length < 2
-                ? "Um agrupamento precisa de ao menos duas tags: uma canônica e uma absorvida."
+                ? messages.pages.tags.merge.atLeastTwo
                 : preview.data
                   ? undefined
-                  : "O impacto é obrigatório: conferir o impacto vem antes de mesclar."
+                  : messages.pages.tags.merge.checkImpactFirst
             }
             onClick={() => merge.mutate()}
           >
             {merge.isPending
               ? ACTION.merge.pending
               : absorbed.length === 1
-                ? `Mesclar ${absorbed[0]?.name} em ${nameOf(canonicalId)}`
-                : `Mesclar ${formatCount(absorbed.length)} tags em ${nameOf(canonicalId)}`}
+                ? fill(messages.pages.tags.merge.mergeOneIn, {
+                    name: absorbed[0]?.name ?? "",
+                    canonical: nameOf(canonicalId),
+                  })
+                : fill(messages.pages.tags.merge.mergeManyIn, {
+                    count: formatCount(absorbed.length),
+                    canonical: nameOf(canonicalId),
+                  })}
           </Button>
           <Button variant="ghost" onClick={onClose}>
             {outcome ? ACTION.close.label : ACTION.cancel.label}
@@ -867,9 +938,14 @@ function TagMergePanel({
 
         {outcome ? (
           <Notice tone="ok">
-            {formatCount(outcome.documents_updated)} documento(s) atualizado(s) ·{" "}
-            {formatCount(outcome.tags_deleted)} tag(s) absorvida(s). Ledger{" "}
-            <code>{(outcome.merge_ids ?? []).join(", ") || "—"}</code>: o desfazer fica na aba Propostas.
+            <Trans
+              text={messages.pages.tags.merge.done}
+              values={{
+                documents: formatCount(outcome.documents_updated),
+                tags: formatCount(outcome.tags_deleted),
+                ids: <code>{(outcome.merge_ids ?? []).join(", ") || "—"}</code>,
+              }}
+            />
           </Notice>
         ) : null}
       </CardBody>
@@ -888,6 +964,7 @@ function ProposalsTab({
   search: TagsSearch;
   patch: (changes: Partial<TagsSearch>) => void;
 }) {
+  const messages = useCopy();
   const queryClient = useQueryClient();
   const [threshold, setThreshold] = useState(0.65);
   const [selected, setSelected] = useState<number[]>([]);
@@ -958,7 +1035,7 @@ function ProposalsTab({
       for (const proposalId of proposalIds) {
         await decideMergeProposal(proposalId, {
           status: "REJECTED",
-          note: "Arquivada: os membros já não existem no acervo.",
+          note: messages.pages.tags.proposals.archiveNote,
         });
       }
     },
@@ -991,7 +1068,9 @@ function ProposalsTab({
     mutationFn: (proposal: TagMergeProposal) =>
       decideMergeProposal(proposal.proposal_id, {
         status: "REJECTED",
-        note: `Editada e aplicada à mão: a máquina propôs ${formatCount((proposal.members ?? []).length)} membros e a seleção revisada foi mesclada pelo ledger.`,
+        note: fill(messages.pages.tags.proposals.editedNote, {
+          count: formatCount((proposal.members ?? []).length),
+        }),
       }),
     onSuccess: invalidate,
   });
@@ -1010,10 +1089,12 @@ function ProposalsTab({
     <div className="grid gap-3">
       <div className="flex flex-wrap items-center gap-2">
         <Button variant="primary" disabled={suggest.isPending} onClick={() => suggest.mutate()}>
-          {suggest.isPending ? "Propondo…" : "Propor Agrupamentos"}
+          {suggest.isPending
+            ? messages.pages.tags.proposals.suggesting
+            : messages.pages.tags.proposals.suggest}
         </Button>
         <label className="flex items-center gap-2 text-xs">
-          <span className="text-(--color-muted)">limiar</span>
+          <span className="text-(--color-muted)">{messages.pages.tags.filters.threshold}</span>
           <Input
             type="number"
             step="0.05"
@@ -1029,7 +1110,7 @@ function ProposalsTab({
           value={search.status ?? ""}
           onChange={(event) => patch({ status: (event.target.value || undefined) as ProposalStatus | undefined })}
         >
-          <option value="">Todos os status</option>
+          <option value="">{messages.pages.tags.filters.allStatuses}</option>
           {STATUSES.map((status) => (
             <option key={status} value={status}>
               {labelOf(PROPOSAL_STATUS_LABEL, status)}
@@ -1041,7 +1122,7 @@ function ProposalsTab({
           value={search.motivo ?? ""}
           onChange={(event) => patch({ motivo: asEnum(event.target.value, REASONS) })}
         >
-          <option value="">Todo motivo</option>
+          <option value="">{messages.pages.tags.filters.anyReason}</option>
           {REASONS.map((reason) => (
             <option key={reason} value={reason}>
               {labelOf(MERGE_REASON_LABEL, reason)}
@@ -1051,7 +1132,7 @@ function ProposalsTab({
         <Input
           type="number"
           className="w-32"
-          placeholder="mín. docs"
+          placeholder={messages.pages.tags.filters.minDocs}
           defaultValue={search.min ?? ""}
           onChange={(event) => patch({ min: event.target.value ? Number(event.target.value) : undefined })}
         />
@@ -1060,15 +1141,18 @@ function ProposalsTab({
           variant={search.flag ? "primary" : "secondary"}
           onClick={() => patch({ flag: search.flag ? undefined : true })}
         >
-          só com avisos
+          {messages.pages.tags.filters.onlyFlagged}
         </Button>
       </div>
 
       {suggest.data ? (
         <Notice tone="ok">
-          Proposta: {formatCount(suggest.data.clusters_found)} agrupamento(s) encontrados, {formatCount(suggest.data.persisted)}{" "}
-          registrados, {formatCount(suggest.data.pending)} pendentes, {formatCount(suggest.data.flagged)} com aviso. Uma
-          decisão já tomada não é sobrescrita.
+          {fill(messages.pages.tags.proposals.suggestNotice, {
+            found: formatCount(suggest.data.clusters_found),
+            persisted: formatCount(suggest.data.persisted),
+            pending: formatCount(suggest.data.pending),
+            flagged: formatCount(suggest.data.flagged),
+          })}
         </Notice>
       ) : null}
       {suggest.error ? <ErrorState error={suggest.error} /> : null}
@@ -1076,19 +1160,25 @@ function ProposalsTab({
       {approvedNotSelected.length > 0 ? (
         <Notice tone="warn" as="div" className="flex flex-wrap items-center gap-3">
           <span className="text-xs text-(--color-warn)">
-            <strong>{formatCount(approvedNotSelected.length)}</strong> agrupamento(s) aprovado(s) nesta página{" "}
-            <strong>ainda não foram mesclados</strong>: aprovar registra a intenção, e só a aplicação absorve as tags.
-            Enquanto ele não roda, o ledger abaixo não muda.
+            <Trans
+              text={messages.pages.tags.proposals.approvedNotice}
+              values={{
+                count: <strong>{formatCount(approvedNotSelected.length)}</strong>,
+                notMerged: <strong>{messages.pages.tags.proposals.notMerged}</strong>,
+              }}
+            />
           </span>
           <Button
             size="sm"
             variant="secondary"
             onClick={() => setSelected((current) => [...new Set([...current, ...approvedNotSelected.map((p) => p.proposal_id)])])}
           >
-            incluir as aprovadas desta página
+            {messages.pages.tags.proposals.includeApproved}
           </Button>
           <Button size="sm" disabled={selectAllApproved.isPending} onClick={() => selectAllApproved.mutate()}>
-            {selectAllApproved.isPending ? "Buscando…" : "selecionar todas as aprovadas"}
+            {selectAllApproved.isPending
+              ? messages.pages.tags.proposals.searching
+              : messages.pages.tags.proposals.selectAllApproved}
           </Button>
         </Notice>
       ) : null}
@@ -1096,9 +1186,13 @@ function ProposalsTab({
       {fulfilled.length > 0 ? (
         <div className="flex flex-wrap items-center gap-3 rounded-md bg-black/[0.02] px-3 py-2 ring-1 ring-(--color-line)">
           <span className="text-xs text-(--color-muted)">
-            <strong>{formatCount(fulfilled.length)}</strong> agrupamento(s) aprovado(s) nesta página{" "}
-            <strong>já não têm o que absorver</strong>: os membros foram mesclados por outra mesclagem (ou excluídos por
-            uma purga). Não são falhas — não há nada a aplicar.
+            <Trans
+              text={messages.pages.tags.proposals.fulfilledNotice}
+              values={{
+                count: <strong>{formatCount(fulfilled.length)}</strong>,
+                nothing: <strong>{messages.pages.tags.proposals.nothingToAbsorb}</strong>,
+              }}
+            />
           </span>
           <Button
             size="sm"
@@ -1106,7 +1200,7 @@ function ProposalsTab({
             disabled={decideMany.isPending}
             onClick={() => decideMany.mutate(fulfilled.map((proposal) => proposal.proposal_id))}
           >
-            arquivar as já cumpridas
+            {messages.pages.tags.proposals.archiveFulfilled}
           </Button>
         </div>
       ) : null}
@@ -1114,24 +1208,31 @@ function ProposalsTab({
       {selected.length > 0 ? (
         <Notice tone="accent" as="div" className="flex flex-wrap items-center gap-2">
           <span className="text-xs">
-            {formatCount(selected.length)} agrupamento(s) selecionado(s) para aplicar
+            {fill(messages.pages.tags.proposals.selectedCount, { count: formatCount(selected.length) })}
           </span>
           <Button
             size="sm"
             variant="primary"
             disabled={apply.isPending || selected.length > MAX_BATCH}
-            title={selected.length > MAX_BATCH ? `O lote aceita no máximo ${MAX_BATCH} agrupamentos.` : undefined}
+            title={
+              selected.length > MAX_BATCH
+                ? fill(messages.pages.tags.proposals.batchLimitTitle, { max: MAX_BATCH })
+                : undefined
+            }
             onClick={() => apply.mutate()}
           >
-            {apply.isPending ? "Aplicando…" : "Aplicar em lote"}
+            {apply.isPending ? ACTION.apply.pending : messages.pages.tags.proposals.applyBatch}
           </Button>
           {selected.length > MAX_BATCH ? (
             <span className="text-xs text-(--color-danger)">
-              {formatCount(selected.length)} selecionados: o lote aceita no máximo {MAX_BATCH}. Aplique em partes.
+              {fill(messages.pages.tags.proposals.batchTooMany, {
+                count: formatCount(selected.length),
+                max: MAX_BATCH,
+              })}
             </span>
           ) : null}
           <Button size="sm" variant="ghost" onClick={() => setSelected([])}>
-            limpar seleção
+            {messages.pages.tags.proposals.clearSelection}
           </Button>
         </Notice>
       ) : null}
@@ -1140,27 +1241,36 @@ function ProposalsTab({
       {batch ? (
         <Notice tone="ok" as="div" className="grid gap-1">
           <p className="font-medium text-(--color-ok)">
-            {formatCount((batch.applied ?? []).length)} agrupamento(s) aplicado(s)
+            {fill(messages.pages.tags.proposals.batchApplied, {
+              count: formatCount((batch.applied ?? []).length),
+            })}
             {(batch.skipped ?? []).length > 0
-              ? `, ${formatCount((batch.skipped ?? []).length)} já aplicado(s) antes (ignorados)`
+              ? fill(messages.pages.tags.proposals.batchSkipped, {
+                  count: formatCount((batch.skipped ?? []).length),
+                })
               : ""}
-            {", "}
-            {formatCount((batch.failed ?? []).length)} falha(s).
+            {fill(messages.pages.tags.proposals.batchFailed, {
+              count: formatCount((batch.failed ?? []).length),
+            })}
           </p>
           {(batch.applied ?? []).map((entry) => (
             <p key={entry.proposal_id} className="text-(--color-muted)">
-              #{entry.proposal_id}: {formatCount(entry.documents_updated)} documento(s), {formatCount(entry.tags_deleted)}{" "}
-              tag(s) absorvida(s) · ledger {(entry.merge_ids ?? []).join(", ")}
+              {fill(messages.pages.tags.proposals.appliedLine, {
+                id: entry.proposal_id,
+                documents: formatCount(entry.documents_updated),
+                tags: formatCount(entry.tags_deleted),
+                ids: (entry.merge_ids ?? []).join(", "),
+              })}
             </p>
           ))}
           {(batch.skipped ?? []).map((entry) => (
             <p key={entry.proposal_id} className="text-(--color-muted)">
-              #{entry.proposal_id} ignorado: {entry.error}
+              {fill(messages.pages.tags.proposals.skippedLine, { id: entry.proposal_id, error: entry.error })}
             </p>
           ))}
           {(batch.failed ?? []).map((entry) => (
             <p key={entry.proposal_id} className="text-(--color-danger)">
-              #{entry.proposal_id} não aplicado: {entry.error}
+              {fill(messages.pages.tags.proposals.failedLine, { id: entry.proposal_id, error: entry.error })}
             </p>
           ))}
         </Notice>
@@ -1177,11 +1287,11 @@ function ProposalsTab({
 
       {proposals.data && total === 0 ? (
         <EmptyState
-          title="Nenhuma proposta com este filtro"
-          hint="Rode 'Propor Agrupamentos' para registrar os pares acima do limiar. A proposta não mescla nada: ela só escreve a pergunta."
+          title={messages.pages.tags.proposals.emptyTitle}
+          hint={messages.pages.tags.proposals.emptyHint}
           action={
             <Button onClick={() => suggest.mutate()} disabled={suggest.isPending}>
-              Propor Agrupamentos
+              {messages.pages.tags.proposals.suggest}
             </Button>
           }
         />
@@ -1190,7 +1300,7 @@ function ProposalsTab({
       {closeEdited.error ? <ErrorState error={closeEdited.error} /> : null}
       {lastEdited ? (
         <MergeOutcome
-          label={`Agrupamento #${lastEdited.proposalId} editado e fechado como rejeitado`}
+          label={fill(messages.pages.tags.proposals.editedClosed, { id: lastEdited.proposalId })}
           outcome={lastEdited.outcome}
         />
       ) : null}
@@ -1225,8 +1335,8 @@ function ProposalsTab({
               <TagMergePanel
                 members={(proposal.members ?? []).map((member) => ({ tag_id: member.tag_id, name: member.name }))}
                 initialCanonicalId={proposal.canonical_id ?? undefined}
-                title={`Editar e aplicar o agrupamento #${proposal.proposal_id}`}
-                hint="Desmarque a tag que não pertence ao conjunto e escolha a canônica. Aplicar mescla a seleção revisada pelo mesmo planejador do lote, registra no ledger — e fecha esta proposta como rejeitada, porque a pergunta da máquina foi respondida de outro jeito."
+                title={fill(messages.pages.tags.proposals.editMergeTitle, { id: proposal.proposal_id })}
+                hint={messages.pages.tags.proposals.editMergeHint}
                 onMerged={(outcome) => {
                   // The report goes to the screen: this row is about to leave the SUGGESTED filter.
                   setLastEdited({ proposalId: proposal.proposal_id, outcome });
@@ -1248,28 +1358,35 @@ function ProposalsTab({
             disabled={offset === 0}
             onClick={() => patch({ offset: Math.max(0, offset - PROPOSALS_PAGE_SIZE) })}
           >
-            ← Anterior
+            {messages.common.previous}
           </Button>
           <span className="text-xs text-(--color-muted)">
-            {formatCount(offset + 1)}–{formatCount(Math.min(offset + PROPOSALS_PAGE_SIZE, total))} de {formatCount(total)}
+            {fill(messages.common.range, {
+              from: formatCount(offset + 1),
+              to: formatCount(Math.min(offset + PROPOSALS_PAGE_SIZE, total)),
+              total: formatCount(total),
+            })}
           </span>
           <Button
             size="sm"
             disabled={offset + PROPOSALS_PAGE_SIZE >= total}
             onClick={() => patch({ offset: offset + PROPOSALS_PAGE_SIZE })}
           >
-            Próxima →
+            {messages.common.next}
           </Button>
         </div>
       ) : null}
 
       <Card>
-        <CardHeader className="text-sm font-semibold">Ledger dos merges</CardHeader>
+        <CardHeader className="text-sm font-semibold">{messages.pages.tags.ledger.title}
+          <Hint label={messages.pages.tags.ledger.title} className="text-xs text-(--color-muted)">
+            <Trans
+              text={messages.pages.tags.ledger.hint}
+              values={{ concluded: <strong>{messages.pages.tags.ledger.concluded}</strong> }}
+            />
+          </Hint>
+        </CardHeader>
         <CardBody className="grid gap-2">
-          <p className="text-xs text-(--color-muted)">
-            Aqui só entram merges <strong>aplicados</strong>: aprovar não escreve nesta lista. Cada linha guarda o
-            estado anterior — tag, vínculos, classificação e grafias — e o desfazer restaura tudo.
-          </p>
           {/*
             The search is server-side and covers both sides of each entry: the ledger only grows, and a
             box that filtered the loaded page would say "não está aqui" for a merge that happened.
@@ -1277,18 +1394,22 @@ function ProposalsTab({
           <Input
             className="max-w-xs"
             value={logTerm}
-            placeholder="buscar por grafia absorvida ou canônica…"
+            placeholder={messages.pages.tags.ledger.searchPlaceholder}
             onChange={(event) => setLogTerm(event.target.value)}
           />
-          {log.isPending ? <Spinner label="Lendo o ledger…" /> : null}
+          {log.isPending ? <Spinner label={messages.pages.tags.ledger.reading} /> : null}
           {log.error ? <ErrorState error={log.error} /> : null}
           {log.data && (log.data.items ?? []).length === 0 ? (
             <EmptyState
-              title={logTerm.trim() ? `Nenhum merge para “${logTerm.trim()}”` : "Nenhum merge aplicado ainda"}
+              title={
+                logTerm.trim()
+                  ? fill(messages.pages.tags.ledger.emptyTerm, { term: logTerm.trim() })
+                  : messages.pages.tags.ledger.emptyNone
+              }
               hint={
                 logTerm.trim()
-                  ? "A busca cobre as duas grafias de cada linha: a absorvida e a canônica."
-                  : "O ledger registra cada tag absorvida, com o antes."
+                  ? messages.pages.tags.ledger.emptyHintTerm
+                  : messages.pages.tags.ledger.emptyHintNone
               }
             />
           ) : null}
@@ -1299,22 +1420,28 @@ function ProposalsTab({
                   <span className="font-medium">{entry.absorbed_name}</span>
                   <span className="text-(--color-muted)"> → {entry.canonical_name}</span>
                   <span className="text-(--color-muted)">
-                    {" "}
-                    · {formatCount(entry.document_count)} doc(s) · {formatDateTime(entry.changed_at)}
-                    {entry.changed_by ? ` · por ${entry.changed_by}` : ""}
+                    {fill(messages.pages.tags.ledger.entryMeta, {
+                      documents: formatCount(entry.document_count),
+                      date: formatDateTime(entry.changed_at),
+                      by: entry.changed_by
+                        ? fill(messages.pages.tags.ledger.entryBy, { name: entry.changed_by })
+                        : "",
+                    })}
                   </span>
                 </span>
                 {entry.undone_at ? (
-                  <Badge tone="neutral">desfeito em {formatDateTime(entry.undone_at)}</Badge>
+                  <Badge tone="neutral">
+                    {fill(messages.pages.tags.ledger.undoneAt, { date: formatDateTime(entry.undone_at) })}
+                  </Badge>
                 ) : (
                   <Button
                     size="sm"
                     variant="ghost"
                     disabled={undo.isPending}
-                    title="Restaura a tag, os vínculos, a classificação e as grafias absorvidas."
+                    title={messages.pages.tags.ledger.undoTitle}
                     onClick={() => undo.mutate(entry.merge_id)}
                   >
-                    desfazer
+                    {messages.pages.tags.ledger.undo}
                   </Button>
                 )}
               </li>
@@ -1330,12 +1457,19 @@ function ProposalsTab({
             <div className="flex items-center gap-2">
               {log.data.total > (log.data.items ?? []).length ? (
                 <Button size="sm" variant="ghost" onClick={() => setLogLimit((current) => current + MERGE_LOG_PAGE_SIZE)}>
-                  ver mais
+                  {messages.pages.tags.ledger.seeMore}
                 </Button>
               ) : null}
               <span className="text-xs text-(--color-muted)">
-                mostrando {formatCount((log.data.items ?? []).length)} de {formatCount(log.data.total)}{" "}
-                {settledLogTerm.trim() ? "merge(s) que casam com a busca" : "merge(s) aplicado(s)"}
+                {fill(
+                  settledLogTerm.trim()
+                    ? messages.pages.tags.ledger.showingFiltered
+                    : messages.pages.tags.ledger.showingAll,
+                  {
+                    shown: formatCount((log.data.items ?? []).length),
+                    total: formatCount(log.data.total),
+                  },
+                )}
               </span>
             </div>
           ) : null}
@@ -1368,6 +1502,7 @@ function ProposalCard({
   onApproved: () => void;
   onEdit: () => void;
 }) {
+  const messages = useCopy();
   const queryClient = useQueryClient();
   const [preview, setPreview] = useState<MergePreview | null>(null);
 
@@ -1404,17 +1539,22 @@ function ProposalCard({
             <Badge tone={MERGE_REASON_TONE[proposal.reason] ?? "neutral"}>
               {labelOf(MERGE_REASON_LABEL, proposal.reason)}
             </Badge>
-            <span className="text-xs text-(--color-muted)">{formatCount(proposal.total_documents)} documento(s)</span>
+            <span className="text-xs text-(--color-muted)">
+              {fill(messages.pages.tags.proposal.documents, { count: formatCount(proposal.total_documents) })}
+            </span>
           </span>
           {proposal.status === "APPROVED" && proposal.applicable ? (
             <label className="flex items-center gap-2 text-xs">
               <input type="checkbox" checked={selected} onChange={(event) => onToggle(event.target.checked)} />
-              incluir no lote de aplicação
+              {messages.pages.tags.proposal.includeInBatch}
             </label>
           ) : null}
           {proposal.status === "APPROVED" && !proposal.applicable ? (
-            <span className="text-xs text-(--color-muted)" title="Os membros já não existem no acervo.">
-              sem membros para absorver
+            <span
+              className="text-xs text-(--color-muted)"
+              title={messages.pages.tags.proposal.membersGoneTitle}
+            >
+              {messages.pages.tags.proposal.noMembers}
             </span>
           ) : null}
         </div>
@@ -1450,7 +1590,7 @@ function ProposalCard({
             disabled={decide.isPending || proposal.status === "APPROVED"}
             onClick={() => decide.mutate("APPROVED")}
           >
-            Aprovar
+            {messages.pages.tags.proposal.approve}
           </Button>
           <Button
             size="sm"
@@ -1458,7 +1598,7 @@ function ProposalCard({
             disabled={decide.isPending || proposal.status === "REJECTED"}
             onClick={() => decide.mutate("REJECTED")}
           >
-            Rejeitar
+            {messages.pages.tags.proposal.reject}
           </Button>
           {/*
             Editing is offered only while there is still a member to absorb: an applied agrupamento has no
@@ -1469,15 +1609,17 @@ function ProposalCard({
               size="sm"
               variant={editing ? "primary" : "secondary"}
               onClick={onEdit}
-              title="Tirar membros do agrupamento antes de mesclar"
+              title={messages.pages.tags.proposal.editTitle}
             >
-              {editing ? "fechando edição" : "editar"}
+              {editing ? messages.pages.tags.proposal.editClosing : messages.pages.tags.proposal.edit}
             </Button>
           ) : null}
           {proposal.decided_by || proposal.decision_note ? (
             <span className="text-xs text-(--color-muted)">
-              {proposal.decided_by ? `por ${proposal.decided_by}` : ""}
-              {proposal.decision_note ? ` · ${proposal.decision_note}` : ""}
+              {proposal.decided_by ? fill(messages.pages.tags.proposal.decidedBy, { name: proposal.decided_by }) : ""}
+              {proposal.decision_note
+                ? fill(messages.pages.tags.proposal.decisionNote, { note: proposal.decision_note })
+                : ""}
             </span>
           ) : null}
         </div>
@@ -1487,34 +1629,51 @@ function ProposalCard({
 
         {preview ? (
           <div className="grid gap-1 rounded-md bg-black/[0.02] p-3 text-xs ring-1 ring-(--color-line)">
-            <p className="font-medium">Nada foi escrito ainda. A aplicação usa este mesmo planejador.</p>
+            <p className="font-medium">{messages.pages.tags.merge.nothingWritten}</p>
             <p className="text-(--color-muted)">
-              {formatCount(preview.documents_updated)} documento(s) atualizado(s) ·{" "}
-              {formatCount(preview.links_rewritten)} vínculo(s) reescrito(s) ·{" "}
-              {formatCount((preview.tags_deleted ?? []).length)} tag(s) absorvida(s)
+              {fill(messages.pages.tags.merge.counts, {
+                documents: formatCount(preview.documents_updated),
+                links: formatCount(preview.links_rewritten),
+                tags: formatCount((preview.tags_deleted ?? []).length),
+              })}
             </p>
             <ul className="text-(--color-muted)">
               {(preview.tags_deleted ?? []).map((impact) => (
                 <li key={impact.tag_id}>
-                  {impact.name} ({formatCount(impact.document_count)} doc
-                  {impact.macro_category_id ? `, categoria ${impact.macro_category_id}` : ""})
+                  {fill(messages.pages.tags.proposal.impactLine, {
+                    name: impact.name,
+                    documents: formatCount(impact.document_count),
+                    category: impact.macro_category_id
+                      ? fill(messages.pages.tags.merge.categorySuffix, {
+                          category: impact.macro_category_id,
+                        })
+                      : "",
+                  })}
                 </li>
               ))}
             </ul>
             {(preview.synonyms_created ?? []).length > 0 ? (
               <p className="text-(--color-muted)">
-                grafias registradas: <code>{(preview.synonyms_created ?? []).join(", ")}</code>
+                <Trans
+                  text={messages.pages.tags.merge.synonymsCreated}
+                  values={{ list: <code>{(preview.synonyms_created ?? []).join(", ")}</code> }}
+                />
               </p>
             ) : null}
             {(preview.synonyms_repointed ?? []).length > 0 ? (
               <p className="text-(--color-muted)">
-                grafias reapontadas: <code>{(preview.synonyms_repointed ?? []).join(", ")}</code>
+                <Trans
+                  text={messages.pages.tags.merge.synonymsRepointed}
+                  values={{ list: <code>{(preview.synonyms_repointed ?? []).join(", ")}</code> }}
+                />
               </p>
             ) : null}
             {preview.category_would_be_lost ? (
               <Notice tone="danger">
-                Esta mesclagem <strong>exclui uma classificação de assunto</strong>: um dos membros está numa categoria que
-                a canônica não tem.
+                <Trans
+                  text={messages.pages.tags.proposal.lostCategory}
+                  values={{ excludes: <strong>{messages.pages.tags.merge.lostCategoryStrong}</strong> }}
+                />
               </Notice>
             ) : null}
           </div>
@@ -1550,6 +1709,7 @@ type BulkAction = { kind: "category"; categoryId: number } | { kind: "not-subjec
  * settles a spelling that is both. Banning and purging remain the destructive paths in Stopwords.
  */
 function ClassificarTab({ search, patch }: { search: TagsSearch; patch: (changes: Partial<TagsSearch>) => void }) {
+  const messages = useCopy();
   const queryClient = useQueryClient();
   const categories = useQuery(queries.macroCategories());
   const [selected, setSelected] = useState<number[]>([]);
@@ -1616,8 +1776,11 @@ function ClassificarTab({ search, patch }: { search: TagsSearch; patch: (changes
     onSuccess: (result) => {
       setReport(
         result.macro_category_name
-          ? `“${result.name}” está em ${result.macro_category_name}. A decisão vale para todas as descrições que carregam a tag.`
-          : `“${result.name}” foi declarada não-assunto: nenhum selo de assunto será mostrado para ela, o classificador não vai adivinhar de novo e a grafia não volta a virar tag.`,
+          ? fill(messages.pages.tags.classify.reportCategory, {
+              name: result.name,
+              category: result.macro_category_name,
+            })
+          : fill(messages.pages.tags.classify.reportNotSubject, { name: result.name }),
       );
       invalidate();
     },
@@ -1654,12 +1817,22 @@ function ClassificarTab({ search, patch }: { search: TagsSearch; patch: (changes
       const action = variables.action;
       const destination =
         action.kind === "category"
-          ? `categoria ${drawers.find((category) => category.category_id === action.categoryId)?.name ?? `#${action.categoryId}`}`
-          : "não-assunto (a grafia não volta a virar tag)";
+          ? fill(messages.pages.tags.classify.destinationCategory, {
+              name:
+                drawers.find((category) => category.category_id === action.categoryId)?.name ??
+                `#${action.categoryId}`,
+            })
+          : messages.pages.tags.classify.destinationNotSubject;
       setReport(
-        `${formatCount(written.length)} tag(s) escritas: ${destination}.` +
+        fill(messages.pages.tags.classify.bulkReport, {
+          count: formatCount(written.length),
+          destination,
+        }) +
           (failed.length > 0
-            ? ` ${formatCount(failed.length)} não responderam (ids ${failed.join(", ")}): a decisão delas continua em aberto, e elas seguem marcadas.`
+            ? fill(messages.pages.tags.classify.bulkFailed, {
+                count: formatCount(failed.length),
+                ids: failed.join(", "),
+              })
             : ""),
       );
       // What did not go through stays marked, so the retry is a click and not a re-selection.
@@ -1699,6 +1872,10 @@ function ClassificarTab({ search, patch }: { search: TagsSearch; patch: (changes
         ))}
       </div>
 
+      <p className="max-w-3xl text-xs text-(--color-muted)">
+        {CATALOG_STATE_HINT[state]}
+      </p>
+
       <div className="flex flex-wrap items-center gap-2">
         <CatalogSearchBox value={search.termo} onSearch={(term) => patch({ termo: term })} />
         <Select
@@ -1706,20 +1883,29 @@ function ClassificarTab({ search, patch }: { search: TagsSearch; patch: (changes
           value={search.cat ?? ""}
           onChange={(event) => patch({ cat: event.target.value ? Number(event.target.value) : undefined })}
         >
-          <option value="">Todas as categorias</option>
+          <option value="">{messages.pages.tags.classify.allCategories}</option>
           {(categories.data ?? []).map((category) => (
             <option key={category.category_id} value={category.category_id}>
               {category.name}
-              {category.is_active ? "" : " (aposentada)"}
+              {category.is_active ? "" : messages.pages.tags.classify.retiredSuffix}
             </option>
           ))}
         </Select>
       </div>
 
       <p className="max-w-3xl text-xs text-(--color-muted)">
-        {CATALOG_STATE_HINT[state]} Decidir aqui é uma decisão <strong>global</strong>: muda o selo de todas as
-        descrições que carregam a tag. Declarar não-assunto também bane a grafia de voltar a virar tag (a tag atual
-        fica no acervo); excluir as tags banidas é o passo separado da aba Stopwords.
+        <Trans
+          text={messages.pages.tags.classify.notice}
+          values={{
+            everywhere: <strong>{messages.pages.tags.classify.everywhere}</strong>,
+            notSubject: <strong>{messages.pages.tags.classify.notSubjectStrong}</strong>,
+            place: (
+              <Link to="/assuntos/grafias" className="font-medium underline underline-offset-2">
+                {messages.screens.blockedSpellings.label}
+              </Link>
+            ),
+          }}
+        />
       </p>
 
       {curate.error ? <ErrorState error={curate.error} /> : null}
@@ -1727,15 +1913,15 @@ function ClassificarTab({ search, patch }: { search: TagsSearch; patch: (changes
       {report ? <Notice tone="ok">{report}</Notice> : null}
 
       {catalog.error ? <ErrorState error={catalog.error} /> : null}
-      {catalog.isPending ? <Spinner label="Lendo o catálogo…" /> : null}
+      {catalog.isPending ? <Spinner label={messages.pages.tags.classify.readingCatalog} /> : null}
 
       {countsAreCurrent && total === 0 ? (
         <EmptyState
-          title="Nenhuma tag neste estado"
+          title={messages.pages.tags.classify.emptyTitle}
           hint={
             state === "PENDING"
-              ? "A fila está vazia: toda tag do acervo tem categoria ou foi declarada não-assunto."
-              : "Troque o estado ou limpe a busca para ver outras tags do catálogo."
+              ? messages.pages.tags.classify.emptyHintPending
+              : messages.pages.tags.classify.emptyHintOther
           }
         />
       ) : null}
@@ -1744,8 +1930,10 @@ function ClassificarTab({ search, patch }: { search: TagsSearch; patch: (changes
         <Card>
           <CardHeader className="flex flex-wrap items-center justify-between gap-2 text-xs text-(--color-muted)">
             <span>
-              {countsAreCurrent ? `${formatCount(total)} tag(s) neste estado` : "lendo…"}
-              {search.termo ? ` para “${search.termo}”` : ""}
+              {countsAreCurrent
+                ? fill(messages.pages.tags.classify.countInState, { count: formatCount(total) })
+                : messages.pages.tags.classify.reading}
+              {search.termo ? fill(messages.pages.tags.classify.forTerm, { term: search.termo }) : ""}
             </span>
             <span className="flex items-center gap-2">
               <label className="flex items-center gap-2">
@@ -1754,11 +1942,13 @@ function ClassificarTab({ search, patch }: { search: TagsSearch; patch: (changes
                   checked={allOnPage}
                   onChange={() => setSelected(allOnPage ? selected.filter((id) => !pageIds.includes(id)) : [...new Set([...selected, ...pageIds])])}
                 />
-                selecionar esta página
+                {messages.pages.tags.classify.selectPage}
               </label>
               {selected.length > 0 ? (
                 <Button size="sm" variant="ghost" onClick={() => setSelected([])}>
-                  limpar seleção ({formatCount(selected.length)})
+                  {fill(messages.pages.tags.classify.clearSelectionCount, {
+                    count: formatCount(selected.length),
+                  })}
                 </Button>
               ) : null}
             </span>
@@ -1768,10 +1958,10 @@ function ClassificarTab({ search, patch }: { search: TagsSearch; patch: (changes
               <thead className="border-b border-(--color-line) text-xs text-(--color-muted)">
                 <tr>
                   <th className="w-8 px-3 py-2" />
-                  <th className="px-3 py-2 text-left font-medium">Tag</th>
-                  <th className="px-3 py-2 text-right font-medium">Documentos</th>
-                  <th className="px-3 py-2 text-left font-medium">Estado</th>
-                  <th className="px-3 py-2 text-left font-medium">Decidir</th>
+                  <th className="px-3 py-2 text-left font-medium">{messages.pages.tags.columns.tag}</th>
+                  <th className="px-3 py-2 text-right font-medium">{messages.pages.tags.columns.documents}</th>
+                  <th className="px-3 py-2 text-left font-medium">{messages.pages.tags.columns.state}</th>
+                  <th className="px-3 py-2 text-left font-medium">{messages.pages.tags.columns.decide}</th>
                 </tr>
               </thead>
               <tbody>
@@ -1795,17 +1985,21 @@ function ClassificarTab({ search, patch }: { search: TagsSearch; patch: (changes
       {countsAreCurrent && total > CATALOG_PAGE_SIZE ? (
         <div className="flex items-center justify-between text-sm">
           <Button size="sm" disabled={offset === 0} onClick={() => patch({ offset: Math.max(0, offset - CATALOG_PAGE_SIZE) })}>
-            ← Anterior
+            {messages.common.previous}
           </Button>
           <span className="text-xs text-(--color-muted)">
-            {formatCount(offset + 1)}–{formatCount(Math.min(offset + CATALOG_PAGE_SIZE, total))} de {formatCount(total)}
+            {fill(messages.common.range, {
+              from: formatCount(offset + 1),
+              to: formatCount(Math.min(offset + CATALOG_PAGE_SIZE, total)),
+              total: formatCount(total),
+            })}
           </span>
           <Button
             size="sm"
             disabled={offset + CATALOG_PAGE_SIZE >= total}
             onClick={() => patch({ offset: offset + CATALOG_PAGE_SIZE })}
           >
-            Próxima →
+            {messages.common.next}
           </Button>
         </div>
       ) : null}
@@ -1814,7 +2008,7 @@ function ClassificarTab({ search, patch }: { search: TagsSearch; patch: (changes
       {selected.length > 0 ? (
         <div className="pointer-events-none fixed inset-x-0 bottom-6 z-40 flex justify-center">
           <div className="pointer-events-auto flex flex-wrap items-center gap-3 rounded-full bg-(--color-ink) px-4 py-2 text-sm text-white shadow-lg">
-            <span>{formatCount(selected.length)} tag(s) marcada(s)</span>
+            <span>{fill(messages.pages.tags.classify.markedCount, { count: formatCount(selected.length) })}</span>
             <Select
               // ``text-(--color-ink)`` is not decoration: the bar is ``text-white`` and the control
               // is ``bg-white``, so without an explicit colour the placeholder renders white on
@@ -1826,11 +2020,11 @@ function ClassificarTab({ search, patch }: { search: TagsSearch; patch: (changes
                 if (event.target.value) bulk.mutate({ ids: selected, action: { kind: "category", categoryId: Number(event.target.value) } });
               }}
             >
-              <option value="">mover para categoria…</option>
+              <option value="">{messages.pages.tags.classify.moveToCategory}</option>
               {drawers.map((category) => (
                 <option key={category.category_id} value={category.category_id}>
                   {category.name}
-                  {category.is_active ? "" : " (aposentada)"}
+                  {category.is_active ? "" : messages.pages.tags.classify.retiredSuffix}
                 </option>
               ))}
             </Select>
@@ -1838,13 +2032,13 @@ function ClassificarTab({ search, patch }: { search: TagsSearch; patch: (changes
               size="sm"
               variant="secondary"
               disabled={bulk.isPending}
-              title="Nenhum selo de assunto será mostrado para elas, e a grafia não volta a virar tag."
+              title={messages.pages.tags.classify.notSubjectTitle}
               onClick={() => bulk.mutate({ ids: selected, action: { kind: "not-subject" } })}
             >
-              não é assunto
+              {messages.pages.tags.classify.notSubject}
             </Button>
             <button className="text-xs text-white/70 hover:text-white" onClick={() => setSelected([])}>
-              limpar
+              {messages.pages.tags.clear}
             </button>
           </div>
         </div>
@@ -1869,6 +2063,7 @@ function CatalogRow({
   onToggle: () => void;
   onCurate: (categoryId: number | null) => void;
 }) {
+  const messages = useCopy();
   const drawer = row.macro_category_id
     ? drawers.find((category) => category.category_id === row.macro_category_id)
     : undefined;
@@ -1876,7 +2071,12 @@ function CatalogRow({
   return (
     <tr className="border-b border-(--color-line) last:border-b-0">
       <td className="px-3 py-1.5 align-top">
-        <input type="checkbox" checked={selected} onChange={onToggle} aria-label={`Marcar ${row.name}`} />
+        <input
+          type="checkbox"
+          checked={selected}
+          onChange={onToggle}
+          aria-label={fill(messages.pages.tags.row.markAria, { name: row.name })}
+        />
       </td>
       <td className="px-3 py-1.5 align-top">
         <span className="flex min-w-0 flex-col">
@@ -1884,9 +2084,9 @@ function CatalogRow({
           {row.ai_confidence_score !== null && row.ai_confidence_score !== undefined ? (
             <span
               className="text-xs tabular-nums text-(--color-muted)"
-              title="O que o classificador pontuou antes de recusar a categoria. Ele não errou sozinho: abaixo do limiar, a decisão é sua."
+              title={messages.pages.tags.row.confidenceTitle}
             >
-              confiança {row.ai_confidence_score.toFixed(2)}
+              {fill(messages.pages.tags.row.confidence, { score: row.ai_confidence_score.toFixed(2) })}
             </span>
           ) : null}
         </span>
@@ -1897,12 +2097,12 @@ function CatalogRow({
           {row.macro_category_id ? (
             <Badge tone="accent">{drawer?.name ?? `#${row.macro_category_id}`}</Badge>
           ) : row.subject_excluded ? (
-            <Badge tone="neutral" title="Uma pessoa declarou que esta tag não é assunto, e a grafia está banida de voltar.">
-              não é assunto
+            <Badge tone="neutral" title={messages.pages.tags.row.excludedTitle}>
+              {messages.pages.tags.classify.notSubject}
             </Badge>
           ) : (
-            <Badge tone="warn" title="Nenhuma pessoa decidiu, e o classificador não arquivou a tag.">
-              sem decisão
+            <Badge tone="warn" title={messages.pages.tags.row.noDecisionTitle}>
+              {messages.pages.tags.row.noDecision}
             </Badge>
           )}
         </span>
@@ -1911,17 +2111,17 @@ function CatalogRow({
         <span className="flex flex-wrap items-center gap-2">
           <Select
             className="w-64"
-            aria-label={`Categoria da tag ${row.name}`}
+            aria-label={fill(messages.pages.tags.row.categoryAria, { name: row.name })}
             value={row.macro_category_id ?? ""}
             disabled={busy}
-            title="Vale para todas as descrições que carregam a tag, não só para uma."
+            title={messages.pages.tags.row.categoryTitle}
             onChange={(event) => onCurate(event.target.value ? Number(event.target.value) : null)}
           >
-            <option value="">sem categoria (não é assunto)</option>
+            <option value="">{messages.pages.tags.row.noCategory}</option>
             {drawers.map((category) => (
               <option key={category.category_id} value={category.category_id}>
                 {category.name}
-                {category.is_active ? "" : " (aposentada)"}
+                {category.is_active ? "" : messages.pages.tags.classify.retiredSuffix}
               </option>
             ))}
           </Select>
@@ -1945,6 +2145,7 @@ function CatalogSearchBox({
   value: string | undefined;
   onSearch: (term: string | undefined) => void;
 }) {
+  const messages = useCopy();
   const fromUrl = value ?? "";
   const [term, setTerm] = useState(fromUrl);
   const [seen, setSeen] = useState(fromUrl);
@@ -1969,452 +2170,8 @@ function CatalogSearchBox({
     <Input
       className="max-w-xs"
       value={term}
-      placeholder="buscar tag…"
+      placeholder={messages.pages.tags.classify.searchPlaceholder}
       onChange={(event) => setTerm(event.target.value)}
     />
-  );
-}
-
-// =============================================================================================
-// Stopwords — os termos banidos, e a única escrita destrutiva sem undo
-// =============================================================================================
-
-/** "pessoas, vista aérea" → ["pessoas", "vista aérea"]. */
-function splitWords(text: string): string[] {
-  return text
-    .split(/[,\n;]/)
-    .map((word) => word.trim())
-    .filter((word) => word.length > 0);
-}
-
-/**
- * The banned terms, and the purge.
- *
- * The screen keeps three things apart that are easy to confuse, and each one is stated where it
- * matters: banning a word **deletes nothing**; the purge deletes the tags with that name and **has
- * no undo** (unlike the merge, which keeps a ledger); and the scope decides which of those is even
- * possible — a term banned from the NER axis never reaches the subject purge.
- */
-function StopwordsTab({ search, patch }: { search: TagsSearch; patch: (changes: Partial<TagsSearch>) => void }) {
-  const queryClient = useQueryClient();
-  const [draft, setDraft] = useState("");
-  const [draftScope, setDraftScope] = useState<StopwordsScope>("TAG");
-  /** Only the extraction axis reads it: a TAG ban never reaches the NER filter (#160). */
-  const [draftMatch, setDraftMatch] = useState<StopwordMatch>("TOKEN");
-  const [preview, setPreview] = useState<StopwordPurgePreview | null>(null);
-  const [purged, setPurged] = useState<number | null>(null);
-  const [purgeIds, setPurgeIds] = useState<number[]>([]);
-  const [logTerm, setLogTerm] = useState("");
-  const [logLimit, setLogLimit] = useState(MERGE_LOG_PAGE_SIZE);
-  const settledLogTerm = useDebounced(logTerm);
-
-  const stopwords = useQuery(queries.stopwords(search.escopo));
-  const log = useQuery(queries.stopwordPurgeLog(logLimit, settledLogTerm.trim() || undefined));
-
-  const invalidate = () => {
-    void queryClient.invalidateQueries({ queryKey: ["taxonomy", "stopwords"] });
-    void queryClient.invalidateQueries({ queryKey: ["taxonomy", "tags"] });
-    void queryClient.invalidateQueries({ queryKey: ["taxonomy", "stopword-purge-log"] });
-    void queryClient.invalidateQueries({ queryKey: ["documents"] });
-    void queryClient.invalidateQueries({ queryKey: ["curation", "inbox"] });
-  };
-
-  const ban = useMutation({
-    mutationFn: () => banStopwords({ words: splitWords(draft), scope: draftScope, match_mode: draftMatch }),
-    onSuccess: () => {
-      setDraft("");
-      invalidate();
-    },
-  });
-
-  const setMatch = useMutation({
-    mutationFn: (input: { word: string; match_mode: StopwordMatch }) =>
-      setStopwordMatch({ words: [input.word], match_mode: input.match_mode }),
-    onSuccess: invalidate,
-  });
-
-  const unban = useMutation({
-    mutationFn: (word: string) => unbanStopwords({ words: [word] }),
-    onSuccess: invalidate,
-  });
-
-  const dryRun = useMutation({
-    mutationFn: previewStopwordPurge,
-    onSuccess: (data) => {
-      setPreview(data);
-      setPurged(null);
-      setPurgeIds([]);
-    },
-  });
-
-  const purge = useMutation({
-    mutationFn: purgeStopwords,
-    onSuccess: (data) => {
-      setPurged(data.tags_deleted);
-      setPurgeIds(data.purge_ids ?? []);
-      setPreview(null);
-      invalidate();
-    },
-  });
-
-  const revertPurge = useMutation({
-    mutationFn: (purgeId: number) => undoStopwordPurge(purgeId),
-    onSuccess: () => {
-      setPurgeIds([]);
-      invalidate();
-    },
-  });
-
-  const words = stopwords.data ?? [];
-  const byScope = (scope: StopwordsScope) => words.filter((item) => item.scope === scope);
-
-  return (
-    <div className="grid gap-4">
-      <Notice tone="warn" className="max-w-3xl">
-        <strong>Banir não exclui nada.</strong> Banir registra que o termo não vale; a <strong>purga</strong> é o passo
-        que exclui as tags com esse nome. Como o merge, ela <strong>guarda um ledger</strong>: cada tag excluída pode ser
-        restaurada com seus vínculos e suas grafias. O desfazer fica no ledger de purgas, no fim desta aba.
-      </Notice>
-
-      <div className="flex flex-wrap items-center gap-2">
-        <Button size="sm" variant={search.escopo ? "secondary" : "primary"} onClick={() => patch({ escopo: undefined })}>
-          Todos os eixos ({formatCount(words.length)})
-        </Button>
-        {SCOPE_VALUES.map((scope) => (
-          <Button
-            key={scope}
-            size="sm"
-            variant={search.escopo === scope ? "primary" : "secondary"}
-            title={STOPWORD_SCOPE_HINT[scope]}
-            onClick={() => patch({ escopo: scope })}
-          >
-            {labelOf(STOPWORD_SCOPE_LABEL, scope)} ({formatCount(byScope(scope).length)})
-          </Button>
-        ))}
-      </div>
-
-      {stopwords.error ? <ErrorState error={stopwords.error} /> : null}
-      {stopwords.isPending ? <Spinner label="Lendo os termos banidos…" /> : null}
-
-      {stopwords.data && words.length === 0 ? (
-        <EmptyState
-          title="Nenhum termo banido"
-          hint="Banir um termo o tira do eixo escolhido. Nada é excluído por banir: a purga é um passo separado, abaixo."
-        />
-      ) : null}
-
-      {words.length > 0 ? (
-        <Card>
-          <CardHeader className="text-sm font-semibold">Termos banidos</CardHeader>
-          <CardBody>
-            {/*
-              A searchable ledger and not a flat column: 200 banned terms is already past the point
-              where scrolling to find one is reasonable, and the list only grows.
-            */}
-            <LedgerList
-              items={words}
-              keyOf={(item) => item.word}
-              termOf={(item) => [
-                item.word,
-                labelOf(STOPWORD_SCOPE_LABEL, item.scope),
-                labelOf(STOPWORD_SOURCE_LABEL, item.source),
-              ]}
-              searchPlaceholder="buscar termo banido…"
-              nounSingular="termo banido"
-              nounPlural="termos banidos"
-              emptyTitle="Nenhum termo banido"
-              emptyHint="Banir um termo o tira do eixo escolhido. Nada é excluído por banir: a purga é um passo separado, abaixo."
-              renderItem={(item) => (
-                <div className="flex items-center justify-between gap-3 py-1.5">
-                  <span className="flex min-w-0 items-center gap-2">
-                    <span className="truncate">{item.word}</span>
-                    <Badge
-                      tone={item.scope === "ENTITY" ? "neutral" : "accent"}
-                      title={STOPWORD_SCOPE_HINT[item.scope]}
-                    >
-                      {labelOf(STOPWORD_SCOPE_LABEL, item.scope)}
-                    </Badge>
-                    {item.source !== "HUMAN" ? (
-                      <Badge tone="neutral" title={STOPWORD_SOURCE_HINT[item.source]}>
-                        {labelOf(STOPWORD_SOURCE_LABEL, item.source)}
-                      </Badge>
-                    ) : null}
-                    {/*
-                      The mode is a control, not a badge: it decides whether the ban swallows the
-                      names that contain the word, and changing it is one act on its own (#160).
-                      A TAG ban never reaches the NER filter, so it carries no mode here.
-                    */}
-                    {item.scope !== "TAG" ? (
-                      <Select
-                        className="h-7 w-64 text-xs"
-                        value={item.match_mode}
-                        title={STOPWORD_MATCH_HINT[item.match_mode]}
-                        disabled={setMatch.isPending}
-                        onChange={(event) =>
-                          setMatch.mutate({
-                            word: item.word,
-                            match_mode: event.target.value as StopwordMatch,
-                          })
-                        }
-                      >
-                        {MATCH_VALUES.map((mode) => (
-                          <option key={mode} value={mode}>
-                            {labelOf(STOPWORD_MATCH_LABEL, mode)}
-                          </option>
-                        ))}
-                      </Select>
-                    ) : null}
-                  </span>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    disabled={unban.isPending}
-                    onClick={() => unban.mutate(item.word)}
-                  >
-                    {ACTION.unban.label}
-                  </Button>
-                </div>
-              )}
-            />
-          </CardBody>
-        </Card>
-      ) : null}
-
-      <Card>
-        <CardHeader className="text-sm font-semibold">Banir termos</CardHeader>
-        <CardBody className="grid gap-2">
-          <div className="flex flex-wrap items-end gap-2">
-            <label className="flex-1">
-              <span className="mb-1 block text-xs font-medium text-(--color-muted)">
-                Termos, separados por vírgula ou linha
-              </span>
-              <Input
-                value={draft}
-                onChange={(event) => setDraft(event.target.value)}
-                placeholder="ex.: pessoas, vista aérea"
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" && splitWords(draft).length > 0) ban.mutate();
-                }}
-              />
-            </label>
-            <label className="w-56">
-              <span className="mb-1 block text-xs font-medium text-(--color-muted)">Eixo</span>
-              <Select value={draftScope} onChange={(event) => setDraftScope(event.target.value as StopwordsScope)}>
-                {SCOPE_VALUES.map((scope) => (
-                  <option key={scope} value={scope}>
-                    {labelOf(STOPWORD_SCOPE_LABEL, scope)}
-                  </option>
-                ))}
-              </Select>
-            </label>
-            {/*
-              Only the extraction axis reads the mode: a TAG ban never reaches the NER filter, and
-              offering the choice there would imply it does.
-            */}
-            {draftScope !== "TAG" ? (
-              <label className="w-64">
-                <span className="mb-1 block text-xs font-medium text-(--color-muted)">Casamento</span>
-                <Select value={draftMatch} onChange={(event) => setDraftMatch(event.target.value as StopwordMatch)}>
-                  {MATCH_VALUES.map((mode) => (
-                    <option key={mode} value={mode}>
-                      {labelOf(STOPWORD_MATCH_LABEL, mode)}
-                    </option>
-                  ))}
-                </Select>
-              </label>
-            ) : null}
-            <Button
-              variant="primary"
-              disabled={splitWords(draft).length === 0 || ban.isPending}
-              onClick={() => ban.mutate()}
-            >
-              {ban.isPending ? ACTION.ban.pending : ACTION.ban.label}
-            </Button>
-          </div>
-          <p className="text-xs text-(--color-muted)">
-            {STOPWORD_SCOPE_HINT[draftScope]}
-            {draftScope !== "TAG" ? ` ${STOPWORD_MATCH_HINT[draftMatch]}` : ""}
-          </p>
-          {ban.error ? <ErrorState error={ban.error} /> : null}
-          {unban.error ? <ErrorState error={unban.error} /> : null}
-        </CardBody>
-      </Card>
-
-      <Card className="ring-(--color-danger)/30">
-        <CardHeader className="text-sm font-semibold text-(--color-danger)">Excluir as tags banidas</CardHeader>
-        <CardBody className="grid gap-3">
-          <p className="text-xs text-(--color-muted)">
-            A purga exclui toda tag cujo nome seja um termo banido nos eixos <code>TAG</code> ou <code>ALL</code>. Os
-            vínculos caem junto e a classificação da tag vai embora. Cada tag excluída entra no <strong>ledger de
-            purgas</strong> antes de sair, então o desfazer restaura a tag, os vínculos e as grafias — mas não
-            desbane o termo.
-          </p>
-
-          <div className="flex flex-wrap items-center gap-2">
-            <Button disabled={dryRun.isPending || purge.isPending} onClick={() => dryRun.mutate()}>
-              {dryRun.isPending ? ACTION.preview.pending : ACTION.preview.label}
-            </Button>
-            <Button
-              variant="danger"
-              disabled={!preview || preview.total_tags === 0 || purge.isPending}
-              title={preview ? undefined : "O impacto é obrigatório: confira o que seria excluído primeiro."}
-              onClick={() => purge.mutate()}
-            >
-              {purge.isPending
-                ? ACTION.exclude.pending
-                : preview
-                  ? `Excluir ${formatCount(preview.total_tags)} tag(s)`
-                  : "Excluir (confira antes)"}
-            </Button>
-          </div>
-
-          {dryRun.error ? <ErrorState error={dryRun.error} /> : null}
-          {purge.error ? <ErrorState error={purge.error} /> : null}
-
-          {preview ? (
-            <Notice tone="danger" as="div" className="grid gap-2">
-              <p>
-                Nada foi excluído ainda. Seriam <strong>{formatCount(preview.total_tags)} tag(s)</strong> em{" "}
-                <strong>{formatCount(preview.total_documents)} descrição(ões)</strong>.
-              </p>
-              {(preview.stopwords ?? []).length > 0 ? (
-                <p className="text-(--color-muted)">
-                  termos que a purga alcança: <code>{(preview.stopwords ?? []).join(", ")}</code>
-                </p>
-              ) : null}
-              {preview.total_tags === 0 ? (
-                <p className="text-(--color-muted)">
-                  Nenhuma tag do acervo tem um desses nomes — não há o que excluir.
-                </p>
-              ) : (
-                <ul className="max-h-64 overflow-y-auto">
-                  {(preview.tags ?? []).map((tag) => (
-                    <li key={tag.tag_id} className="flex items-center justify-between gap-3 py-0.5">
-                      <span className="flex min-w-0 items-center gap-2">
-                        <span className="truncate">{tag.name}</span>
-                        {tag.source !== "HUMAN" ? (
-                          <Badge tone="neutral" title={STOPWORD_SOURCE_HINT[tag.source]}>
-                            {labelOf(STOPWORD_SOURCE_LABEL, tag.source)}
-                          </Badge>
-                        ) : null}
-                      </span>
-                      <span className="shrink-0 tabular-nums text-(--color-muted)">
-                        {formatCount(tag.document_count)} doc
-                        {tag.macro_category_name ? ` · ${tag.macro_category_name}` : ""}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </Notice>
-          ) : null}
-
-          {purged !== null ? (
-            <Notice tone="ok" as="div" className="grid gap-2">
-              <p>
-                {formatCount(purged)} tag(s) excluída(s) e registrada(s) no ledger de purgas.
-              </p>
-              {purgeIds.length > 0 ? (
-                <div className="flex flex-wrap items-center gap-2">
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    disabled={revertPurge.isPending}
-                    title="Restaura as tags, os vínculos e as grafias desta purga. O banimento continua."
-                    onClick={() => {
-                      const [first] = purgeIds;
-                      if (first !== undefined) revertPurge.mutate(first);
-                    }}
-                  >
-                    desfazer esta purga
-                  </Button>
-                  <span className="text-(--color-muted)">
-                    entradas no ledger: <code>{purgeIds.join(", ")}</code>
-                  </span>
-                </div>
-              ) : null}
-            </Notice>
-          ) : null}
-          {revertPurge.error ? <ErrorState error={revertPurge.error} /> : null}
-        </CardBody>
-      </Card>
-
-      <Card>
-        <CardHeader className="text-sm font-semibold">Ledger das purgas</CardHeader>
-        <CardBody className="grid gap-2">
-          <p className="text-xs text-(--color-muted)">
-            Cada linha é uma tag excluída pela purga, com o antes guardado: nome, vínculos, grafias e classificação. O
-            desfazer restaura a tag — e <strong>não</strong> desbane o termo, que continua fora do próximo índice.
-          </p>
-          {/*
-            The search is server-side: the ledger only grows, and a box that filtered the loaded page
-            would say "não está aqui" for a purge that happened.
-          */}
-          <Input
-            className="max-w-xs"
-            value={logTerm}
-            placeholder="buscar por tag excluída…"
-            onChange={(event) => setLogTerm(event.target.value)}
-          />
-          {log.isPending ? <Spinner label="Lendo o ledger…" /> : null}
-          {log.error ? <ErrorState error={log.error} /> : null}
-          {log.data && (log.data.items ?? []).length === 0 ? (
-            <EmptyState
-              title={logTerm.trim() ? `Nenhuma purga para “${logTerm.trim()}”` : "Nenhuma purga registrada ainda"}
-              hint={
-                logTerm.trim()
-                  ? "A busca cobre o nome da tag excluída."
-                  : "O ledger registra cada tag excluída, com o antes."
-              }
-            />
-          ) : null}
-          <ul className="divide-y divide-(--color-line) text-xs">
-            {(log.data?.items ?? []).map((entry) => (
-              <li key={entry.purge_id} className="flex flex-wrap items-center justify-between gap-2 py-2">
-                <span className="min-w-0">
-                  <span className="font-medium">{entry.purged_name}</span>
-                  <span className="text-(--color-muted)">
-                    {" "}
-                    · {formatCount(entry.document_count)} doc(s) · {formatDateTime(entry.changed_at)}
-                    {entry.changed_by ? ` · por ${entry.changed_by}` : ""}
-                    {entry.macro_category_name ? ` · ${entry.macro_category_name}` : ""}
-                  </span>
-                </span>
-                {entry.undone_at ? (
-                  <Badge tone="neutral">restaurada em {formatDateTime(entry.undone_at)}</Badge>
-                ) : (
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    disabled={revertPurge.isPending}
-                    title="Restaura a tag, os vínculos e as grafias. O banimento do termo continua."
-                    onClick={() => revertPurge.mutate(entry.purge_id)}
-                  >
-                    desfazer
-                  </Button>
-                )}
-              </li>
-            ))}
-          </ul>
-          {/*
-            The footer appears whenever there is something to say: more rows below, or a search that
-            matched — the same rule the merge ledger follows.
-          */}
-          {log.data && (log.data.total > (log.data.items ?? []).length || settledLogTerm.trim()) ? (
-            <div className="flex items-center gap-2">
-              {log.data.total > (log.data.items ?? []).length ? (
-                <Button size="sm" variant="ghost" onClick={() => setLogLimit((current) => current + MERGE_LOG_PAGE_SIZE)}>
-                  ver mais
-                </Button>
-              ) : null}
-              <span className="text-xs text-(--color-muted)">
-                mostrando {formatCount((log.data.items ?? []).length)} de {formatCount(log.data.total)}{" "}
-                {settledLogTerm.trim() ? "purga(s) que casam com a busca" : "purga(s) registrada(s)"}
-              </span>
-            </div>
-          ) : null}
-        </CardBody>
-      </Card>
-    </div>
   );
 }

@@ -13,6 +13,10 @@ import { EmptyState, ErrorState, Spinner } from "@/components/ui/Feedback";
 import { Field } from "@/components/ui/Field";
 import { Input, Select } from "@/components/ui/Input";
 import { Notice } from "@/components/ui/Notice";
+import { useCopy } from "@/i18n/context";
+import { fill } from "@/i18n/maps";
+import type { Messages } from "@/i18n/pt";
+import { Trans } from "@/i18n/trans";
 import { formatCount, formatDate, REVIEW_STATUS_LABEL, REVIEW_STATUS_TONE, subjectBadge } from "@/lib/format";
 import { asBoolean, asEnum, asNumber, asString } from "@/lib/search";
 
@@ -23,13 +27,10 @@ const PAGE_SIZE = 25;
  *
  * One list, because three things read it: the URL validator, the select, and the note that
  * explains the non-default ones. ``asEnum`` drops a value the list does not carry, so a
- * ``?mode=`` this screen does not know is discarded instead of being sent to the route.
+ * ``?mode=`` this screen does not know is discarded instead of being sent to the route. The
+ * words the select shows are the catalogue's, keyed by these values.
  */
-const SEARCH_MODES: readonly { value: SearchMode; label: string }[] = [
-  { value: "lexical", label: "Lexical" },
-  { value: "semantic", label: "Semântica" },
-  { value: "hybrid", label: "Híbrida" },
-];
+const SEARCH_MODES: readonly SearchMode[] = ["lexical", "semantic", "hybrid"];
 
 /**
  * ``getRouteApi`` instead of importing the route object: the route is declared in ``router.tsx``
@@ -66,10 +67,7 @@ const REVIEW_STATUSES = Object.keys(REVIEW_STATUS_LABEL) as ArchiveReviewStatus[
 export function validateCollectionSearch(search: Record<string, unknown>): CollectionSearch {
   return {
     term: asString(search.term),
-    mode: asEnum(
-      search.mode,
-      SEARCH_MODES.map((mode) => mode.value),
-    ) ?? "lexical",
+    mode: asEnum(search.mode, SEARCH_MODES) ?? "lexical",
     typology_id: asNumber(search.typology_id),
     macro_category_id: asNumber(search.macro_category_id),
     entity_type: asString(search.entity_type),
@@ -98,6 +96,7 @@ function toRequest(search: CollectionSearch): DocumentSearch {
 function activeFilters(
   search: CollectionSearch,
   facets: DocumentFacets | undefined,
+  copy: Messages["pages"]["collection"],
 ): { key: keyof CollectionSearch; label: string }[] {
   const nameFrom = (values: FacetCount[] | undefined, key: string | number | undefined, prefix: string) => {
     const match = values?.find((value) => value.key === String(key));
@@ -106,23 +105,28 @@ function activeFilters(
 
   const entries: { key: keyof CollectionSearch; label: string }[] = [];
   if (search.typology_id !== undefined)
-    entries.push({ key: "typology_id", label: nameFrom(facets?.typology, search.typology_id, "Tipologia") });
+    entries.push({ key: "typology_id", label: nameFrom(facets?.typology, search.typology_id, copy.facet.typology) });
   if (search.macro_category_id !== undefined)
     entries.push({
       key: "macro_category_id",
-      label: nameFrom(facets?.macro_category, search.macro_category_id, "Assunto"),
+      label: nameFrom(facets?.macro_category, search.macro_category_id, copy.facet.subject),
     });
-  if (search.entity_type !== undefined) entries.push({ key: "entity_type", label: `Entidade ${search.entity_type}` });
+  if (search.entity_type !== undefined)
+    entries.push({ key: "entity_type", label: fill(copy.filters.entity, { value: search.entity_type }) });
   if (search.level_id !== undefined)
-    entries.push({ key: "level_id", label: nameFrom(facets?.level, search.level_id, "Nível") });
-  if (search.ancestor_id !== undefined)
-    entries.push({ key: "ancestor_id", label: "Dentro de um ramo do arranjo" });
+    entries.push({ key: "level_id", label: nameFrom(facets?.level, search.level_id, copy.filters.level) });
+  if (search.ancestor_id !== undefined) entries.push({ key: "ancestor_id", label: copy.filters.ancestor });
   if (search.status !== undefined)
     entries.push({ key: "status", label: REVIEW_STATUS_LABEL[search.status] ?? search.status });
   if (search.is_anomaly !== undefined)
-    entries.push({ key: "is_anomaly", label: search.is_anomaly ? "Somente anomalias" : "Somente sem anomalia" });
-  if (search.date_from !== undefined) entries.push({ key: "date_from", label: `De ${search.date_from}` });
-  if (search.date_to !== undefined) entries.push({ key: "date_to", label: `Até ${search.date_to}` });
+    entries.push({
+      key: "is_anomaly",
+      label: search.is_anomaly ? copy.filters.onlyAnomalies : copy.filters.onlyWithoutAnomaly,
+    });
+  if (search.date_from !== undefined)
+    entries.push({ key: "date_from", label: fill(copy.filters.from, { date: search.date_from }) });
+  if (search.date_to !== undefined)
+    entries.push({ key: "date_to", label: fill(copy.filters.to, { date: search.date_to }) });
   return entries;
 }
 
@@ -134,6 +138,7 @@ function activeFilters(
  * to keep in step. The input keeps its own value so typing never waits for the navigation.
  */
 function SearchBox({ value, onSearch }: { value: string | undefined; onSearch: (term: string | undefined) => void }) {
+  const messages = useCopy();
   const fromUrl = value ?? "";
   const [term, setTerm] = useState(fromUrl);
   const [seen, setSeen] = useState(fromUrl);
@@ -158,7 +163,7 @@ function SearchBox({ value, onSearch }: { value: string | undefined; onSearch: (
   return (
     <Input
       value={term}
-      placeholder="Buscar no acervo…"
+      placeholder={messages.pages.collection.searchPlaceholder}
       className="max-w-md"
       onChange={(event) => setTerm(event.target.value)}
       onKeyDown={(event) => {
@@ -186,13 +191,16 @@ function DateRange({
   to: string | undefined;
   onChange: (changes: { date_from?: string; date_to?: string }) => void;
 }) {
+  const messages = useCopy();
   const active = from !== undefined || to !== undefined;
 
   return (
     <div className="border-b border-(--color-line) px-4 py-3">
-      <p className="pb-2 text-[11px] font-semibold tracking-wide text-(--color-muted) uppercase">Data</p>
+      <p className="pb-2 text-[11px] font-semibold tracking-wide text-(--color-muted) uppercase">
+        {messages.pages.collection.dateRange.title}
+      </p>
       <div className="grid gap-2">
-        <Field label="de">
+        <Field label={messages.pages.collection.dateRange.from}>
           <Input
             type="date"
             value={from ?? ""}
@@ -200,7 +208,7 @@ function DateRange({
             onChange={(event) => onChange({ date_from: event.target.value || undefined })}
           />
         </Field>
-        <Field label="até">
+        <Field label={messages.pages.collection.dateRange.to}>
           <Input
             type="date"
             value={to ?? ""}
@@ -210,7 +218,7 @@ function DateRange({
         </Field>
         {active ? (
           <Button size="sm" variant="ghost" onClick={() => onChange({ date_from: undefined, date_to: undefined })}>
-            limpar datas
+            {messages.pages.collection.dateRange.clear}
           </Button>
         ) : null}
       </div>
@@ -260,6 +268,7 @@ function FacetGroup({
 }
 
 export function CollectionRoute() {
+  const messages = useCopy();
   const search = routeApi.useSearch();
   const navigate = useNavigate();
 
@@ -282,7 +291,7 @@ export function CollectionRoute() {
   const facets = data?.facets;
   const total = data?.total ?? 0;
   const offset = search.offset ?? 0;
-  const filters = activeFilters(search, facets);
+  const filters = activeFilters(search, facets, messages.pages.collection);
 
   return (
     <>
@@ -292,9 +301,11 @@ export function CollectionRoute() {
         status={
           data ? (
             <>
-              {formatCount(total)} descrições
-              {search.term ? ` para “${search.term}”` : ""}
-              {isFetching ? <span className="ml-2">atualizando…</span> : null}
+              {fill(messages.pages.collection.status.total, { count: formatCount(total) })}
+              {search.term ? fill(messages.pages.collection.status.forTerm, { term: search.term }) : ""}
+              {isFetching ? (
+                <span className="ml-2">{messages.pages.collection.status.refreshing}</span>
+              ) : null}
             </>
           ) : undefined
         }
@@ -303,25 +314,25 @@ export function CollectionRoute() {
       <div className="flex min-h-0">
         <aside className="w-72 shrink-0 border-r border-(--color-line) bg-(--color-surface)">
           <FacetGroup
-            title="Tipologia"
+            title={messages.pages.collection.facet.typology}
             values={facets?.typology}
             selected={search.typology_id?.toString()}
             onSelect={(key) => patch({ typology_id: key ? Number(key) : undefined })}
           />
           <FacetGroup
-            title="Assunto"
+            title={messages.pages.collection.facet.subject}
             values={facets?.macro_category}
             selected={search.macro_category_id?.toString()}
             onSelect={(key) => patch({ macro_category_id: key ? Number(key) : undefined })}
           />
           <FacetGroup
-            title="Tipo de entidade"
+            title={messages.pages.collection.facet.entityType}
             values={facets?.entity_type}
             selected={search.entity_type}
             onSelect={(key) => patch({ entity_type: key })}
           />
           <FacetGroup
-            title="Nível de descrição"
+            title={messages.pages.collection.facet.level}
             values={facets?.level}
             selected={search.level_id?.toString()}
             onSelect={(key) => patch({ level_id: key ? Number(key) : undefined })}
@@ -342,13 +353,13 @@ export function CollectionRoute() {
               className="w-40"
             >
               {SEARCH_MODES.map((mode) => (
-                <option key={mode.value} value={mode.value}>
-                  {mode.label}
+                <option key={mode} value={mode}>
+                  {messages.pages.collection.mode[mode]}
                 </option>
               ))}
             </Select>
             <Button onClick={() => patch({ term: undefined, status: undefined, is_anomaly: undefined })}>
-              Limpar busca
+              {messages.pages.collection.clearSearch}
             </Button>
           </div>
 
@@ -360,17 +371,28 @@ export function CollectionRoute() {
             this note used to carry — it cited a Hit@10 that belonged to another experiment on
             another collection.
           */}
+          {search.mode === "lexical" ? (
+            <Notice tone="accent" className="mb-3">
+              <Trans
+                text={messages.pages.collection.notice.lexical}
+                values={{ title: <strong>{messages.pages.collection.modeTitle.lexical}</strong> }}
+              />
+            </Notice>
+          ) : null}
           {search.mode === "semantic" ? (
             <Notice tone="accent" className="mb-3">
-              A busca semântica ordena por significado: encontra o que o título não escreve e perde
-              para a lexical quando o termo é exato. Prefira o lexical quando souber o termo.
+              <Trans
+                text={messages.pages.collection.notice.semantic}
+                values={{ title: <strong>{messages.pages.collection.modeTitle.semantic}</strong> }}
+              />
             </Notice>
           ) : null}
           {search.mode === "hybrid" ? (
             <Notice tone="accent" className="mb-3">
-              A busca híbrida funde a ordem lexical com a semântica (Reciprocal Rank Fusion) e foi a
-              melhor das três no conjunto rotulado, com o termo exato e com a frase inteira. É o modo
-              que não exige escolher — custa carregar o modelo.
+              <Trans
+                text={messages.pages.collection.notice.hybrid}
+                values={{ title: <strong>{messages.pages.collection.modeTitle.hybrid}</strong> }}
+              />
             </Notice>
           ) : null}
 
@@ -378,7 +400,7 @@ export function CollectionRoute() {
             <div className="mb-4 flex flex-wrap items-center gap-2">
               {filters.map((filter) => (
                 <button key={filter.key} onClick={() => patch({ [filter.key]: undefined } as Partial<CollectionSearch>)}>
-                  <Badge tone="accent" title="Clique para remover">
+                  <Badge tone="accent" title={messages.pages.collection.removeFilter}>
                     {filter.label} ✕
                   </Badge>
                 </button>
@@ -391,11 +413,11 @@ export function CollectionRoute() {
 
           {data && data.items.length === 0 ? (
             <EmptyState
-              title="Nenhuma descrição encontrada"
+              title={messages.pages.collection.empty.title}
               hint={
                 filters.length > 0
-                  ? "Há filtros ativos. Remova um deles para ampliar a busca."
-                  : "O acervo pode ainda não estar materializado nem revisado — veja a página inicial."
+                  ? messages.pages.collection.empty.hintFiltered
+                  : messages.pages.collection.empty.hintEmpty
               }
               action={
                 filters.length > 0 ? (
@@ -408,7 +430,7 @@ export function CollectionRoute() {
                       })
                     }
                   >
-                    Limpar filtros
+                    {messages.pages.collection.clearFilters}
                   </Button>
                 ) : null
               }
@@ -454,7 +476,9 @@ export function CollectionRoute() {
                           {document.reference_code ? (
                             <code className="rounded bg-black/[0.05] px-1">{document.reference_code}</code>
                           ) : null}
-                          {document.is_anomaly ? <Badge tone="warn">anomalia</Badge> : null}
+                          {document.is_anomaly ? (
+                            <Badge tone="warn">{messages.pages.collection.anomaly}</Badge>
+                          ) : null}
                         </div>
 
                         {/* Badge rule (Fase 1.5): winner by votes, plus how many drawers it also has. */}
@@ -483,18 +507,21 @@ export function CollectionRoute() {
                 disabled={offset === 0}
                 onClick={() => patch({ offset: Math.max(0, offset - PAGE_SIZE) })}
               >
-                ← Anterior
+                {messages.common.previous}
               </Button>
               <span className="text-xs text-(--color-muted)">
-                {formatCount(offset + 1)}–{formatCount(Math.min(offset + PAGE_SIZE, total))} de{" "}
-                {formatCount(total)}
+                {fill(messages.common.range, {
+                  from: formatCount(offset + 1),
+                  to: formatCount(Math.min(offset + PAGE_SIZE, total)),
+                  total: formatCount(total),
+                })}
               </span>
               <Button
                 size="sm"
                 disabled={offset + PAGE_SIZE >= total}
                 onClick={() => patch({ offset: offset + PAGE_SIZE })}
               >
-                Próxima →
+                {messages.common.next}
               </Button>
             </div>
           ) : null}

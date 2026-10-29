@@ -26,7 +26,6 @@ from litestar.testing import TestClient
 
 from scrinalia.api.security import (
     PASSWORD_CHANGE_EXEMPT_OPT_KEY,
-    PASSWORD_CHANGE_REQUIRED_MESSAGE,
     Access,
     AuthenticatedUser,
     PasswordChangeRequiredException,
@@ -36,6 +35,7 @@ from scrinalia.api.security import (
 )
 from scrinalia.asgi import create_app
 from scrinalia.core.config import get_settings
+from scrinalia.core.i18n import refusal as refusal_message
 from scrinalia.domains.archive.schemas.responses import RouteMessageCode
 from scrinalia.domains.identity.domain.permissions import Permission, Role
 
@@ -73,6 +73,7 @@ READ_ONLY_POSTS = {
     ("POST", "/api/v1/taxonomy/entities/merge/preview"),
     ("POST", "/api/v1/taxonomy/entities/ner-exclusions/purge/preview"),
     ("POST", "/api/v1/taxonomy/tags/merge/preview"),
+    ("POST", "/api/v1/taxonomy/tags/preview"),
     ("POST", "/api/v1/taxonomy/tags/subject-exclusions/preview"),
     ("POST", "/api/v1/taxonomy/tags/stopwords/purge/preview"),
     # Computes candidates for the subject axis and writes nothing; the route that *applies* a
@@ -239,7 +240,7 @@ def test_an_ordinary_route_is_refused_while_the_password_is_temporary() -> None:
         _run_guard(must_change_password=True, opt={"access": Access.AUTHENTICATED})
 
     assert refusal.value.code is RouteMessageCode.PASSWORD_CHANGE_REQUIRED
-    assert str(refusal.value.detail) == PASSWORD_CHANGE_REQUIRED_MESSAGE
+    assert str(refusal.value.detail) == refusal_message("security.password_change_required")
 
 
 def test_the_refusal_is_named_before_the_permission_is_even_consulted() -> None:

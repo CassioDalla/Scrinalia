@@ -366,7 +366,7 @@ tables on purpose**.
 | In favour of the **tag** | `domain_ner_exclusions` | The term is a legitimate subject; a NER extraction of it is a false positive |
 
 `domain_stopwords.word` is **unique**, so a term lives on exactly one axis. Re-banning a term on the
-Stopwords screen *moves* it (`save_stopwords` is an upsert on `word`) rather than leaving the screen
+blocked-spellings screen *moves* it (`save_stopwords` is an upsert on `word`) rather than leaving the screen
 showing an axis the archivist just changed away from. `word_scope` is `TAG`, `ENTITY` or `ALL`, and
 `source` (`HUMAN`, `CONFLICT` or `EXCLUSION`) says who planted the ban — the origin the purge preview
 reads to tell a term banned with the archive in mind from one typed by hand.
@@ -424,7 +424,7 @@ it. `ban_created` plays the same role for the two writes that plant a ban — th
 the subject exclusion: the undo must remove the ban only when this row is the one that planted it, or
 reversing one decision would lift a ban an earlier one made. The subject exclusion adds a second guard
 — the ban's `source` must still name it (`EXCLUSION`), so a spelling a person re-banned on the
-Stopwords screen keeps its ban — while the conflict resolution's undo guards on `ban_created` alone.
+blocked-spellings screen keeps its ban — while the conflict resolution's undo guards on `ban_created` alone.
 For a merge, `synonym_created` and `synonym_previous_tag_id` (tag) / `synonym_previous_entity_id`
 (entity) capture the spelling state before the merge, and `repointed_synonym_names` records the
 spellings that pointed at the absorbed row and were moved to the canonical. `undone_at` keeps the undo

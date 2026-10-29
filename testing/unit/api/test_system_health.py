@@ -208,10 +208,16 @@ class _FakeOrigin:
         self.enabled = enabled
 
 
-def test_the_ingestion_probe_reads_the_origin_table(monkeypatch) -> None:
-    """Since #44 the table, not PUBLIC_SCRAPE_*, is the answer to 'is the origin configured?'."""
+def test_the_ingestion_probe_counts_only_the_sources(monkeypatch) -> None:
+    """The probe counts what the origins page manages, and nothing else (#206).
+
+    The manual and CSV entries keep their rows for provenance and the retired code stays readable in
+    the table, but none of them is a source the page configures: counting them would make "N de M
+    origens ativas" disagree with the page it describes.
+    """
     rows = [
         _FakeOrigin("manual", enabled=False),
+        _FakeOrigin("csv", enabled=True),
         _FakeOrigin("pmc", enabled=True),
         _FakeOrigin("retired", enabled=True),
     ]
@@ -220,10 +226,9 @@ def test_the_ingestion_probe_reads_the_origin_table(monkeypatch) -> None:
     health = system_health.probe_ingestion()
 
     assert health.ok is True
-    assert (health.total, health.enabled) == (3, 2)
-    labels = {origin.code: origin.label for origin in health.origins}
-    assert labels["pmc"] == "Acervo de referência (PMC)"
-    assert labels["retired"] == "retired"
+    assert (health.total, health.enabled) == (1, 1)
+    assert [origin.code for origin in health.origins] == ["pmc"]
+    assert health.origins[0].label == "Acervo de referência (PMC)"
 
 
 def test_the_ingestion_probe_answers_instead_of_raising(monkeypatch) -> None:

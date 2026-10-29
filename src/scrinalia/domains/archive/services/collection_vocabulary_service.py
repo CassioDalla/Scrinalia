@@ -12,6 +12,7 @@ whose two sets decide whether a term is a place or a person. Both filter ``is_ac
 a row is what removes it from the AI's reach without erasing it from the catalogue.
 """
 
+from scrinalia.core.i18n import t
 from scrinalia.domains.archive.domain.collection_vocabulary import CollectionVocabulary
 from scrinalia.domains.archive.exceptions import (
     ArrangementTermNotFoundError,
@@ -87,8 +88,11 @@ class CollectionVocabularyService:
         existing = self.repo.find_arrangement_term(command.token)
         if existing is not None:
             raise DuplicateArrangementTermError(
-                f"O token '{existing.token}' já está no vocabulário como '{existing.display_name}'. "
-                "Se ele está desativado, reative-o em vez de criar outro."
+                t(
+                    "O token '{token}' já está no vocabulário como '{display_name}'. Se ele está desativado, reative-o em vez de criar outro.",
+                    token=existing.token,
+                    display_name=existing.display_name,
+                )
             )
         term = self.repo.create_arrangement_term(command)
         return ArrangementTermDTO(
@@ -105,7 +109,9 @@ class CollectionVocabularyService:
     def create_collection_term(self, command: CreateCollectionTermCommand) -> CollectionTermDTO:
         existing = self.repo.find_collection_term(command.term, command.kind)
         if existing is not None:
-            raise DuplicateCollectionTermError(f"O termo '{existing.term}' já está registrado como {existing.kind}.")
+            raise DuplicateCollectionTermError(
+                t("O termo '{term}' já está registrado como {kind}.", term=existing.term, kind=existing.kind)
+            )
         term = self.repo.create_collection_term(command)
         return self._collection_dto(term)
 
@@ -122,7 +128,9 @@ class CollectionVocabularyService:
         target_kind = command.kind if command.kind is not None else term.kind
         existing = self.repo.find_collection_term(target_term, target_kind)
         if existing is not None and existing.term_id != term_id:
-            raise DuplicateCollectionTermError(f"O termo '{existing.term}' já está registrado como {existing.kind}.")
+            raise DuplicateCollectionTermError(
+                t("O termo '{term}' já está registrado como {kind}.", term=existing.term, kind=existing.kind)
+            )
 
         self.repo.update_collection_term(term, command)
         return self._collection_dto(term)
@@ -133,13 +141,17 @@ class CollectionVocabularyService:
     def _require_arrangement_term(self, term_id: int) -> ArchiveArrangementTerm:
         term = self.repo.get_arrangement_term(term_id)
         if term is None:
-            raise ArrangementTermNotFoundError(f"O termo de arranjo {term_id} não existe no vocabulário.")
+            raise ArrangementTermNotFoundError(
+                t("O termo de arranjo {term_id} não existe no vocabulário.", term_id=term_id)
+            )
         return term
 
     def _require_collection_term(self, term_id: int) -> ArchiveCollectionTerm:
         term = self.repo.get_collection_term(term_id)
         if term is None:
-            raise CollectionTermNotFoundError(f"O termo de acervo {term_id} não existe no vocabulário.")
+            raise CollectionTermNotFoundError(
+                t("O termo de acervo {term_id} não existe no vocabulário.", term_id=term_id)
+            )
         return term
 
     def _collection_dto(self, term: ArchiveCollectionTerm) -> CollectionTermDTO:

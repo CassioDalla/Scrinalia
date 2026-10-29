@@ -3,6 +3,8 @@ import { useMemo, useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/Feedback";
 import { Input } from "@/components/ui/Input";
+import { useCopy } from "@/i18n/context";
+import { fill } from "@/i18n/maps";
 
 /**
  * A ledger: a growing list that has to stay searchable.
@@ -19,20 +21,25 @@ import { Input } from "@/components/ui/Input";
  *
  * The term is **not** in the URL, unlike the filters of the collection list: a ledger search is a
  * spot check ("where is that term?"), not a view somebody sends to a colleague, and six routes
- * gaining a search key each is a cost with no reader.
+ * gaining a search key each is a cost with no reader. The one exception is `initialTerm`, and it
+ * exists for a link rather than for the address bar: the blocked-spellings screen sends the
+ * archivist to the verdict that planted a ban, and landing on two hundred rows would hide the one
+ * the link was about.
  */
 export function LedgerList<T>({
   items,
   termOf,
   renderItem,
   keyOf,
-  searchPlaceholder = "buscar no histórico…",
+  searchPlaceholder,
   nounSingular,
   nounPlural,
   emptyTitle,
   emptyHint,
   /** How many rows are drawn before the archivist asks for the rest. */
   pageSize = 20,
+  /** The search the screen arrives with, when a link carried one. The archivist can clear it. */
+  initialTerm,
 }: {
   items: T[];
   /** The texts a term is matched against; several because a ledger row has a name on each side. */
@@ -45,8 +52,10 @@ export function LedgerList<T>({
   emptyTitle: string;
   emptyHint?: ReactNode;
   pageSize?: number;
+  initialTerm?: string;
 }) {
-  const [term, setTerm] = useState("");
+  const messages = useCopy();
+  const [term, setTerm] = useState(initialTerm ?? "");
   const [limit, setLimit] = useState(pageSize);
 
   const needle = normalize(term);
@@ -63,7 +72,7 @@ export function LedgerList<T>({
     <div className="grid gap-2">
       <Input
         value={term}
-        placeholder={searchPlaceholder}
+        placeholder={searchPlaceholder ?? messages.common.ledgerSearch}
         className="max-w-xs"
         onChange={(event) => {
           setTerm(event.target.value);
@@ -77,8 +86,11 @@ export function LedgerList<T>({
         <EmptyState title={emptyTitle} hint={emptyHint} />
       ) : matches.length === 0 ? (
         <EmptyState
-          title={`Nenhum resultado para “${term}”`}
-          hint={`Há ${items.length} ${items.length === 1 ? nounSingular : nounPlural} no histórico, mas nenhum casa com o termo.`}
+          title={fill(messages.common.ledgerEmpty, { term })}
+          hint={fill(messages.common.ledgerEmptyHint, {
+            count: String(items.length),
+            noun: items.length === 1 ? nounSingular : nounPlural,
+          })}
         />
       ) : (
         <>
@@ -90,18 +102,35 @@ export function LedgerList<T>({
           {hidden > 0 ? (
             <div className="flex flex-wrap items-center gap-2">
               <Button size="sm" variant="ghost" onClick={() => setLimit((current) => current + pageSize)}>
-                ver mais {Math.min(hidden, pageSize)}
+                {fill(messages.common.seeMore, { count: String(Math.min(hidden, pageSize)) })}
               </Button>
               <span className="text-xs text-(--color-muted)">
-                mostrando {visible.length} de {matches.length}
-                {searching ? ` que casam com “${term}”` : ""} ({items.length} no total)
+                {searching
+                  ? fill(messages.common.showingFiltered, {
+                      shown: String(visible.length),
+                      matched: String(matches.length),
+                      term,
+                      total: String(items.length),
+                    })
+                  : fill(messages.common.showing, {
+                      shown: String(visible.length),
+                      matched: String(matches.length),
+                      total: String(items.length),
+                    })}
               </span>
             </div>
           ) : (
             <p className="text-xs text-(--color-muted)">
               {searching
-                ? `${matches.length} de ${items.length} ${items.length === 1 ? nounSingular : nounPlural}`
-                : `${items.length} ${items.length === 1 ? nounSingular : nounPlural}`}
+                ? fill(messages.common.footerFiltered, {
+                    matched: String(matches.length),
+                    total: String(items.length),
+                    noun: items.length === 1 ? nounSingular : nounPlural,
+                  })
+                : fill(messages.common.footer, {
+                    total: String(items.length),
+                    noun: items.length === 1 ? nounSingular : nounPlural,
+                  })}
             </p>
           )}
         </>

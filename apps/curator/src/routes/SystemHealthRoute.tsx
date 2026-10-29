@@ -9,7 +9,9 @@ import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { ErrorState, Skeleton } from "@/components/ui/Feedback";
 import { PageBody } from "@/components/layout/PageBody";
 import { ACTION } from "@/lib/copy";
+import { fill } from "@/i18n/maps";
 import { formatCount, formatDateTime } from "@/lib/format";
+import { useCopy } from "@/i18n/context";
 
 /**
  * The infrastructure behind the workers: the database, the model server, the storage and the process.
@@ -19,6 +21,7 @@ import { formatCount, formatDateTime } from "@/lib/format";
  * and no secret value is ever shown: the process card reports that a secret exists, never what it is.
  */
 export function SystemHealthRoute() {
+  const messages = useCopy();
   const health = useQuery(queries.systemHealth());
 
   return (
@@ -46,88 +49,130 @@ export function SystemHealthRoute() {
         {health.data ? (
           <>
             <p className="text-xs text-(--color-muted)">
-              Leitura de {formatDateTime(health.data.generated_at)}. Cada verificação tem um limite de tempo próprio,
-              então um serviço fora do ar aparece como um cartão vermelho, não como uma tela quebrada.
+              {fill(messages.pages.health.verified, { date: formatDateTime(health.data.generated_at) })}
             </p>
 
             <div className="grid gap-3 sm:grid-cols-2">
               <ProbeCard
-                title="Banco de dados"
+                title={messages.pages.health.databaseTitle}
                 ok={health.data.database.ok}
                 detail={health.data.database.detail}
                 lines={[
-                  `${formatCount(health.data.database.documents ?? 0)} descrições`,
-                  `${formatCount(health.data.database.tags ?? 0)} tags`,
-                  `${formatCount(health.data.database.entities ?? 0)} entidades`,
-                  `${formatCount(health.data.database.staging_records ?? 0)} registros de staging`,
+                  fill(messages.pages.health.documents, { count: formatCount(health.data.database.documents ?? 0) }),
+                  fill(messages.pages.health.tags, { count: formatCount(health.data.database.tags ?? 0) }),
+                  fill(messages.pages.health.entities, { count: formatCount(health.data.database.entities ?? 0) }),
+                  fill(messages.pages.health.staging, {
+                    count: formatCount(health.data.database.staging_records ?? 0),
+                  }),
                 ]}
               />
 
               <ProbeCard
-                title="Ollama (modelos)"
+                title={messages.pages.health.ollamaTitle}
                 ok={health.data.ollama.ok}
                 detail={health.data.ollama.detail}
                 lines={[
-                  `host ${health.data.ollama.host} (${health.data.ollama.host_source === "default" ? "padrão local" : "OLLAMA_HOST_URL"})`,
-                  `${formatCount((health.data.ollama.installed_models ?? []).length)} modelo(s) instalado(s)`,
+                  fill(
+                    health.data.ollama.host_source === "default"
+                      ? messages.pages.health.addressDefault
+                      : messages.pages.health.addressConfigured,
+                    { host: health.data.ollama.host ?? "" },
+                  ),
+                  fill(messages.pages.health.installedModels, {
+                    count: formatCount((health.data.ollama.installed_models ?? []).length),
+                  }),
                   (health.data.ollama.required_models ?? []).length > 0
-                    ? `presets exigem: ${(health.data.ollama.required_models ?? []).join(", ")}`
-                    : "nenhum preset exige modelo",
+                    ? fill(messages.pages.health.requiredModels, {
+                        list: (health.data.ollama.required_models ?? []).join(", "),
+                      })
+                    : messages.pages.health.noRequiredModels,
                 ]}
               >
                 {(health.data.ollama.missing_models ?? []).length > 0 ? (
                   <p className="text-xs text-(--color-danger)">
-                    Faltam no servidor: {(health.data.ollama.missing_models ?? []).join(", ")}. Uma execução que use esse preset
-                    falha ao carregar o modelo.
+                    {fill(messages.pages.health.missingModels, {
+                      list: (health.data.ollama.missing_models ?? []).join(", "),
+                    })}
                   </p>
                 ) : null}
               </ProbeCard>
 
               <ProbeCard
-                title="Storage das miniaturas"
+                title={messages.pages.health.storageTitle}
                 ok={health.data.storage.ok}
                 detail={health.data.storage.detail}
                 lines={[
-                  health.data.storage.configured ? "configurado" : "não configurado",
-                  health.data.storage.endpoint ? `endpoint ${health.data.storage.endpoint}` : "sem endpoint",
-                  health.data.storage.bucket ? `bucket ${health.data.storage.bucket}` : "sem bucket",
+                  health.data.storage.configured
+                    ? messages.pages.health.configured
+                    : messages.pages.health.notConfigured,
+                  health.data.storage.endpoint
+                    ? fill(messages.pages.health.endpoint, { endpoint: health.data.storage.endpoint })
+                    : messages.pages.health.noEndpoint,
+                  health.data.storage.bucket
+                    ? fill(messages.pages.health.bucket, { bucket: health.data.storage.bucket })
+                    : messages.pages.health.noBucket,
                 ]}
               />
 
               <ProbeCard
-                title="Ingestão por origem"
+                title={messages.pages.health.originsTitle}
                 ok={health.data.ingestion.ok}
                 detail={health.data.ingestion.detail}
                 lines={[
-                  `${formatCount(health.data.ingestion.enabled ?? 0)} de ${formatCount(health.data.ingestion.total ?? 0)} origens ativas`,
+                  fill(messages.pages.health.originsActive, {
+                    enabled: formatCount(health.data.ingestion.enabled ?? 0),
+                    total: formatCount(health.data.ingestion.total ?? 0),
+                  }),
                   (health.data.ingestion.origins ?? []).length > 0
                     ? (health.data.ingestion.origins ?? [])
-                        .map((origin) => `${origin.label} (${origin.enabled ? "ativa" : "pausada"})`)
+                        .map(
+                          (origin) =>
+                            `${origin.label} (${
+                              origin.enabled
+                                ? messages.pages.health.originEnabled
+                                : messages.pages.health.originPaused
+                            })`,
+                        )
                         .join(" · ")
-                    : "nenhuma origem disponível",
-                  "a fila, a agenda e a configuração de cada origem ficam na tela de ingestão",
+                    : messages.pages.health.noOrigins,
+                  messages.pages.health.originsNote,
                 ]}
               >
                 <Link to="/sistema/ingestao" className="text-xs font-medium text-(--color-accent) hover:underline">
-                  Abrir ingestão
+                  {messages.pages.health.openOrigins}
                 </Link>
               </ProbeCard>
 
               <ProbeCard
-                title="Processo da API"
+                title={messages.pages.health.configTitle}
                 ok
                 detail={null}
                 lines={[
-                  `log ${health.data.process.log_level}${health.data.process.debug ? " · debug ligado" : ""} em ${health.data.process.log_dir}`,
-                  `banco ${health.data.process.database}`,
-                  `ollama ${health.data.process.ollama_host_url ?? "não configurado"}`,
-                  `s3 ${health.data.process.s3_endpoint_url ?? "não configurado"}`,
-                  `fallback de coleta no .env ${
-                    health.data.process.public_scrape_configured ? "presente" : "ausente"
-                  }`,
-                  `segredos presentes: ${Object.entries(health.data.process.secrets_present ?? {})
-                    .map(([name, present]) => `${name} ${present ? "sim" : "não"}`)
-                    .join(" · ")}`,
+                  fill(messages.pages.health.logLine, {
+                    level: health.data.process.log_level ?? "",
+                    detailed: health.data.process.debug ? messages.pages.health.logDetailed : "",
+                    dir: health.data.process.log_dir ?? "",
+                  }),
+                  fill(messages.pages.health.databaseLine, { path: health.data.process.database ?? "" }),
+                  fill(messages.pages.health.ollamaLine, {
+                    url: health.data.process.ollama_host_url ?? messages.pages.health.notConfigured,
+                  }),
+                  fill(messages.pages.health.storageLine, {
+                    url: health.data.process.s3_endpoint_url ?? messages.pages.health.notConfigured,
+                  }),
+                  fill(messages.pages.health.scrapeLine, {
+                    state: health.data.process.public_scrape_configured
+                      ? messages.pages.health.defined
+                      : messages.pages.health.notDefined,
+                  }),
+                  fill(messages.pages.health.secretsLine, {
+                    list: Object.entries(health.data.process.secrets_present ?? {})
+                      .map(
+                        ([name, present]) =>
+                          `${name} ${present ? messages.pages.health.yes : messages.pages.health.no}`,
+                      )
+                      .join(" · "),
+                  }),
                 ]}
               />
             </div>
@@ -151,11 +196,12 @@ function ProbeCard({
   lines: string[];
   children?: React.ReactNode;
 }) {
+  const messages = useCopy();
   return (
     <Card>
       <CardHeader className="flex items-center justify-between gap-2">
         <span className="text-sm font-medium">{title}</span>
-        <Badge tone={ok ? "ok" : "danger"}>{ok ? "respondendo" : "fora do ar"}</Badge>
+        <Badge tone={ok ? "ok" : "danger"}>{ok ? messages.pages.health.responding : messages.pages.health.offline}</Badge>
       </CardHeader>
       <CardBody className="grid gap-1">
         {lines.map((line) => (

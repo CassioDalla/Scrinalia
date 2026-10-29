@@ -11,6 +11,7 @@ from scrinalia.api.schemas.text_quality_requests import (
 )
 from scrinalia.api.security import Access, AuthenticatedUser
 from scrinalia.domains.archive.schemas import RouteMessageCode
+from scrinalia.domains.archive.schemas.route_messages import route_message
 from scrinalia.domains.archive.schemas.text_quality_schema import (
     TemplateCreateCommand,
     TemplateDryRunRequest,
@@ -98,7 +99,10 @@ class TextQualityController(Controller):
         )
         return TextTemplateMutationResponse(
             code=RouteMessageCode.TEXT_TEMPLATE_CREATED,
-            message="Trecho cadastrado e aplicado. Os documentos afetados voltaram para a fila da IA.",
+            message=route_message(
+                RouteMessageCode.TEXT_TEMPLATE_CREATED,
+                "Trecho cadastrado e aplicado. Os documentos afetados voltaram para a fila da IA.",
+            ),
             documents_requeued=requeued,
             data=template,
         )
@@ -118,7 +122,10 @@ class TextQualityController(Controller):
         )
         return TextTemplateMutationResponse(
             code=RouteMessageCode.TEXT_TEMPLATE_UPDATED,
-            message="Trecho atualizado. Os documentos afetados voltaram para a fila da IA.",
+            message=route_message(
+                RouteMessageCode.TEXT_TEMPLATE_UPDATED,
+                "Trecho atualizado. Os documentos afetados voltaram para a fila da IA.",
+            ),
             documents_requeued=requeued,
             data=template,
         )
@@ -133,7 +140,10 @@ class TextQualityController(Controller):
         removed, requeued = text_quality_service.delete_template(template_id)
         return TextTemplateMutationResponse(
             code=RouteMessageCode.TEXT_TEMPLATE_DELETED,
-            message="Trecho removido do catálogo e efeito desfeito nos documentos afetados.",
+            message=route_message(
+                RouteMessageCode.TEXT_TEMPLATE_DELETED,
+                "Trecho removido do catálogo e efeito desfeito nos documentos afetados.",
+            ),
             documents_requeued=requeued,
             data=removed,
         )

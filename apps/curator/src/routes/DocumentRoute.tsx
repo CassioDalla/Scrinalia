@@ -29,19 +29,16 @@ import { Input, Select } from "@/components/ui/Input";
 import { Notice } from "@/components/ui/Notice";
 import { Tabs } from "@/components/ui/Tabs";
 import { Typeahead } from "@/components/ui/Typeahead";
+import { useCopy } from "@/i18n/context";
+import { fill } from "@/i18n/maps";
+import { Trans } from "@/i18n/trans";
 import { ACTION, DIGITAL_OBJECT } from "@/lib/copy";
 import { ENTITY_ORIGIN_HINT, ENTITY_ORIGIN_LABEL, ENTITY_ORIGIN_TONE } from "@/lib/entities";
 import { formatCount, formatDate, formatDateTime, REVIEW_STATUS_LABEL, REVIEW_STATUS_TONE } from "@/lib/format";
 import { fieldsOfArea, ISAD_AREAS } from "@/lib/isad";
+import { Hint } from "@/components/ui/Hint";
 
 const routeApi = getRouteApi("/acervo/$descriptionId");
-
-const TAB_ITEMS = [
-  { id: "descricao", label: "Descrição" },
-  { id: "assuntos", label: "Assuntos" },
-  { id: "arranjo", label: "Arranjo" },
-  { id: "historico", label: "Histórico" },
-];
 
 /**
  * The dossier.
@@ -50,11 +47,18 @@ const TAB_ITEMS = [
  * one"), and the back button has to walk between them.
  */
 export function DocumentRoute() {
+  const messages = useCopy();
   const { descriptionId } = routeApi.useParams();
   const { aba = "descricao" } = routeApi.useSearch();
   const navigate = routeApi.useNavigate();
 
   const document = useQuery(queries.document(descriptionId));
+  const tabItems = [
+    { id: "descricao", label: messages.pages.document.tabs.description },
+    { id: "assuntos", label: messages.pages.document.tabs.subjects },
+    { id: "arranjo", label: messages.pages.document.tabs.arrangement },
+    { id: "historico", label: messages.pages.document.tabs.history },
+  ];
 
   return (
     <>
@@ -80,8 +84,8 @@ export function DocumentRoute() {
               <Badge tone={REVIEW_STATUS_TONE[document.data.review_status]}>
                 {REVIEW_STATUS_LABEL[document.data.review_status]}
               </Badge>
-              {document.data.is_published ? <Badge tone="ok">publicado</Badge> : null}
-              {document.data.is_anomaly ? <Badge tone="warn">anomalia</Badge> : null}
+              {document.data.is_published ? <Badge tone="ok">{messages.pages.document.published}</Badge> : null}
+              {document.data.is_anomaly ? <Badge tone="warn">{messages.pages.preview.anomaly}</Badge> : null}
               <span>{formatDate(document.data.document_date)}</span>
               {document.data.level ? <span>· {document.data.level}</span> : null}
             </span>
@@ -89,14 +93,14 @@ export function DocumentRoute() {
         }
         actions={
           <Link to="/acervo/lista" className="text-sm text-(--color-muted) hover:underline">
-            ← voltar à lista
+            {messages.pages.document.backToList}
           </Link>
         }
       />
 
       <div className="px-6 pt-4">
         <Tabs
-          items={TAB_ITEMS}
+          items={tabItems}
           active={aba}
           onChange={(id) =>
             navigate({ to: "/acervo/$descriptionId", params: { descriptionId }, search: { aba: id } })
@@ -121,10 +125,11 @@ export function DocumentRoute() {
 }
 
 // ==========================================
-// TAB: DESCRIÇÃO
+// TAB: DESCRIPTION
 // ==========================================
 
 function DescriptionTab({ document }: { document: DocumentSummary }) {
+  const messages = useCopy();
   const queryClient = useQueryClient();
   const [draft, setDraft] = useState<Record<string, string>>({});
   const [note, setNote] = useState("");
@@ -182,7 +187,7 @@ function DescriptionTab({ document }: { document: DocumentSummary }) {
         source image at all — and the "indisponível" state covers an object that left the bucket.
       */}
       <Card>
-        <CardHeader className="text-sm font-semibold">Imagem</CardHeader>
+        <CardHeader className="text-sm font-semibold">{messages.pages.document.image}</CardHeader>
         <CardBody>
           <DocumentThumbnail
             url={document.thumbnail_url}
@@ -200,16 +205,16 @@ function DescriptionTab({ document }: { document: DocumentSummary }) {
         <Card>
           <CardBody className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <p className="text-xs font-semibold tracking-wide text-(--color-muted) uppercase">Título sugerido</p>
-              <p className="text-sm">{document.suggested_final_title}</p>
-              <p className="text-xs text-(--color-muted)">
-                Derivado na leitura a partir dos trechos aprovados; nunca armazenado.
+              <p className="text-xs font-semibold tracking-wide text-(--color-muted) uppercase">
+                {messages.pages.document.suggestedTitle}
               </p>
+              <p className="text-sm">{document.suggested_final_title}</p>
+              <p className="text-xs text-(--color-muted)">{messages.pages.document.suggestedTitleHint}</p>
             </div>
             <Button
               onClick={() => setDraft((previous) => ({ ...previous, final_title: document.suggested_final_title ?? "" }))}
             >
-              Usar esta
+              {messages.pages.document.useSuggestedTitle}
             </Button>
           </CardBody>
         </Card>
@@ -227,18 +232,24 @@ function DescriptionTab({ document }: { document: DocumentSummary }) {
 
             {area.id === "identity" ? (
               <>
-                <Field label="Título original" hint="O título que a origem declarou.">
+                <Field
+                  label={messages.pages.document.fields.originalTitle}
+                  hint={messages.pages.document.fields.originalTitleHint}
+                >
                   <Input value={valueOf("original_title")} onChange={(event) => setField("original_title", event.target.value)} />
                 </Field>
-                <Field label="Título final (decisão do arquivista)" hint="Vazio enquanto o arquivista não decidir.">
+                <Field
+                  label={messages.pages.document.fields.finalTitle}
+                  hint={messages.pages.document.fields.finalTitleHint}
+                >
                   <Input value={valueOf("final_title")} onChange={(event) => setField("final_title", event.target.value)} />
                 </Field>
-                <Field label="Nível de descrição">
+                <Field label={messages.pages.newDescription.levelLabel}>
                   <Select
                     value={levels ?? ""}
                     onChange={(event) => setLevels(event.target.value ? Number(event.target.value) : undefined)}
                   >
-                    <option value="">— não classificado —</option>
+                    <option value="">{messages.pages.newDescription.unclassified}</option>
                     {levelOptions.data?.map((level) => (
                       <option key={level.level_id} value={level.level_id}>
                         {level.name} ({formatCount(level.document_count)})
@@ -252,12 +263,12 @@ function DescriptionTab({ document }: { document: DocumentSummary }) {
                   the classifier. Only the active ones are offered: a retired typology is out of the
                   classifier's candidate set, so it must be out of the editor's too.
                 */}
-                <Field label="Tipologia documental">
+                <Field label={messages.pages.document.fields.typology}>
                   <Select
                     value={typology ?? ""}
                     onChange={(event) => setTypology(event.target.value ? Number(event.target.value) : undefined)}
                   >
-                    <option value="">— não classificada —</option>
+                    <option value="">{messages.pages.document.fields.typologyUnclassified}</option>
                     {typologyOptions.data?.map((option) => (
                       <option key={option.typology_id} value={option.typology_id}>
                         {option.name} ({formatCount(option.document_count)})
@@ -278,7 +289,7 @@ function DescriptionTab({ document }: { document: DocumentSummary }) {
                 dateAs="iso"
                 hint={
                   field.name === "document_date" && document.date_expression
-                    ? `Como está escrito na fonte: “${document.date_expression}”.`
+                    ? fill(messages.pages.document.fields.dateHint, { expression: document.date_expression })
                     : undefined
                 }
               />
@@ -288,7 +299,7 @@ function DescriptionTab({ document }: { document: DocumentSummary }) {
 
             {area.id === "context" && document.original_url ? (
               <div className="grid gap-1 text-xs sm:col-span-2">
-                <span className="text-(--color-muted)">Fonte</span>
+                <span className="text-(--color-muted)">{messages.pages.document.fields.sourceLabel}</span>
                 <a
                   className="truncate text-sm underline"
                   href={document.original_url}
@@ -297,9 +308,7 @@ function DescriptionTab({ document }: { document: DocumentSummary }) {
                 >
                   {document.original_url}
                 </a>
-                <span className="text-(--color-muted)">
-                  A página de onde este registro foi lido. Não é o objeto digital, que ainda não é armazenado.
-                </span>
+                <span className="text-(--color-muted)">{messages.pages.document.fields.sourceHint}</span>
               </div>
             ) : null}
           </CardBody>
@@ -307,15 +316,18 @@ function DescriptionTab({ document }: { document: DocumentSummary }) {
       ))}
 
       <Card>
-        <CardHeader className="text-sm font-semibold">Difusão</CardHeader>
+        <CardHeader className="text-sm font-semibold">{messages.pages.document.diffusion.title}</CardHeader>
         <CardBody>
           <label className="flex items-center gap-2">
             <input type="checkbox" checked={published} onChange={(event) => setPublished(event.target.checked)} />
             <span className="text-sm">
-              Publicar na difusão
-              <span className="block text-xs text-(--color-muted)">
-                Eixo separado da revisão: publicar não bloqueia a IA de continuar melhorando o registro.
-              </span>
+              {messages.pages.document.diffusion.publish}
+              <Hint label={messages.pages.document.diffusion.publish} className="text-xs">
+                <Trans
+                  text={messages.pages.document.diffusion.publishHint}
+                  values={{ notBlocked: <strong>{messages.pages.document.diffusion.notBlocked}</strong> }}
+                />
+              </Hint>
             </span>
           </label>
         </CardBody>
@@ -342,17 +354,14 @@ function DescriptionTab({ document }: { document: DocumentSummary }) {
 
       <Card>
         <CardBody className="grid gap-3 sm:grid-cols-2">
-          <Field label="Motivo da edição">
+          <Field label={messages.pages.document.editReason}>
             <Input value={note} onChange={(event) => setNote(event.target.value)} />
           </Field>
           <div className="sm:col-span-2">
             <Button variant="primary" disabled={save.isPending} onClick={() => save.mutate()}>
-              {save.isPending ? "Salvando…" : "Salvar e marcar como revisado"}
+              {save.isPending ? ACTION.save.pending : messages.pages.document.saveReviewed}
             </Button>
-            <span className="ml-3 text-xs text-(--color-muted)">
-              Toda edição registra antes/depois no histórico e marca o documento como revisado por humano —
-              o que o retira da fila da IA.
-            </span>
+            <span className="ml-3 text-xs text-(--color-muted)">{messages.pages.document.saveHint}</span>
           </div>
           {save.error ? (
             <div className="sm:col-span-2">
@@ -372,15 +381,16 @@ function DescriptionTab({ document }: { document: DocumentSummary }) {
  * transfer marks it while the code waits. The link itself is made in the arrangement tab.
  */
 function ParentReference({ document }: { document: DocumentSummary }) {
+  const messages = useCopy();
   // The parent is the last rung of the branch the read view already carries, so the line can name
   // it even when the origin declared no code. A raw ``description_id`` is the last resort: it is
   // what the archive knows when the arrangement has a parent the reader cannot resolve.
   const branch = (document.ancestors ?? []).at(-1);
-  const parentLabel = branch?.title ?? document.parent_reference_code ?? "unidade superior";
+  const parentLabel = branch?.title ?? document.parent_reference_code ?? messages.pages.document.parent.unknown;
 
   return (
     <div className="grid gap-1 text-xs sm:col-span-2">
-      <span className="text-(--color-muted)">Unidade superior</span>
+      <span className="text-(--color-muted)">{messages.pages.document.parent.label}</span>
       {document.parent_id ? (
         <Link
           to="/acervo/$descriptionId"
@@ -391,21 +401,21 @@ function ParentReference({ document }: { document: DocumentSummary }) {
         </Link>
       ) : document.parent_reference_code ? (
         <span className="text-sm">
-          {document.parent_reference_code} — declarada pela origem, aguardando a descrição do pai. O vínculo se
-          faz na aba Arranjo.
+          {fill(messages.pages.document.parent.declared, { code: document.parent_reference_code })}
         </span>
       ) : (
-        <span className="text-sm text-(--color-muted)">não declarada. O vínculo se faz na aba Arranjo.</span>
+        <span className="text-sm text-(--color-muted)">{messages.pages.document.parent.notDeclared}</span>
       )}
     </div>
   );
 }
 
 // ==========================================
-// TAB: ASSUNTOS
+// TAB: SUBJECTS
 // ==========================================
 
 function SubjectsTab({ document }: { document: DocumentSummary }) {
+  const messages = useCopy();
   const queryClient = useQueryClient();
   const macroCategories = useQuery(queries.macroCategories());
 
@@ -449,22 +459,26 @@ function SubjectsTab({ document }: { document: DocumentSummary }) {
   return (
     <div className="grid gap-4">
       <Notice tone="warn">
-        Editar os assuntos marca o documento como <strong>revisado por humano</strong>, o que impede a IA de
-        reescrevê-lo daqui em diante. É a mesma regra da edição de campos.
+        <Trans
+          text={messages.pages.document.subjects.notice}
+          values={{ humanReviewed: <strong>{messages.pages.document.subjects.humanReviewed}</strong> }}
+        />
       </Notice>
 
       <Card>
         <CardHeader className="flex items-center justify-between">
-          <span className="text-sm font-semibold">Tags e assunto</span>
+          <span className="text-sm font-semibold">{messages.pages.document.subjects.tagsTitle}</span>
           <span className="text-xs text-(--color-muted)">
-            {document.macro_categories?.length ?? 0} categoria(s) votada(s)
+            {fill(messages.pages.document.subjects.categoriesAssigned, {
+              count: document.macro_categories?.length ?? 0,
+            })}
           </span>
         </CardHeader>
         <CardBody className="grid gap-2">
           {tags.length === 0 ? (
             <EmptyState
-              title="Nenhuma tag"
-              hint="O worker de extração ainda não passou por esta descrição, ou ela não tem ponto de acesso."
+              title={messages.pages.document.subjects.emptyTagsTitle}
+              hint={messages.pages.document.subjects.emptyTagsHint}
             />
           ) : null}
 
@@ -474,12 +488,17 @@ function SubjectsTab({ document }: { document: DocumentSummary }) {
                 <span className="flex min-w-0 items-center gap-2">
                   <span className="truncate text-sm">{tag.name}</span>
                   {tag.macro_category_name ? (
-                    <Badge tone="accent" title={`Confiança da IA: ${tag.ai_confidence_score ?? "—"}`}>
+                    <Badge
+                      tone="accent"
+                      title={fill(messages.pages.document.subjects.confidence, {
+                        score: tag.ai_confidence_score ?? "—",
+                      })}
+                    >
                       {tag.macro_category_name}
                     </Badge>
                   ) : (
-                    <Badge tone="neutral" title="O classificador não arquivou esta tag numa categoria">
-                      sem categoria
+                    <Badge tone="neutral" title={messages.pages.document.subjects.notClassified}>
+                      {messages.pages.newDescription.noCategory}
                     </Badge>
                   )}
                   {tag.ai_confidence_score !== null && tag.ai_confidence_score !== undefined ? (
@@ -491,10 +510,10 @@ function SubjectsTab({ document }: { document: DocumentSummary }) {
                 <span className="flex items-center gap-2">
                   <Select
                     className="w-44"
-                    aria-label={`Categoria da tag ${tag.name}`}
+                    aria-label={fill(messages.pages.document.subjects.tagCategoryAria, { name: tag.name })}
                     value={tag.macro_category_id ?? ""}
                     disabled={reclassify.isPending}
-                    title="Muda a categoria desta tag em TODAS as descrições que a carregam, não só nesta."
+                    title={messages.pages.document.subjects.reclassifyTitle}
                     onChange={(event) =>
                       reclassify.mutate({
                         tagId: tag.tag_id,
@@ -502,11 +521,11 @@ function SubjectsTab({ document }: { document: DocumentSummary }) {
                       })
                     }
                   >
-                    <option value="">sem categoria (não é assunto)</option>
+                    <option value="">{messages.pages.document.subjects.noCategoryOption}</option>
                     {drawers.map((category) => (
                       <option key={category.category_id} value={category.category_id}>
                         {category.name}
-                        {category.is_active ? "" : " (aposentada)"}
+                        {category.is_active ? "" : ` (${messages.pages.categories.retiredBadge})`}
                       </option>
                     ))}
                   </Select>
@@ -529,19 +548,24 @@ function SubjectsTab({ document }: { document: DocumentSummary }) {
           <div className="flex items-end gap-2 border-t border-(--color-line) pt-3">
             <label className="flex-1">
               <span className="mb-1 block text-xs font-medium text-(--color-muted)">
-                Associar uma tag pelo nome
+                {messages.pages.document.subjects.addTagLabel}
               </span>
               <Typeahead
-                placeholder="digite ao menos 2 letras: igrej…"
+                placeholder={messages.pages.document.subjects.tagPlaceholder}
                 disabled={addTag.isPending}
-                emptyLabel="nenhuma tag com esse trecho"
+                emptyLabel={messages.pages.document.subjects.tagEmpty}
                 onSearch={async (term) =>
                   (await searchTags(term)).map((result) => ({
                     value: String(result.tag_id),
                     label: result.name,
-                    hint: `${formatCount(result.document_count)} doc${
-                      result.macro_category_name ? ` · ${result.macro_category_name}` : " · sem categoria"
-                    }`,
+                    hint: result.macro_category_name
+                      ? fill(messages.pages.document.subjects.tagHint, {
+                          count: formatCount(result.document_count),
+                          category: result.macro_category_name,
+                        })
+                      : fill(messages.pages.document.subjects.tagHintNoCategory, {
+                          count: formatCount(result.document_count),
+                        }),
                   }))
                 }
                 onPick={(option) => addTag.mutate(Number(option.value))}
@@ -549,19 +573,26 @@ function SubjectsTab({ document }: { document: DocumentSummary }) {
             </label>
           </div>
           <p className="text-xs text-(--color-muted)">
-            A categoria escolhida ao lado vale para <strong>todas</strong> as descrições que carregam a tag: é uma
-            decisão sobre o vocabulário, não sobre este documento. O selo <em>sem categoria</em> devolve a tag ao
-            classificador.
+            <Trans
+              text={messages.pages.document.subjects.categoryNotice}
+              values={{
+                all: <strong>{messages.pages.document.subjects.all}</strong>,
+                noCategory: <em>{messages.pages.document.subjects.noCategoryEmphasis}</em>,
+              }}
+            />
           </p>
           {addTag.error ? <ErrorState error={addTag.error} /> : null}
         </CardBody>
       </Card>
 
       <Card>
-        <CardHeader className="text-sm font-semibold">Entidades nomeadas</CardHeader>
+        <CardHeader className="text-sm font-semibold">{messages.pages.document.subjects.entitiesTitle}</CardHeader>
         <CardBody className="grid gap-2">
           {entities.length === 0 ? (
-            <EmptyState title="Nenhuma entidade" hint="O extrator (NER) ainda não passou por esta descrição." />
+            <EmptyState
+              title={messages.pages.document.subjects.emptyEntitiesTitle}
+              hint={messages.pages.document.subjects.emptyEntitiesHint}
+            />
           ) : null}
           <ul className="divide-y divide-(--color-line)">
             {entities.map((entity) => (
@@ -579,7 +610,7 @@ function SubjectsTab({ document }: { document: DocumentSummary }) {
                       size="sm"
                       variant="ghost"
                       disabled={addEntity.isPending}
-                      title="Registra que uma pessoa revisou e mantém esta entidade."
+                      title={messages.pages.document.subjects.confirmTitle}
                       onClick={() => addEntity.mutate(entity.entity_id)}
                     >
                       {ACTION.confirm.label}
@@ -600,17 +631,20 @@ function SubjectsTab({ document }: { document: DocumentSummary }) {
 
           <div className="border-t border-(--color-line) pt-3">
             <span className="mb-1 block text-xs font-medium text-(--color-muted)">
-              Associar uma entidade pelo nome
+              {messages.pages.document.subjects.addEntityLabel}
             </span>
             <Typeahead
-              placeholder="digite ao menos 2 letras: igreja…"
+              placeholder={messages.pages.document.subjects.entityPlaceholder}
               disabled={addEntity.isPending}
-              emptyLabel="nenhuma entidade com esse trecho"
+              emptyLabel={messages.pages.document.subjects.entityEmpty}
               onSearch={async (term) =>
                 (await searchEntities(term)).map((result) => ({
                   value: String(result.entity_id),
                   label: result.name,
-                  hint: `${result.entity_type} · ${formatCount(result.total_usage)} doc`,
+                  hint: fill(messages.pages.document.subjects.entityHint, {
+                    type: result.entity_type,
+                    count: formatCount(result.total_usage),
+                  }),
                 }))
               }
               onPick={(option) => addEntity.mutate(Number(option.value))}
@@ -625,10 +659,11 @@ function SubjectsTab({ document }: { document: DocumentSummary }) {
 }
 
 // ==========================================
-// TAB: ARRANJO
+// TAB: ARRANGEMENT
 // ==========================================
 
 function ArrangementTab({ document }: { document: DocumentSummary }) {
+  const messages = useCopy();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const levels = useQuery(queries.levels());
@@ -663,15 +698,15 @@ function ArrangementTab({ document }: { document: DocumentSummary }) {
   return (
     <div className="grid gap-4">
       <Card>
-        <CardHeader className="text-sm font-semibold">Caminho até a raiz</CardHeader>
+        <CardHeader className="text-sm font-semibold">{messages.pages.document.arrangement.pathTitle}</CardHeader>
         <CardBody>
           {ancestors.length === 0 ? (
             <EmptyState
-              title="Esta descrição está na raiz"
-              hint="Com o arranjo ainda não materializado, quase todo o acervo está solto. A tela que resolve isso é o plano de arranjo."
+              title={messages.pages.document.arrangement.rootTitle}
+              hint={messages.pages.document.arrangement.rootHint}
               action={
                 <Link to="/arranjo/plano">
-                  <Button size="sm">Abrir o plano de arranjo</Button>
+                  <Button size="sm">{messages.pages.diagnostics.openPlan}</Button>
                 </Link>
               }
             />
@@ -696,20 +731,20 @@ function ArrangementTab({ document }: { document: DocumentSummary }) {
       </Card>
 
       <Card>
-        <CardHeader className="text-sm font-semibold">Unidade superior e nível</CardHeader>
+        <CardHeader className="text-sm font-semibold">{messages.pages.document.arrangement.unitTitle}</CardHeader>
         <CardBody className="grid gap-3">
-          <p className="text-xs text-(--color-muted)">
-            A API valida antes de escrever: um Item não pode ter filhos, um Dossiê não pode ficar sem pai, e
-            mover para dentro da própria subárvore é recusado. A trilha da mudança fica no histórico desta
-            descrição.
-          </p>
+          <p className="text-xs text-(--color-muted)">{messages.pages.document.arrangement.moveNotice}</p>
 
           <div className="grid gap-2 sm:grid-cols-2">
-            <Field label={<>Unidade superior atual: {currentParentTitle ?? "raiz"}</>}>
+            <Field
+              label={fill(messages.pages.document.arrangement.currentParent, {
+                parent: currentParentTitle ?? messages.pages.document.arrangement.root,
+              })}
+            >
               <Typeahead
-                placeholder="buscar a nova unidade superior…"
+                placeholder={messages.pages.document.arrangement.parentPlaceholder}
                 disabled={move.isPending}
-                emptyLabel="nenhuma descrição com esse trecho"
+                emptyLabel={messages.pages.document.arrangement.parentEmpty}
                 onSearch={async (term) => {
                   const page = await fetchDocuments({ term, limit: 8 });
                   return page.items
@@ -727,12 +762,12 @@ function ArrangementTab({ document }: { document: DocumentSummary }) {
               />
             </Field>
 
-            <Field label="Nível de descrição">
+            <Field label={messages.pages.newDescription.levelLabel}>
               <Select
                 value={levelId ?? ""}
                 onChange={(event) => setLevelId(event.target.value ? Number(event.target.value) : null)}
               >
-                <option value="">— manter —</option>
+                <option value="">{messages.pages.document.arrangement.keepLevel}</option>
                 {(levels.data ?? []).map((level) => (
                   <option key={level.level_id} value={level.level_id}>
                     {level.ordinal}. {level.name}
@@ -746,65 +781,72 @@ function ArrangementTab({ document }: { document: DocumentSummary }) {
               no longer exists — the API takes the actor from the session since ADR 0009 — so the form
               showed a field title with nothing under it.
             */}
-            <Field label="Nota da decisão">
+            <Field label={messages.pages.document.arrangement.decisionNote}>
               <Input value={note} onChange={(event) => setNote(event.target.value)} />
             </Field>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
             <Button variant="primary" disabled={move.isPending} onClick={() => move.mutate(parentId)}>
-              {move.isPending ? "Movendo…" : "Mover para esta unidade"}
+              {move.isPending ? messages.pages.document.arrangement.moving : messages.pages.document.arrangement.moveTo}
             </Button>
             <Button
               disabled={move.isPending || parentId === null}
-              title="Deixa a descrição na raiz. O nível continua o que estiver escolhido acima."
+              title={messages.pages.document.arrangement.promoteTitle}
               onClick={() => move.mutate(null)}
             >
-              Promover à raiz
+              {messages.pages.document.arrangement.promote}
             </Button>
             <Button
               variant="ghost"
               disabled={move.isPending}
               onClick={() => navigate({ to: "/arranjo/diagnostico", search: { issue: "LEVEL_DEPTH_MISMATCH" } })}
             >
-              ver incoerências de nível
+              {messages.pages.document.arrangement.levelIssues}
             </Button>
           </div>
 
           {move.error ? <ErrorState error={move.error} /> : null}
           {move.data ? (
             <Notice tone="ok">
-              Movido: agora pende de {move.data.parent_id ?? "ninguém (raiz)"} e o caminho é{" "}
-              <code>{move.data.path}</code>.
+              <Trans
+                text={messages.pages.document.arrangement.moved}
+                values={{
+                  parent: move.data.parent_id ?? messages.pages.document.arrangement.rootArticle,
+                  path: <code>{move.data.path}</code>,
+                }}
+              />
             </Notice>
           ) : null}
         </CardBody>
       </Card>
 
       <Card>
-        <CardHeader className="text-sm font-semibold">Filhos</CardHeader>
+        <CardHeader className="text-sm font-semibold">{messages.pages.document.arrangement.childrenTitle}</CardHeader>
         <CardBody className="text-sm">
           {document.children_count === 0 ? (
-            <p className="text-(--color-muted)">Nenhuma descrição pende diretamente desta.</p>
+            <p className="text-(--color-muted)">{messages.pages.document.arrangement.childrenNone}</p>
           ) : (
             <p>
-              <strong>{formatCount(document.children_count)}</strong> descrição(ões) diretamente abaixo. Mover esta
-              unidade leva a subárvore inteira: o caminho é reescrito em uma instrução.
+              <Trans
+                text={messages.pages.document.arrangement.childrenCount}
+                values={{ count: <strong>{formatCount(document.children_count)}</strong> }}
+              />
             </p>
           )}
         </CardBody>
       </Card>
 
       <Card>
-        <CardHeader className="text-sm font-semibold">Publicação</CardHeader>
+        <CardHeader className="text-sm font-semibold">{messages.pages.document.arrangement.publicationTitle}</CardHeader>
         <CardBody className="text-sm">
           {document.is_published ? (
-            <Badge tone="ok">publicado na difusão</Badge>
+            <Badge tone="ok">{messages.pages.document.arrangement.publishedDiffusion}</Badge>
           ) : (
-            <Badge tone="neutral">não publicado</Badge>
+            <Badge tone="neutral">{messages.pages.document.arrangement.notPublished}</Badge>
           )}
           <p className="mt-2 text-xs text-(--color-muted)">
-            Publicar é uma decisão de difusão, separada da revisão. O campo está na aba Descrição.
+            {messages.pages.document.arrangement.publicationHint}
           </p>
         </CardBody>
       </Card>
@@ -813,10 +855,11 @@ function ArrangementTab({ document }: { document: DocumentSummary }) {
 }
 
 // ==========================================
-// TAB: HISTÓRICO
+// TAB: HISTORY
 // ==========================================
 
 function HistoryTab({ document }: { document: DocumentSummary }) {
+  const messages = useCopy();
   const descriptionId = document.description_id;
   const { data, isPending, error } = useQuery(queries.revisions(descriptionId));
 
@@ -827,38 +870,40 @@ function HistoryTab({ document }: { document: DocumentSummary }) {
     <div className="grid gap-4">
       {!data || data.length === 0 ? (
         <EmptyState
-          title="Nenhuma revisão humana"
-          hint="O histórico é o que dá crédito ao selo de revisado: ele registra quem mudou o quê, de qual valor para qual, e por quê."
+          title={messages.pages.document.history.emptyTitle}
+          hint={messages.pages.document.history.emptyHint}
         />
       ) : (
         <ol className="space-y-3">
           {data.map((revision) => (
-        <li key={revision.revision_id}>
-          <Card>
-            <CardHeader className="flex items-center justify-between text-sm">
-              <span className="font-medium">{revision.changed_by ?? "autoria não registrada"}</span>
-              <span className="text-xs text-(--color-muted)">{formatDateTime(revision.created_at)}</span>
-            </CardHeader>
-            <CardBody className="space-y-2">
-              {revision.note ? <p className="text-sm italic text-(--color-muted)">{revision.note}</p> : null}
-              <ul className="space-y-1">
-                {Object.entries(revision.changes ?? {}).map(([field, change]) => {
-                  const pair = change as { old?: unknown; new?: unknown };
-                  return (
-                    <li key={field} className="text-xs">
-                      <code className="rounded bg-black/[0.05] px-1 font-medium">{field}</code>
-                      <span className="mx-2 text-(--color-danger) line-through">
-                        {JSON.stringify(pair?.old) ?? "—"}
-                      </span>
-                      <span className="text-(--color-ok)">{JSON.stringify(pair?.new) ?? "—"}</span>
-                    </li>
-                  );
-                })}
-              </ul>
-            </CardBody>
-          </Card>
-          </li>
-        ))}
+            <li key={revision.revision_id}>
+              <Card>
+                <CardHeader className="flex items-center justify-between text-sm">
+                  <span className="font-medium">
+                    {revision.changed_by ?? messages.pages.document.history.unknownAuthor}
+                  </span>
+                  <span className="text-xs text-(--color-muted)">{formatDateTime(revision.created_at)}</span>
+                </CardHeader>
+                <CardBody className="space-y-2">
+                  {revision.note ? <p className="text-sm italic text-(--color-muted)">{revision.note}</p> : null}
+                  <ul className="space-y-1">
+                    {Object.entries(revision.changes ?? {}).map(([field, change]) => {
+                      const pair = change as { old?: unknown; new?: unknown };
+                      return (
+                        <li key={field} className="text-xs">
+                          <code className="rounded bg-black/[0.05] px-1 font-medium">{field}</code>
+                          <span className="mx-2 text-(--color-danger) line-through">
+                            {JSON.stringify(pair?.old) ?? "—"}
+                          </span>
+                          <span className="text-(--color-ok)">{JSON.stringify(pair?.new) ?? "—"}</span>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </CardBody>
+              </Card>
+            </li>
+          ))}
         </ol>
       )}
 
@@ -882,6 +927,7 @@ function HistoryTab({ document }: { document: DocumentSummary }) {
  * know whether the archivist meant this row).
  */
 function DeleteDocumentCard({ document }: { document: DocumentSummary }) {
+  const messages = useCopy();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
@@ -917,24 +963,31 @@ function DeleteDocumentCard({ document }: { document: DocumentSummary }) {
       <CardBody className="grid gap-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="grid gap-1">
-            <p className="text-sm font-semibold text-(--color-danger)">Excluir esta descrição</p>
-            <p className="text-xs text-(--color-muted)">
-              Exclusão definitiva. O retrato da descrição fica na trilha de exclusões; nada a traz de volta.
-            </p>
+            <p className="text-sm font-semibold text-(--color-danger)">{messages.pages.document.delete.title}</p>
+            <p className="text-xs text-(--color-muted)">{messages.pages.document.delete.hint}</p>
           </div>
           <Button size="sm" variant="danger" onClick={() => setOpen((current) => !current)}>
-            {open ? ACTION.cancel.label : "Excluir descrição…"}
+            {open ? ACTION.cancel.label : messages.pages.document.delete.open}
           </Button>
         </div>
 
         {open ? (
           <Notice tone="danger" as="div" className="grid gap-3">
             <p className="text-xs text-(--color-danger)">
-              Uma descrição com filhos <strong>não pode</strong> ser excluída: a árvore ficaria apontando para um
-              ramo que não existe. O serviço recusa e diz quantos filhos estão no caminho.
+              <Trans
+                text={messages.pages.document.delete.notice}
+                values={{ cannot: <strong>{messages.pages.document.delete.cannot}</strong> }}
+              />
             </p>
 
-            <Field label={<>Escreva <code>{expected}</code> para confirmar</>}>
+            <Field
+              label={
+                <Trans
+                  text={messages.pages.document.delete.confirmLabel}
+                  values={{ code: <code>{expected}</code> }}
+                />
+              }
+            >
               <Input
                 value={confirmation}
                 onChange={(event) => setConfirmation(event.target.value)}
@@ -949,11 +1002,11 @@ function DeleteDocumentCard({ document }: { document: DocumentSummary }) {
               showed a field title with nothing under it.
             */}
             <div className="grid gap-2">
-              <Field label="Motivo (guardado na trilha)">
+              <Field label={messages.pages.document.delete.reason}>
                 <Input
                   value={note}
                   onChange={(event) => setNote(event.target.value)}
-                  placeholder="ex.: duplicata da descrição 00574"
+                  placeholder={messages.pages.document.delete.reasonPlaceholder}
                 />
               </Field>
             </div>
@@ -962,20 +1015,20 @@ function DeleteDocumentCard({ document }: { document: DocumentSummary }) {
               <Button
                 variant="danger"
                 disabled={!matches || remove.isPending}
-                title={matches ? undefined : "O código precisa bater com o da descrição."}
+                title={matches ? undefined : messages.pages.document.delete.mismatchTitle}
                 onClick={() => remove.mutate()}
               >
-                {remove.isPending ? ACTION.exclude.pending : "Excluir definitivamente"}
+                {remove.isPending ? ACTION.exclude.pending : messages.pages.document.delete.confirm}
               </Button>
               <span className="text-xs text-(--color-muted)">
-                {matches ? "o código confere" : "o botão libera quando o código bater"}
+                {matches ? messages.pages.document.delete.matches : messages.pages.document.delete.notMatches}
               </span>
             </div>
 
             {remove.error ? <ErrorState error={remove.error} /> : null}
             {done ? (
               <p className="text-xs text-(--color-ok)">
-                “{done.title}” foi excluída. A trilha guarda o retrato dela.
+                {fill(messages.pages.document.delete.done, { title: done.title })}
               </p>
             ) : null}
           </Notice>

@@ -1,4 +1,5 @@
 import type { FailureSource, WorkerRun, WorkerRunStatus, WorkerStatus } from "@/api/client";
+import { activeMessages } from "@/i18n/locale";
 
 /**
  * Human labels for the run lifecycle.
@@ -6,14 +7,11 @@ import type { FailureSource, WorkerRun, WorkerRunStatus, WorkerStatus } from "@/
  * The API speaks the enum; the operator reads Portuguese. Same rule as ``REVIEW_STATUS_LABEL``:
  * the mapping lives in the screen, which is what lets the contract stay in English.
  */
-export const RUN_STATUS_LABEL: Record<WorkerRunStatus, string> = {
-  QUEUED: "Na fila",
-  RUNNING: "Em execução",
-  SUCCESS: "Concluída",
-  FAILED: "Falhou",
-  INTERRUPTED: "Interrompida",
-  CANCELLED: "Cancelada",
-};
+export const RUN_STATUS_LABEL = new Proxy({} as Record<WorkerRunStatus, string>, {
+  get(_target, key) {
+    return activeMessages().system.runStatus[key as WorkerRunStatus];
+  },
+});
 
 export const RUN_STATUS_TONE: Record<
   WorkerRunStatus,
@@ -35,17 +33,18 @@ export const RUN_STATUS_TONE: Record<
  * A group can carry both: the same root cause may have broken a worker execution and an HTTP
  * request, and that is one line on the failures panel, not two.
  */
-export const FAILURE_SOURCE_LABEL: Record<FailureSource, string> = {
-  WORKER: "execução",
-  API: "requisição",
-};
+export const FAILURE_SOURCE_LABEL = new Proxy({} as Record<FailureSource, string>, {
+  get(_target, key) {
+    return activeMessages().system.failureSource[key as FailureSource];
+  },
+});
 
 /** Who asked for the run, as the ledger records it (ADR 0014/0015). */
-export const TRIGGER_LABEL: Record<WorkerRun["trigger"], string> = {
-  API: "painel",
-  CLI: "linha de comando",
-  SCHEDULE: "agenda",
-};
+export const TRIGGER_LABEL = new Proxy({} as Record<WorkerRun["trigger"], string>, {
+  get(_target, key) {
+    return activeMessages().system.trigger[key as WorkerRun["trigger"]];
+  },
+});
 
 /** The retry bound of ADR 0014/0015; the panel shows "tentativa 2/3". */
 export const MAX_ATTEMPTS = 3;
@@ -83,25 +82,25 @@ export function formatDuration(ms?: number | null): string {
  * model, device and the host it will call — and not the preset's name again.
  */
 export function describeConfig(config: Record<string, unknown> | undefined): string {
-  if (!config) return "sem modelo";
+  const system = activeMessages().system;
+  if (!config) return system.noModel;
   const parts: string[] = [];
   if (typeof config.model === "string") parts.push(config.model);
   if (typeof config.device === "string") parts.push(config.device);
   if (typeof config.host === "string") parts.push(config.host);
-  if (typeof config.batch_size === "number") parts.push(`lote ${config.batch_size}`);
-  if (typeof config.dimensions === "number") parts.push(`${config.dimensions} dims`);
-  if (Array.isArray(config.disable) && config.disable.length > 0) parts.push("sem NER/parser");
-  return parts.length > 0 ? parts.join(" · ") : "sem parâmetros";
+  if (typeof config.batch_size === "number") parts.push(system.batch.replace("{size}", String(config.batch_size)));
+  if (typeof config.dimensions === "number")
+    parts.push(system.dimensions.replace("{count}", String(config.dimensions)));
+  if (Array.isArray(config.disable) && config.disable.length > 0) parts.push(system.stepsOff);
+  return parts.length > 0 ? parts.join(" · ") : system.noParameters;
 }
 
 /** What one unit of a queue is, so "12 pendentes" is never ambiguous. */
-export const UNIT_LABEL: Record<WorkerStatus["unit"], string> = {
-  origin: "origens",
-  staging: "registros de staging",
-  document: "descrições",
-  tag: "tags",
-  pair: "pares",
-};
+export const UNIT_LABEL = new Proxy({} as Record<WorkerStatus["unit"], string>, {
+  get(_target, key) {
+    return activeMessages().system.unit[key as WorkerStatus["unit"]];
+  },
+});
 
 /**
  * What a run's recorded worker options read as (#120).
@@ -111,7 +110,7 @@ export const UNIT_LABEL: Record<WorkerStatus["unit"], string> = {
  * from the fingerprint the stamp hashed.
  */
 export function describeOptions(options: Record<string, unknown> | undefined): string {
-  if (!options || Object.keys(options).length === 0) return "opções não registradas nesta execução";
+  if (!options || Object.keys(options).length === 0) return activeMessages().system.optionsNotRecorded;
   return Object.entries(options)
     .map(([key, value]) => `${key}=${Array.isArray(value) ? value.join(",") : String(value)}`)
     .join(" · ");
@@ -136,10 +135,10 @@ export function parseOptions(text: string): { options?: Record<string, unknown>;
   try {
     const parsed: unknown = JSON.parse(trimmed);
     if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
-      return { error: "As opções precisam ser um objeto JSON, por exemplo {\"force\": true}." };
+      return { error: activeMessages().system.optionsExample };
     }
     return { options: parsed as Record<string, unknown> };
   } catch {
-    return { error: "JSON inválido." };
+    return { error: activeMessages().system.invalidJson };
   }
 }

@@ -1,6 +1,6 @@
 """The curator SPA's copy contract (issue #23).
 
-Four rules that no green gate could see before, each one the day after a defect that shipped:
+Five rules that no green gate could see before, each one the day after a defect that shipped:
 
 1. **A design token exists, and is written the way Tailwind v4 needs it.** `bg-[--color-surface]`
    compiles to `background-color: --color-surface` — invalid CSS the browser drops *silently*, which
@@ -19,11 +19,16 @@ Four rules that no green gate could see before, each one the day after a defect 
    `rung`, `apply` and `dry-run` through the whole review, because it is a **component and not a
    screen** — the per-screen pass never opened it, and nothing failed. This is the rule that makes
    the next one fail.
+5. **Two screens that share a vocabulary name each other, by the route and not by the tab.** #232
+   found `Não é Assunto` and `Termos Bloqueados` reading as one screen with two filters, and the one
+   link between them dropped the reader on the Tags screen's default tab. The link is now a source
+   fact: each route contains `to="<the other's path>"`, and the paths are read from `SCREENS`, so a
+   rename fails here instead of orphaning the referent again.
 
 The parser is deliberately textual. The SPA has no test runner of its own (there is no `vitest` and
-this is not the change that adds one), and the four rules are about *source text* — a token spelled
-wrong, a name typed twice, a heading written by hand, a word that should be gone — which is exactly
-what a text scan can decide.
+this is not the change that adds one), and the five rules are about *source text* — a token spelled
+wrong, a name typed twice, a heading written by hand, a word that should be gone, a link that points
+nowhere — which is exactly what a text scan can decide.
 """
 
 from __future__ import annotations
@@ -52,6 +57,10 @@ VAR_TOKEN = re.compile(r"var\(--color-([a-z0-9-]+)\)")
 SOURCES = sorted(
     path for pattern in ("*.ts", "*.tsx", "*.css") for path in SRC.rglob(pattern) if path.name != "schema.d.ts"
 )
+
+#: The Portuguese catalogue: where the copy lives now (ADR 0020 §1), and what the extractor's own
+#: sanity check reads instead of `lib/screens.ts`.
+CATALOGUE = SRC / "i18n" / "pt.ts"
 
 #: The words this interface retired, and what it says instead. Each one was in the tree when the
 #: canon landed, and each one is now at zero — the gate is what keeps it there.
@@ -127,6 +136,11 @@ def test_no_retired_word_is_visible() -> None:
     offenders: list[str] = []
     for path in SOURCES:
         relative = path.relative_to(CURATOR).as_posix()
+        # The canon is about the Portuguese interface: the English catalogue (and the per-screen
+        # translation modules) may say "Apply" and "Undo", the correct English for `Aplicar` and
+        # `Desfazer`.
+        if relative == "src/i18n/en.ts" or relative.startswith("src/i18n/pages/"):
+            continue
         for value in visible_strings(path):
             if any(relative == file and allowed in value for file, allowed, _ in ALLOWED):
                 continue
@@ -138,6 +152,32 @@ def test_no_retired_word_is_visible() -> None:
         + "\n  ".join(sorted(set(offenders)))
         + "\n\nThe canon lives in `apps/curator/src/lib/copy.ts`; if a use is legitimate, add it to "
         "`ALLOWED` in this test with the reason, so the exception is a line a reviewer reads."
+    )
+
+
+def test_the_blocked_spellings_are_named_one_way() -> None:
+    """#232: one place, three names — the tab's, the SPA's hint, and the guides' section.
+
+    The rename in `7e9a5b3` left `lib/taxonomy.ts` telling the reader "na aba Stopwords" and two
+    route strings promising the old tab, one rename later. The **name** is what this pins: the
+    proper noun the tab carried, not the code's word. `domain_stopwords`, `stopwords(axis)` and the
+    `STOPWORD` status code are identifiers and enum members, and retiring them from the source would
+    be a test that fails on the contract.
+
+    Case matters here: the label was `Termos Bloqueados`, the code is `stopwords`, and the two are
+    told apart by the capital letter that only copy has.
+    """
+    retired_names = re.compile(r"\bStopwords?\b|\bTermos Bloqueados\b")
+    offenders = [
+        f"{path.relative_to(CURATOR).as_posix()}: {value.strip()[:70]!r}"
+        for path in SOURCES
+        for value in visible_strings(path)
+        if retired_names.search(value)
+    ]
+    assert not offenders, (
+        "these user-visible strings still name the screen `Stopwords` or `Termos Bloqueados`: "
+        f"{offenders}. The name is `Grafias bloqueadas`, and a reference to the *place* is what "
+        "went stale twice; the label itself lives in `i18n/pt.ts` (`screens.blockedSpellings`)."
     )
 
 
@@ -161,8 +201,58 @@ def test_the_extractor_sees_strings(tmp_path: Path) -> None:
         "the extractor no longer reads a template literal; every word inside one is ungated."
     )
 
-    seen = visible_strings(SCREENS)
-    assert len(seen) > 20, f"the extractor found {len(seen)} strings in `lib/screens.ts`; the pattern is broken."
+    seen = visible_strings(CATALOGUE)
+    assert len(seen) > 20, f"the extractor found {len(seen)} strings in `src/i18n/pt.ts`; the pattern is broken."
+
+
+#: What a person reads as Portuguese. The catalogue is excluded: it *is* the Portuguese copy.
+PORTUGUESE = re.compile(
+    r"[áàâãéêíóôõúüçÁÀÂÃÉÊÍÓÔÕÚÜÇ]|"
+    r"\b(não|uma|com|para|que|das|dos|pela|pelo|sem|como|quando|também|já|ainda|só|ser|está|são|"
+    r"você|seu|sua|seus|suas|nesta|neste|deste|desta|após|até|entre|sobre|pode|podem|deve|devem|"
+    r"fazer|feito|vai|vão|tem|têm|nunca|sempre|nada|tudo|outro|outra|mais|menos|muito|pouco|aqui|"
+    r"onde|quem|foi|era|será|sido|sendo|há|isso|isto|esse|essa|aquele|aquela|mas|porém|porque|"
+    r"então|assim|cada|todos|todas|algum|alguma|nenhum|nenhuma|dois|duas|três|primeiro|último|"
+    r"novo|nova|próximo|próxima|motivos|encontrados|encontradas)\b",
+    re.I,
+)
+
+#: The rule is absolute: after the sweep, no Portuguese literal lives outside `src/i18n/`. The only
+#: exceptions are the data strings declared above with their reason (a stored sentinel, a URL).
+
+
+#: Strings that look Portuguese and are data, not copy. Each one needs its reason.
+ALLOWED_PORTUGUESE: dict[tuple[str, str], str] = {
+    (
+        "src/lib/hierarchy.ts",
+        "SEM TÍTULO",
+    ): "the staging parser's sentinel is stored data; translating it would stop matching the value",
+}
+
+
+def _portuguese_strings(path: Path) -> list[str]:
+    relative = path.relative_to(CURATOR).as_posix()
+    return [
+        value
+        for value in visible_strings(path)
+        # A URL is data, not copy: the attribution's repository address is not a Portuguese word.
+        if not value.startswith(("http://", "https://"))
+        and (relative, value) not in ALLOWED_PORTUGUESE
+        and PORTUGUESE.search(value)
+    ]
+
+
+def test_no_portuguese_lives_outside_the_catalogue() -> None:
+    """Every user-visible string reads from `src/i18n/`; a Portuguese literal outside it is a bug."""
+    failures: list[str] = []
+    for path in SOURCES:
+        relative = path.relative_to(CURATOR).as_posix()
+        if relative.startswith("src/i18n/") or relative == "src/api/schema.d.ts":
+            continue
+        values = _portuguese_strings(path)
+        if values:
+            failures.append(f"{relative}: {values[:3]}")
+    assert not failures, "these files still carry Portuguese outside the catalogue:\n  " + "\n  ".join(failures)
 
 
 def test_the_extractor_joins_a_wrapped_text_node(tmp_path: Path) -> None:
@@ -260,12 +350,25 @@ def test_the_product_name_is_written_once() -> None:
     )
 
 
+#: Routes that only send the browser elsewhere: a path, not a screen.
+#:
+#: They are listed here instead of in ``lib/screens.ts``, and this table is what makes the exception
+#: a line a reviewer reads. The target has to be a declared route, so a redirect cannot survive the
+#: screen it pointed at.
+REDIRECT_ROUTES: dict[str, str] = {
+    "/sistema/ingestao/nova": "/acervo/nova",
+    # The ledger became the *Execuções* tab of the operations screen (#207); the old path keeps the
+    # bookmarks, the guides and the links inside error states working, filters and all.
+    "/sistema/execucoes": "/sistema/workers",
+}
+
+
 def _screen_records() -> dict[str, tuple[str, bool]]:
     """Every entry of `SCREENS`, keyed by its id: its path, and whether its heading is dynamic."""
     body = text(SCREENS).split("export const SCREENS", 1)
     assert len(body) == 2, "`lib/screens.ts` no longer exports `SCREENS`."
     records: dict[str, tuple[str, bool]] = {}
-    for block in re.finditer(r"\n  (\w+): \{(.*?)\n  \},", body[1], re.S):
+    for block in re.finditer(r"\n  (\w+): \{([^}]*)\}", body[1], re.S):
         identifier, entry = block.group(1), block.group(2)
         path = re.search(r'path:\s*"([^"]+)"', entry)
         assert path, f"`SCREENS.{identifier}` has no path, so no route can be matched to it."
@@ -274,15 +377,23 @@ def _screen_records() -> dict[str, tuple[str, bool]]:
     return records
 
 
-def _routes() -> dict[str, str]:
-    """Every route of `router.tsx`, keyed by its path: the component that renders it."""
-    records: dict[str, str] = {}
+def _routes() -> dict[str, str | None]:
+    """Every route of `router.tsx`, keyed by its path: its component, or ``None`` for a redirect.
+
+    A redirect is a route with no screen: it has a ``beforeLoad`` that throws, not a component. The
+    ``None`` is what lets the two catalogue tests below skip it, while ``REDIRECT_ROUTES`` keeps the
+    exception visible.
+    """
+    records: dict[str, str | None] = {}
     for block in re.finditer(r"createRoute\(\{(.*?)\n\}\);", text(ROUTER), re.S):
         entry = block.group(1)
         path = re.search(r'path:\s*"([^"]+)"', entry)
         component = re.search(r"component:\s*(\w+)", entry)
-        assert path and component, f"a route in `router.tsx` has no path or no component:\n{entry[:200]}"
-        records[path.group(1)] = component.group(1)
+        redirect_to = re.search(r'redirect\(\{\s*to:\s*"([^"]+)"', entry)
+        assert path and (component or redirect_to), (
+            f"a route in `router.tsx` has no path, or neither a component nor a redirect:\n{entry[:200]}"
+        )
+        records[path.group(1)] = component.group(1) if component else None
     assert records, "`router.tsx` declares no route."
     return records
 
@@ -291,13 +402,32 @@ def test_every_route_has_a_named_screen() -> None:
     """A route without a name is a screen the menu, the card and the heading cannot agree on."""
     screens = _screen_records()
     routes = _routes()
+    redirects = {path for path, component in routes.items() if component is None}
+    assert redirects == set(REDIRECT_ROUTES), (
+        f"the routes without a component ({sorted(redirects)}) and `REDIRECT_ROUTES` "
+        f"({sorted(REDIRECT_ROUTES)}) disagree. A route that only redirects has to be listed in "
+        "this gate, and a listed path has to be a redirect in `router.tsx`."
+    )
+    for source, target in REDIRECT_ROUTES.items():
+        assert source in routes, f"`REDIRECT_ROUTES` names {source}, which `router.tsx` does not declare."
+        assert target in routes, f"the redirect {source} points at {target}, which `router.tsx` does not declare."
+        assert re.search(
+            rf'path:\s*"{re.escape(source)}".*?redirect\(\{{\s*to:\s*"{re.escape(target)}"', text(ROUTER), re.S
+        ), f"`{source}` is listed as redirecting to `{target}`, but `router.tsx` does not say so."
+
     named = {path for path, _ in screens.values()}
-    missing = sorted(set(routes) - named)
+    routable = set(routes) - redirects
+    overlap = sorted(named & redirects)
+    assert not overlap, (
+        f"`lib/screens.ts` names these redirect paths as screens: {overlap}. A redirect has no "
+        "heading, no menu entry and no settings card; the catalogue would point at a dead end."
+    )
+    missing = sorted(routable - named)
     assert not missing, (
         f"these routes of `apps/curator/src/router.tsx` have no entry in `lib/screens.ts`: {missing}. "
         "Every screen has one name, and it is the one the menu, the settings card and the `<h1>` read."
     )
-    orphaned = sorted(named - set(routes))
+    orphaned = sorted(named - routable)
     assert not orphaned, (
         f"`lib/screens.ts` names screens that `router.tsx` does not declare: {orphaned}. "
         "A name for a route that does not exist is a menu entry that leads nowhere."
@@ -317,6 +447,8 @@ def test_every_heading_comes_from_the_screens_catalogue() -> None:
 
     failures: list[str] = []
     for path, component in _routes().items():
+        if component is None:
+            continue
         identifier = by_path[path]
         if identifier in dynamic:
             continue
@@ -332,4 +464,43 @@ def test_every_heading_comes_from_the_screens_catalogue() -> None:
         f"the page heading is not taken from `lib/screens.ts`: {failures}. The `<h1>` is the menu's "
         "label, resolved by `PageHeader` from the screen id — a heading typed in the route is a "
         "second definition, and it is the one that drifted."
+    )
+
+
+def test_the_verdict_and_the_spelling_screen_link_to_each_other() -> None:
+    """The two screens of #232 name each other, and by the route rather than by a tab.
+
+    They share a word — *bloqueado* — and half their data: confirming a verdict plants the ban the
+    other screen lists. The difference is the object (meaning vs spelling), and the only thing that
+    keeps it visible is each screen pointing at the other. The target is read from `SCREENS`, so a
+    route rename fails here instead of leaving a button that lands on the old tab — which is what the
+    single `Tags` link did before the copy passes: it opened `Relevância`.
+    """
+    screens = _screen_records()
+    verdict_path = screens["subjectExclusions"][0]
+    spellings_path = screens["blockedSpellings"][0]
+
+    verdict = SRC / "routes" / "SubjectExclusionsRoute.tsx"
+    spellings = SRC / "routes" / "BlockedSpellingsRoute.tsx"
+    for source, target, name in (
+        (verdict, spellings_path, "the blocked spellings"),
+        (spellings, verdict_path, "the verdict"),
+    ):
+        assert source.exists(), f"#232 moved a screen and `{source.name}` no longer exists."
+        assert f'to="{target}"' in text(source), (
+            f"`{source.name}` does not link to `{target}` ({name}). The two screens share a "
+            "vocabulary, and each one naming the other is what stops them reading as one list with "
+            "two filters."
+        )
+
+    # A bookmark on the old tab has to reach the new screen: the redirect is the second half of the
+    # link, and a validator that forgot the legacy id would answer `Relevância` instead.
+    assert re.search(
+        rf'path:\s*"{re.escape(screens["tags"][0])}".*?throw redirect\(\{{\s*to:\s*"{re.escape(spellings_path)}"',
+        text(ROUTER),
+        re.S,
+    ), (
+        "`?aba=stopwords` no longer reaches the blocked-spellings screen. The tags route redirects "
+        f"it to `{spellings_path}` in `beforeLoad`, and `LEGACY_ABAS` keeps the id accepted so the "
+        "redirect can see it."
     )

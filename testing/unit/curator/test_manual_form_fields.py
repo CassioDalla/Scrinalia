@@ -21,12 +21,10 @@ from scrinalia.domains.ingestion.schemas import ManualIngestionRequest
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 ISAD = REPO_ROOT / "apps" / "curator" / "src" / "lib" / "isad.ts"
-FORM = REPO_ROOT / "apps" / "curator" / "src" / "routes" / "ManualEntryRoute.tsx"
+FORM = REPO_ROOT / "apps" / "curator" / "src" / "routes" / "NewDescriptionRoute.tsx"
 
-#: One catalogue entry's ``name``, from its line to the closing brace of the object.
-ENTRY = re.compile(r"(?ms)^  \{\n(.*?)^  \},$")
-NAME = re.compile(r'^\s*name: "([a-z_]+)",', re.M)
-NOT_ASKED = re.compile(r"^\s*manualEntry: false,", re.M)
+#: One catalogue entry: ``field("name", "area", "control")``, with ``false`` when the form skips it.
+FIELD = re.compile(r'^\s*field\("([a-z_]+)",\s*"[a-z]+",\s*"[a-z_]+"(?:,\s*(false))?\),$', re.M)
 
 #: The controls the form binds by hand, outside the catalogue.
 BOUND_CONTROL = re.compile(r'setValue\("([a-z_]+)"')
@@ -34,12 +32,7 @@ BOUND_CONTROL = re.compile(r'setValue\("([a-z_]+)"')
 
 def _catalogue_fields() -> set[str]:
     """The catalogue's fields, minus the ones marked as not asked at creation."""
-    asked: set[str] = set()
-    for body in ENTRY.findall(ISAD.read_text()):
-        name = NAME.search(body)
-        if name and not NOT_ASKED.search(body):
-            asked.add(name.group(1))
-    return asked
+    return {name for name, not_asked in FIELD.findall(ISAD.read_text()) if not not_asked}
 
 
 def test_every_contract_field_has_a_control_on_the_form() -> None:

@@ -35,6 +35,7 @@ from litestar.types import Scope
 from scrinalia.core.author import Author
 from scrinalia.core.config import get_settings
 from scrinalia.core.database import get_db
+from scrinalia.core.i18n import refusal
 from scrinalia.core.logger import logger
 from scrinalia.domains.archive.schemas.responses import RouteMessageCode
 from scrinalia.domains.identity.domain.permissions import Permission, Role, has_permission
@@ -60,12 +61,6 @@ PASSWORD_CHANGE_EXEMPT_OPT_KEY = "password_change_exempt"
 #: The only prefix the guard touches. ``/health/*``, ``/schema*`` and the SPA are outside it by
 #: construction, which is why the orchestrator's probes and the OpenAPI document need no exception.
 API_PREFIX = "/api/v1"
-
-SESSION_REQUIRED_MESSAGE = "É preciso entrar para acessar o sistema."
-PERMISSION_DENIED_MESSAGE = "Sua conta não tem permissão para esta ação."
-UNCLASSIFIED_ROUTE_MESSAGE = "Rota sem classificação de acesso."
-CROSS_ORIGIN_MESSAGE = "Requisição recusada: a origem não é a deste sistema."
-PASSWORD_CHANGE_REQUIRED_MESSAGE = "Troque a senha temporária antes de usar o sistema."
 
 
 class PasswordChangeRequiredException(PermissionDeniedException):
@@ -208,7 +203,7 @@ def access_guard(connection: ASGIConnection, route_handler: BaseRouteHandler) ->
         # Unreachable while the partition test passes; if it ever runs, the answer is "no" and the
         # log names the handler, so the fix is one line instead of a hunt.
         logger.warning(f"🔒 Rota sem classificação de acesso: {scope.get('method')} {scope.get('path')}")
-        raise PermissionDeniedException(UNCLASSIFIED_ROUTE_MESSAGE)
+        raise PermissionDeniedException(refusal("security.unclassified_route"))
 
     if access is Access.PUBLIC:
         return
@@ -216,7 +211,7 @@ def access_guard(connection: ASGIConnection, route_handler: BaseRouteHandler) ->
     token = connection.cookies.get(get_settings().AUTH_SESSION_COOKIE_NAME)
     user = resolve_authenticated_user(token) if token else None
     if user is None:
-        raise NotAuthorizedException(SESSION_REQUIRED_MESSAGE)
+        raise NotAuthorizedException(refusal("security.session_required"))
 
     # Published for the handlers: ``provide_current_user`` reads it, and it is the *only* place the
     # account comes from, so a handler cannot disagree with the authorization that just ran.
@@ -227,13 +222,13 @@ def access_guard(connection: ASGIConnection, route_handler: BaseRouteHandler) ->
     # "change the password" and not "your role may not do this". Every level below is refused,
     # ``AUTHENTICATED`` reads included — reading is the reconnaissance the flag exists to stop.
     if user.must_change_password and not is_password_change_exempt(route_handler):
-        raise PasswordChangeRequiredException(PASSWORD_CHANGE_REQUIRED_MESSAGE)
+        raise PasswordChangeRequiredException(refusal("security.password_change_required"))
 
     if access is Access.AUTHENTICATED:
         return
 
     if not has_permission(user.role, Permission(access.value)):
-        raise PermissionDeniedException(PERMISSION_DENIED_MESSAGE)
+        raise PermissionDeniedException(refusal("security.permission_denied"))
 
 
 # --- The cross-origin check on mutations ---------------------------------------------------------
@@ -318,4 +313,4 @@ def origin_guard(connection: ASGIConnection, route_handler: BaseRouteHandler) ->
         return
 
     logger.warning(f"🛡️ Origem recusada em {method} {scope.get('path')}: {origin} (host {host or '?'})")
-    raise PermissionDeniedException(CROSS_ORIGIN_MESSAGE)
+    raise PermissionDeniedException(refusal("security.cross_origin"))

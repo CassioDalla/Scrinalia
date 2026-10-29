@@ -4,7 +4,6 @@ import {
   Download,
   FileType,
   HeartPulse,
-  History,
   Layers,
   SlidersHorizontal,
   UserCog,
@@ -13,6 +12,7 @@ import {
 } from "lucide-react";
 
 import type { AuthUser } from "@/api/client";
+import type { Messages } from "@/i18n/pt";
 import { can, type Permission } from "@/lib/permissions";
 import { SCREENS, type Screen, type ScreenId } from "@/lib/screens";
 
@@ -70,18 +70,20 @@ export type SettingsScreenId = Extract<
   | "typologies"
   | "vocabulary"
   | "workers"
-  | "ingestion"
+  | "origins"
   | "workerSettings"
-  | "runs"
   | "health"
   | "users"
 >;
 
-/** A card with its screen's name resolved. What the page renders. */
-export type ResolvedSettingsCard = SettingsCard & Screen;
+/** A card with its screen's path and its copy resolved. What the page renders. */
+export type ResolvedSettingsCard = SettingsCard & Screen & Messages["screens"][SettingsScreenId];
 
-export type SettingsTab = { id: string; label: string; cards: SettingsCard[] };
-export type ResolvedSettingsTab = { id: string; label: string; cards: ResolvedSettingsCard[] };
+/** The three tabs the URL may name; closed so a label cannot be added for a tab that does not exist. */
+export type SettingsTabId = "arranjo" | "operacao" | "acesso";
+
+export type SettingsTab = { id: SettingsTabId; cards: SettingsCard[] };
+export type ResolvedSettingsTab = { id: SettingsTabId; label: string; cards: ResolvedSettingsCard[] };
 
 /**
  * The tabs, in the order of the permission ladder they walk: the archivist's work first, then the
@@ -90,7 +92,6 @@ export type ResolvedSettingsTab = { id: string; label: string; cards: ResolvedSe
 export const SETTINGS_TABS: SettingsTab[] = [
   {
     id: "arranjo",
-    label: "Arranjo e catálogos",
     cards: [
       { screen: "plan", icon: Waypoints, permission: "CURATE" },
       { screen: "levels", icon: Layers, permission: "CATALOGUE" },
@@ -100,30 +101,35 @@ export const SETTINGS_TABS: SettingsTab[] = [
   },
   {
     id: "operacao",
-    label: "Operação",
     cards: [
+      /*
+        One card for the merged operations screen (#207). It opens on the panel and carries the
+        execution ledger as its second tab, because enqueueing a run and seeing what it did are one
+        question; the old `/sistema/execucoes` path redirects here. The configuration stays a card
+        of its own: #53 split what the machine is *doing* from what the installation is *set* to do,
+        and that distinction is untouched.
+      */
       { screen: "workers", icon: Cpu, permission: "OPERATE" },
       /*
-        Ingestão is reachable by a curator because the manual form is a CURATE write; the origin's
-        configuration and agenda are OPERATE controls the screen hides for a curator. A card that
-        only the operator could open would hide the one action the archivist owns.
+        Origens is the operator's page (#206): adding a source, editing its configuration, saving its
+        agenda, pausing it and enqueuing a run are all OPERATE. The read routes stay AUTHENTICATED,
+        so a direct URL still shows the page read-only for a curator; the card, however, is the
+        operator's door, and the entries live in the Acervo at /acervo/nova.
       */
-      { screen: "ingestion", icon: Download, permission: "CURATE" },
+      { screen: "origins", icon: Download, permission: "OPERATE" },
       /*
         The configuration sits beside the panel it configures, and the two are separate cards
         because they answer different questions: the panel says what the machine is *doing* (queues,
-        pending counters, a run in flight), and this one says what the installation is *set* to do
-        (the persisted default and its history). Both declare `OPERATE` — the split moved where the
-        write is made, not who may make it.
+        pending counters, a run in flight, the ledger of what ran), and this one says what the
+        installation is *set* to do (the persisted default and its history). Both declare `OPERATE` —
+        the split moved where the write is made, not who may make it.
       */
       { screen: "workerSettings", icon: SlidersHorizontal, permission: "OPERATE" },
-      { screen: "runs", icon: History, permission: "OPERATE" },
       { screen: "health", icon: HeartPulse, permission: "OPERATE" },
     ],
   },
   {
     id: "acesso",
-    label: "Acesso",
     cards: [{ screen: "users", icon: UserCog, permission: "ADMIN" }],
   },
 ];
@@ -161,11 +167,12 @@ export const SETTINGS_PATHS: readonly string[] = SETTINGS_TABS.flatMap((tab) =>
  * here, so the page reads `card.label`, `card.hint` and `card.path` the way it always read its own
  * fields.
  */
-export function visibleSettingsTabs(role: AuthUser["role"]): ResolvedSettingsTab[] {
+export function visibleSettingsTabs(role: AuthUser["role"], copy: Messages): ResolvedSettingsTab[] {
   return SETTINGS_TABS.map((tab) => ({
     ...tab,
+    label: copy.settingsTabs[tab.id],
     cards: tab.cards
       .filter((card) => can(role, card.permission))
-      .map((card) => ({ ...card, ...SCREENS[card.screen] })),
+      .map((card) => ({ ...card, ...SCREENS[card.screen], ...copy.screens[card.screen] })),
   })).filter((tab) => tab.cards.length > 0);
 }

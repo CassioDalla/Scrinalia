@@ -169,12 +169,29 @@ depende da tela: um script com a senha que foi impressa num terminal, ou digitad
 administrador, recebe a mesma frase e nenhum acesso ao acervo. A troca abre o resto da API na mesma
 sessão.
 
+### A interface fala duas línguas
+
+A interface de curadoria é escrita em português e inglês, e a escolha é da **conta**, não da
+instalação: *Automático*, *Português* e *English* ficam no rodapé da conta, no menu. Uma conta nova
+começa em *Automático*, que é guardado como "nenhuma escolha" e segue o navegador — `pt*` abre em
+português, `en*` em inglês e todo o resto em português, a língua da instalação. Depois de entrar, a
+escolha da conta vence: uma estação compartilhada não pode entregar a um arquivista a língua do
+anterior.
+
+A língua não é uma preferência de cliente pintada sobre um servidor em português: toda requisição
+leva `Accept-Language`, e a API compõe a sua `message` — a confirmação de uma escrita e a recusa de
+outra — na língua pedida (ADR 0020 §4). A troca não recarrega a página; o shell re-renderiza com o
+catálogo novo, e datas, números e plurais a acompanham via `Intl`.
+
+O que não muda entre as duas línguas: os caminhos continuam em português (`/acervo/lista`), o que a
+#239 acompanha, e o conteúdo do registro nunca é traduzido.
+
 ### O menu esconde; nunca concede
 
 A casca filtra as entradas pela área em que a tela **escreve**
 (`apps/curator/src/lib/permissions.ts`, um espelho do mapa de papéis do servidor), e um grupo vazio
 não é renderizado. As telas que só leem não carregam permissão e ficam visíveis para todo papel:
-Início, a lista do acervo, a árvore, a trilha de excluídas e o diagnóstico do arranjo. Um `VIEWER`
+Início, a lista do acervo, a árvore, o histórico de exclusões e o diagnóstico do arranjo. Um `VIEWER`
 vê, portanto, o grupo "Acervo" e a entrada "Início", que fica sem cabeçalho — todos os outros grupos
 existem para decidir, e ficam escondidos.
 
@@ -303,10 +320,62 @@ mostra "tela pendente" em vez de apontar para o vazio.
 
 | Tela | Decisão | Reversível? |
 | --- | --- | --- |
+| Nova Descrição — `/acervo/nova` | digitar uma descrição ou importar um CSV (curador) | o registro entra no pipeline como `PENDING_AI`; a aprovação (ou rejeição) acontece no dossiê, e só ali |
 | Lista e busca — `/acervo/lista` | como recortar o acervo | sim (só leitura) |
 | Árvore — `/acervo/arvore` | onde a descrição fica no arranjo | sim, movendo; remover o nó significa excluir a descrição |
-| Excluídas — `/acervo/excluidas` | nenhuma (o ledger do que saiu) | sim (só leitura) |
+| Histórico de exclusões — `/acervo/excluidas` | nenhuma (o registro do que saiu) | sim (só leitura) |
 | Descrição — `/acervo/$descriptionId` | o registro, seus assuntos e seu lugar | em geral sim; a exclusão não |
+
+### Nova Descrição — `/acervo/nova`
+
+A porta de entrada do acervo: uma descrição digitada inteira, ou um CSV importado. As duas são abas
+na URL — **Digitar** (o padrão) e **Importar CSV** (`?modo=csv`) — porque são duas formas de entrada
+do mesmo trabalho, não dois trabalhos: as duas põem o registro no staging e enfileiram a mesma
+`transfer` que a coleta usa, e a descrição do Acervo nasce `PENDING_AI`. A tela **não é uma
+aprovação**: o dossiê é onde o registro é revisto e aprovado depois que a IA rodar. É uma escrita
+`CURATE`, e é a primeira entrada do menu *Acervo*.
+
+**Digitar** é o registro ISAD(G) inteiro: trinta controles nas sete áreas da norma, o nível e o idioma
+como seletores, a data como texto com a gramática do idioma, o controle do objeto digital desabilitado
+até a #198. O formulário gera um id `manual-<uuid>`, então um reenvio é o mesmo registro; um
+`description_id` duplicado é recusado antes da gravação. Só o título é obrigatório — uma descrição pode
+nascer incompleta e ser completada no dossiê.
+
+**Pontos de acesso** são chips sobre o catálogo de tags, não uma string separada por vírgulas. A busca
+enquanto digita escolhe uma grafia existente; digitar um termo e escolher *Adicionar* mantém a grafia
+do arquivista. Um resumo abaixo do campo diz o que a `transfer` vai fazer com a string — criar uma
+grafia nova, ligá-la a um sinônimo ou descartá-la por ser um termo bloqueado, ter menos de três ou mais
+de cem caracteres — e aponta as entradas cuja grafia guardada difere da digitada. O resumo é `POST
+/api/v1/taxonomy/tags/preview`, uma leitura: uma grafia desconhecida é `NEW` e só é criada pela
+`transfer` no arquivamento. Nada é removido nem reescrito pela prévia: remover um termo é decisão do
+arquivista. O campo continua opcional, e a string que ele envia é a mesma da coluna do CSV e da chave
+mapeada do scraper.
+
+**Produtor(es)** sugere nomes a partir do catálogo de entidades. Digitar no campo consulta `GET
+/api/v1/taxonomy/entities?term=` — a mesma busca que o dossiê usa para associar uma entidade — e
+escolher uma sugestão copia o nome para o texto, **nunca o `entity_id`**. A cópia é literal (o catálogo
+guarda os nomes das entidades em minúsculas) e substitui só o trecho entre dois separadores, então as
+vírgulas, os espaços e os outros nomes do arquivista continuam como estavam; o cursor fica depois do
+nome copiado e o campo segue editável. É uma cópia e não um vínculo: uma mesclagem ou renomeação
+posterior da entidade não alcança a descrição, e a ajuda embaixo do campo diz isso. A lista não é
+filtrada por tipo de entidade, porque o NER classifica o mesmo órgão como `ORG`, `LOC` ou `PER` e
+qualquer filtro esconderia um produtor real; o tipo vai como dica da sugestão. Um nome que o catálogo
+não tem continua digitável, e o campo continua sendo a string que o contrato carrega. A relação, com os
+filtros que ela destravaria, está na #242.
+
+**Importar CSV** é a origem `csv` (#191, ADR 0019). O arquivo é interpretado **no navegador** (vírgula
+ou ponto e vírgula, campos entre aspas, CRLF, UTF-8 com queda para Windows-1252); a tela mostra os
+cabeçalhos detectados, uma prévia e as conferências locais, e envia só uma lista limitada de linhas
+como JSON — nada vai para o storage de objetos e não existe rota multipart, então uma instalação cujo
+storage não está configurado importa um CSV do mesmo jeito. O mapa é o da API (`GET
+/api/v1/ingestion/csv/spec`), então um cabeçalho não pode ser aceito pela tela e recusado pelo
+servidor; a API revalida cada linha com o contrato de staging, e a resposta por linha diz **aceita**,
+**duplicada** (o `description_id` já existe) ou **inválida**, com o campo e a frase. Uma importação
+parcial é normal. As linhas aceitas entram no staging como `origin_code='csv'` e uma `transfer` é
+enfileirada depois delas.
+
+O caminho antigo `/sistema/ingestao/nova` redireciona para cá, então um link compartilhado ainda abre
+o formulário digitado.
 
 ### Lista e busca — `/acervo/lista`
 
@@ -343,7 +412,7 @@ excluir a descrição, o que é definitivo.
     lista e na ficha; misturá-los aqui ensinaria o arquivista a "consertar" um assunto arrastando uma
     descrição para outro ramo.
 
-### Excluídas — `/acervo/excluidas`
+### Histórico de exclusões — `/acervo/excluidas`
 
 A trilha das exclusões, em leitura (`GET /api/v1/documents/deletions`), com busca e paginação no
 servidor porque a trilha não tem teto. Ela **não é uma lixeira**: cada entrada é o retrato ISAD(G)
@@ -463,6 +532,15 @@ por último:
   próxima proposta pode atualizar a evidência dela. A decisão nunca é sobrescrita por uma proposta
   nova.
 
+Os degraus aparecem como a árvore que os códigos implicam, não como uma lista recuada. A caixa à
+esquerda de uma linha recolhe aquele ramo — a linha passa a dizer quantos degraus e quantas decisões
+ele esconde —, enquanto o chevron do cartão abre o corpo da decisão; recolher o ramo não reinicia os
+cartões que estão dentro dele: expandir devolve cada um como estava. Os filtros de status, aviso e
+código mantêm os pais e o ramo de cada
+degrau que casa, e um pai de um degrau que casa não pode ser recolhido. **Recolher os decididos**
+fecha os ramos que não têm nenhum degrau ainda `SUGGESTED`. A URL guarda só o topo de cada ramo
+recolhido, então o colega abre a mesma vista.
+
 O painel lateral materializa a árvore: ele sempre oferece "Conferir impacto" primeiro, e o
 botão de aplicar fica desabilitado até a prévia existir. Só os degraus aprovados são materializados. A
 prévia e a aplicação compartilham um planejador, então o número aprovado é o número escrito. O que o
@@ -549,17 +627,22 @@ próxima execução do classificador.
 
 | Tela | Decisão | Reversível? |
 | --- | --- | --- |
-| Tags — `/assuntos/tags` | o peso, as duplicatas, a fila de merges, os termos banidos **e a decisão de assunto de cada tag** | o merge sim (ledger); a purga sim (ledger próprio); a decisão de assunto sim (dá para voltar atrás) |
+| Tags — `/assuntos/tags` | o peso, as duplicatas, a fila de merges **e a decisão de assunto de cada tag** | o merge sim (ledger); a decisão de assunto sim (dá para voltar atrás) |
 | Categorias — `/assuntos/categorias` | as categorias de assunto que o classificador lê, **e o que está dentro de cada uma** | sim (aposentar e reativar) |
 | Descobrir Categorias — `/assuntos/descobrir` | se um tema proposto merece uma categoria | sim (a proposta não escreve nada) |
 | Não é assunto — `/assuntos/excecoes` | quais termos saem do eixo de assunto e têm a grafia banida de voltar a ser tag | sim (o banimento não apaga nada, e o desfazer levanta o banimento que esta decisão plantou) |
+| Grafias bloqueadas — `/assuntos/grafias` | quais grafias a extração não pode recriar, e a exclusão das tags que já existem com elas | o bloqueio sim (desbanir); a exclusão sim (uma linha de ledger por tag, restaurando a tag, os vínculos e as grafias — nunca o bloqueio) |
 
 ### Tags — `/assuntos/tags`
 
-Uma rota, cinco perguntas, uma conversa só: o arquivista vê que `alvenarias` pesa pouco, encontra a
-quase-duplicata dela e decide se a absorve. Quatro das abas são o jeito de olhar; a quinta,
+Uma rota, quatro perguntas, uma conversa só: o arquivista vê que `alvenarias` pesa pouco, encontra a
+quase-duplicata dela e decide se a absorve. Três das abas são o jeito de olhar; a quarta,
 **Classificar**, é onde a decisão de assunto se toma, e é onde os dois cartões de assunto do Início
 caem. A aba ativa está na URL.
+
+As grafias bloqueadas eram a quinta aba, e são **Grafias bloqueadas — `/assuntos/grafias`** desde a
+#232: tela própria, ao lado de *Não é assunto*, porque a descrição desta página nunca dizia que a aba
+guardava a única escrita que apaga uma tag. `?aba=stopwords` continua respondendo com a tela nova.
 
 #### Relevância
 
@@ -590,8 +673,9 @@ podem ser marcadas entre si e unificadas como um conjunto, que é como um merge 
 Uma seleção marcada tem um **segundo destino**, e ele é o outro tipo de escrita: **Banir N marcadas**
 registra as grafias em `POST /api/v1/taxonomy/tags/stopwords` (`CURATE`), no eixo escolhido ao lado do
 botão. Banir **não apaga nada** — as tags continuam no acervo, vinculadas e alcançáveis pela busca, e o
-passo que as exclui é a **purga** na aba Stopwords, atrás da própria prévia e com um ledger que restaura cada tag. A marcação
-sobrevive ao banimento: a mesclagem para a qual ela foi feita continua possível.
+passo que as exclui é a exclusão das tags em **Grafias bloqueadas — `/assuntos/grafias`**, atrás da
+própria prévia e com um ledger que restaura cada tag. A marcação sobrevive ao banimento: a mesclagem
+para a qual ela foi feita continua possível.
 
 #### Propostas de merge
 
@@ -615,45 +699,6 @@ O **ledger** abaixo lista só merges aplicados, cada um com o nome absorvido, a 
 documentos, a autoria e o horário. O desfazer dele é a restauração exata descrita acima, e o
 "desfazer" da tela é a mesma rota. Um merge feito aqui também passa por uma proposta, então o ledger é
 a história da escrita e o status é a da decisão.
-
-#### Stopwords
-
-Os termos banidos, e a escrita destrutiva da taxonomia que guarda um ledger. A tela separa três
-coisas:
-
-- **Banir** — `POST /api/v1/taxonomy/tags/stopwords` (`CURATE`) registra que um termo não vale a pena
-  num eixo: `TAG` (o eixo de assunto), `ENTITY` (NER) ou `ALL`. Uma palavra tem exatamente um escopo
-  — banir de novo **move** — e banir **não apaga nada**. Um banimento digitado aqui é gravado com
-  `source=HUMAN`; o que a tela *Não é assunto* planta é `EXCLUSION`, e o que uma resolução de
-  conflito planta é `CONFLICT`. A lista mostra o escopo em todo termo e a origem como selo quando ela
-  não é `HUMAN` — um termo digitado aqui é o padrão, e o selo marca os que chegaram como consequência
-  de outra decisão.
-- **Desbanir** — `DELETE /api/v1/taxonomy/tags/stopwords` (`CURATE`). Reversível.
-- **Casamento** — `PATCH /api/v1/taxonomy/tags/stopwords` (`CURATE`) muda como um banimento existente
-  casa, sem banir de novo: banir de novo sobrescreveria a origem que um conflito ou a tela *Não é
-  assunto* registraram. `TOKEN` bloqueia a palavra **e qualquer nome que a contenha como palavra
-  inteira** — o span fundido `IPTU do Exemplo` — e `EXACT` bloqueia só a grafia, que é o que uma
-  palavra genérica que inicia um nome próprio precisa: `alameda` bloqueia `alameda`, nunca `Alameda
-  Cabral`. Só os eixos `ENTITY`/`ALL` leem isso. Toda entrada de `domain_ner_exclusions` casa pela
-  grafia exata pelo mesmo motivo: o conflito era sobre `casa`, não sobre `casa da memória` (#160).
-- **Purgar** — `POST /api/v1/taxonomy/tags/stopwords/purge` (`CURATE`), depois de
-  `POST /api/v1/taxonomy/tags/stopwords/purge/preview`. Esta é a escrita que apaga as tags. A prévia
-  lista as tags que morreriam, com a contagem de documentos, a categoria **e de onde veio o
-  banimento** (`HUMAN`, `CONFLICT` ou `EXCLUSION`), para um termo banido com o acervo em mente não se
-  confundir com um digitado à mão; o botão de aplicar fica desabilitado até a prévia existir.
-
-Cada tag apagada é gravada num **ledger** (`archive_stopword_purge_log`) antes de sumir: o retrato da
-linha, os documentos que a carregavam e as grafias que apontavam para ela. A resposta da purga traz os
-`purge_ids`, a aba Stopwords os mostra em **Ledger das purgas**, e `DELETE
-/api/v1/taxonomy/tags/stopwords/purge-log/{purge_id}` (`CURATE`) restaura a tag, os vínculos e as
-grafias; um identificador desconhecido é **404** e uma segunda tentativa é **409**. O desfazer **não**
-levanta o banimento — o termo continua stopword, e a próxima purga lista a tag restaurada de novo.
-
-!!! warning "O escopo protege o outro eixo"
-
-    A purga lê apenas `TAG`/`ALL`. Um termo banido no eixo `ENTITY` é um veto de NER e nunca pode
-    fazer a purga de assunto excluir uma tag que o curador manteve — os dois são guardados em lugares
-    diferentes de propósito.
 
 #### Classificar
 
@@ -694,8 +739,60 @@ causa medida do defeito de classificação —, mas a resposta agora é a entida
 quarto estado da tag.
 
 As mesmas duas ações valem para uma **seleção**, uma requisição por tag, e o lote informa quantas tags
-escreveu e para onde. Nada nesta aba exclui: banir uma grafia e purgar as tags ficam em **Stopwords**,
-cada um no seu passo, e a purga guarda um ledger com o desfazer de cada tag.
+escreveu e para onde. Nada nesta aba exclui: banir uma grafia e excluir as tags ficam em **Grafias
+bloqueadas — `/assuntos/grafias`**, cada um no seu passo, e a exclusão guarda um ledger com o desfazer
+de cada tag.
+
+### Grafias bloqueadas — `/assuntos/grafias`
+
+As grafias que um bloqueio mantém fora do vocabulário, e a única escrita da taxonomia que apaga uma
+tag. Era a quarta aba de **Tags** até a #232, e virou tela própria porque a página em que ela morava
+descrevia relevância, duplicatas e mesclagem, e nunca dizia que a aba guardava a única escrita
+destrutiva do eixo de assunto.
+
+Não é uma segunda vista de *Não é assunto*, e a tela diz isso na primeira linha: o veredito é sobre o
+que o termo **significa** — e é o que faz a classificação de assunto parar de adivinhar —, enquanto o
+bloqueio é sobre a **grafia** — e é o que impede a próxima ingestão de recriar a tag. Confirmar um
+veredito planta um bloqueio no escopo `TAG`, e é por isso que a mesma grafia aparece nas duas listas: a
+lista diz de onde veio cada bloqueio, e o que veio de um veredito leva de volta à tela que decidiu. As
+duas telas se apontam, e o gate `testing/unit/curator/test_curator_copy.py` falha se um dos links ou o
+redirecionamento de `?aba=stopwords` desaparecer.
+
+A tela separa três coisas:
+
+- **Banir** — `POST /api/v1/taxonomy/tags/stopwords` (`CURATE`) registra que um termo não vale a pena
+  num eixo: `TAG` (o eixo de assunto), `ENTITY` (NER) ou `ALL`. Uma palavra tem exatamente um escopo
+  — banir de novo **move** — e banir **não apaga nada**. Um banimento digitado aqui é gravado com
+  `source=HUMAN`; o que a tela *Não é assunto* planta é `EXCLUSION`, e o que uma resolução de
+  conflito planta é `CONFLICT`. A lista mostra o escopo em todo termo e a origem como selo quando ela
+  não é `HUMAN` — um termo digitado aqui é o padrão, e o selo marca os que chegaram como consequência
+  de outra decisão.
+- **Desbanir** — `DELETE /api/v1/taxonomy/tags/stopwords` (`CURATE`). Reversível.
+- **Casamento** — `PATCH /api/v1/taxonomy/tags/stopwords` (`CURATE`) muda como um banimento existente
+  casa, sem banir de novo: banir de novo sobrescreveria a origem que um conflito ou a tela *Não é
+  assunto* registraram. `TOKEN` bloqueia a palavra **e qualquer nome que a contenha como palavra
+  inteira** — o span fundido `IPTU do Exemplo` — e `EXACT` bloqueia só a grafia, que é o que uma
+  palavra genérica que inicia um nome próprio precisa: `alameda` bloqueia `alameda`, nunca `Alameda
+  Cabral`. Só os eixos `ENTITY`/`ALL` leem isso. Toda entrada de `domain_ner_exclusions` casa pela
+  grafia exata pelo mesmo motivo: o conflito era sobre `casa`, não sobre `casa da memória` (#160).
+- **Excluir as tags** — `POST /api/v1/taxonomy/tags/stopwords/purge` (`CURATE`), depois de
+  `POST /api/v1/taxonomy/tags/stopwords/purge/preview`. Esta é a escrita que apaga as tags. A prévia
+  lista as tags que morreriam, com a contagem de documentos, a categoria **e de onde veio o
+  banimento** (`HUMAN`, `CONFLICT` ou `EXCLUSION`), para um termo banido com o acervo em mente não se
+  confundir com um digitado à mão; o botão de aplicar fica desabilitado até a prévia existir.
+
+Cada tag apagada é gravada num **ledger** (`archive_stopword_purge_log`) antes de sumir: o retrato da
+linha, os documentos que a carregavam e as grafias que apontavam para ela. A resposta da exclusão traz
+os `purge_ids`, a tela os mostra em **Registro das exclusões**, e `DELETE
+/api/v1/taxonomy/tags/stopwords/purge-log/{purge_id}` (`CURATE`) restaura a tag, os vínculos e as
+grafias; um identificador desconhecido é **404** e uma segunda tentativa é **409**. O desfazer **não**
+levanta o bloqueio — o termo continua bloqueado, e a próxima exclusão lista a tag restaurada de novo.
+
+!!! warning "O escopo protege o outro eixo"
+
+    A exclusão lê apenas `TAG`/`ALL`. Um termo bloqueado no eixo `ENTITY` é um veto de NER e nunca
+    pode fazer a exclusão de assunto apagar uma tag que o curador manteve — os dois são guardados em
+    lugares diferentes de propósito.
 
 ### Categorias — `/assuntos/categorias`
 
@@ -761,9 +858,15 @@ A escrita é `POST /api/v1/taxonomy/tags/subject-exclusions` (`CURATE`), e ela f
 vez: registra o termo em `domain_subject_exclusions`, para o classificador de assunto parar de
 adivinhar sobre ele, **e bane a grafia no escopo `TAG`**, para a próxima ingestão não recriar a tag
 que acabou de ser decidida. **O banimento não apaga nada**: a tag continua no acervo, continua
-vinculada e continua alcançável pela busca. Removê-la é um ato separado — a **purga**, na aba
-Stopwords, atrás da própria prévia e com um ledger que restaura cada tag — e a prévia da purga diz
-quais banimentos foram plantados aqui (`EXCLUSION`) e quais à mão (`HUMAN`).
+vinculada e continua alcançável pela busca. Removê-la é um ato separado — a exclusão das tags em
+**Grafias bloqueadas — `/assuntos/grafias`**, atrás da própria prévia e com um ledger que restaura
+cada tag — e a prévia diz quais banimentos foram plantados aqui (`EXCLUSION`) e quais à mão
+(`HUMAN`).
+
+A tela e **Grafias bloqueadas** são dois objetos, não dois filtros, e cada uma aponta para a outra:
+esta decide o que o termo **significa** e é o que para o classificador; aquela veta a **grafia** e é o
+que impede a extração de recriar a tag. Um veredito planta um bloqueio `TAG`, então a mesma grafia
+aparece nas duas listas — a lista de bloqueios diz qual veio de um veredito e leva de volta para cá.
 
 Duas respostas que a tela precisa mostrar:
 
@@ -778,14 +881,14 @@ Duas respostas que a tela precisa mostrar:
 
 A reversão é `DELETE` (`CURATE`, o "restaurar" da tela). Ela responde `removed` e `unbanned`, e o
 levantamento é exato: só um banimento que esta decisão plantou sai com ela. Uma grafia que uma pessoa
-baniu na tela Stopwords, ou que uma resolução de conflito plantou antes, sobrevive.
+baniu na tela **Grafias bloqueadas**, ou que uma resolução de conflito plantou antes, sobrevive.
 
 ## Entidades
 
 | Tela | Decisão | Reversível? |
 | --- | --- | --- |
 | Entidades — `/entidades/lista` | o tipo de um nome, a grafia de um nome, e se dois nomes são um | o tipo sim; a renomeação **sim** (uma linha no ledger); o merge **sim** (uma linha por entidade absorvida) |
-| Exclusões de NER — `/entidades/excecoes` | quais grafias são assunto, não nome próprio, e o expurgo retroativo que as segue | ambos **sim**: a linha do veto pelo seu próprio `DELETE`, o expurgo pelo seu ledger (`archive_ner_purge_log`) |
+| Remover de Entidades — `/entidades/excecoes` | quais grafias são assunto, não nome próprio, e o expurgo retroativo que as segue | ambos **sim**: a linha do veto pelo seu próprio `DELETE`, o expurgo pelo seu ledger (`archive_ner_purge_log`) |
 | Conflitos — `/entidades/conflitos` | se uma colisão pertence ao eixo de assunto ou aos nomes, um par de cada vez ou uma categoria inteira de uma vez | sim (uma linha no ledger por par, com o desfazer) |
 
 ### Entidades — `/entidades/lista`
@@ -845,7 +948,7 @@ A segunda aba do cartão é a renomeação, e o botão **Renomear** ao lado do n
 recurso da própria linha e nunca mescla: o merge parte de dois ou mais nomes e só renomeia a canônica
 como efeito colateral.
 
-### Exclusões de NER — `/entidades/excecoes`
+### Remover de Entidades — `/entidades/excecoes`
 
 O veto "esta grafia é assunto, não nome próprio". **Vetar não apaga nada.** A escrita é `POST
 /api/v1/taxonomy/entities/ner-exclusions` (`CURATE`), com um motivo guardado para auditoria, e a
@@ -860,7 +963,7 @@ A metade retroativa é um ato separado, **Expurgar do passado**:
 extraída de uma grafia vetada, com as descrições que a carregam, e a escrita consome o mesmo plano.
 Cada entidade apagada entra num **ledger** (`archive_ner_purge_log`) antes de sair: o snapshot da
 linha, os documentos que a carregavam, as grafias que apontavam para ela e o `excluded_term` que a
-justificou. A resposta carrega os `purge_ids`, a tela os mostra em **Ledger dos expurgos**, e
+justificou. A resposta carrega os `purge_ids`, a tela os mostra em **Histórico de expurgos**, e
 `DELETE /api/v1/taxonomy/entities/ner-exclusions/purge-log/{purge_id}` restaura a entidade, os seus
 vínculos e as suas grafias — **sem** levantar o veto, então o próximo expurgo lista a entidade
 restaurada de novo. Use-o para reverter a perda; use "remover veto" para reabrir o termo.
@@ -1005,51 +1108,44 @@ correção é a revisão humana da ficha, na descrição.
 
 ## Sistema
 
-A máquina, não o acervo. Tudo aqui pertence a quem opera a instalação, e as quatro telas são
+A máquina, não o acervo. Tudo aqui pertence a quem opera a instalação, e as três telas são
 alcançadas por `/configuracoes`, sob *Operação*: o menu ficou com o que o arquivista consulta
-catalogando, e não é isto. A tela de ingestão é a exceção à regra "só operador" — o formulário manual
-e a importação CSV são escritas do curador (#44, #191) — e por isso é um cartão `CURATE`.
+catalogando, e não é isto. As duas formas de entrada do acervo moram no Acervo (`/acervo/nova`), e a
+página de origens é do operador; as rotas de leitura continuam autenticadas, então um curador que
+segue uma URL direta ainda a vê só para leitura.
 
 | Tela | Decisão | Reversível? |
 | --- | --- | --- |
-| Ingestão — `/sistema/ingestao` | qual origem ler, as URLs e a agenda (operador); e importar um CSV (curador) | a configuração e a agenda são reversíveis; uma linha importada entra no pipeline e é aprovada (ou rejeitada) no dossiê |
-| Nova descrição — `/sistema/ingestao/nova` | digitar uma descrição, campo a campo (curador) | o registro entra no pipeline como `PENDING_AI`; a aprovação (ou rejeição) acontece no dossiê, e só ali |
-| Workers de IA — `/sistema/workers` | se roda um worker agora | sim (a configuração da própria execução); os efeitos de uma execução seguem o que ela escreveu |
-| Execuções — `/sistema/execucoes` | se para uma execução ativa (o ledger e as falhas agrupadas são só leitura) | sem desfazer: uma execução cancelada continua cancelada; uma nova execução é uma nova linha no ledger |
+| Origens — `/sistema/ingestao` | qual origem adicionar, as URLs e a agenda, se ela está ativa e se enfileira uma execução (operador) | a configuração, a agenda e a pausa são reversíveis; a tela não escreve descrição |
+| Workers e execuções — `/sistema/workers` | se roda um worker agora (**Painel**); se para uma execução ativa (**Execuções**) | sim para a configuração da própria execução; os efeitos de uma execução seguem o que ela escreveu. Sem desfazer para uma execução cancelada: ela continua cancelada, e uma nova execução é uma nova linha no ledger |
 | Saúde do sistema — `/sistema/diagnostico` | nenhuma (banco, modelos, storage, processo) | sim (só leitura) |
 
-### Ingestão — `/sistema/ingestao`
+### Origens — `/sistema/ingestao`
 
-A etapa à frente do Acervo, origem por origem (ADR 0016). Cada cartão é uma origem: a própria fila (o
-que a próxima execução leria), os números de processados e falhas, a última execução e a ativa, e a
-agenda. O **operador** edita a configuração do adaptador (URLs de listagem e detalhe da coleta de
-referência, a espera de cortesia), salva um cron de cinco campos num fuso IANA e **Enfileira
-execução**. A execução é o mesmo ledger dos workers de IA; um período que dispara com a origem já
-rodando é pulado, não enfileirado. As rotas genéricas de worker recusam `ingestion` — uma execução
-dela precisa da origem, e as rotas da origem são o seletor.
+A etapa à frente do Acervo, origem por origem (ADR 0016). **Origens** lista as fontes configuradas:
+cada cartão tem a fila que a próxima execução leria, os números de processados e falhas, a última
+execução e a ativa, a agenda e a configuração efetiva. O **operador** adiciona uma definição pelo
+seletor, edita a configuração do adaptador (URLs de listagem e detalhe da coleta de referência, a
+espera de cortesia), salva um cron de cinco campos num fuso IANA, **Desativa/Ativa** e **Enfileira
+execução**. Pausar mantém a linha, a agenda e as execuções; só a execução é recusada. Uma instalação
+nova começa sem fonte configurada e mostra **Nenhuma origem configurada**; o fluxo de adicionar
+ativa a definição escolhida. A execução é o mesmo ledger dos workers de IA; um período que dispara
+com a origem já rodando é pulado, não enfileirado.
 
-O **curador** vê os mesmos cartões só para leitura, o cartão **Entrada manual** e o cartão
-**Importação CSV**. O cartão manual abre `/sistema/ingestao/nova`, uma tela própria, onde a descrição
-é digitada inteira: trinta controles nas sete áreas da norma, o nível e o idioma como seletores, a data
-como texto com a gramática do idioma, e o controle do objeto digital desabilitado até a #198. O
-formulário é a origem `manual`: o envio grava o registro digitado como payload bruto da origem,
-estrutura-o pelo mesmo transform e enfileira o mesmo worker `transfer`. A descrição do Acervo nasce
-`PENDING_AI`; as filas de IA a veem, e a aprovação é o `PATCH /documents/{id}` do dossiê depois que a
-IA rodar. Digitar um registro **não** é uma aprovação, e um `description_id` duplicado é recusado antes
-da gravação.
+**Entradas** mostra as linhas manual e CSV só para leitura, com o status e um link para o Acervo:
+elas são as formas de entrada, não fontes, e as duas escritas que ficavam aqui estão em *Nova
+descrição* (#205). O cartão é `OPERATE`; as rotas de leitura continuam autenticadas, então um
+curador que segue uma URL direta vê a página só para leitura, com os controles escondidos. As rotas
+genéricas de worker recusam `ingestion` — uma execução dela precisa da origem, e as rotas da origem
+são o seletor.
 
-O cartão de CSV é a origem `csv` (#191, ADR 0019). O arquivo é interpretado **no navegador**: o cartão
-mostra os cabeçalhos detectados, uma prévia e as conferências locais, e envia só as linhas como JSON —
-nada vai para o storage de objetos e não existe rota multipart, então uma instalação cujo storage não
-está configurado importa um CSV do mesmo jeito. O mapa é o da API (`GET
-/api/v1/ingestion/csv/spec`), então um cabeçalho não pode ser aceito pela tela e recusado pelo
-servidor; a API revalida cada linha com o contrato de staging, e a resposta por linha diz **aceita**,
-**duplicada** (o `description_id` já existe) ou **inválida**, com o campo e a frase. Uma importação
-parcial é normal. As linhas aceitas entram no staging como `origin_code='csv'` e uma `transfer` é
-enfileirada depois delas, então a descrição do Acervo nasce `PENDING_AI` como na entrada manual. O
-resto dos campos de staging é #192.
+### Workers e execuções — `/sistema/workers`
 
-### Workers de IA — `/sistema/workers`
+Uma tela com duas abas na URL (#207), e ela responde ao ciclo de conferir a execução que antes
+precisava de duas telas: a aba **Painel** enfileira e mostra a fila, e a aba **Execuções** é o ledger
+do que rodou. A última execução de um worker é um link para o ledger filtrado por esse worker, com a
+linha exata realçada; o caminho antigo `/sistema/execucoes` redireciona para lá com os filtros
+preservados. Só a aba ativa é montada, então só a leitura dela é consultada em ciclo.
 
 O catálogo dos dez workers, na ordem do pipeline, com a engine, o preset e a configuração efetiva na
 linha recolhida — "com qual modelo isto está rodando?" é a pergunta que a tela existe para responder,
@@ -1085,10 +1181,12 @@ o `worker_embedding` reescreve uma *descrição*: ele re-gera o vetor de um text
 descrição aprovada, a exceção documentada. Os outros três trabalham sobre unidades que não são
 descrições (um registro de staging, um par, uma tag).
 
-### Execuções — `/sistema/execucoes`
+### Execuções — a aba do ledger
 
-O ledger de execuções, em leitura exceto pela parada: uma linha por execução, da linha de comando e do
-painel, com a configuração **já resolvida** que a execução usou (então ele continua legível depois que
+Desde a #207 o ledger é a aba **Execuções** de `/sistema/workers`, e `/sistema/execucoes` redireciona
+para ela com a busca preservada. É leitura exceto pela parada: uma linha por execução, da linha de
+comando e do painel, com a configuração **já resolvida** que a execução usou (então ele continua
+legível depois que
 um preset muda no código), as **opções efetivas do worker** (as colunas que ele leu, o limiar, o teto —
 resolvidas quando a execução começou, então "quais colunas a execução #N leu?" tem resposta), a
 duração, o desfecho e quem pediu. Uma linha anterior à coluna de opções diz "opções não registradas
@@ -1130,7 +1228,7 @@ mudou foi como se chega até ela. Três abas, na ordem da escada de permissões 
 | Aba | Cartões |
 | --- | --- |
 | Arranjo e catálogos | Plano de arranjo (`CURATE`), Níveis de descrição, Tipologias e Vocabulário do acervo (`CATALOGUE`) |
-| Operação | Workers de IA, Configuração dos Workers, Execuções e Saúde do sistema (`OPERATE`) |
+| Operação | Workers e execuções, Configuração dos Workers e Saúde do sistema (`OPERATE`) |
 | Acesso | Usuários (`ADMIN`) |
 
 A aba fica na URL (`?aba=`), então dá para mandar alguém direto aos "cartões dos workers". Uma aba que

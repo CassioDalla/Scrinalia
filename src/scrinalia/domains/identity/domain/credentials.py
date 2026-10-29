@@ -28,6 +28,7 @@ from argon2 import PasswordHasher
 from argon2.exceptions import InvalidHashError, VerificationError, VerifyMismatchError
 
 from scrinalia.core.config import get_settings
+from scrinalia.core.i18n import refusal
 
 from ..exceptions import InvalidEmailError, WeakPasswordError
 
@@ -47,7 +48,7 @@ def normalize_email(email: str) -> str:
     """
     normalized = email.strip().lower()
     if not _EMAIL.match(normalized):
-        raise InvalidEmailError("Informe um e-mail válido.")
+        raise InvalidEmailError(refusal("auth.invalid_email"))
     return normalized
 
 
@@ -77,9 +78,9 @@ def check_password_policy(password: str, *, email: str | None = None) -> None:
     """Refuses a password that is too short or is the account's own address."""
     minimum = get_settings().AUTH_PASSWORD_MIN_LENGTH
     if len(password) < minimum:
-        raise WeakPasswordError(f"A senha precisa ter ao menos {minimum} caracteres.")
+        raise WeakPasswordError(refusal("auth.weak_password_min", minimum=minimum))
     if email is not None and password.strip().lower() == normalize_email(email):
-        raise WeakPasswordError("A senha não pode ser o próprio e-mail.")
+        raise WeakPasswordError(refusal("auth.weak_password_email"))
 
 
 def hash_password(password: str) -> str:

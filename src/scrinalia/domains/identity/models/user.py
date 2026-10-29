@@ -14,7 +14,7 @@ credential.
 
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Enum, Integer, String, Text, func
+from sqlalchemy import Boolean, CheckConstraint, DateTime, Enum, Integer, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from scrinalia.core.base import Base
@@ -40,6 +40,7 @@ class AuthUser(Base):
 
     __tablename__ = "auth_users"
 
+    __table_args__ = (CheckConstraint("locale IS NULL OR locale IN ('pt-BR', 'en')", name="chk_auth_users_locale"),)
     user_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     email: Mapped[str] = mapped_column(String(320), nullable=False, unique=True)
     name: Mapped[str] = mapped_column(String(120), nullable=False)
@@ -49,6 +50,11 @@ class AuthUser(Base):
     password_hash: Mapped[str] = mapped_column(Text, nullable=False)
 
     role: Mapped[Role] = mapped_column(Enum(Role, name="user_role"), nullable=False)
+
+    #: The interface language the person chose. ``None`` means automatic: follow the browser
+    #: (ADR 0020 §3). Stored as the value the API speaks, ``pt-BR``/``en``, and checked by
+    #: ``chk_auth_users_locale`` so a row cannot carry a language no catalogue has.
+    locale: Mapped[str | None] = mapped_column(String(8), nullable=True)
 
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default="true")
     must_change_password: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")

@@ -58,8 +58,10 @@ sources:
   - docs/adr/0014-the-workers-leave-the-api.md
   - apps/curator/src/router.tsx
   - apps/curator/src/routes/SystemWorkersRoute.tsx
-  - apps/curator/src/routes/SystemRunsRoute.tsx
+  - apps/curator/src/components/workers/**
   - apps/curator/src/routes/SystemHealthRoute.tsx
+  - apps/curator/src/routes/OriginsRoute.tsx
+  - apps/curator/src/components/ingestion/OriginPanel.tsx
   - .github/workflows/ci.yml
   - mkdocs.yml
 ---
@@ -104,7 +106,7 @@ ingestion -> transfer -> cleaning -> ner -> typology -> thumbnail -> conflict-ju
 - **`ingestion`** is the stage in front of the archive: it lists one origin, reads its detail pages
   into `raw_data` and structures the new records into `staging_documents`. Its unit is the **origin**,
   not a document, and it has no engine; each origin is a row with its own queue, agenda and
-  configuration, described in [the ingestion origins](#the-ingestion-origins). The host commands
+  configuration, described in [the origins](#the-origins). The host commands
   below still exist for a one-off run, but the panel is the operational path.
 - **`transfer`** copies the structured staging record into the archive description, keyed on the
   hash of the parsed record (`staging_content_hash`). It is the only stage that rewrites content:
@@ -327,22 +329,36 @@ overrides, the concurrency guard and the `--option` coercion, and it uses whatev
 and `preset` the module's `__main__` block hardcodes (for `ner`, `db_batch_size=100` and otherwise
 the signature defaults). Nothing appears in the run history, so nothing tells you it happened.
 
-### The ingestion origins
+### The origins
 
 An origin is a definition in code plus a row in `ingestion_origins` (ADR 0016). The definition — its
 adapter and the `SourceSchema` that says which of its labels fills which staging column — stays next
 to the adapter; the row is the lifecycle: enabled/paused, the URLs, the run policy a scheduled
-execution inherits, and the cron/zone of its agenda. The `csv` origin has no adapter configuration at
-all: its input is the file the browser reads, and its `SourceSchema` maps that file's headers to the
-staging columns. Adding an origin is a module, a registry entry and a row; the staging transform learns
-no site.
+execution inherits, and the cron/zone of its agenda. The `manual` and `csv` definitions are **entry
+paths**, not sources: they have no adapter and are never offered by the picker. Their rows exist for
+provenance and for the form/import, and the page shows them read-only. Adding a source is a module
+and a registry entry; the row is added from the screen, and the staging transform learns no site.
 
-`/sistema/ingestao` is the screen. Each card answers *which queue is this, what does it read, when
-does it run and what happened last time*: the origin's own pending/processed/failed numbers, the last
-and active run, the agenda and the runner availability. The operator can **Enfileirar execução**,
-edit the configuration and save the agenda; a curator reaches the screen for the manual form and sees
-the same cards read-only. The generic worker routes refuse `ingestion`: a run of it needs an origin,
-so the origin routes are the selector (`/api/v1/ingestion/origins/...`).
+`/sistema/ingestao` is the screen, and it has two sections (#206). **Origens** lists the configured
+sources, one card each: the queue the next execution would read, the processed/failed numbers, the
+last and active run, the agenda, the effective configuration and the runner availability. The
+operator can **Adicionar origem** — a picker of the definitions the package ships and this
+installation has no row for; adding activates — **Configurar**, **Agenda**, **Desativar/Ativar** and
+**Enfileirar execução**. **Configurar** and **Agenda** are the card's two panels: the click opens the
+card, shows the form and brings it into view, and a second click closes the form and leaves the card
+open. Pausing is the lifecycle, not a removal: the card, the agenda and the runs
+stay, and only the run is refused. A fresh install starts with no configured source (the seeded
+`pmc` row is dropped by `f1090f825a94`), so the section shows **Nenhuma origem configurada** and the
+add flow. **Entradas** lists the manual and CSV rows read-only, with their status and a link to
+`/acervo/nova`: they are the entry paths, not sources.
+
+The two ways into the collection are the tabs of `/acervo/nova` (#205). The generic worker routes
+refuse `ingestion`: a run of it needs an origin, so the origin routes are the selector
+(`/api/v1/ingestion/origins/...`).
+
+The card is an `OPERATE` one: the operator owns adding, configuring, scheduling, pausing and running.
+The read routes stay authenticated, so a curator who follows a direct URL still sees the cards
+read-only, with the operator controls hidden; the ordinary door to the collection is `/acervo/nova`.
 
 The stage runs in the **same** ledger, runner, lease and cancellation as the AI workers. A run has
 `worker_name="ingestion"` and `origin_code` set; the partial unique index is
@@ -391,19 +407,21 @@ would skip pending records instead of already-structured ones.
 
 ### The manual entry
 
-The `manual` origin is the form at `/sistema/ingestao`, and it is **not** an approval. The submit
-writes `raw_data` (with `created_by`), a `scraping_queue` row marked `DONE` (the form is the
-discovery) and the staging record, then enqueues the same `transfer` worker the scraper uses. The
-archive description is born `PENDING_AI`, and the AI queues see it; the archivist approves in the
-dossier after the AI runs. If a transfer is already in flight, the record stays staged and the
-response says it enters the next one. A duplicate `description_id` is refused before the write; the
-form generates a `manual-<uuid>` id so a retried submit is the same record.
+The `manual` origin is the **Digitar** tab at `/acervo/nova` (the old `/sistema/ingestao/nova`
+redirects there), and it is **not** an approval. The submit writes `raw_data` (with `created_by`), a
+`scraping_queue` row marked `DONE` (the form is the discovery) and the staging record, then enqueues
+the same `transfer` worker the scraper uses. The archive description is born `PENDING_AI`, and the AI
+queues see it; the archivist approves in the dossier after the AI runs. If a transfer is already in
+flight, the record stays staged and the response says it enters the next one. A duplicate
+`description_id` is refused before the write; the form generates a `manual-<uuid>` id so a retried
+submit is the same record.
 
-The form lives on its own screen, `/sistema/ingestao/nova`, reached from the **Entrada manual** card:
-the record is the whole ISAD(G) record — thirty controls grouped in the norm's seven areas, identity
-open and the rest collapsed — and a card that size inside the ingestion screen would push the origin
-cards down by a screen. The labels, kinds and order come from the same catalogue the dossier edits
-(`apps/curator/src/lib/isad.ts`), so the two screens cannot grow two vocabularies for one norm.
+The form is the first tab of the entry screen, at `/acervo/nova`; the CSV import is the second. The
+record is the whole ISAD(G) record — thirty controls grouped in the norm's seven areas, identity open
+and the rest collapsed — and it shares the screen with the import because both feed the same staging
+and the same queue, not because the two are the same input. The labels, kinds and order come from the
+same catalogue the dossier edits (`apps/curator/src/lib/isad.ts`), so the two screens cannot grow two
+vocabularies for one norm.
 
 Three behaviours are worth knowing before typing:
 
@@ -421,8 +439,8 @@ Three behaviours are worth knowing before typing:
 
 ### The CSV import
 
-The `csv` origin is the **Importação CSV** card at `/sistema/ingestao`, and it is a write of the same
-kind as the manual entry: the rows are staged and one `transfer` is enqueued, so the archive
+The `csv` origin is the **Importar CSV** tab at `/acervo/nova?modo=csv`, and it is a write of the
+same kind as the manual entry: the rows are staged and one `transfer` is enqueued, so the archive
 description is born `PENDING_AI` (#191, ADR 0019).
 
 The file never reaches the server as a file. The browser parses it (comma or semicolon, quoted
@@ -614,15 +632,15 @@ The SPA mirrors it, as cards of `/configuracoes` under *Operação*:
 
 | Screen | Shows |
 | --- | --- |
-| `/sistema/workers` | the ten workers: engine, preset and model, the queue, what the stamp of each one names (with a producer, without a known one, without a record) and an **Enfileirar execução** button; above them, the runner cards (online, host, version, concurrency, capabilities, last heartbeat) and a warning when none is online. A worker no online runner accepts is marked **sem runner** — the row still queues and waits. The **Agenda** badge and fact show the cron, the zone, the next run and the last skipped period. The effective configuration is read-only here. The `ingestion` row is the exception: it has no engine, no aggregate pending/processed/failed counters, and its run belongs to an origin, so it links to `/sistema/ingestao` instead of a generic run button — the per-origin numbers live on that screen |
+| `/sistema/workers` | the operations screen, with two tabs in the URL (#207). **Painel**: the ten workers — engine, preset and model, the queue, what the stamp of each one names (with a producer, without a known one, without a record) and an **Enfileirar execução** button; above them, the runner cards (online, host, version, concurrency, capabilities, last heartbeat) and a warning when none is online. A worker no online runner accepts is marked **sem runner** — the row still queues and waits. The **Agenda** badge and fact show the cron, the zone, the next run and the last skipped period. The effective configuration is read-only here. The `ingestion` row is the exception: it has no engine, no aggregate pending/processed/failed counters, and its run belongs to an origin, so it links to `/sistema/ingestao` instead of a generic run button — the per-origin numbers live on that screen. The last run is a link to the ledger, filtered by that worker and with the exact row highlighted. **Execuções**: the execution ledger, and the failures of the last 30 days grouped by root cause; clicking a cause filters the ledger to its occurrences. Each row says who asked (`painel`, `linha de comando` or `agenda`), the attempt (`tentativa 2/3`), the row it retries and, when it is queued with a `not_before`, when it starts. A **trial** row carries an `ensaio` badge and links to the comparison card, so it is never mistaken for a production run (ADR 0018). An active row offers **Cancelar execução…** with an inline confirmation, and a requested stop is shown as a note while the worker finishes the current batch. The old `/sistema/execucoes` path redirects here with the search preserved |
 | `/configuracoes/workers` | the persisted default of each worker and its revisions, with save and remove, and the worker's **Agenda** (the cron, the zone, the enabled state and the pinned request) — the write the panel used to carry. A worker the catalogue marks `trial` (today the typology) also carries **Comparar configurações**: two configurations, the sample size, the side-by-side table (agreement with its denominator, coverage, abstention, the largest drawer, entropy, seconds per document, the queue and the projected hours) and **Usar esta**, which saves the measured body, and **Rodar no acervo inteiro**, which reads the saved body's queue and triggers the real run |
-| `/sistema/execucoes` | the execution ledger, and the failures of the last 30 days grouped by root cause; clicking a cause filters the ledger to its occurrences. Each row says who asked (`painel`, `linha de comando` or `agenda`), the attempt (`tentativa 2/3`), the row it retries and, when it is queued with a `not_before`, when it starts. A **trial** row carries an `ensaio` badge and links to the comparison card, so it is never mistaken for a production run (ADR 0018). An active row offers **Cancelar execução…** with an inline confirmation, and a requested stop is shown as a note while the worker finishes the current batch |
-| `/sistema/ingestao` | the origins, one card each: its own queue and last run, the adapter configuration, the agenda and **Enfileirar execução** (operator); the **Entrada manual** form, which writes a record as `PENDING_AI` and queues the transfer; and the **Importação CSV** card, which parses the file in the browser, shows the headers and the per-row result and sends only the rows (curator). The screen is a card of *Operação* but declares `CURATE`, because the manual form and the CSV import are the writes a curator owns; the operator-only controls are hidden for a curator |
+| `/sistema/ingestao` | **Origens**, one card per configured source: its queue and last run, the adapter configuration, the agenda, **Desativar/Ativar** and **Enfileirar execução**; **Adicionar origem** opens the picker of the definitions without a row. The **Entradas** section shows the manual/CSV rows read-only, with a link to `/acervo/nova`. The card is `OPERATE`; the read routes remain authenticated (#206) |
 | `/sistema/diagnostico` | database, Ollama models, thumbnail storage, the ingestion origins (active/total, with a link to `/sistema/ingestao`) and the effective process configuration |
 
-The screen polls every 5 s while a run is running and every 15 s while one is queued, because the
-`transfer` counter makes one `/system/workers` call cost about two seconds on the real collection;
-idle, it does not poll. `/configuracoes/workers` reads `/system/workers/settings`, which resolves the
+Only the active tab is mounted, so only its read is polled: the panel every 5 s while a run is
+running and every 15 s while one is queued (the `transfer` counter makes one `/system/workers` call
+cost about two seconds on the real collection), and the ledger every 5 s while an entry is active —
+idle, neither polls. `/configuracoes/workers` reads `/system/workers/settings`, which resolves the
 same configuration and counts no queue — the split exists so that a screen showing no numbers does
 not pay for them.
 
@@ -637,9 +655,10 @@ They are not interchangeable, and merging them is the mistake to avoid.
 | `GET /api/v1/system/health` | which piece is down? | the human panel: database counts, the Ollama models the presets require and which are missing, the object-storage bucket, the `ingestion_origins` summary, and the effective process configuration — secrets as presence, never as value |
 
 The ingestion card reads `ingestion_origins`, not `PUBLIC_SCRAPE_*`: since #44 an origin is a row, so
-an installation can have `pmc` configured with an empty `.env`. The process card labels the variable
-as a **fallback** for the reference adapter, and the per-origin queue, agenda and counters stay on
-`/sistema/ingestao`.
+an installation can have `pmc` configured with an empty `.env`. It counts only the **configurable**
+origins (#206): the manual/CSV entries and a code that left the registry are not sources, so they are
+not in the number. The process card labels the variable as a **fallback** for the reference adapter,
+and the per-origin queue, agenda and counters stay on `/sistema/ingestao`.
 
 A liveness probe that consults the database would restart the API whenever the database restarts,
 which is why `live` touches nothing. The readiness probe owns its own engine with a connection and a
@@ -787,8 +806,9 @@ two outcomes, and the difference is the one the ledger's state machine draws:
 
 The request is idempotent: a second click answers the same outcome and keeps the first author and
 instant. A run that already reached a terminal state answers `409`, and an unknown id answers `404`.
-The SPA offers the action on an active row of `/sistema/execucoes`, with the confirmation the other
-destructive actions use; a requested stop is shown as a note while the row is still running.
+The SPA offers the action on an active row of the *Execuções* tab of `/sistema/workers`, with the
+confirmation the other destructive actions use; a requested stop is shown as a note while the row is
+still running.
 
 The honest limit is one batch (`db_batch_size`, 64 by default): `ThreadPoolExecutor` cannot kill a
 thread and a torch forward pass cannot be interrupted, so `future.cancel()` only covers the queued

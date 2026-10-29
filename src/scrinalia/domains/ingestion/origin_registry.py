@@ -21,6 +21,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from scrinalia.core.i18n import t
 from scrinalia.domains.ingestion.exceptions import OriginNotFoundError
 
 
@@ -92,6 +93,11 @@ class OriginSummary:
     kind: OriginKind
     config_model: type[BaseModel]
     config_fields: tuple[OriginConfigField, ...] = ()
+    #: Whether the origin is a **source** the operator configures and adds (#206), as opposed to an
+    #: input path (the manual form and the CSV import). The page splits on it: the sources have the
+    #: lifecycle, the agenda and the run; the entries are shown read-only with their own link. It is
+    #: also what the health probe counts, so its number means the same thing as the page's.
+    configurable: bool = True
 
 
 #: The origins the package ships. Insertion order is the order the screen shows; the manual origin
@@ -138,6 +144,7 @@ ORIGINS: Mapping[str, OriginSummary] = {
         ),
         kind=OriginKind.MANUAL,
         config_model=ManualOriginConfig,
+        configurable=False,
     ),
     "csv": OriginSummary(
         code="csv",
@@ -148,6 +155,7 @@ ORIGINS: Mapping[str, OriginSummary] = {
         ),
         kind=OriginKind.CSV,
         config_model=CsvOriginConfig,
+        configurable=False,
     ),
 }
 
@@ -160,8 +168,10 @@ def get_origin_summary(code: str | None) -> OriginSummary:
     an environment variable. That is the ADR 0008 rule one layer down.
     """
     if not code:
-        raise OriginNotFoundError(f"Informe a origem. Disponíveis: {sorted(ORIGINS)}.")
+        raise OriginNotFoundError(t("Informe a origem. Disponíveis: {origins}.", origins=sorted(ORIGINS)))
     try:
         return ORIGINS[code]
     except KeyError:
-        raise OriginNotFoundError(f"Origem '{code}' não existe. Disponíveis: {sorted(ORIGINS)}.") from None
+        raise OriginNotFoundError(
+            t("Origem '{code}' não existe. Disponíveis: {origins}.", code=code, origins=sorted(ORIGINS))
+        ) from None

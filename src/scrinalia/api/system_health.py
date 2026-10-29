@@ -175,11 +175,15 @@ def probe_storage() -> StorageHealthDTO:
 
 def probe_ingestion() -> IngestionHealthDTO:
     """
-    The configured origins, from the table rather than from the environment.
+    The configured source origins, from the table rather than from the environment.
 
     ``PUBLIC_SCRAPE_*`` is only the reference adapter's fallback since #44: an installation can have
     ``pmc`` configured in ``ingestion_origins`` with an empty ``.env``. This probe answers "how many
-    origins are on?" and leaves the queues to the ingestion screen, where they are counted per origin.
+    sources are on?" and leaves the queues to the origins screen, where they are counted per origin.
+
+    Only definitions marked ``configurable`` count (#206). The manual and CSV entries have rows for
+    provenance but are not sources, and a code that left the registry cannot run: counting either
+    would make this number disagree with the page it describes.
     """
     try:
         with create_session() as db:
@@ -187,10 +191,11 @@ def probe_ingestion() -> IngestionHealthDTO:
         origins = [
             IngestionOriginHealthDTO(
                 code=row.code,
-                label=ORIGINS[row.code].label if row.code in ORIGINS else row.code,
+                label=ORIGINS[row.code].label,
                 enabled=row.enabled,
             )
             for row in rows
+            if row.code in ORIGINS and ORIGINS[row.code].configurable
         ]
         return IngestionHealthDTO(
             ok=True,

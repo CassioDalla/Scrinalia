@@ -272,13 +272,15 @@ first can create that account;
 succeed, but the lock cannot close the window (ADR 0011). **Configure the instance before exposing
 it.**
 
+The interface opens in Portuguese. Each account can switch to English in the account menu; the choice is stored on the account, and the API answers in the language the request asks for.
+
 ### 7. Start the API
 
 ```bash
 uv run uvicorn main:app --host 0.0.0.0 --port 8000 --workers 1
 ```
 
-After the migration, the `pmc` origin already exists in `ingestion_origins` (the URLs above are seeded into it when present) and the `manual` origin is enabled. `/sistema/ingestao` is where the installation configures both.
+After the migration, a fresh installation has **no configured source**: `ingestion_origins` carries only the manual and CSV rows, which are the entry paths and are shown read-only. `/sistema/ingestao` is where the operator adds a source from the package — the `pmc` definition is available in the picker, and the URLs above are its fallback when the fields are empty — and a description is typed or imported at `/acervo/nova`.
 
 The API is then at `http://localhost:8000/`, the UI at the same address and the OpenAPI document at
 `/schema/swagger`. `--reload` belongs to development (`bun run api:dev`), not to an installation.
@@ -544,8 +546,8 @@ serves broken images. Back them up together and restore them together.
   archiving or WAL shipping; the recovery point is the dump.
 - **A deleted description.** `DELETE /api/v1/documents/{id}` is the one operation that removes a
   record. It snapshots the whole row into `archive_document_deletions` — reference code, title,
-  level, the full ISAD(G) payload, who deleted it and why — but the `Acervo › Excluídas` screen is a
-  trail, not a recycle bin: there is no restore. A node with children is refused outright, because
+  level, the full ISAD(G) payload, who deleted it and why — but the `Acervo › Histórico de exclusões`
+  screen is a record, not a recycle bin: there is no restore. A node with children is refused outright, because
   the self-referencing foreign key is `RESTRICT`.
 - **Thumbnails, if the bucket is lost.** The database still names them, and the worker could
   re-derive one from `original_thumbnail_url` while the origin site still serves the image — but it

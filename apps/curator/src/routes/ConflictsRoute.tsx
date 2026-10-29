@@ -21,9 +21,14 @@ import { Card, CardBody } from "@/components/ui/Card";
 import { Disclosure } from "@/components/ui/Disclosure";
 import { EmptyState, ErrorState, Spinner } from "@/components/ui/Feedback";
 import { Field } from "@/components/ui/Field";
+import { Hint } from "@/components/ui/Hint";
 import { Input } from "@/components/ui/Input";
 import { Notice } from "@/components/ui/Notice";
+import { Tabs } from "@/components/ui/Tabs";
 import { PageBody } from "@/components/layout/PageBody";
+import { useCopy } from "@/i18n/context";
+import { fill } from "@/i18n/maps";
+import { Trans } from "@/i18n/trans";
 import { ACTION } from "@/lib/copy";
 import { CONFLICT_WINNER_HINT, CONFLICT_WINNER_LABEL, CONFLICT_WINNER_TONE, ENTITY_TYPE_HINT, ENTITY_TYPE_LABEL } from "@/lib/entities";
 import { formatCount, formatDateTime } from "@/lib/format";
@@ -44,38 +49,14 @@ export type ConflictsSearch = {
 /** The three reads this screen makes: the live pairs, the judge's verdicts, and the ledger. */
 export type ConflictView = "pendentes" | "decididos" | "resolucoes";
 
-const VIEWS: { key: ConflictView; label: string; hint: string }[] = [
-  { key: "pendentes", label: "Pendentes", hint: "O que a varredura ao vivo encontra" },
-  { key: "decididos", label: "Decididos pelo juiz", hint: "O que ele já julgou" },
-  { key: "resolucoes", label: "Resoluções", hint: "O que foi escrito, e o desfazer" },
-];
+/** The three reads, in the order the tabs offer them. */
+const VIEW_KEYS: ConflictView[] = ["pendentes", "decididos", "resolucoes"];
 
-const PAIR_KINDS: { key: ConflictPairKindFilter; label: string; hint: string }[] = [
-  {
-    key: "near_duplicate",
-    label: "grafias diferentes",
-    hint: "A mesma palavra escrita de duas formas — quase sempre abreviação de logradouro. É a pergunta de grafia.",
-  },
-  {
-    key: "exact_name",
-    label: "nomes idênticos",
-    hint: "A mesma grafia nos dois eixos. É uma pergunta estrutural, e é a população que um lote consegue decidir.",
-  },
-  { key: "all", label: "todos", hint: "Nenhum filtro: as duas populações juntas." },
-];
+/** The populations of the live scan, in the order the filter buttons offer them. */
+const PAIR_KIND_KEYS: ConflictPairKindFilter[] = ["near_duplicate", "exact_name", "all"];
 
 /** The categories of named entity, as the filter and the batch name them: "a street is an entity". */
-const ENTITY_KINDS: { key: EntityType | "all"; label: string; hint: string }[] = [
-  { key: "all", label: "todas as categorias", hint: "Nenhum filtro de categoria: a população inteira." },
-  { key: "LOC", label: labelOf(ENTITY_TYPE_LABEL, "LOC"), hint: labelOf(ENTITY_TYPE_HINT, "LOC") },
-  { key: "PER", label: labelOf(ENTITY_TYPE_LABEL, "PER"), hint: labelOf(ENTITY_TYPE_HINT, "PER") },
-  { key: "ORG", label: labelOf(ENTITY_TYPE_LABEL, "ORG"), hint: labelOf(ENTITY_TYPE_HINT, "ORG") },
-];
-
-/** The Portuguese name of the population, for the batch panel: it must say what it is about to write. */
-function pairKindLabel(kind: ConflictPairKindFilter): string {
-  return PAIR_KINDS.find((item) => item.key === kind)?.label ?? "todos";
-}
+const ENTITY_KIND_KEYS = ["all", "LOC", "PER", "ORG"] as const;
 
 export function validateConflictsSearch(search: Record<string, unknown>): ConflictsSearch {
   const limiar = asNumber(search.limiar);
@@ -113,6 +94,7 @@ export function validateConflictsSearch(search: Record<string, unknown>): Confli
  *   deleting a row were irreversible, for the judge and for the archivist alike.
  */
 export function ConflictsRoute() {
+  const messages = useCopy();
   const search = routeApi.useSearch();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -239,6 +221,12 @@ export function ConflictsRoute() {
         : (conflicts.data?.total ?? 0);
   const lastPage = Math.max(1, Math.ceil(total / CONFLICTS_PAGE_SIZE));
 
+  const entityKinds: { key: "all" | EntityType; label: string; hint: string }[] = ENTITY_KIND_KEYS.map((key) =>
+    key === "all"
+      ? { key, ...messages.pages.conflicts.entityKind.all }
+      : { key, label: labelOf(ENTITY_TYPE_LABEL, key), hint: labelOf(ENTITY_TYPE_HINT, key) },
+  );
+
   return (
     <>
       <PageHeader
@@ -246,54 +234,67 @@ export function ConflictsRoute() {
         pending={view === "pendentes" ? conflicts.isPending : view === "decididos" ? judged.isPending : ledger.isPending}
         status={
           view === "pendentes" && conflicts.data
-            ? `${formatCount(conflicts.data.total)} colisões acima de ${threshold.toFixed(2)} de similaridade de trigrama`
+            ? fill(messages.pages.conflicts.status.pairs, {
+                count: formatCount(conflicts.data.total),
+                threshold: threshold.toFixed(2),
+              })
             : view === "decididos" && judged.data
-              ? `${formatCount(judged.data.total)} pares julgados · ${formatCount(judged.data.still_applicable)} ainda decidíveis`
+              ? fill(messages.pages.conflicts.status.judged, {
+                  judged: formatCount(judged.data.total),
+                  decidable: formatCount(judged.data.still_applicable),
+                })
               : view === "resolucoes" && ledger.data
-                ? `${formatCount(ledger.data.total)} resoluções no ledger`
+                ? fill(messages.pages.conflicts.status.ledger, { count: formatCount(ledger.data.total) })
                 : undefined
         }
       />
 
+      {/* The three reads are tabs, not filters: they are different questions about different data. */}
+      <div className="px-6 pt-4">
+        <Tabs
+          items={VIEW_KEYS.map((key) => ({ id: key, ...messages.pages.conflicts.view[key] }))}
+          active={view}
+          onChange={(id) => {
+            const next = VIEW_KEYS.find((item) => item === id);
+            goTo({ ver: next === "pendentes" ? undefined : next });
+          }}
+        />
+      </div>
+
       <PageBody>
         <Disclosure
-          toggleLabel="Onde cada veredito é gravado"
+          toggleLabel={messages.pages.conflicts.storage.toggle}
           header={
             <div className="grid gap-1">
-              <span className="text-sm font-semibold">Onde cada veredito é gravado</span>
+              <span className="text-sm font-semibold">{messages.pages.conflicts.storage.toggle}</span>
               <span className="text-xs text-(--color-muted)">
-                tag vence: {CONFLICT_WINNER_HINT.TAG} · entidade vence: {CONFLICT_WINNER_HINT.ENTITY}
+                {fill(messages.pages.conflicts.storage.summary, {
+                  tag: labelOf(CONFLICT_WINNER_HINT, "TAG"),
+                  entity: labelOf(CONFLICT_WINNER_HINT, "ENTITY"),
+                })}
               </span>
             </div>
           }
         >
           <p className="text-xs text-(--color-accent)">
-            A decisão é guardada em <strong>dois lugares diferentes</strong>, de propósito: não são o
-            mesmo mecanismo — e um veto de entidade não pode fazer a purga de assunto excluir uma tag que
-            você manteve. Toda resolução agora deixa também uma linha no ledger, com o que foi
-            transferido e qual bloqueio foi plantado, e é isso que torna o desfazer exato.
+            <Trans
+              text={messages.pages.conflicts.storage.body}
+              values={{ places: <strong>{messages.pages.conflicts.storage.places}</strong> }}
+            />
           </p>
         </Disclosure>
-
-        {/* The three reads are tabs, not filters: they are different questions about different data. */}
-        <div className="flex flex-wrap gap-2">
-          {VIEWS.map((item) => (
-            <Button
-              key={item.key}
-              size="sm"
-              variant={view === item.key ? "primary" : "secondary"}
-              title={item.hint}
-              onClick={() => goTo({ ver: item.key === "pendentes" ? undefined : item.key })}
-            >
-              {item.label}
-            </Button>
-          ))}
-        </div>
 
         {view === "pendentes" ? (
           <>
             <div className="flex flex-wrap items-end justify-between gap-3">
-              <Field label="Limiar de similaridade">
+              <Field
+                label={messages.pages.conflicts.threshold.label}
+                info={
+                  <Hint label={messages.pages.conflicts.threshold.hintLabel} align="start">
+                    {messages.pages.conflicts.threshold.hint}
+                  </Hint>
+                }
+              >
                 <Input
                   type="number"
                   min={0.5}
@@ -310,9 +311,11 @@ export function ConflictsRoute() {
               </Field>
               {conflicts.data ? (
                 <p className="text-xs text-(--color-muted)">
-                  {formatCount(conflicts.data.near_duplicate_count)} grafias diferentes ·{" "}
-                  {formatCount(conflicts.data.exact_name_count)} nomes idênticos ·{" "}
-                  {formatCount(conflicts.data.judged_count)} já com veredito
+                  {fill(messages.pages.conflicts.counts, {
+                    near: formatCount(conflicts.data.near_duplicate_count),
+                    exact: formatCount(conflicts.data.exact_name_count),
+                    judged: formatCount(conflicts.data.judged_count),
+                  })}
                 </p>
               ) : null}
             </div>
@@ -324,15 +327,15 @@ export function ConflictsRoute() {
               not a refinement of the list.
             */}
             <div className="flex flex-wrap gap-2">
-              {PAIR_KINDS.map((kind) => (
+              {PAIR_KIND_KEYS.map((key) => (
                 <Button
-                  key={kind.key}
+                  key={key}
                   size="sm"
-                  variant={pairKind === kind.key ? "primary" : "ghost"}
-                  title={kind.hint}
-                  onClick={() => goTo({ tipo: kind.key === "near_duplicate" ? undefined : kind.key })}
+                  variant={pairKind === key ? "primary" : "ghost"}
+                  title={messages.pages.conflicts.pairKind[key].hint}
+                  onClick={() => goTo({ tipo: key === "near_duplicate" ? undefined : key })}
                 >
-                  {kind.label}
+                  {messages.pages.conflicts.pairKind[key].label}
                 </Button>
               ))}
             </div>
@@ -343,8 +346,8 @@ export function ConflictsRoute() {
               It lives in the URL because it is also the selection the batch writes.
             */}
             <div className="flex flex-wrap items-center gap-2">
-              <span className="text-xs text-(--color-muted)">Categoria:</span>
-              {ENTITY_KINDS.map((kind) => (
+              <span className="text-xs text-(--color-muted)">{messages.pages.conflicts.categoryLabel}</span>
+              {entityKinds.map((kind) => (
                 <Button
                   key={kind.key}
                   size="sm"
@@ -361,20 +364,25 @@ export function ConflictsRoute() {
               <Card>
                 <CardBody className="grid gap-2">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-sm font-semibold">Decidir a seleção em lote</span>
+                    <span className="text-sm font-semibold">{messages.pages.conflicts.batch.title}</span>
                     <Badge tone="neutral">
-                      {formatCount(conflicts.data.total)} par(es) · {pairKindLabel(pairKind)}
-                      {entityType ? ` · ${ENTITY_TYPE_LABEL[entityType]}` : ""}
+                      {fill(messages.pages.conflicts.batch.badge, {
+                        count: formatCount(conflicts.data.total),
+                        kind: messages.pages.conflicts.pairKind[pairKind].label,
+                        category: entityType
+                          ? fill(messages.pages.conflicts.batch.badgeCategory, {
+                              category: labelOf(ENTITY_TYPE_LABEL, entityType),
+                            })
+                          : "",
+                      })}
                     </Badge>
                   </div>
                   <p className="text-xs text-(--color-muted)">
-                    Uma decisão vale para a seleção inteira e escreve uma linha no ledger por par, então
-                    cada par continua com o seu próprio desfazer. Até {formatCount(CONFLICTS_BATCH_LIMIT)}{" "}
-                    pares por clique; o que sobrar continua nesta seleção.
+                    {fill(messages.pages.conflicts.batch.body, { limit: formatCount(CONFLICTS_BATCH_LIMIT) })}
                   </p>
                   {batchOpen ? (
                     <div className="grid gap-2">
-                      <Field label="Nota da decisão">
+                      <Field label={messages.pages.conflicts.noteField}>
                         <Input value={batchNote} onChange={(event) => setBatchNote(event.target.value)} />
                       </Field>
                       <div className="flex flex-wrap gap-2">
@@ -384,7 +392,10 @@ export function ConflictsRoute() {
                           title={CONFLICT_WINNER_HINT.TAG}
                           onClick={() => resolveBatch.mutate("TAG")}
                         >
-                          {ACTION.apply.label}: lote {CONFLICT_WINNER_LABEL.TAG} vence
+                          {fill(messages.pages.conflicts.batch.apply, {
+                            verb: ACTION.apply.label,
+                            winner: labelOf(CONFLICT_WINNER_LABEL, "TAG"),
+                          })}
                         </Button>
                         <Button
                           variant="primary"
@@ -392,7 +403,10 @@ export function ConflictsRoute() {
                           title={CONFLICT_WINNER_HINT.ENTITY}
                           onClick={() => resolveBatch.mutate("ENTITY")}
                         >
-                          {ACTION.apply.label}: lote {CONFLICT_WINNER_LABEL.ENTITY} vence
+                          {fill(messages.pages.conflicts.batch.apply, {
+                            verb: ACTION.apply.label,
+                            winner: labelOf(CONFLICT_WINNER_LABEL, "ENTITY"),
+                          })}
                         </Button>
                         <Button
                           variant="ghost"
@@ -407,10 +421,10 @@ export function ConflictsRoute() {
                     <div className="flex flex-wrap gap-2">
                       <Button
                         variant="secondary"
-                        title="Mostra a seleção e só então escreve: um veredito para todos estes pares."
+                        title={messages.pages.conflicts.batch.openTitle}
                         onClick={() => setBatchOpen(true)}
                       >
-                        Decidir em lote
+                        {messages.pages.conflicts.batch.open}
                       </Button>
                     </div>
                   )}
@@ -427,7 +441,7 @@ export function ConflictsRoute() {
         ) : null}
         {batchResult ? <BatchReport result={batchResult} /> : null}
         {active.error ? <ErrorState error={active.error} /> : null}
-        {active.isPending ? <Spinner label="Lendo a colisão…" /> : null}
+        {active.isPending ? <Spinner label={messages.pages.conflicts.reading} /> : null}
         {resolve.error ? <ErrorState error={resolve.error} /> : null}
         {resolveBatch.error ? <ErrorState error={resolveBatch.error} /> : null}
         {undo.error ? <ErrorState error={undo.error} /> : null}
@@ -448,8 +462,8 @@ export function ConflictsRoute() {
           <>
             {conflicts.data && (conflicts.data.items ?? []).length === 0 && !preview ? (
               <EmptyState
-                title="Nenhuma colisão nesta população"
-                hint="Nenhuma tag e nenhum nome próprio se parecem o bastante neste limiar. Baixar o limiar mostra pares mais frouxos — e mais falsos positivos."
+                title={messages.pages.conflicts.empty.title}
+                hint={messages.pages.conflicts.empty.hint}
               />
             ) : null}
             <ul className="grid gap-2">
@@ -459,7 +473,7 @@ export function ConflictsRoute() {
                     <CardBody className="grid gap-2">
                       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                         <span className="flex min-w-0 items-center gap-2">
-                          <Badge tone="accent">assunto</Badge>
+                          <Badge tone="accent">{messages.pages.conflicts.pair.subject}</Badge>
                           <span className="truncate text-sm font-medium">{row.tag_name}</span>
                           <code className="text-[10px] text-(--color-muted)">#{row.tag_id}</code>
                         </span>
@@ -470,27 +484,33 @@ export function ConflictsRoute() {
                           <code className="text-[10px] text-(--color-muted)">#{row.entity_id}</code>
                         </span>
                         <Badge tone={row.pair_kind === "EXACT_NAME" ? "neutral" : "warn"}>
-                          {row.pair_kind === "EXACT_NAME" ? "mesma grafia" : "grafia parecida"}
+                          {row.pair_kind === "EXACT_NAME"
+                            ? messages.pages.conflicts.pair.sameSpelling
+                            : messages.pages.conflicts.pair.similarSpelling}
                         </Badge>
                         {row.judge_winner ? (
                           <Badge tone={CONFLICT_WINNER_TONE[row.judge_winner]}>
-                            juiz: {CONFLICT_WINNER_LABEL[row.judge_winner]}
+                            {fill(messages.pages.conflicts.pair.judge, {
+                              winner: labelOf(CONFLICT_WINNER_LABEL, row.judge_winner),
+                            })}
                             {row.judge_confidence != null ? ` (${row.judge_confidence.toFixed(2)})` : ""}
                           </Badge>
                         ) : null}
                       </div>
                       {row.judge_reason ? (
-                        <p className="text-xs text-(--color-muted)">Juiz: {row.judge_reason}</p>
+                        <p className="text-xs text-(--color-muted)">
+                          {fill(messages.pages.conflicts.pair.judgeReason, { reason: row.judge_reason })}
+                        </p>
                       ) : null}
                       <div className="flex flex-wrap gap-2">
                         <Button
                           size="sm"
                           variant="secondary"
                           disabled={ask.isPending}
-                          title="Mostra o que cada veredito transfere, exclui e bloqueia. Nada é escrito."
+                          title={messages.pages.conflicts.pair.previewTitle}
                           onClick={() => ask.mutate({ tag_id: row.tag_id, entity_id: row.entity_id })}
                         >
-                          ver o impacto antes de decidir
+                          {ACTION.preview.label}
                         </Button>
                       </div>
                     </CardBody>
@@ -503,18 +523,32 @@ export function ConflictsRoute() {
 
         {view === "decididos" && judged.data && (judged.data.items ?? []).length === 0 ? (
           <EmptyState
-            title="O juiz ainda não julgou nada"
-            hint="O worker conflict-judge é quem escreve aqui. Uma fila vazia quer dizer que ele não rodou, não que não há colisão — a aba Pendentes é a que mostra o que existe hoje."
+            title={messages.pages.conflicts.judged.emptyTitle}
+            hint={messages.pages.conflicts.judged.emptyHint}
           />
         ) : null}
 
         {view === "decididos" && judged.data ? (
           <>
             <div className="flex flex-wrap gap-2 text-xs text-(--color-muted)">
-              <Badge tone="ok">{formatCount(judged.data.auto_resolved)} auto-resolvidas</Badge>
-              <Badge tone="warn">{formatCount(judged.data.sent_to_human)} foram para revisão humana</Badge>
-              <Badge tone="accent">{formatCount(judged.data.tag_wins)} a favor do assunto</Badge>
-              <Badge tone="neutral">{formatCount(judged.data.entity_wins)} a favor da entidade</Badge>
+              <Badge tone="ok">
+                {fill(messages.pages.conflicts.judged.statsAutoResolved, {
+                  count: formatCount(judged.data.auto_resolved),
+                })}
+              </Badge>
+              <Badge tone="warn">
+                {fill(messages.pages.conflicts.judged.statsSentToHuman, {
+                  count: formatCount(judged.data.sent_to_human),
+                })}
+              </Badge>
+              <Badge tone="accent">
+                {fill(messages.pages.conflicts.judged.statsTagWins, { count: formatCount(judged.data.tag_wins) })}
+              </Badge>
+              <Badge tone="neutral">
+                {fill(messages.pages.conflicts.judged.statsEntityWins, {
+                  count: formatCount(judged.data.entity_wins),
+                })}
+              </Badge>
             </div>
             <ul className="grid gap-2">
               {(judged.data.items ?? []).map((item) => (
@@ -526,22 +560,32 @@ export function ConflictsRoute() {
                         <span className="text-(--color-muted)">×</span>
                         <span className="truncate text-sm font-medium">{item.entity_name}</span>
                         <Badge tone={item.judge_winner ? CONFLICT_WINNER_TONE[item.judge_winner] : "neutral"}>
-                          {item.judge_winner ? CONFLICT_WINNER_LABEL[item.judge_winner] : "sem veredito"}
+                          {item.judge_winner
+                            ? CONFLICT_WINNER_LABEL[item.judge_winner]
+                            : messages.pages.conflicts.judged.noVerdict}
                         </Badge>
                         {item.judge_confidence != null ? (
                           <Badge tone="neutral">{item.judge_confidence.toFixed(2)}</Badge>
                         ) : null}
                         <Badge tone={item.judge_status === "AI_APPROVED" ? "ok" : "warn"}>
-                          {item.judge_status === "AI_APPROVED" ? "auto-resolvida" : "revisão humana"}
+                          {item.judge_status === "AI_APPROVED"
+                            ? messages.pages.conflicts.judged.autoResolved
+                            : messages.pages.conflicts.judged.humanReview}
                         </Badge>
-                        {item.applicable ? <Badge tone="accent">ainda decidível</Badge> : null}
+                        {item.applicable ? (
+                          <Badge tone="accent">{messages.pages.conflicts.judged.stillDecidable}</Badge>
+                        ) : null}
                       </div>
                       {item.judge_reason ? <p className="text-xs text-(--color-muted)">{item.judge_reason}</p> : null}
                       <p className="text-xs text-(--color-muted)">
-                        {item.tag_alive ? "tag viva" : "tag já removida"} ·{" "}
-                        {item.entity_alive ? "entidade viva" : "entidade já removida"} — a linha do juiz
-                        sobrevive ao vocabulário que ela nomeia, e é por isso que ela é lida aqui e não na
-                        varredura.
+                        {fill(messages.pages.conflicts.judged.liveness, {
+                          tag: item.tag_alive
+                            ? messages.pages.conflicts.judged.tagAlive
+                            : messages.pages.conflicts.judged.tagGone,
+                          entity: item.entity_alive
+                            ? messages.pages.conflicts.judged.entityAlive
+                            : messages.pages.conflicts.judged.entityGone,
+                        })}
                       </p>
                     </CardBody>
                   </Card>
@@ -553,8 +597,8 @@ export function ConflictsRoute() {
 
         {view === "resolucoes" && ledger.data && (ledger.data.items ?? []).length === 0 ? (
           <EmptyState
-            title="Nenhuma resolução escrita"
-            hint="Toda decisão — do juiz ou da curadoria — deixa uma linha aqui, com o que foi transferido e qual bloqueio foi plantado. É essa linha que torna o desfazer exato."
+            title={messages.pages.conflicts.ledger.emptyTitle}
+            hint={messages.pages.conflicts.ledger.emptyHint}
           />
         ) : null}
 
@@ -570,26 +614,49 @@ export function ConflictsRoute() {
                       <span className="text-(--color-muted)">×</span>
                       <span className="truncate text-sm font-medium">{entry.entity_name}</span>
                       <Badge tone={CONFLICT_WINNER_TONE[entry.winner]}>
-                        venceu: {CONFLICT_WINNER_LABEL[entry.winner]}
+                        {fill(messages.pages.conflicts.ledger.won, { winner: labelOf(CONFLICT_WINNER_LABEL, entry.winner) })}
                       </Badge>
                       <Badge tone={entry.source === "JUDGE" ? "accent" : "ok"}>
-                        {entry.source === "JUDGE" ? "juiz LLM" : "curadoria"}
+                        {entry.source === "JUDGE"
+                          ? messages.pages.conflicts.ledger.sourceJudge
+                          : messages.pages.conflicts.ledger.sourceCuration}
                       </Badge>
-                      {entry.is_undone ? <Badge tone="neutral">desfeita</Badge> : null}
+                      {entry.is_undone ? (
+                        <Badge tone="neutral">{messages.pages.conflicts.ledger.undone}</Badge>
+                      ) : null}
                     </div>
                     <p className="text-xs text-(--color-muted)">
-                      {formatCount(entry.documents_transferred)} vínculo(s) criado(s)
+                      {fill(messages.pages.conflicts.ledger.linksCreated, {
+                        count: formatCount(entry.documents_transferred),
+                      })}
                       {entry.ban_kind ? (
                         <>
-                          {" "}
-                          · bloqueio <code>{entry.ban_kind}</code> em <code>{entry.ban_term}</code>
-                          {entry.ban_created ? " (plantado por esta resolução)" : " (já existia)"}
+                          <Trans
+                            text={messages.pages.conflicts.ledger.banLine}
+                            values={{
+                              kind: <code>{entry.ban_kind}</code>,
+                              term: <code>{entry.ban_term}</code>,
+                            }}
+                          />
+                          {entry.ban_created
+                            ? messages.pages.conflicts.ledger.banCreated
+                            : messages.pages.conflicts.ledger.banExisted}
                         </>
                       ) : null}
-                      {entry.decided_by ? ` · por ${entry.decided_by}` : ""}
-                      {entry.decided_at ? ` em ${formatDateTime(entry.decided_at)}` : ""}
+                      {entry.decided_by
+                        ? fill(messages.pages.conflicts.ledger.decidedBy, { name: entry.decided_by })
+                        : ""}
+                      {entry.decided_at
+                        ? fill(messages.pages.conflicts.ledger.decidedAt, {
+                            date: formatDateTime(entry.decided_at),
+                          })
+                        : ""}
                     </p>
-                    {entry.note ? <p className="text-xs text-(--color-muted)">Nota: {entry.note}</p> : null}
+                    {entry.note ? (
+                      <p className="text-xs text-(--color-muted)">
+                        {fill(messages.pages.conflicts.ledger.note, { note: entry.note })}
+                      </p>
+                    ) : null}
                     <div className="flex flex-wrap items-center gap-2">
                       <Button
                         size="sm"
@@ -597,8 +664,8 @@ export function ConflictsRoute() {
                         disabled={entry.is_undone || undo.isPending}
                         title={
                           entry.is_undone
-                            ? "Esta resolução já foi desfeita; o ledger guarda a história."
-                            : "Devolve a linha removida, os vínculos e o bloqueio que esta resolução plantou."
+                            ? messages.pages.conflicts.ledger.undoDoneTitle
+                            : messages.pages.conflicts.ledger.undoTitle
                         }
                         onClick={() => undo.mutate(entry.resolution_id)}
                       >
@@ -606,8 +673,13 @@ export function ConflictsRoute() {
                       </Button>
                       {entry.is_undone ? (
                         <span className="text-xs text-(--color-muted)">
-                          desfeita{entry.undone_by ? ` por ${entry.undone_by}` : ""}
-                          {entry.loser_restored ? " · linha restaurada" : " · linha não restaurada"}
+                          {messages.pages.conflicts.ledger.undone}
+                          {entry.undone_by
+                            ? fill(messages.pages.conflicts.ledger.undoneBy, { name: entry.undone_by })
+                            : ""}
+                          {entry.loser_restored
+                            ? messages.pages.conflicts.ledger.recordRestored
+                            : messages.pages.conflicts.ledger.recordNotRestored}
                         </span>
                       ) : null}
                     </div>
@@ -627,26 +699,33 @@ export function ConflictsRoute() {
                 navigate({ to: "/entidades/conflitos", search: { ...search, pagina: page - 1 || undefined } })
               }
             >
-              ← Anterior
+              {messages.common.previous}
             </Button>
             <span className="text-xs text-(--color-muted)">
-              página {formatCount(page + 1)} de {formatCount(lastPage)} · {formatCount(total)} no total
+              {fill(messages.pages.conflicts.pageOf, {
+                page: formatCount(page + 1),
+                lastPage: formatCount(lastPage),
+                total: formatCount(total),
+              })}
             </span>
             <Button
               size="sm"
               disabled={(page + 1) * CONFLICTS_PAGE_SIZE >= total}
               onClick={() => navigate({ to: "/entidades/conflitos", search: { ...search, pagina: page + 1 } })}
             >
-              Próxima →
+              {messages.common.next}
             </Button>
           </div>
         ) : null}
 
         <p className="text-xs text-(--color-muted)">
-          O juiz de conflitos resolve sozinho os casos acima do limiar dele e manda para revisão só os
-          duvidosos — é <em>essa</em> fila que a tela inicial conta. A aba <em>decididos</em> é a única
-          que mostra as auto-resoluções: elas excluíram a linha perdedora, então não existem mais na
-          varredura ao vivo.
+          <Trans
+            text={messages.pages.conflicts.footer}
+            values={{
+              that: <em>{messages.pages.conflicts.footerThat}</em>,
+              judged: <em>{messages.pages.conflicts.footerJudgedTab}</em>,
+            }}
+          />
         </p>
       </PageBody>
     </>
@@ -663,6 +742,7 @@ export function ConflictsRoute() {
  * per pair even though the click was categorical.
  */
 function BatchReport({ result }: { result: ConflictBatchResult }) {
+  const messages = useCopy();
   const skipped = result.skipped ?? [];
   const failed = result.failed ?? [];
 
@@ -670,11 +750,25 @@ function BatchReport({ result }: { result: ConflictBatchResult }) {
     <Card className="ring-1 ring-(--color-line)">
       <CardBody className="grid gap-2">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-sm font-semibold">Resultado do lote</span>
-          <Badge tone="ok">{formatCount(result.applied?.length ?? 0)} resolvido(s)</Badge>
-          <Badge tone="neutral">{formatCount(skipped.length)} já sem o que resolver</Badge>
-          {failed.length ? <Badge tone="warn">{formatCount(failed.length)} falhou(aram)</Badge> : null}
-          <Badge tone="accent">{formatCount(result.remaining?.total ?? 0)} na seleção</Badge>
+          <span className="text-sm font-semibold">{messages.pages.conflicts.batchResult.title}</span>
+          <Badge tone="ok">
+            {fill(messages.pages.conflicts.batchResult.resolved, {
+              count: formatCount(result.applied?.length ?? 0),
+            })}
+          </Badge>
+          <Badge tone="neutral">
+            {fill(messages.pages.conflicts.batchResult.skipped, { count: formatCount(skipped.length) })}
+          </Badge>
+          {failed.length ? (
+            <Badge tone="warn">
+              {fill(messages.pages.conflicts.batchResult.failed, { count: formatCount(failed.length) })}
+            </Badge>
+          ) : null}
+          <Badge tone="accent">
+            {fill(messages.pages.conflicts.batchResult.remaining, {
+              count: formatCount(result.remaining?.total ?? 0),
+            })}
+          </Badge>
         </div>
         {skipped.length ? (
           <ul className="grid gap-1 text-xs text-(--color-muted)">
@@ -695,8 +789,10 @@ function BatchReport({ result }: { result: ConflictBatchResult }) {
           </ul>
         ) : null}
         <p className="text-xs text-(--color-muted)">
-          Cada par resolvido tem a sua própria linha no ledger: a aba <em>Resoluções</em> desfaz um de
-          cada vez, mesmo quando a decisão foi tomada para a categoria inteira.
+          <Trans
+            text={messages.pages.conflicts.batchResult.report}
+            values={{ ledger: <em>{messages.pages.conflicts.view.resolucoes.label}</em> }}
+          />
         </p>
       </CardBody>
     </Card>
@@ -725,30 +821,48 @@ function PreviewPanel({
   onCancel: () => void;
   onConfirm: (winner: ConflictWinner) => void;
 }) {
+  const messages = useCopy();
+
   return (
     <Card className="ring-2 ring-(--color-accent)/30">
       <CardBody className="grid gap-3">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-sm font-semibold">Impacto antes de decidir</span>
-          <Badge tone="accent">assunto: {plan.tag_name}</Badge>
-          <Badge tone="ok">
-            {labelOf(ENTITY_TYPE_LABEL, plan.entity_type)}: {plan.entity_name}
+          <span className="text-sm font-semibold">{messages.pages.conflicts.preview.title}</span>
+          <Badge tone="accent">
+            {fill(messages.pages.conflicts.preview.subject, { name: plan.tag_name })}
           </Badge>
-          <Badge tone="neutral">similaridade {plan.similarity.toFixed(3)}</Badge>
+          <Badge tone="ok">
+            {fill(messages.pages.conflicts.preview.entity, {
+              type: labelOf(ENTITY_TYPE_LABEL, plan.entity_type),
+              name: plan.entity_name,
+            })}
+          </Badge>
+          <Badge tone="neutral">
+            {fill(messages.pages.conflicts.preview.similarity, { value: plan.similarity.toFixed(3) })}
+          </Badge>
         </div>
 
         {plan.already_resolved ? (
-          <Notice tone="warn">
-            Este par já tem uma resolução em vigor no ledger. Decidir de novo escreve uma segunda
-            resolução — o desfazer de cada uma é independente.
-          </Notice>
+          <Notice tone="warn">{messages.pages.conflicts.preview.alreadyResolved}</Notice>
         ) : null}
 
         {plan.judge_winner ? (
           <p className="text-xs text-(--color-muted)">
-            O juiz já opinou: <strong>{CONFLICT_WINNER_LABEL[plan.judge_winner]}</strong>
-            {plan.judge_confidence != null ? ` com ${plan.judge_confidence.toFixed(2)} de confiança` : ""}
-            {plan.judge_reason ? ` — ${plan.judge_reason}` : ""}.
+            <Trans
+              text={messages.pages.conflicts.preview.judgeOpinion}
+              values={{
+                winner: <strong>{CONFLICT_WINNER_LABEL[plan.judge_winner]}</strong>,
+                confidence:
+                  plan.judge_confidence != null
+                    ? fill(messages.pages.conflicts.preview.judgeConfidence, {
+                        value: plan.judge_confidence.toFixed(2),
+                      })
+                    : "",
+                reason: plan.judge_reason
+                  ? fill(messages.pages.conflicts.preview.judgeReason, { reason: plan.judge_reason })
+                  : "",
+              }}
+            />
           </p>
         ) : null}
 
@@ -759,7 +873,7 @@ function PreviewPanel({
         ) : (
           <div className="grid gap-2 sm:grid-cols-2">
             <VerdictCard
-              title={`${CONFLICT_WINNER_LABEL.TAG} vence`}
+              title={fill(messages.pages.conflicts.verdict.title, { winner: labelOf(CONFLICT_WINNER_LABEL, "TAG") })}
               tone="accent"
               loses={plan.tag_wins_loses}
               transferred={plan.tag_wins_documents_transferred}
@@ -770,7 +884,7 @@ function PreviewPanel({
               hint={CONFLICT_WINNER_HINT.TAG}
             />
             <VerdictCard
-              title={`${CONFLICT_WINNER_LABEL.ENTITY} vence`}
+              title={fill(messages.pages.conflicts.verdict.title, { winner: labelOf(CONFLICT_WINNER_LABEL, "ENTITY") })}
               tone="ok"
               loses={plan.entity_wins_loses}
               transferred={plan.entity_wins_documents_transferred}
@@ -784,7 +898,7 @@ function PreviewPanel({
         )}
 
         <div className="grid gap-2 sm:grid-cols-2">
-          <Field label="Nota da decisão">
+          <Field label={messages.pages.conflicts.noteField}>
             <Input value={note} onChange={(event) => onNote(event.target.value)} />
           </Field>
         </div>
@@ -796,7 +910,10 @@ function PreviewPanel({
             title={CONFLICT_WINNER_HINT.TAG}
             onClick={() => onConfirm("TAG")}
           >
-            {ACTION.apply.label}: {CONFLICT_WINNER_LABEL.TAG} vence
+            {fill(messages.pages.conflicts.preview.apply, {
+              verb: ACTION.apply.label,
+              winner: labelOf(CONFLICT_WINNER_LABEL, "TAG"),
+            })}
           </Button>
           <Button
             variant="primary"
@@ -804,7 +921,10 @@ function PreviewPanel({
             title={CONFLICT_WINNER_HINT.ENTITY}
             onClick={() => onConfirm("ENTITY")}
           >
-            {ACTION.apply.label}: {CONFLICT_WINNER_LABEL.ENTITY} vence
+            {fill(messages.pages.conflicts.preview.apply, {
+              verb: ACTION.apply.label,
+              winner: labelOf(CONFLICT_WINNER_LABEL, "ENTITY"),
+            })}
           </Button>
           <Button variant="ghost" disabled={pending} onClick={onCancel}>
             {ACTION.cancel.label}
@@ -836,22 +956,34 @@ function VerdictCard({
   banKind: string;
   hint: string | undefined;
 }) {
+  const messages = useCopy();
+
   return (
     <div className="grid gap-1 rounded-md bg-black/[0.02] px-3 py-2 text-xs ring-1 ring-(--color-line)">
       <Badge tone={tone}>{title}</Badge>
       <p className="text-(--color-muted)">
-        <strong className="text-(--color-ink)">{formatCount(transferred)}</strong> vínculo(s) novo(s)
-        {alreadyLinked > 0 ? ` · ${formatCount(alreadyLinked)} documento(s) já tinham este lado` : ""}
+        <Trans
+          text={messages.pages.conflicts.verdict.linksNew}
+          values={{ count: <strong className="text-(--color-ink)">{formatCount(transferred)}</strong> }}
+        />
+        {alreadyLinked > 0
+          ? fill(messages.pages.conflicts.verdict.linksAlready, { count: formatCount(alreadyLinked) })
+          : ""}
       </p>
       {loses ? (
         <p className="text-(--color-muted)">
-          desaparece: <code>{loses}</code>
+          <Trans text={messages.pages.conflicts.verdict.loses} values={{ term: <code>{loses}</code> }} />
         </p>
       ) : null}
       {banTerm ? (
         <p className="text-(--color-muted)">
-          bloqueio <code>{banKind}</code> em <code>{banTerm}</code>
-          {banExists ? " — já existe, não é reescrito" : " — será plantado por esta decisão"}
+          <Trans
+            text={messages.pages.conflicts.verdict.banLine}
+            values={{ kind: <code>{banKind}</code>, term: <code>{banTerm}</code> }}
+          />
+          {banExists
+            ? messages.pages.conflicts.verdict.banExists
+            : messages.pages.conflicts.verdict.banWillCreate}
         </p>
       ) : null}
       <p className="text-(--color-muted)">{hint}</p>

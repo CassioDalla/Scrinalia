@@ -13,6 +13,7 @@ from scrinalia.domains.archive.schemas.cleaning_schema import (
     DryRunRequestDTO,
     DryRunResponseDTO,
 )
+from scrinalia.domains.archive.schemas.route_messages import route_message
 from scrinalia.domains.archive.schemas.system_schema import WorkerEngineDTO
 from scrinalia.domains.archive.services.cleaning_service import CleaningService
 from scrinalia.domains.archive.workers.catalogue import LLM_CHECK_AXIS, describe_axis_engines
@@ -61,7 +62,9 @@ class CleaningController(Controller):
         """Deactivates a rule so the Worker stops processing it. Rules are never deleted."""
         rule = cleaning_service.deactivate_rule(rule_id)
         return CleaningRuleMutationResponse(
-            code=RouteMessageCode.CLEANING_RULE_DEACTIVATED, message="Regra desativada com sucesso.", data=rule
+            code=RouteMessageCode.CLEANING_RULE_DEACTIVATED,
+            message=route_message(RouteMessageCode.CLEANING_RULE_DEACTIVATED, "Regra desativada com sucesso."),
+            data=rule,
         )
 
     @patch("/{rule_id:int}/activate", opt={"access": Access.CATALOGUE}, sync_to_thread=True)
@@ -71,7 +74,9 @@ class CleaningController(Controller):
         """Puts a deactivated rule back to work, which is what makes deactivating reversible."""
         rule = cleaning_service.activate_rule(rule_id)
         return CleaningRuleMutationResponse(
-            code=RouteMessageCode.CLEANING_RULE_ACTIVATED, message="Regra reativada com sucesso.", data=rule
+            code=RouteMessageCode.CLEANING_RULE_ACTIVATED,
+            message=route_message(RouteMessageCode.CLEANING_RULE_ACTIVATED, "Regra reativada com sucesso."),
+            data=rule,
         )
 
     @post("/", opt={"access": Access.CATALOGUE}, sync_to_thread=True)
@@ -96,7 +101,9 @@ class CleaningController(Controller):
         new_rule = cleaning_service.create_cleaning_rule(dto)
         return CleaningRuleMutationResponse(
             code=RouteMessageCode.CLEANING_RULE_CREATED,
-            message="Regra salva e ativada. O Worker iniciará a varredura.",
+            message=route_message(
+                RouteMessageCode.CLEANING_RULE_CREATED, "Regra salva e ativada. O Worker iniciará a varredura."
+            ),
             data=new_rule,
         )
 

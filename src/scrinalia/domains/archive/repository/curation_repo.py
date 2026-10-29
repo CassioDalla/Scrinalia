@@ -14,6 +14,7 @@ from scrinalia.domains.archive.models import (
 from scrinalia.domains.archive.models.governance import AnomalyType, ArchiveAIReviewQueue
 from scrinalia.domains.archive.repository.subject_queue import subject_low_confidence, subject_pending
 from scrinalia.domains.archive.repository.typology_queue import count_refusals as count_refusals_query
+from scrinalia.domains.archive.schemas.curation_schema import QueueKey
 
 #: Status a proposal/plan carries while it is still waiting for a human verdict. Semantics owned by
 #: the ``chk_*_status`` constraints of the two catalogues, repeated here as a literal because it is
@@ -136,16 +137,16 @@ class CurationRepository:
         """
         return count_refusals_query(self.db)
 
-    def count_pending(self) -> dict[str, int]:
+    def count_pending(self) -> dict[QueueKey, int]:
         """Every queue of the work list, one query per queue, all on indexed columns."""
         return {
-            "hierarchy_orphans": self.count_hierarchy_orphans(),
-            "hierarchy_plans": self.count_hierarchy_plans(),
-            "tag_merge_proposals": self.count_tag_merge_proposals(),
-            "cross_domain_conflicts": self.count_queue(AnomalyType.CROSS_DOMAIN_COLLISION),
-            "subject_low_confidence": self.count_subject_low_confidence_tags(),
-            "orphan_subject_tags": self.count_subject_orphan_tags(),
-            "typology_low_confidence": self.count_typology_refusals(),
-            "anomalies": self.count_anomalies(),
-            "unreviewed_documents": self.count_unreviewed_documents(),
+            QueueKey.HIERARCHY_ORPHANS: self.count_hierarchy_orphans(),
+            QueueKey.HIERARCHY_PLANS: self.count_hierarchy_plans(),
+            QueueKey.TAG_MERGE_PROPOSALS: self.count_tag_merge_proposals(),
+            QueueKey.CROSS_DOMAIN_CONFLICTS: self.count_queue(AnomalyType.CROSS_DOMAIN_COLLISION),
+            QueueKey.SUBJECT_LOW_CONFIDENCE: self.count_subject_low_confidence_tags(),
+            QueueKey.ORPHAN_SUBJECT_TAGS: self.count_subject_orphan_tags(),
+            QueueKey.TYPOLOGY_LOW_CONFIDENCE: self.count_typology_refusals(),
+            QueueKey.ANOMALIES: self.count_anomalies(),
+            QueueKey.UNREVIEWED_DOCUMENTS: self.count_unreviewed_documents(),
         }

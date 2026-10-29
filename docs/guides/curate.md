@@ -4,12 +4,14 @@ sources:
   - apps/curator/src/components/layout/AppShell.tsx
   - apps/curator/src/components/layout/PageHeader.tsx
   - apps/curator/src/components/description/**
+  - apps/curator/src/components/workers/**
   - apps/curator/src/components/layout/LoginForm.tsx
   - apps/curator/src/components/layout/PasswordChangeForm.tsx
   - apps/curator/src/routes/**
   - apps/curator/src/lib/permissions.ts
   - apps/curator/src/lib/screens.ts
   - apps/curator/src/lib/copy.ts
+  - apps/curator/src/lib/hierarchyTree.ts
   - src/scrinalia/api/controllers/**
   - src/scrinalia/domains/archive/schemas/document_schema.py
   - src/scrinalia/api/schemas/public.py
@@ -195,6 +197,24 @@ which clears the flag). The refusal does not depend on the screen: a script hold
 was printed to a terminal, or typed by an administrator, gets the same sentence and no access to the
 collection. The change opens the rest of the API in the same session.
 
+### The interface speaks two languages
+
+The curatorial interface is written in Portuguese and English, and the choice belongs to the
+**account**, not to the installation: *Automático*, *Português* and *English* sit in the account
+footer of the menu. A fresh account starts on *Automático*, which is stored as "no choice" and
+follows the browser — `pt*` opens in Portuguese, `en*` in English, anything else in Portuguese, the
+installation's language. After sign-in the account's choice wins, because a shared workstation must
+not hand one archivist the previous one's language.
+
+The language is not a client-side preference painted over a Portuguese server: every request carries
+`Accept-Language`, and the API composes its `message` — the confirmation of a write and the refusal
+of one — in the language the request asked for (ADR 0020 §4). The switch does not reload the page;
+the shell re-renders with the new catalogue, and dates, numbers and plurals follow it through
+`Intl`.
+
+What stays the same in both languages: the routes are still Portuguese (`/acervo/lista`), which
+#239 tracks, and the record's own content is never translated.
+
 ### The menu hides; it never grants
 
 The shell filters its entries by the area the screen **writes** (`apps/curator/src/lib/permissions.ts`,
@@ -327,10 +347,60 @@ linking.
 
 | Screen | Decision | Reversible? |
 | --- | --- | --- |
+| Nova Descrição — `/acervo/nova` | typing one description or importing a CSV (curator) | the record enters the pipeline as `PENDING_AI`; it is approved (or rejected) in the dossier, and only there |
 | Lista e busca — `/acervo/lista` | how to slice the collection | yes (read only) |
 | Árvore — `/acervo/arvore` | where a description sits in the arrangement | yes, by moving it; removing the node means excluding the description |
-| Excluídas — `/acervo/excluidas` | none (the ledger of what left) | yes (read only) |
+| Histórico de exclusões — `/acervo/excluidas` | none (the record of what left) | yes (read only) |
 | Descrição — `/acervo/$descriptionId` | the record, its subjects and its place | mostly yes; the exclusion does not |
+
+### Nova Descrição — `/acervo/nova`
+
+The way into the collection: one description typed in full, or a CSV imported. The two are tabs in
+the URL — **Digitar** (the default) and **Importar CSV** (`?modo=csv`) — because they are two input
+shapes of the same job, not two jobs: both stage the record and enqueue the same `transfer` the
+scraper uses, and the archive description is born `PENDING_AI`. The screen is **not an approval**:
+the dossier is where the record is reviewed and approved after the AI runs. It is a `CURATE` write,
+and it is the first entry of the *Acervo* menu.
+
+**Digitar** is the whole ISAD(G) record: thirty controls in the norm's seven areas, the level and the
+language as selects, the date as text with the language grammar, the digital object control disabled
+until #198. The form generates a `manual-<uuid>` id, so a retried submit is the same record; a
+duplicate `description_id` is refused before the write. Only the title is required — a description
+can be born incomplete and completed in the dossier.
+
+**Pontos de acesso** are chips over the tag catalogue, not a comma-separated string. The type-ahead
+picks an existing spelling; typing a term and choosing *Adicionar* keeps the archivist's spelling. A
+summary under the control names what the transfer will do with the string — create a new spelling, map
+it to a synonym, or discard it because it is banned, shorter than three characters or longer than a
+hundred — and points at the entries whose stored spelling differs from the typed one. The summary is
+`POST /api/v1/taxonomy/tags/preview`, a read: an unknown spelling is `NEW` and is created only by the
+`transfer` at archiving. Nothing is removed or rewritten by the preview; removing a term is the
+archivist's decision. The field stays optional, and the string it sends is the same one the CSV column
+and the scraper's mapped key carry.
+
+**Produtor(es)** suggests names from the entity catalogue. Typing in the field asks `GET
+/api/v1/taxonomy/entities?term=` — the same search the dossier uses to attach an entity — and picking
+a suggestion copies the name into the text, **never the `entity_id`**. The copy is verbatim (the
+catalogue stores entity names lowercased) and replaces only the fragment between two separators, so
+the archivist's commas, spacing and other names survive; the caret lands after the copied name and
+the field stays editable. It is a copy and not a link: a later merge or rename of the entity does not
+reach the description, and the help under the field says so. The list is not filtered by entity type,
+because the NER types the same administrative body as `ORG`, `LOC` or `PER` and any filter would hide
+a real producer; the type travels as the suggestion's hint. A name the catalogue does not know stays
+typeable, and the field is still the string the contract carries. The relation, with the filters it
+would unlock, is #242.
+
+**Importar CSV** is the `csv` origin (#191, ADR 0019). The file is parsed **in the browser** (comma or
+semicolon, quoted fields, CRLF, UTF-8 with a Windows-1252 fallback); the screen shows the detected
+headers, a preview and the local checks, and sends only a bounded list of rows as JSON — nothing is
+uploaded to the object storage and there is no multipart route, so an installation whose storage is
+unconfigured imports a CSV exactly the same. The map is the API's (`GET /api/v1/ingestion/csv/spec`),
+so a header cannot be accepted by the screen and refused by the server; the API re-validates every row
+with the staging contract, and the per-row answer says **accepted**, **duplicated** (the
+`description_id` already exists) or **invalid**, with the field and the sentence. A partial import is
+normal. The accepted rows are staged as `origin_code='csv'` and one `transfer` is enqueued after them.
+
+The old `/sistema/ingestao/nova` redirects here, so a shared link still opens the typed form.
 
 ### Lista e busca — `/acervo/lista`
 
@@ -367,7 +437,7 @@ moving the description; removing the node means excluding the description, which
     in the list and in the dossier; mixing them here would teach the archivist to "fix" a subject by
     dragging a description into another branch.
 
-### Excluídas — `/acervo/excluidas`
+### Histórico de exclusões — `/acervo/excluidas`
 
 The trail of the deletions, read-only (`GET /api/v1/documents/deletions`), with a server-side search
 and pagination because the trail has no ceiling. It is **not a recycle bin**: each entry is the
@@ -488,6 +558,15 @@ form last:
   queue and the next proposal may refresh its evidence. The decision is never overwritten by a new
   proposal.
 
+The rungs are drawn as the tree their codes imply, not as one indented list. The box at the left of
+a row closes that branch — the row then says how many rungs and how many pending decisions it hides
+— while the card's own chevron opens the decision body; closing a branch does not reset the cards
+inside it: expanding restores each one as it was. The status, flag and code filters keep a match's
+ancestors and its branch, and an
+ancestor of a match cannot be closed. **Recolher os decididos** closes the branches with no rung
+still `SUGGESTED`. The URL records the top of each closed branch, so a colleague opens the same
+view.
+
 The side panel materialises the tree: it always offers "Conferir impacto" first, and the
 apply button stays disabled until the preview exists. Only approved rungs are materialised. The
 preview and the apply share one planner, so the approved number is the written number. What the undo
@@ -574,17 +653,23 @@ as a subject again on the next classifier run.
 
 | Screen | Decision | Reversible? |
 | --- | --- | --- |
-| Tags — `/assuntos/tags` | the weight, the duplicates, the merge queue, the banned terms **and the subject decision of each tag** | the merge yes (ledger); the purge yes (its own ledger); a subject decision yes (it can be taken back) |
+| Tags — `/assuntos/tags` | the weight, the duplicates, the merge queue **and the subject decision of each tag** | the merge yes (ledger); a subject decision yes (it can be taken back) |
 | Categorias — `/assuntos/categorias` | the subject categories the classifier reads, **and what is inside each one** | yes (retire and reactivate) |
 | Descobrir Categorias — `/assuntos/descobrir` | whether a proposed theme deserves a category | yes (the proposal writes nothing) |
 | Não é assunto — `/assuntos/excecoes` | which terms leave the subject axis and have their spelling banned from becoming a tag again | yes (the ban deletes nothing, and the undo lifts the ban this decision planted) |
+| Grafias bloqueadas — `/assuntos/grafias` | which spellings the extraction may not recreate, and the deletion of the tags that already carry them | the ban yes (unban); the deletion yes (one ledger row per tag, restoring the tag, its links and its spellings — never the ban) |
 
 ### Tags — `/assuntos/tags`
 
-One route, five questions, one conversation: the archivist sees that `alvenarias` weighs little,
-finds its near-duplicate and decides whether to absorb it. Four of the tabs are how they look; the
-fifth, **Classificar**, is where the subject decision is taken, and it is where the home screen's two
+One route, four questions, one conversation: the archivist sees that `alvenarias` weighs little,
+finds its near-duplicate and decides whether to absorb it. Three of the tabs are how they look; the
+fourth, **Classificar**, is where the subject decision is taken, and it is where the home screen's two
 subject cards land. The active tab is in the URL.
+
+The blocked spellings used to be the fifth tab, and they are **Grafias bloqueadas —
+`/assuntos/grafias`** since #232: a screen of their own, beside *Não é assunto*, because this page's
+description never mentioned that its tab held the only write that deletes a tag. `?aba=stopwords`
+still answers with the new screen.
 
 #### Relevância
 
@@ -615,9 +700,9 @@ also be marked across lines and unified as a cluster, which is how one merge spa
 A marked selection has a **second destination**, and it is the other kind of write: **Banir N
 marcadas** registers the spellings in `POST /api/v1/taxonomy/tags/stopwords` (`CURATE`), on the axis
 chosen beside the button. Banning **deletes nothing** — the tags stay in the collection, linked and
-reachable by search, and the step that removes them is the **purge** in the Stopwords tab, behind its
-own preview and with a ledger that restores each tag. The marks survive the ban: the merge they were
-made for is still possible.
+reachable by search, and the step that removes them is the exclusion of tags in **Grafias bloqueadas
+— `/assuntos/grafias`**, behind its own preview and with a ledger that restores each tag. The marks
+survive the ban: the merge they were made for is still possible.
 
 #### Propostas de merge
 
@@ -642,45 +727,6 @@ The **ledger** below lists only applied merges, each with the absorbed name, the
 document count, the author and the time. Its undo is the exact restoration described above, and the
 screen's "desfazer" is the same route. A merge made here also works through a proposal, so the
 ledger is the write's history and the status is the decision's.
-
-#### Stopwords
-
-The banned terms, and the destructive write in the taxonomy that keeps a ledger. The screen keeps
-three things apart:
-
-- **Banir** — `POST /api/v1/taxonomy/tags/stopwords` (`CURATE`) records that a term is not worth
-  considering on one axis: `TAG` (the subject axis), `ENTITY` (NER) or `ALL`. A word has exactly one
-  scope — re-banning it **moves** it — and banning **deletes nothing**. A ban typed here is recorded
-  with `source=HUMAN`; the ban the *Não é assunto* screen plants is `EXCLUSION`, and the one a
-  conflict resolution plants is `CONFLICT`. The list shows the scope on every term and the origin as
-  a badge when it is not `HUMAN` — a term typed here is the default, and the badge marks the ones
-  that arrived as a consequence of another decision.
-- **Desbanir** — `DELETE /api/v1/taxonomy/tags/stopwords` (`CURATE`). Reversible.
-- **Casamento** — `PATCH /api/v1/taxonomy/tags/stopwords` (`CURATE`) changes how an existing ban
-  matches without re-banning it: a re-ban would overwrite the origin a conflict or the *Não é
-  assunto* screen recorded. `TOKEN` blocks the word **and any name that contains it as a whole
-  word** — the merged span `IPTU do Exemplo` — and `EXACT` blocks the spelling alone, which is what a
-  generic word that starts a proper name needs: `alameda` blocks `alameda`, never `Alameda Cabral`.
-  Only the `ENTITY`/`ALL` axes read it. Every entry of `domain_ner_exclusions` matches the exact
-  spelling for the same reason: the conflict was about `casa`, not about `casa da memória` (#160).
-- **Purgar** — `POST /api/v1/taxonomy/tags/stopwords/purge` (`CURATE`), after
-  `POST /api/v1/taxonomy/tags/stopwords/purge/preview`. This is the write that deletes the tags. The
-  preview lists the tags that would die, with their document count, their category **and where the
-  ban came from** (`HUMAN`, `CONFLICT` or `EXCLUSION`), so a term banned with the archive in mind is
-  told apart from one typed by hand; the apply button is disabled until the preview exists.
-
-Each deleted tag is written to a **ledger** (`archive_stopword_purge_log`) before it disappears: the
-snapshot of the row, the documents that carried it and the spellings that pointed at it. The purge
-response carries the `purge_ids`, the Stopwords tab shows them in **Ledger das purgas**, and
-`DELETE /api/v1/taxonomy/tags/stopwords/purge-log/{purge_id}` (`CURATE`) restores the tag, its links
-and its spellings; an unknown id is **404** and a second attempt is **409**. The undo does **not**
-lift the ban — the term is still a stopword, and the next purge lists the restored tag again.
-
-!!! warning "The scope protects the other axis"
-
-    The purge reads only `TAG`/`ALL`. A term banned on the `ENTITY` axis is a NER veto and can never
-    make the subject purge delete a tag the curator kept — the two are stored in different places on
-    purpose.
 
 #### Classificar
 
@@ -720,8 +766,61 @@ meaning. The measurement behind the removed state still holds — `alfa` reaches
 but the answer is now the entity and the exclusion, not a fourth state of the tag.
 
 The same two actions apply to a **selection**, one request per tag, and the batch reports how many
-tags it wrote and where. Nothing on this tab deletes: banning a spelling and purging the tags are in
-**Stopwords**, each behind its own step, and the purge keeps a ledger with the undo of each tag.
+tags it wrote and where. Nothing on this tab deletes: banning a spelling and excluding the tags are in
+**Grafias bloqueadas — `/assuntos/grafias`**, each behind its own step, and the exclusion keeps a
+ledger with the undo of each tag.
+
+### Grafias bloqueadas — `/assuntos/grafias`
+
+The spellings a ban keeps out of the vocabulary, and the one write in the taxonomy that deletes a
+tag. It was the fourth tab of **Tags** until #232, and it became a screen of its own because the page
+it lived under described relevance, duplicates and merge, and never said its tab held the only
+destructive write of the subject axis.
+
+It is **not** a second view of *Não é assunto*, and the screen says so in its first line: the verdict
+is about what a term **means** — and it is what stops the subject classification from guessing — while
+a ban is about a **spelling** — and it is what stops the next ingestion from recreating the tag.
+Confirming a verdict plants a `TAG` ban, which is why the same spelling appears in both lists: the
+list marks where each ban came from, and a ban the verdict planted links back to the screen that
+decided it. The two screens link to each other, and the gate
+`testing/unit/curator/test_curator_copy.py` fails if either link or the `?aba=stopwords` redirect
+disappears.
+
+The screen keeps three things apart:
+
+- **Banir** — `POST /api/v1/taxonomy/tags/stopwords` (`CURATE`) records that a term is not worth
+  considering on one axis: `TAG` (the subject axis), `ENTITY` (NER) or `ALL`. A word has exactly one
+  scope — re-banning it **moves** it — and banning **deletes nothing**. A ban typed here is recorded
+  with `source=HUMAN`; the ban the *Não é assunto* screen plants is `EXCLUSION`, and the one a
+  conflict resolution plants is `CONFLICT`. The list shows the scope on every term and the origin as
+  a badge when it is not `HUMAN` — a term typed here is the default, and the badge marks the ones
+  that arrived as a consequence of another decision.
+- **Desbanir** — `DELETE /api/v1/taxonomy/tags/stopwords` (`CURATE`). Reversible.
+- **Casamento** — `PATCH /api/v1/taxonomy/tags/stopwords` (`CURATE`) changes how an existing ban
+  matches without re-banning it: a re-ban would overwrite the origin a conflict or the *Não é
+  assunto* screen recorded. `TOKEN` blocks the word **and any name that contains it as a whole
+  word** — the merged span `IPTU do Exemplo` — and `EXACT` blocks the spelling alone, which is what a
+  generic word that starts a proper name needs: `alameda` blocks `alameda`, never `Alameda Cabral`.
+  Only the `ENTITY`/`ALL` axes read it. Every entry of `domain_ner_exclusions` matches the exact
+  spelling for the same reason: the conflict was about `casa`, not about `casa da memória` (#160).
+- **Excluir as tags** — `POST /api/v1/taxonomy/tags/stopwords/purge` (`CURATE`), after
+  `POST /api/v1/taxonomy/tags/stopwords/purge/preview`. This is the write that deletes the tags. The
+  preview lists the tags that would die, with their document count, their category **and where the
+  ban came from** (`HUMAN`, `CONFLICT` or `EXCLUSION`), so a term banned with the archive in mind is
+  told apart from one typed by hand; the apply button is disabled until the preview exists.
+
+Each deleted tag is written to a **ledger** (`archive_stopword_purge_log`) before it disappears: the
+snapshot of the row, the documents that carried it and the spellings that pointed at it. The purge
+response carries the `purge_ids`, the screen shows them in **Registro das exclusões**, and
+`DELETE /api/v1/taxonomy/tags/stopwords/purge-log/{purge_id}` (`CURATE`) restores the tag, its links
+and its spellings; an unknown id is **404** and a second attempt is **409**. The undo does **not**
+lift the ban — the term is still a stopword, and the next exclusion lists the restored tag again.
+
+!!! warning "The scope protects the other axis"
+
+    The purge reads only `TAG`/`ALL`. A term banned on the `ENTITY` axis is a NER veto and can never
+    make the subject purge delete a tag the curator kept — the two are stored in different places on
+    purpose.
 
 ### Categorias — `/assuntos/categorias`
 
@@ -788,9 +887,16 @@ The write is `POST /api/v1/taxonomy/tags/subject-exclusions` (`CURATE`), and it 
 once: it registers the term in `domain_subject_exclusions`, so the subject classifier stops guessing
 at it, **and it bans the spelling at `TAG` scope**, so the next ingestion does not recreate the tag
 that was just decided about. **The ban deletes nothing**: the tag stays in the collection, stays
-linked and stays reachable by search. Removing it is a separate act — the **purge**, in the Stopwords
-tab, behind its own preview and with a ledger that restores each tag — and the purge preview says
-which bans were planted here (`EXCLUSION`) and which by hand (`HUMAN`).
+linked and stays reachable by search. Removing it is a separate act — the exclusion of tags in
+**Grafias bloqueadas — `/assuntos/grafias`**, behind its own preview and with a ledger that restores
+each tag — and the preview says which bans were planted here (`EXCLUSION`) and which by hand
+(`HUMAN`).
+
+The screen and **Grafias bloqueadas** are two objects, not two filters, and each links to the other:
+this one decides what a term **means** and is what stops the classifier; that one vetoes a
+**spelling** and is what stops the extraction from recreating the tag. A verdict plants a `TAG` ban,
+so the same spelling is in both lists — the blocked list says which ban came from a verdict and links
+back here.
 
 Two answers the screen has to show:
 
@@ -805,14 +911,14 @@ Two answers the screen has to show:
 
 The reversal is `DELETE` (`CURATE`, the screen's "restaurar"). It answers `removed` and `unbanned`,
 and the lift is exact: only a ban this decision planted leaves with it. A spelling a person banned on
-the Stopwords screen, or one a conflict resolution planted first, survives.
+the **Grafias bloqueadas** screen, or one a conflict resolution planted first, survives.
 
 ## Entidades
 
 | Screen | Decision | Reversible? |
 | --- | --- | --- |
 | Entidades — `/entidades/lista` | the type of a name, the spelling of a name, and whether two names are one | the type yes; the rename **yes** (one ledger row); the merge **yes** (one ledger row per absorbed entity) |
-| Exclusões de NER — `/entidades/excecoes` | which spellings are subjects, not proper names, and the retroactive purge that follows | both **yes**: the veto row by its own `DELETE`, the purge by its ledger (`archive_ner_purge_log`) |
+| Remover de Entidades — `/entidades/excecoes` | which spellings are subjects, not proper names, and the retroactive purge that follows | both **yes**: the veto row by its own `DELETE`, the purge by its ledger (`archive_ner_purge_log`) |
 | Conflitos — `/entidades/conflitos` | whether a collision belongs to the subject axis or to the names, one pair at a time or a whole category at once | yes (one ledger row per pair, with the undo) |
 
 ### Entidades — `/entidades/lista`
@@ -871,7 +977,7 @@ The card's second tab is the rename, and the **Renomear** button beside the name
 row's own affordance and never merges: the merge starts from two or more names and only renames the
 canonical as a side effect.
 
-### Exclusões de NER — `/entidades/excecoes`
+### Remover de Entidades — `/entidades/excecoes`
 
 The veto "this spelling is a subject, not a proper name". **Vetoing deletes nothing.** The write is
 `POST /api/v1/taxonomy/entities/ner-exclusions` (`CURATE`), with a reason kept for audit, and the
@@ -887,7 +993,7 @@ extracted from a banned spelling, with the descriptions that carry it, and the w
 plan. Each deleted entity is written to a **ledger** (`archive_ner_purge_log`) before it disappears:
 the snapshot of the row, the documents that carried it, the spellings that pointed at it and the
 `excluded_term` that justified it. The response carries the `purge_ids`, the screen shows them in
-**Ledger dos expurgos**, and `DELETE /api/v1/taxonomy/entities/ner-exclusions/purge-log/{purge_id}`
+**Histórico de expurgos**, and `DELETE /api/v1/taxonomy/entities/ner-exclusions/purge-log/{purge_id}`
 restores the entity, its links and its spellings — **without** lifting the veto, so the next purge
 lists the restored entity again. Use it to reverse the loss; use "remover veto" to re-open the term.
 
@@ -1031,51 +1137,43 @@ the human review of the record, in the dossier.
 ## Sistema
 
 The machine, not the collection. Everything here belongs to whoever operates the installation, and
-all four screens are reached from `/configuracoes`, under *Operação*: the menu kept what the
-archivist consults while cataloguing, and this is not it. The ingestion screen is the one exception
-to the "operator only" rule — its manual form and its CSV import are a curator's writes (#44, #191) —
-and it is therefore a `CURATE` card.
+all three screens are reached from `/configuracoes`, under *Operação*: the menu kept what the
+archivist consults while cataloguing, and this is not it. The two ways into the collection live in
+the Acervo (`/acervo/nova`), and the origins page is the operator's; the read routes stay
+authenticated, so a curator who follows a direct URL still sees it read-only.
 
 | Screen | Decision | Reversible? |
 | --- | --- | --- |
-| Ingestão — `/sistema/ingestao` | which origin to read, its URLs and its agenda (operator); and importing a CSV (curator) | the configuration and the agenda are reversible; an imported row enters the pipeline and is approved (or rejected) in the dossier |
-| Nova descrição — `/sistema/ingestao/nova` | typing one description, field by field (curator) | the record enters the pipeline as `PENDING_AI`; it is approved (or rejected) in the dossier, and only there |
-| Workers de IA — `/sistema/workers` | whether to run a worker now | yes (the run's own configuration); a run's effects follow what it wrote |
-| Execuções — `/sistema/execucoes` | whether to stop an active run (the ledger and the grouped failures are read-only) | no undo: a cancelled run stays cancelled; a new run is a new ledger row |
+| Origens — `/sistema/ingestao` | which source to add, its URLs and agenda, whether it is active, and whether to enqueue a run (operator) | the configuration, the agenda and the pause are reversible; the screen writes no description |
+| Workers e execuções — `/sistema/workers` | whether to run a worker now (**Painel**); whether to stop an active run (**Execuções**) | yes for the run's own configuration; a run's effects follow what it wrote. No undo for a cancelled run: it stays cancelled, and a new run is a new ledger row |
 | Saúde do sistema — `/sistema/diagnostico` | none (database, models, storage, process) | yes (read only) |
 
-### Ingestão — `/sistema/ingestao`
+### Origens — `/sistema/ingestao`
 
-The stage in front of the archive, origin by origin (ADR 0016). Each card is one origin: its own
-queue (what the next execution would read), processed and failed numbers, the last and the active
-run, and the agenda. The **operator** can edit the adapter configuration (the reference scraper's
-listing and detail URLs, the politeness delay), save a five-field cron in an IANA zone and
-**Enfileirar execução**. The run is the same ledger the AI workers use; a period that fires while the
-origin is already running is skipped, not queued. The generic worker routes refuse `ingestion` — a
-run of it needs the origin, and the origin routes are the selector.
+The stage in front of the archive, source by source (ADR 0016). **Origens** lists the configured
+sources: each card has the queue the next execution would read, the processed/failed numbers, the
+last and active run, the agenda and the effective configuration. The **operator** adds a definition
+from the picker, edits the adapter configuration (the reference scraper's listing and detail URLs,
+the politeness delay), saves a five-field cron in an IANA zone, **Desativa/Ativa** and
+**Enfileira execução**. Pausing keeps the row, the agenda and the runs; only the run is refused. A
+fresh install starts with no source configured and shows **Nenhuma origem configurada**; the add
+flow activates the chosen definition. The run is the same ledger the AI workers use; a period that
+fires while the source is already running is skipped, not queued.
 
-The **curator** sees the same cards read-only, the **Entrada manual** card and the **Importação CSV**
-card. The manual card opens `/sistema/ingestao/nova`, a screen of its own, where the description is
-typed in full: thirty controls in the norm's seven areas, the level and the language as selects, the
-date as text with the language grammar, and the digital object control disabled until #198. The manual
-origin is the `manual` origin: the submit writes the typed record as the origin's raw
-payload, stages it through the same transform and enqueues the same `transfer` worker. The archive
-description is born `PENDING_AI`; the AI queues see it, and the approval is the dossier's
-`PATCH /documents/{id}` after the AI runs. Typing a record is **not** an approval, and a duplicate
-`description_id` is refused before the write.
+**Entradas** shows the manual and CSV rows read-only, with their status and a link to the Acervo:
+they are the entry paths, not sources, and the two writes that used to live here are described under
+*Nova descrição* (#205). The card is an `OPERATE` one; the read routes stay authenticated, so a
+curator who follows a direct URL sees the page read-only with the controls hidden. The generic
+worker routes refuse `ingestion` — a run of it needs the origin, and the origin routes are the
+selector.
 
-The CSV card is the `csv` origin (#191, ADR 0019). The file is parsed **in the browser**: the card
-shows the detected headers, a preview and the local checks, and sends only the rows as JSON — nothing
-is uploaded to the object storage and there is no multipart route, so an installation whose storage is
-unconfigured imports a CSV exactly the same. The map is the API's (`GET /api/v1/ingestion/csv/spec`),
-so a header cannot be accepted by the screen and refused by the server; the API re-validates every
-row with the staging contract, and the per-row answer says **accepted**, **duplicated** (the
-`description_id` already exists) or **invalid**, with the field and the sentence. A partial import is
-normal. The accepted rows are staged as `origin_code='csv'` and one `transfer` is enqueued after them,
-so the archive description is born `PENDING_AI` like the manual entry. The rest of the staging fields
-is #192.
+### Workers e execuções — `/sistema/workers`
 
-### Workers de IA — `/sistema/workers`
+One screen with two tabs in the URL (#207), and it answers the run-check loop that used to need two
+screens: the **Painel** tab enqueues and shows the queue, and the **Execuções** tab is the ledger of
+what ran. The last run of a worker is a link to the ledger filtered by that worker, with the exact
+row highlighted; the old `/sistema/execucoes` path redirects there with the filters preserved. Only
+the active tab is mounted, so only its read is polled.
 
 The catalogue of the ten workers, in pipeline order, with the effective engine, preset and config on
 the collapsed row — "with which model is this running?" is the question the screen exists to answer,
@@ -1111,11 +1209,12 @@ and only `worker_embedding` rewrites a *description*: it re-embeds a changed tex
 document, the documented exception. The other three work on units that are not descriptions (a
 staging record, a pair, a tag).
 
-### Execuções — `/sistema/execucoes`
+### Execuções — the ledger tab
 
-The run ledger, read-only except for the stop: one row per execution, from the command line and from
-the panel, carrying the **resolved** configuration the run used (so it stays readable after a preset
-changes in code),
+Since #207 the ledger is the **Execuções** tab of `/sistema/workers`, and `/sistema/execucoes`
+redirects to it with the search preserved. It is read-only except for the stop: one row per
+execution, from the command line and from the panel, carrying the **resolved** configuration the run
+used (so it stays readable after a preset changes in code),
 the **effective worker options** (the columns it read, the floor, the cap — resolved when the run
 started, so "which columns did run #N read?" has an answer), the duration, the outcome and who
 asked. A row older than the options column says "opções não registradas nesta execução". Above it, the failures of the last 30 days grouped by root
@@ -1156,7 +1255,7 @@ what changed is how it is found. Three tabs, in the order of the permission ladd
 | Tab | Cards |
 | --- | --- |
 | Arranjo e catálogos | Plano de arranjo (`CURATE`), Níveis de descrição, Tipologias and Vocabulário do acervo (`CATALOGUE`) |
-| Operação | Workers de IA, Configuração dos Workers, Execuções and Saúde do sistema (`OPERATE`) |
+| Operação | Workers e execuções, Configuração dos Workers and Saúde do sistema (`OPERATE`) |
 | Acesso | Usuários (`ADMIN`) |
 
 The tab is in the URL (`?aba=`), so "the worker cards" can be sent to somebody. A tab the account

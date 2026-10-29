@@ -1,6 +1,89 @@
 {
   "components": {
     "schemas": {
+      "AccessPointPreviewRequest": {
+        "properties": {
+          "indexing_points": {
+            "maxLength": 20000,
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [],
+        "title": "AccessPointPreviewRequest",
+        "type": "object"
+      },
+      "AccessPointPreviewResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AccessPointResolution"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "AccessPointPreviewResponse",
+        "type": "object"
+      },
+      "AccessPointResolution": {
+        "properties": {
+          "input": {
+            "type": "string"
+          },
+          "name": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "$ref": "#/components/schemas/AccessPointStatus"
+          },
+          "tag_id": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "input",
+          "status"
+        ],
+        "title": "AccessPointResolution",
+        "type": "object"
+      },
+      "AccessPointStatus": {
+        "description": "\n    What the transfer will do with one access point of the raw string.\n\n    ``EXISTING`` and ``SYNONYM`` link a tag that is already in the catalogue; ``NEW`` is a spelling\n    the transfer will create; the other four are entries it will drop, each for a different reason.\n    ",
+        "enum": [
+          "EXISTING",
+          "SYNONYM",
+          "NEW",
+          "STOPWORD",
+          "TOO_SHORT",
+          "TOO_LONG",
+          "DUPLICATE"
+        ],
+        "title": "AccessPointStatus",
+        "type": "string"
+      },
       "ArchiveEntityOrigin": {
         "description": "\n    Who wrote a document-entity link.\n\n    ``UNKNOWN`` is not a synonym for ``AI``: it is what the links written before this column existed\n    carry, because the schema cannot prove which producer wrote them and a migration that guessed\n    would invent the very fact the column exists to keep. A link created by a vocabulary operation —\n    a merge, a restore, a conflict resolution — is also ``UNKNOWN``: it was not an extraction and not\n    a person reading a description.\n    ",
         "enum": [
@@ -227,6 +310,16 @@
               {
                 "format": "date-time",
                 "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "locale": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Locale"
               },
               {
                 "type": "null"
@@ -1868,17 +1961,8 @@
             "minimum": 0.0,
             "type": "integer"
           },
-          "description": {
-            "description": "One line explaining what the queue is, for an empty card.",
-            "type": "string"
-          },
           "key": {
-            "description": "Stable identifier of the queue, e.g. 'tag_merge_proposals'.",
-            "type": "string"
-          },
-          "label": {
-            "description": "Text the archivist reads on the card.",
-            "type": "string"
+            "$ref": "#/components/schemas/QueueKey"
           },
           "route": {
             "description": "Screen that resolves the queue, already filtered.",
@@ -1887,9 +1971,7 @@
         },
         "required": [
           "count",
-          "description",
           "key",
-          "label",
           "route"
         ],
         "title": "CurationQueue",
@@ -5400,6 +5482,10 @@
             },
             "type": "array"
           },
+          "configurable": {
+            "description": "Fonte configurável (operador) ou entrada manual/CSV (só leitura, com link para /acervo/nova).",
+            "type": "boolean"
+          },
           "description": {
             "type": "string"
           },
@@ -5543,6 +5629,7 @@
         },
         "required": [
           "code",
+          "configurable",
           "description",
           "enabled",
           "kind",
@@ -5573,6 +5660,12 @@
       },
       "IngestionOriginListResponse": {
         "properties": {
+          "available": {
+            "items": {
+              "$ref": "#/components/schemas/OriginAvailableDTO"
+            },
+            "type": "array"
+          },
           "generated_at": {
             "format": "date-time",
             "type": "string"
@@ -5963,6 +6056,15 @@
         ],
         "title": "LanguageDTO",
         "type": "object"
+      },
+      "Locale": {
+        "description": "A language the interface can be read in.",
+        "enum": [
+          "pt-BR",
+          "en"
+        ],
+        "title": "Locale",
+        "type": "string"
       },
       "LoginCommand": {
         "properties": {
@@ -7415,6 +7517,30 @@
         "title": "OllamaHealthDTO",
         "type": "object"
       },
+      "OriginAvailableDTO": {
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "description",
+          "kind",
+          "label"
+        ],
+        "title": "OriginAvailableDTO",
+        "type": "object"
+      },
       "OriginConfigFieldDTO": {
         "properties": {
           "default": {},
@@ -7819,6 +7945,22 @@
         "title": "PublicTagSummary",
         "type": "object"
       },
+      "QueueKey": {
+        "description": "\n    The stable identity of a queue on the home screen.\n\n    The contract carries the key, not the card's copy: the SPA resolves the label and the one-line\n    description from it (ADR 0020 §5), so the copy pass and its gate can see the first screen. The\n    values are the identity of an outcome, so they never change once released.\n    ",
+        "enum": [
+          "hierarchy_orphans",
+          "hierarchy_plans",
+          "tag_merge_proposals",
+          "cross_domain_conflicts",
+          "subject_low_confidence",
+          "orphan_subject_tags",
+          "typology_low_confidence",
+          "anomalies",
+          "unreviewed_documents"
+        ],
+        "title": "QueueKey",
+        "type": "string"
+      },
       "ReclassifyEntityRequest": {
         "properties": {
           "new_type": {
@@ -7864,6 +8006,7 @@
           "CSV_IMPORT_REFUSED",
           "WORKER_RUN_CANCELLED",
           "WORKER_RUN_CANCEL_REQUESTED",
+          "WORKER_RUN_CANCEL_ALREADY_REQUESTED",
           "TAG_MERGE_PROPOSAL_DECIDED",
           "TAG_MERGE_UNDONE",
           "TAG_STOPWORDS_BANNED",
@@ -9891,6 +10034,25 @@
         "title": "TypologyUpdateRequest",
         "type": "object"
       },
+      "UpdateLocaleCommand": {
+        "properties": {
+          "locale": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Locale"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "locale"
+        ],
+        "title": "UpdateLocaleCommand",
+        "type": "object"
+      },
       "UpdateTextTemplateRequest": {
         "properties": {
           "action": {
@@ -11642,7 +11804,7 @@
   },
   "info": {
     "title": "Scrinalia API",
-    "version": "1.6.0"
+    "version": "1.7.0"
   },
   "openapi": "3.1.0",
   "paths": {
@@ -11758,6 +11920,75 @@
           }
         },
         "summary": "Me",
+        "tags": [
+          "Auth"
+        ]
+      },
+      "patch": {
+        "deprecated": false,
+        "operationId": "ApiV1AuthMeUpdateMe",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateLocaleCommand"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthUserDTO"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "UpdateMe",
         "tags": [
           "Auth"
         ]
@@ -20717,6 +20948,77 @@
           }
         },
         "summary": "PreviewTagMerge",
+        "tags": [
+          "Taxonomy"
+        ]
+      }
+    },
+    "/api/v1/taxonomy/tags/preview": {
+      "post": {
+        "deprecated": false,
+        "operationId": "ApiV1TaxonomyTagsPreviewPreviewAccessPoints",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AccessPointPreviewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccessPointPreviewResponse"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "PreviewAccessPoints",
         "tags": [
           "Taxonomy"
         ]

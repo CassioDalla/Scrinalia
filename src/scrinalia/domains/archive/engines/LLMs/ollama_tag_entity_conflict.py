@@ -1,5 +1,6 @@
 import requests
 
+from scrinalia.core.i18n import t
 from scrinalia.core.logger import logger
 from scrinalia.domains.archive.exceptions import EngineExecutionError
 from scrinalia.domains.archive.schemas import EntityTagDecisionSchema
@@ -60,5 +61,10 @@ REGRA DE PERFORMANCE: No campo 'reason', você é OBRIGADO a citar o número da 
             logger.error(f"Failed to call Ollama for the term '{tag_name}': {e}")
 
             raise EngineExecutionError(
-                f"O juiz de conflito não respondeu para '{tag_name}' (modelo '{self.model}'): {str(e)[:120]}"
+                t(
+                    "O juiz de conflito não respondeu para '{tag_name}' (modelo '{model}'): {e}",
+                    tag_name=tag_name,
+                    model=self.model,
+                    e=str(e)[:120],
+                )
             ) from e

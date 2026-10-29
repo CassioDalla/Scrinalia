@@ -2525,3 +2525,437 @@ with short or full shas, and part of a `## <date> — <title>` entry.
   path is covered by the integration test that stages `Português/Brasil` and asserts the archive's
   `Português` while staging keeps the declared text. The downgrade is a documented no-op and was not
   run, because it cannot restore the spelling — the fold is lossy by design.
+
+## 2026-10-26 — the entry screen moves to the Acervo (#205)
+
+- **Range:** `8660c6f..35d11cb`
+- **Pages:**
+  - `guides/curate.md` / `curate.pt.md` — **updated**: *Nova descrição* is `/acervo/nova`, the first
+    entry of the *Acervo* menu, with a section of its own: the **Digitar** and **Importar CSV** tabs
+    (the mode travels in `?modo=csv`), the destination said once, and the redirect from
+    `/sistema/ingestao/nova`. The *Ingestão* section loses the two cards and says the curator reads
+    the origins read-only.
+  - `guides/operate.md` / `operate.pt.md` — **updated**: the manual entry is the **Digitar** tab and
+    the CSV is the **Importar CSV** tab, both at `/acervo/nova`; `/sistema/ingestao` is origins only,
+    and its `CURATE` card now buys the status read, not a curator write.
+  - `guides/install.md` / `install.pt.md` — **updated**: after the migration `/sistema/ingestao`
+    configures the origins and `/acervo/nova` is where a description is typed or imported.
+  - `guides/data-model.md` / `data-model.pt.md` — **no-change**: no table or column moved; the
+    staging and transfer paths are the same.
+  - `adr/` — **no-change**: the API and the pipeline are untouched. This is where a screen lives, not
+    an architecture decision.
+- **Freshness.** Before the round the hook named `guides/curate.md` (the conflict tabs, #220) and
+  `guides/install.md` (the 1.6.0 version bump). Both were read; the conflict screen was already
+  described as tabs, the version is not a fact the install guide stores, and the updates above are
+  what closes the range.
+- **Why the round exists.** #205 moved the two input paths of the collection out of the ingestion
+  configuration page: "Nova descrição" was the last step of Configurações -> Operação -> Ingestão,
+  and the CSV import lived as a second card on a page about origins. The screen creates the object
+  the Acervo lists, so it now lives there, with the two input shapes as tabs.
+- **What the round measured.** Full suite **2270 passed, 1 skipped** against the test database on
+  5434 (`postgresql+psycopg2`; 5433 is held by another process and its `test_user` refused the
+  password); `ruff check` and `ruff format` green and `basedpyright` **0 errors** through the commit
+  hook; `bun run --cwd apps/curator typecheck`, `lint` and `build` green; `bun test` **20 pass**;
+  `testing/unit/curator` and `testing/unit/docs` **32 passed**; `mkdocs build --strict` green; no
+  API change and no contract regeneration. Rendered with the headless shell over CDP at 1280×1600
+  against the Vite dev server and the API: `.render/205-digitar.png` is `/acervo/nova` with the menu
+  entry and the form; `.render/205-csv.png` is `?modo=csv`; `.render/205-csv-preview.png` is a sample
+  CSV mapped header by header with one invalid row before any submit; `.render/205-ingestao.png` is
+  the origins page with no entry cards. The CDP probe switched tabs to `/acervo/nova?modo=csv`, kept
+  a typed draft across the round trip, and landed `/sistema/ingestao/nova` on `/acervo/nova`. The
+  temporary session row was deleted and the driver and profile removed.
+- **Not verified, and said so.** Nothing was **submitted** through either tab: the manual and CSV
+  writes are the integration tests, and the render proves the screen, the tabs, the mapping preview
+  and the redirect. The permission hiding was not exercised with a curator or viewer account — the
+  render used the administrator — so the mirror is `permissions.ts` and the API guard; the final
+  permission of the origins page, and whether it needs a read-only mode, is #206's decision.
+
+## 2026-10-26 — the origins page becomes configuration (#206)
+
+- **Range:** `5da49c6..479e459`
+- **Pages:**
+  - `guides/operate.md` / `operate.pt.md` — **updated**: the screen is *Origens* and has two
+    sections: the configured sources (add picker, configuration, agenda, **Desativar/Ativar**,
+    **Enfileirar execução**, the effective-configuration summary) and the **Entradas** (manual/CSV
+    read-only, with the link to `/acervo/nova`). The page is `OPERATE`, the picker is the existing
+    `PATCH`, pausing keeps the row and the agenda, a fresh install starts empty, and the health probe
+    counts only the configurable origins.
+  - `guides/curate.md` / `curate.pt.md` — **updated**: *Ingestão* becomes *Origens* in the *Sistema*
+    table and section; the page stops being the "operator only" exception (the card is `OPERATE`, the
+    read routes stay authenticated), and the entry paths remain under *Nova descrição* in the Acervo.
+  - `guides/install.md` / `install.pt.md` — **updated**: a fresh installation has no configured
+    source; the operator adds the `pmc` definition from the picker, and the `PUBLIC_SCRAPE_*` values
+    are that adapter's fallback when the fields are empty.
+  - `guides/data-model.md` / `data-model.pt.md` — **no-change**: the migration is data (a row is
+    deleted when it is still the seed); no column or index moved.
+  - `adr/` — **no-change**: the origin is still a definition plus a row (ADR 0016); the page now
+    models the distinction instead of changing it.
+- **Freshness.** The previous floor ended at the #205 feature commit, whose content the squash
+  `5da49c6` carries; this round read the merged pages again and the #206 updates are what closes the
+  range from `5da49c6`.
+- **Why the round exists.** #206: after #205 removed the entry cards, the origins page still rendered
+  every definition as a card, so "never configured" and "paused" looked the same, `manual`/`csv`
+  appeared as sources, and the empty state was unreachable. The page now reads the rows, offers the
+  definitions without one, and has a lifecycle.
+- **What the round measured.** Full suite **2275 passed, 1 skipped** against the test database on
+  5434 (`postgresql+psycopg2`); `ruff check`, `ruff format` and `basedpyright` green through the
+  commit hook; the SPA's `tsc`, ESLint and Vite build green; `bun test` **20 pass**;
+  `testing/unit/curator` and `testing/unit/docs` **53 passed**; `mkdocs build --strict` green; the
+  contract regenerated (the additive `configurable` and `available`); `alembic upgrade head` applied
+  `f1090f825a94` against the dev database (the `pmc` row kept: it has provenance) and against a fresh
+  scratch database (the `pmc` row deleted; `manual` and `csv` kept), and `alembic check` reports no
+  new operations. Rendered with the headless shell over CDP at 1280×1600 against the Vite dev server
+  and an API on the scratch database: `.render/206-empty.png` is the empty *Origens* section with
+  **Adicionar origem** and the two read-only **Entradas**; `.render/206-picker.png` is the picker
+  offering the PMC definition; `.render/206-added.png` is the card active with the effective
+  configuration (`Espera entre requisições (s): 0.5`) and the add action gone; `.render/206-paused.png`
+  is the same card paused, with **Ativar** and "0 ativas"; `.render/206-health.png` is the health
+  panel showing **0 de 1 origens ativas**, only PMC, and **Abrir origens**. The CDP probe clicked the
+  add, the activation and the pause; the scratch database and its session were dropped after the
+  round, and the driver and profile removed.
+- **Not verified, and said so.** The permission hiding was not exercised with a curator or viewer
+  account — the render used the administrator — so the read-only direct URL is the `permissions.ts`
+  mirror plus the API guard. The manual/CSV entries are read-only by design, so their pause/re-enable
+  has no control on the page (the `PATCH` remains) and was not exercised through the UI. The
+  migration's downgrade is a documented no-op and was not run; the verification of the deletion is
+  the fresh scratch database above, and the preservation is the dev database. Only one definition
+  (`pmc`) is available today, so the picker was not exercised with several entries; the retired-code
+  row is out of scope and is ignored by both the page and the probe.
+
+## 2026-10-26 — one operations screen for the panel and the ledger (#207)
+
+- **Range:** `f6efb38..1c96177`
+- **Pages:**
+  - `guides/curate.md` — **updated**: *Workers de IA* became *Workers e execuções*, one screen with
+    two tabs in the URL (*Painel* and *Execuções*). The screen table merges the two rows, the section
+    says the last run links to the filtered ledger and that the old path redirects, and the
+    Configurações tab table drops the Execuções card.
+  - `guides/curate.pt.md` — **updated**: the translation of the same three places.
+  - `guides/operate.md` — **updated**: the SPA table merges `/sistema/workers` and
+    `/sistema/execucoes` into one row (the two tabs, the last-run link, the redirect); the polling
+    paragraph says only the active tab is mounted, and the cancel section names the tab.
+  - `guides/operate.pt.md` — **updated**: the same three places.
+  - `adr/0016-the-origin-is-a-first-class-object.md` — **updated**: the ingestion is seen in the
+    execution ledger at `/sistema/workers`, not in a `/sistema/execucoes` screen; the object, its row
+    and its route are unchanged.
+  - `adr/0018-trials-and-the-human-gabarito.md` — **updated**: the trial is distinguishable in the
+    execution ledger (the *Execuções* tab); the trial semantics are unchanged.
+  - `guides/data-model.md` / `data-model.pt.md` — **no-change**: no table, column or index moved.
+  - `guides/install.md` / `install.pt.md` — **no-change**: no setting or command changed.
+- **Why the round exists.** The run-check loop crossed three screens and three URLs: the panel
+  enqueued and showed the last run as plain text, and the ledger was a second door. #207 makes them
+  one route with the tab in the URL, links the last run to the ledger filtered by its worker and with
+  the exact row highlighted, and keeps `/sistema/execucoes` redirecting there with the search
+  preserved. The configuration stays a screen of its own (#53).
+- **What the round measured.** `bun run --cwd apps/curator typecheck` and `lint` green; the Vite
+  build green (2117 modules); `pytest testing/unit/curator testing/unit/docs` **53 passed**; the
+  commit hook ran ruff, ruff-format and basedpyright green; `mkdocs build --strict` green. Rendered
+  with the headless shell over CDP at 1280×1500 against the Vite dev server and an API on a scratch
+  database (`scrinalia_render_207`, dropped after): `207-panel.png` is the heading *Workers e
+  execuções* with the two tabs, the runners card and the ten workers; `207-panel-enqueued.png` is the
+  panel after one run, with "Execução #1 enfileirada; ver no ledger" and the same link under *Última
+  execução*; `207-ledger.png` is the *Execuções* tab with the worker filter set and the run row
+  ringed; `207-settings-operacao.png` is the landing's *Operação* tab with four cards and no
+  *Execuções* card. The link's href was `/sistema/workers?aba=execucoes&worker=transfer&run=1`, and
+  clicking it landed on that URL with exactly **1** highlighted row. `/sistema/execucoes?worker=transfer&run=1`
+  redirected to `/sistema/workers?worker=transfer&run=1&aba=execucoes`. Clicking the tab bar itself
+  moved `?aba=execucoes&worker=transfer&run=1` to `?aba=painel&worker=transfer` and back to
+  `?aba=execucoes&worker=transfer`: the filter survives, and `run` is dropped by a change that is not
+  itself.
+- **Not verified, and said so.** The permission mirror was not exercised with a curator or viewer
+  account — the render used the administrator, so the read-only direct URL is the `permissions.ts`
+  mirror plus the API guard, unchanged by this round. The redirect was exercised with `worker` and
+  `run` only, not with `status`, `origin`, `fingerprint` or `offset`; it carries the whole search
+  object and the validator is the same one the ledger reads. The polling cadence was not measured
+  over time: the evidence that only one tab polls is structural (only the active tab is mounted),
+  not a stopwatch. The ledger was rendered with one queued run, so the rich row (trial, retry,
+  cancellation note) is the existing screen's behaviour, not this round's.
+
+## 2026-10-27 — one hint element for the explanations that do not deserve a paragraph (#208)
+
+- **Range:** `1c96177..7843d9e`
+- **Pages:**
+  - `guides/curate.md` — **no-change**: the routes, writes and flows the guide documents did not
+    move. The new `Hint` only changes how a secondary explanation is revealed on three screens —
+    the conflict threshold, the CSV column badge and the worker run/effective configuration — and
+    the guide never described those help affordances, only the actions they sit beside.
+  - `guides/curate.pt.md` — **no-change**: the same translation, for the same reason.
+  - `guides/operate.md` — **no-change**: `WorkersPanel.tsx` moved only to place the existing
+    explanations behind the shared hint; the other source in the range is the Dependabot bump of
+    `astral-sh/setup-uv` in `.github/workflows/ci.yml`, which changes no command, probe or worker
+    behaviour the operator guide describes.
+  - `guides/operate.pt.md` — **no-change**: the same two sources, the same reason.
+- **Why the round exists.** The same second sentence was rendered four ways and chosen per screen,
+  with the native `title` as the "discreet" default: hover-only, after a delay, never on focus,
+  absent on touch, and unreliable for assistive technology. #208 adds one `Hint` primitive — a real
+  button with `aria-describedby` and a `role="tooltip"` panel whose text stays in the DOM while
+  closed — and migrates the first three places. `Field.info` sits outside the `<label>`, because a
+  button inside a label is invalid HTML and pollutes the input's accessible name. `Tabs` uses the
+  primitive through `asChild`, so the tab itself is the trigger and the interim `title` plus
+  `sr-only` text from #220 is gone. The rule lives in the `curator-ui` skill.
+- **What the round measured.** `bun run --cwd apps/curator typecheck`, `lint` and `build` green
+  (2118 modules); `bun test` **26 pass** (20 CSV + 6 hint); `pytest testing/unit/curator` **24
+  passed**; `pre-commit run --all-files` green. Rendered at 1440×900 with the headless shell over
+  CDP against the Vite dev server and the dev API, with a disposable session row deleted after the
+  round: `208-conflicts-hint.png` is the threshold tooltip open with the focus on its button,
+  `208-conflicts-escape.png` is the same panel closed after Escape while the button keeps focus,
+  `208-tab-hint.png` is the *Pendentes* tab description from the tab itself,
+  `208-workers-run.png` is the run-button explanation, `208-workers-config.png` is the effective
+  configuration hint (and what caught the inherited `uppercase` before it shipped), and
+  `208-csv-badge.png` is the column badge after a real file was set on the CSV input. The page's
+  tooltip state was `open` on focus and `closed` after Escape; the text was read back from the
+  described panel, not assumed from the screenshot.
+- **Not verified, and said so.** The pointer hover was driven through the DOM test and not with a
+  physical mouse over the rendered screen; touch was exercised as a click in `happy-dom`, not on a
+  touch device. The other `title` attributes remain (180 in `src`, three fewer than before this
+  round), because the issue retires the pattern as uses migrate, not in one sweep. The tab hints remain inside the `tablist` in the accessibility tree as non-focusable
+  tooltip nodes; the tabs themselves are still the owned elements and the described text is read on
+  focus. No colour token, route, schema or contract changed.
+
+## 2026-10-27 — the copy sweep reaches the rest of the interface
+
+- **Range:** `b75d74e..7e9a5b3`
+- **Pages:**
+  - `guides/curate.md` — **updated**: the sweep renamed two screens the guide names by label —
+    `Excluídas` → `Histórico de exclusões`, `Nova descrição` → `Nova Descrição` — and the two purge
+    panels (`Ledger das purgas` → `Registro das purgas`, `Ledger dos expurgos` → `Histórico de
+    expurgos`). A reader sent to `Acervo › Excluídas` would not find the entry. No route, write or
+    flow changed.
+  - `guides/curate.pt.md` — **updated**: the same four names, in the translation.
+  - `guides/install.md` — **updated**: the backup section quotes the deletion screen by name and
+    calls it a trail; it is `Histórico de exclusões`, and it is a record. What the section explains
+    did not move: the snapshot row, no restore, a node with children refused.
+  - `guides/install.pt.md` — **updated**: the same paragraph, same reason.
+  - `guides/operate.md` — **no-change**: its only moved source is `SystemHealthRoute.tsx`, whose
+    copy said `dimensions` and `NER/parser` for the effective configuration the page already
+    describes. The page documents runs, queues, retries and the worker catalogue, and it names
+    `ledger` as the append-only table, not as a panel — the sweep renamed the screens, not the
+    mechanism.
+  - `guides/operate.pt.md` — **no-change**: the same source, the same reason.
+- **Why the round exists.** The first copy pass covered nine files; the second swept the remaining
+  fifty-three (commit `7e9a5b3`). It replaced the system's vocabulary with the task — `ledger` →
+  histórico, `staging`/AI queue out, rule kinds out of caps, `Engine` → `Motor` — and corrected
+  three sentences that were false rather than technical: the anomaly empty state, the "sem
+  categoria" badge, and the cleaning-rule preview's sample count. `worker` stays where it names the
+  operations object, which is the exception the `curator-ui` skill now records (`a0655d4`).
+- **What the round measured.** `bun run --cwd apps/curator typecheck`, `lint` and `test` green
+  (26 pass); `pytest testing/unit/curator testing/unit/docs` **53 passed** (the copy gate included);
+  `basedpyright` green on both commits through the pre-commit hook; `freshness.py` reports these
+  three pages and no other.
+- **Not verified, and said so.** No screen was rendered for this round: the evidence is the four
+  gates above and the diff, not pixels. The pages quote labels, not behaviour, and no route, schema
+  or contract changed.
+
+## 2026-10-27 — the second copy read, and the screen it renamed
+
+- **Range:** `7e9a5b3..0876ead`
+- **Pages:**
+  - `guides/curate.md` — **updated**: the copy pass renamed `/entidades/excecoes` from "Exclusões de
+    NER" to "Remover de Entidades", and the guide quotes that label in the screen table and in the
+    section heading. No route, write or flow changed.
+  - `guides/curate.pt.md` — **updated**: the same two names, in the translation.
+  - `guides/install.md` — **no-change**: its only moved source in the range is `lib/screens.ts`, and
+    the install guide names neither the Tags screen nor this one; what moved there is the Tags
+    hint/description and two screen descriptions.
+  - `guides/install.pt.md` — **no-change**: the same source, the same reason.
+- **Why the round exists.** A second, closer copy read over the subject, entity and dossier screens
+  (`8b3acfc`) plus the correction it made necessary (`0876ead`): the entities list still linked to
+  the old label, so the list and its destination named the same screen two ways. The pass also
+  reopened the retired-word gate, which caught `apagar` and `unificação` and required the canon's
+  `Excluir` and `Mesclagem` again — and a stray double quote in one JSX text node, which is also
+  what hid that node from the scan.
+- **What the round measured.** `tsc`, ESLint, 26 bun tests and 24 pytest for the copy commit;
+  `ruff check`, `ruff format --check`, `basedpyright`, `bun run contract` (no drift),
+  `alembic check` (no drift) and `mkdocs build --strict` for this round. `freshness.py` reported
+  these two pages and no other.
+- **Not verified, and said so.** No screen was rendered: the evidence is the gates and the diff.
+
+## 2026-10-28 — the plan becomes the tree it already was
+
+- **Range:** `ba1fb02..8f891d8`
+- **Pages:**
+  - `guides/curate.md` — **updated**: the plan section now describes the rungs as the tree
+    `parent_code` implies, the leading box that closes a whole branch and states the hidden rungs
+    and decisions, the filter that keeps a match's ancestors and branch, and the URL that records
+    the closed roots. No route, write or undo changed.
+  - `guides/curate.pt.md` — **updated**: the same paragraph in the translation.
+- **Why the round exists.** #233 replaced one flat list indented by `plan.depth` with nested lists
+  and two pure functions (`buildPlanTree`, `planRows`); a collapsed branch now hides its subtree
+  without unmounting it, so an open decision body and anything typed in its form survive. The
+  status filter moved to the client because a tab fetched alone has no ancestors to draw.
+- **What the round measured.** `tsc`, ESLint, the Vite build, 47 bun tests (18 new) and 25 pytest
+  (the copy gate) on the code commit; the full suite ran against the test database on port 5434
+  (2292 passed, 1 skipped). The screen was rendered against the real 41-rung catalogue with the
+  headless shell, and 29 CDP checks covered collapse/expand, the hidden counts, the status/flag/code
+  filters, forced ancestors, the URL, and the two global controls. `Recolher os decididos` was not
+  clicked against a real fully decided branch (the dev catalogue has none); its set is pinned by
+  three pure tests. The depth-cap title above six levels was not observed either: the deepest
+  rendered branch is five levels below the root.
+- **Not verified, and said so.** The API and the SPA ran against the development database; the
+  admin password was reset for the render and restored afterwards, and the full suite used the test
+  database, not the development one.
+
+## 2026-10-28 — the access points are chips, and the string is read before it is written
+
+- **Range:** `8f891d8..c15060d`
+- **Pages:**
+  - `guides/curate.md` — **updated**: the Nova Descrição section now says the access points are chips
+    over the catalogue, that the type-ahead picks an existing spelling and *Adicionar* keeps the
+    archivist's, and that the summary under the control names what the transfer will discard, create
+    or map to a synonym. It names `POST /api/v1/taxonomy/tags/preview` as the read behind the
+    summary and says the preview removes nothing.
+  - `guides/curate.pt.md` — **updated**: the same paragraph in the translation.
+  - `guides/data-model.md` — **no-change**: the repository gained two read-only lookups
+    (`get_tag_identities_by_names`/`by_ids`) over existing columns and the unique normalized-name
+    index; no table, column, constraint or relationship changed, so the model page is still true.
+  - `guides/data-model.pt.md` — **no-change**: the English page it translates did not change.
+- **Why the round exists.** #229: the creation form asked for one comma-separated string and the
+  transfer then lowercased it, dropped banned, short and long terms and created unknown spellings,
+  with no message. The field is now a chip editor over the catalogue; the explicit *Adicionar* keeps
+  a new term, and one read-only summary says what the transfer will do with the whole string. The
+  wire is still `indexing_points: str | None`; the CSV column and the scraper are untouched, and the
+  transfer remains the only writer.
+- **What the round measured.** `ruff check`, `ruff format --check`, `basedpyright`, 2310 pytest
+  passed and 1 skipped against the test database on port 5434, 61 bun tests, `tsc`, ESLint,
+  `bun run contract` (the new route), `alembic check`, the docs coverage suite and `mkdocs build
+  --strict`. The screen was rendered against the development database with the headless shell: the
+  old free-text field, then the new chips with an existing tag, a synonym, a banned term and a new
+  term, plus the type-ahead open. The first render showed the input's own focus outline around the
+  text field only; the ring was moved to the chips box and the screen re-rendered. The warning line
+  of the summary was moved first after the first render.
+- **Not verified, and said so.** The render used the development database; the admin password was
+  reset for it and its hash restored afterwards, and the render sessions were deleted. The summary's
+  copy was observed on the development catalogue; the blocked, synonym and new states are pinned by
+  the API and component tests, not by a catalogue built for the screenshot. The CSV import was not
+  re-rendered, because its column, map and copy are unchanged.
+
+
+## 2026-10-28 — the producer field copies a name, it does not link
+
+- **Range:** `ee24d79..6ba1d64`
+- **Pages:**
+  - `guides/curate.md` — **updated**: the Nova Descrição section now describes `Produtor(es)` as a
+    name autocomplete over the entity catalogue: the fragment between separators that a pick
+    replaces, the verbatim copy (the catalogue stores names lowercased), the deliberate absence of an
+    entity-type filter, and the sentence that a copied name is not a link.
+  - `guides/curate.pt.md` — **updated**: the same paragraph in the translation.
+- **Why the round exists.** #230 was scoped down after the measurement that the producer variants in
+  this database are an ingestion shape (7 spellings for 5 creators, all 101 descriptions from the
+  `pmc` origin) and that the entity axis has no creator role. What shipped is the convenience half:
+  the copy. The relation — description ↔ creator, the entry normalisation, the list filter and a
+  producer worker — moved to #242, in the *Future Ideas* milestone.
+- **What the round measured.** `tsc`, ESLint, 72 bun tests (11 new in
+  `apps/curator/tests/entityNameField.test.tsx`) and 25 pytest in `testing/unit/curator` (the copy
+  and manual-form gates). The screen was rendered against the development database with the headless
+  shell: the creation form with the 3.2 Contexto area open and the dropdown for "prefeitura" (two
+  entities, `ORG · 23 descrições` and `LOC · 1 descrição`), the value after the pick with the caret
+  at its end, and the dossier of description 391, where typing ", gui" after the existing
+  "Prefeitura Municipal de Curitiba" searched only the fragment and the pick replaced only it. The
+  field sits inside the collapsed area on the creation screen, which is the form's default and not a
+  defect: the screenshot of the form before opening it shows no producer control, and that is the
+  screen the archivist meets.
+- **An observation, not a fix.** "gui" returned "rua assungui" (`LOC`, 3 descriptions) before "guido
+  ghilardi" (`PER`, 1): the endpoint orders by usage, which the dossier's entity picker already
+  inherited. Nothing in this change touches that ordering.
+- **Not verified, and said so.** The dossier pick was checked in the draft and the browser closed
+  without saving, so the write path is the existing one and was not exercised. The suggestion list was
+  not seen against an empty catalogue. Nothing in the CSV import, the public DTO or the API changed,
+  and none of them was re-rendered.
+
+## 2026-10-28 — the blocked spellings are a screen
+
+- **Range:** `263d936..67f00ad`
+- **Pages:**
+  - `guides/curate.md` — **updated**: the Assuntos table gains `Grafias bloqueadas —
+    /assuntos/grafias` and Tags loses the banned terms; `#### Stopwords` moves out of the Tags
+    section and becomes its own `###` section, with the two objects stated (meaning × spelling), the
+    reciprocal link and the `?aba=stopwords` redirect; the Similaridade, Classificar and *Não é
+    assunto* paragraphs now name the screen instead of the tab, and the *Não é assunto* section says
+    which of the two each one is.
+  - `guides/curate.pt.md` — **updated**: the same translation, in the SPA's vocabulary.
+  - `guides/data-model.md` — **no-change** beyond the name: two sentences said "the Stopwords
+    screen" for `save_stopwords`, and the screen is now `Grafias bloqueadas`; the table, the columns
+    and the ledger paragraphs still hold.
+  - `guides/data-model.pt.md` — **updated**: the same two references.
+- **Why the round exists.** #232 found two screens sharing a vocabulary, a dataset and a verb, with
+  the only destructive write of the axis two clicks under a page that never mentioned it. The fix
+  moved the blocked spellings to their own screen, renamed the copy at the object (a *grafia*, not a
+  term), and made the two screens name each other.
+- **What the round measured.** `tsc`, ESLint, the Vite build, 72 bun tests, `basedpyright` (0 errors)
+  and 56 pytest across `testing/unit/curator` (27, including the three new copy rules) and
+  `testing/unit/docs` (29). The screens were rendered against `scrinalia_render` with the headless
+  shell: `/assuntos/grafias` with 208 blocked spellings in three axes, a ban whose origin is a
+  verdict (`veio de “não é assunto”`) carrying the `ver em Não é Assunto` link, the danger card
+  `Excluir as tags com esses nomes` disabled until the impact preview, and the ledger below it; the
+  verdict screen with the reciprocal `Grafias bloqueadas` button and the disclosure sentence naming
+  where the tags are deleted; and `/assuntos/excecoes?termo=…` opening its ledger filtered
+  (`1 de 6 termos vetados`) and scrolled to it, which is the landing the new link promises.
+  `/assuntos/tags?aba=stopwords` was followed and answered `/assuntos/grafias`.
+- **What was not verified.** The write path was exercised only to plant the fixture (`POST
+  /subject-exclusions` for a synthetic term, which created the `EXCLUSION` ban the link is drawn
+  from); the impact preview and the tag deletion were not run, and no tag was deleted. The mobile
+  viewport was not rendered. The render database is scratch (`scrinalia_render`) and was migrated to
+  `head` for the round; the synthetic term, its ban and the temporary account were left in it and
+  belong to nobody's collection.
+
+## 2026-10-28 — the interface in two languages
+
+- **Range:** `67f00ad..ba20a13`
+- **Pages:**
+  - `guides/curate.md` — **updated**: a new *The interface speaks two languages* section states the
+    account selector, the browser fallback before sign-in, the server answering in the request's
+    language, and what does not change (the Portuguese paths and the record's own content).
+  - `guides/curate.pt.md` — **updated**: the same translation, in the SPA's vocabulary.
+  - `guides/install.md` — **updated**: one sentence after the first administrator: the interface
+    opens in Portuguese and each account can switch to English in the menu.
+  - `guides/install.pt.md` — **updated**: the same sentence.
+  - `adr/0020-the-interface-speaks-two-languages.md` — **no-change**: the decision already states the
+    account locale, the browser fallback and the server catalogue; the sweep implemented it without
+    changing it.
+- **Why the round exists.** #227 is the second half of #45: #45a translated the shell, the anonymous
+  screens and the server's catalogue; this round extracted the remaining strings from the 54 files
+  the ratchet listed — the domain vocabulary and the 28 screens — so no Portuguese literal lives
+  outside `src/i18n/`.
+- **What the round measured.** `tsc`, ESLint and the Vite build green; 72 bun tests; `pytest` 2 312
+  passed, 1 skipped; the copy gate now has **no `PENDING` list**: every file outside `src/i18n/` must
+  have no Portuguese, with the two declared data exceptions (the stored `SEM TÍTULO` sentinel and a
+  URL). The whole sweep was rendered against `scrinalia_render` (4 842 descriptions) with the
+  headless shell: 56 screenshots, the 28 screens in `pt-BR` and `en`. The render found what the
+  accent detector had missed — the English inbox still said *Contagens geradas em* and formatted the
+  date with a hardcoded `pt-BR`; the line is now catalogue-backed and goes through `formatDateTime`,
+  and the re-rendered inbox says *Counts generated at 10/28/26, 9:10 PM.* The inbox, the Tags screen
+  and the dossier were read by eye in both locales; the other 50 shots were captured and checked for
+  a non-empty frame, not inspected one by one.
+- **Not verified.** The dynamic screens were opened with the first record of the collection and its
+  default tab; a write was not exercised in any screen during the render.
+
+## 2026-10-28 — the origin panel action opens the card it lives in (#234)
+
+- **Range:** `d746689..e2c5018`
+- **Pages:**
+  - `guides/operate.md` — **updated**: the `/sistema/ingestao` paragraph now says what **Configurar**
+    and **Agenda** do on that screen — the click opens the card, shows the panel and brings it into
+    view, and a second click closes the panel while leaving the card open. The page also declares
+    `apps/curator/src/routes/OriginsRoute.tsx` and `components/ingestion/OriginPanel.tsx` among its
+    `sources:`, because it documents this screen and no freshness report could see it before.
+  - `guides/operate.pt.md` — **updated**: the same sentence, in the SPA's vocabulary.
+- **Why the round exists.** #234 was a state split in two: the action buttons set `panel`, but the
+  body that reads it exists only while the card is open, and every card starts collapsed. The click
+  was invisible and the form waited, unasked, for the next expansion. The fix moves the rule into
+  `useOriginPanel`, adds `aria-expanded`/`aria-controls` and a pressed state to the two buttons, and
+  scrolls the panel into view.
+- **What the round measured.** `tsc`, ESLint and 79 bun tests green (72 before, 7 in
+  `originPanel.test.tsx`). The screen **was rendered**: the headless shell over CDP against the dev
+  server and the API on `scrinalia_render`, with a session row inserted for the round and deleted
+  after. Four shots under `.render/`: the card collapsed; **Configurar** opening the card and the
+  configuration form in one click, with the button outlined, accent-tinted and pointing down; the
+  second click closing the form with the card still open; and **Agenda** reopening the card on the
+  schedule form. Measured over CDP in those states: the heading stays at `y=16`, the window and the
+  content column stay at `scrollTop=0`, and the configuration form's save button lands at `y=761` —
+  the panel fits the 1000px viewport, so `block: "nearest"` had nothing to move; the scroll itself
+  is pinned by the unit test, not by these shots.
+- **Not verified.** No write was exercised — *Salvar configuração*, *Salvar agenda* and *Pausar*
+  were not clicked, and the operator-permission case (a curator's read-only card) was not rendered.
+  The render used the one configured origin (`pmc`) in the scratch database; the long-card
+  below-the-fold case is pinned by the unit test's `scrollIntoView` assertion, not by a screenshot of
+  a card taller than the viewport.

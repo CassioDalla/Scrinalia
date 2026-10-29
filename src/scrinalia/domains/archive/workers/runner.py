@@ -11,6 +11,7 @@ from typing import Any
 from scrinalia.core.author import Author
 from scrinalia.core.cli import positive_int
 from scrinalia.core.database import get_db
+from scrinalia.core.i18n import t
 from scrinalia.core.logger import logger
 from scrinalia.domains.archive.exceptions import InvalidWorkerSettingsError
 from scrinalia.domains.archive.models.enums import WorkerRunStatus, WorkerRunTrigger
@@ -131,24 +132,30 @@ def _coerce_option(key: str, value: Any, declared: Any) -> Any:
     if isinstance(declared, bool):
         lowered = value.strip().lower()
         if lowered not in {"true", "false"}:
-            raise InvalidWorkerSettingsError(f"A opção '{key}' é booleana: use true ou false, não {value!r}.")
+            raise InvalidWorkerSettingsError(
+                t("A opção '{key}' é booleana: use true ou false, não {value}.", key=key, value=value)
+            )
         return lowered == "true"
 
     if isinstance(declared, int):
         try:
             return int(value)
         except ValueError as error:
-            raise InvalidWorkerSettingsError(f"A opção '{key}' espera um inteiro, não {value!r}.") from error
+            raise InvalidWorkerSettingsError(
+                t("A opção '{key}' espera um inteiro, não {value}.", key=key, value=value)
+            ) from error
 
     if isinstance(declared, float):
         try:
             return float(value)
         except ValueError as error:
-            raise InvalidWorkerSettingsError(f"A opção '{key}' espera um número, não {value!r}.") from error
+            raise InvalidWorkerSettingsError(
+                t("A opção '{key}' espera um número, não {value}.", key=key, value=value)
+            ) from error
 
     if isinstance(declared, (list, tuple, dict)):
         raise InvalidWorkerSettingsError(
-            f"A opção '{key}' espera uma lista ou um objeto: ela não é configurável pela linha de comando."
+            t("A opção '{key}' espera uma lista ou um objeto: ela não é configurável pela linha de comando.", key=key)
         )
 
     lowered = value.strip().lower()
@@ -170,18 +177,24 @@ def _coerce_engine_option(key: str, value: str, known: dict[str, Any]) -> Any:
     if isinstance(reference, bool):
         lowered = value.strip().lower()
         if lowered not in {"true", "false"}:
-            raise InvalidWorkerSettingsError(f"O repasse '{key}' é booleano: use true ou false, não {value!r}.")
+            raise InvalidWorkerSettingsError(
+                t("O repasse '{key}' é booleano: use true ou false, não {value}.", key=key, value=value)
+            )
         return lowered == "true"
     if isinstance(reference, int) and not isinstance(reference, bool):
         try:
             return int(value)
         except ValueError as error:
-            raise InvalidWorkerSettingsError(f"O repasse '{key}' espera um inteiro, não {value!r}.") from error
+            raise InvalidWorkerSettingsError(
+                t("O repasse '{key}' espera um inteiro, não {value}.", key=key, value=value)
+            ) from error
     if isinstance(reference, float):
         try:
             return float(value)
         except ValueError as error:
-            raise InvalidWorkerSettingsError(f"O repasse '{key}' espera um número, não {value!r}.") from error
+            raise InvalidWorkerSettingsError(
+                t("O repasse '{key}' espera um número, não {value}.", key=key, value=value)
+            ) from error
     if isinstance(reference, (list, tuple)):
         return [part.strip() for part in value.split(",") if part.strip()]
     return value
@@ -302,8 +315,11 @@ def run_worker(
         # overrides (``device``, ``host``), and a run cap that fell into it would be handed to the
         # engine and ignored — exactly the silent drop this refusal exists to prevent.
         raise InvalidWorkerSettingsError(
-            f"O worker '{name}' não aceita --limit: ele não declara 'limit' no execute. "
-            f"Quem declara hoje: {_workers_declaring('limit')}."
+            t(
+                "O worker '{name}' não aceita --limit: ele não declara 'limit' no execute. Quem declara hoje: {limit}.",
+                name=name,
+                limit=_workers_declaring("limit"),
+            )
         )
 
     spec = WORKER_CATALOGUE.get(name)
@@ -319,7 +335,7 @@ def run_worker(
             # request's; the origin is the axis and travels in its own column.
             if not origin_code:
                 raise InvalidWorkerSettingsError(
-                    "O worker 'ingestion' precisa da origem: informe --origin ou a linha da fila."
+                    t("O worker 'ingestion' precisa da origem: informe --origin ou a linha da fila.")
                 )
             resolved_engine, resolved_preset, resolved_batch = None, None, None
             forwarded = explicit_extra

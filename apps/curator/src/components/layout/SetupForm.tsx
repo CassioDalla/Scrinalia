@@ -5,6 +5,7 @@ import { ApiError, createFirstAdmin } from "@/api/client";
 import { Lockup } from "@/components/brand/Lockup";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { useCopy } from "@/i18n/context";
 
 /**
  * The first screen of an installation that has no account at all.
@@ -23,6 +24,7 @@ import { Input } from "@/components/ui/Input";
  * success path is the shell, with no second sign-in.
  */
 export function SetupForm() {
+  const copy = useCopy();
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
   const [password, setPassword] = useState("");
@@ -63,15 +65,12 @@ export function SetupForm() {
         </div>
 
         <div className="p-6">
-          <p className="pb-3 text-base font-semibold">Primeiro acesso da instalação</p>
+          <p className="pb-3 text-base font-semibold">{copy.auth.setup.title}</p>
 
-          <p className="pb-4 text-xs text-(--color-muted)">
-            Esta instalação ainda não tem contas, e esta só pode ser criada uma vez. A conta criada aqui
-            administra o sistema: ela cria as demais em Configurações › Usuários.
-          </p>
+          <p className="pb-4 text-xs text-(--color-muted)">{copy.auth.setup.explanation}</p>
 
           <label className="block pb-3 text-sm">
-            <span className="pb-1 block text-(--color-muted)">E-mail</span>
+            <span className="pb-1 block text-(--color-muted)">{copy.auth.setup.email}</span>
             <Input
               type="email"
               value={email}
@@ -82,12 +81,12 @@ export function SetupForm() {
           </label>
 
           <label className="block pb-3 text-sm">
-            <span className="pb-1 block text-(--color-muted)">Nome</span>
+            <span className="pb-1 block text-(--color-muted)">{copy.auth.setup.name}</span>
             <Input value={name} onChange={(event) => setName(event.target.value)} />
           </label>
 
           <label className="block pb-3 text-sm">
-            <span className="pb-1 block text-(--color-muted)">Senha</span>
+            <span className="pb-1 block text-(--color-muted)">{copy.auth.setup.password}</span>
             <Input
               type="password"
               value={password}
@@ -97,7 +96,7 @@ export function SetupForm() {
           </label>
 
           <label className="block pb-5 text-sm">
-            <span className="pb-1 block text-(--color-muted)">Repita a senha</span>
+            <span className="pb-1 block text-(--color-muted)">{copy.auth.setup.confirmation}</span>
             <Input
               type="password"
               value={confirmation}
@@ -106,11 +105,11 @@ export function SetupForm() {
             />
           </label>
 
-          {mismatch ? <p className="pb-4 text-sm text-(--color-danger)">As duas senhas não coincidem.</p> : null}
+          {mismatch ? <p className="pb-4 text-sm text-(--color-danger)">{copy.auth.setup.mismatch}</p> : null}
 
           {failure ? (
             <p className="pb-4 text-sm text-(--color-danger)">
-              {failure instanceof ApiError ? failure.message : "Não foi possível criar a conta."}
+              {failure instanceof ApiError ? failure.message : copy.auth.setup.failure}
             </p>
           ) : null}
 
@@ -120,13 +119,10 @@ export function SetupForm() {
             className="w-full"
             disabled={create.isPending || !email || !name || !password || mismatch}
           >
-            {create.isPending ? "Criando…" : "Criar conta e entrar"}
+            {create.isPending ? copy.auth.setup.creating : copy.auth.setup.create}
           </Button>
 
-          <p className="pt-4 text-xs text-(--color-muted)">
-            Não há recuperação de senha por e-mail: guarde esta senha, ou quem administra a instalação a
-            redefine pelo terminal do servidor.
-          </p>
+          <p className="pt-4 text-xs text-(--color-muted)">{copy.auth.setup.noRecovery}</p>
         </div>
       </form>
     </div>

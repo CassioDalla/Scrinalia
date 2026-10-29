@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 
 import { cn } from "@/lib/cn";
+import { useCopy } from "@/i18n/context";
 
 export type TypeaheadOption = {
   /** What the pick handler receives; always a string so the same component serves ids and codes. */
@@ -27,7 +28,7 @@ export function Typeahead({
   onSearch,
   onPick,
   disabled,
-  emptyLabel = "nada encontrado",
+  emptyLabel,
   className,
   autoFocus,
 }: {
@@ -46,6 +47,7 @@ export function Typeahead({
   const [highlighted, setHighlighted] = useState(0);
   const [searched, setSearched] = useState(false);
   const listId = useId();
+  const messages = useCopy();
 
   // Monotonic request id: a slow answer to "igr" must not overwrite the answer to "igreja".
   const requestId = useRef(0);
@@ -146,11 +148,11 @@ export function Typeahead({
           className="absolute z-20 mt-1 max-h-72 w-full overflow-y-auto rounded-md bg-(--color-surface) py-1 text-sm shadow-lg ring-1 ring-(--color-line)"
         >
           {searching && options.length === 0 ? (
-            <li className="px-3 py-2 text-xs text-(--color-muted)">buscando…</li>
+            <li className="px-3 py-2 text-xs text-(--color-muted)">Buscando…</li>
           ) : null}
 
           {!searching && searched && options.length === 0 ? (
-            <li className="px-3 py-2 text-xs text-(--color-muted)">{emptyLabel}</li>
+            <li className="px-3 py-2 text-xs text-(--color-muted)">{emptyLabel ?? messages.common.nothingFound}</li>
           ) : null}
 
           {options.map((option, index) => (

@@ -21,6 +21,9 @@ import { EmptyState, ErrorState, Spinner } from "@/components/ui/Feedback";
 import { Input, Textarea } from "@/components/ui/Input";
 import { Notice } from "@/components/ui/Notice";
 import { PageBody } from "@/components/layout/PageBody";
+import { useCopy } from "@/i18n/context";
+import { fill } from "@/i18n/maps";
+import { Trans } from "@/i18n/trans";
 import { ACTION } from "@/lib/copy";
 import { EXCLUSION_SOURCE_HINT, EXCLUSION_SOURCE_LABEL } from "@/lib/entities";
 import { formatCount, formatDateTime } from "@/lib/format";
@@ -48,6 +51,7 @@ import { useDebounced } from "@/lib/useDebounced";
  * stopwords on purpose — a veto here can never make the subject purge delete a tag the curator kept.
  */
 export function NerExclusionsRoute() {
+  const messages = useCopy();
   const queryClient = useQueryClient();
   const exclusions = useQuery(queries.nerExclusions());
 
@@ -129,18 +133,26 @@ export function NerExclusionsRoute() {
         pending={exclusions.isPending}
         status={
           exclusions.data
-            ? `${formatCount(rows.length)} termos vetados · ${formatCount(fromJudge)} do juiz · ${formatCount(fromHuman)} da curadoria`
+            ? fill(messages.pages.nerExclusions.status, {
+                terms: formatCount(rows.length),
+                judge: formatCount(fromJudge),
+                curator: formatCount(fromHuman),
+              })
             : undefined
         }
       />
 
       <PageBody>
         <Notice tone="warn">
-          <strong>O veto vale para o termo inteiro, não para pedaços.</strong> O extrator funde tokens
-          vizinhos: com <code>iptu</code> vetado ele ainda devolve <code>“IPTU do Batel”</code> como uma
-          entidade, então o bloqueio é por limite de token. Vetar <strong>não exclui nada</strong>: o que
-          já foi extraído sai no <strong>expurgo do passado</strong>, um passo separado, com impacto na
-          frente e ledger para desfazer.
+          <Trans
+            text={messages.pages.nerExclusions.notice}
+            values={{
+              lead: <strong>{messages.pages.nerExclusions.noticeLead}</strong>,
+              first: <code>{messages.pages.nerExclusions.noticeFirstExample}</code>,
+              second: <code>{messages.pages.nerExclusions.noticeSecondExample}</code>,
+              warning: <strong>{messages.pages.nerExclusions.noticeWarning}</strong>,
+            }}
+          />
         </Notice>
 
         {/*
@@ -150,31 +162,26 @@ export function NerExclusionsRoute() {
           read, and the labelled button is what makes it findable.
         */}
         <Disclosure
-          triggerLabel="+ Vetar Termos"
-          toggleLabel="Vetar termos"
+          triggerLabel={messages.pages.nerExclusions.form.trigger}
+          toggleLabel={messages.pages.nerExclusions.form.toggle}
           header={
             <div className="grid gap-1">
-              <span className="text-sm font-semibold">Vetar Termos</span>
-              <span className="text-xs text-(--color-muted)">
-                O veto vale para o termo inteiro. Ele não exclui nada: o expurgo do passado fica abaixo.
-              </span>
+              <span className="text-sm font-semibold">{messages.pages.nerExclusions.form.title}</span>
+              <span className="text-xs text-(--color-muted)">{messages.pages.nerExclusions.form.hint}</span>
             </div>
           }
         >
           <div className="grid gap-2">
-            <p className="text-xs text-(--color-muted)">
-              Separe por vírgula ou quebra de linha. O motivo é guardado para auditoria — e ele é o que
-              explica a decisão para quem abrir a lista depois.
-            </p>
+            <p className="text-xs text-(--color-muted)">{messages.pages.nerExclusions.form.body}</p>
             <Input
               value={draft}
               onChange={(event) => setDraft(event.target.value)}
-              placeholder="termos, separados por vírgula"
+              placeholder={messages.pages.nerExclusions.form.placeholder}
             />
             <Textarea
               value={reason}
               onChange={(event) => setReason(event.target.value)}
-              placeholder="por que este termo é assunto e não nome próprio"
+              placeholder={messages.pages.nerExclusions.form.reasonPlaceholder}
               rows={2}
             />
             <div>
@@ -183,15 +190,17 @@ export function NerExclusionsRoute() {
                 disabled={draft.trim().length === 0 || ban.isPending}
                 onClick={() => ban.mutate()}
               >
-                {ban.isPending ? "Vetando…" : "Vetar termo"}
+                {ban.isPending
+                  ? messages.pages.nerExclusions.form.pending
+                  : messages.pages.nerExclusions.form.submit}
               </Button>
             </div>
             {ban.data ? (
               <p className="text-xs text-(--color-muted)">
                 {routeMessage(ban.data)}{" "}
                 {ban.data.created > 0
-                  ? "Nada foi excluído: o que já existe sai no expurgo do passado, abaixo."
-                  : "O termo já estava vetado."}
+                  ? messages.pages.nerExclusions.form.created
+                  : messages.pages.nerExclusions.form.already}
               </p>
             ) : null}
             {ban.error ? <ErrorState error={ban.error} /> : null}
@@ -204,13 +213,18 @@ export function NerExclusionsRoute() {
 
         {exclusions.data && rows.length === 0 ? (
           <EmptyState
-            title="Nenhum termo vetado"
+            title={messages.pages.nerExclusions.emptyTitle}
             hint={
-              <>
-                O veto é a decisão “isto é assunto, não nome próprio”. Ele é escrito pelo juiz de
-                conflitos em <Link to="/entidades/conflitos" className="underline">/entidades/conflitos</Link>{" "}
-                ou por você aqui. Enquanto o NER não rodar no acervo, esta lista nasce vazia.
-              </>
+              <Trans
+                text={messages.pages.nerExclusions.emptyHint}
+                values={{
+                  conflicts: (
+                    <Link to="/entidades/conflitos" className="underline">
+                      {messages.screens.conflicts.label}
+                    </Link>
+                  ),
+                }}
+              />
             }
           />
         ) : null}
@@ -222,10 +236,10 @@ export function NerExclusionsRoute() {
                 items={rows}
                 keyOf={(row) => row.term}
                 termOf={(row) => [row.term, row.reason ?? "", labelOf(EXCLUSION_SOURCE_LABEL, row.source)]}
-                searchPlaceholder="buscar termo vetado…"
-                nounSingular="termo vetado"
-                nounPlural="termos vetados"
-                emptyTitle="Nenhum termo vetado"
+                searchPlaceholder={messages.pages.nerExclusions.searchPlaceholder}
+                nounSingular={messages.pages.nerExclusions.nounSingular}
+                nounPlural={messages.pages.nerExclusions.nounPlural}
+                emptyTitle={messages.pages.nerExclusions.emptyTitle}
                 renderItem={(row) => (
                   <div className="grid gap-1 py-2">
                     <div className="flex flex-wrap items-center justify-between gap-2">
@@ -238,8 +252,8 @@ export function NerExclusionsRoute() {
                           {labelOf(EXCLUSION_SOURCE_LABEL, row.source)}
                         </Badge>
                         {row.tag_id !== null ? (
-                          <Badge tone="neutral" title="A tag que justifica a decisão">
-                            tag #{row.tag_id}
+                          <Badge tone="neutral" title={messages.pages.nerExclusions.tagBadgeTitle}>
+                            {fill(messages.pages.nerExclusions.tagId, { id: row.tag_id })}
                           </Badge>
                         ) : null}
                         <span className="text-xs text-(--color-muted)">{formatDateTime(row.created_at)}</span>
@@ -248,7 +262,7 @@ export function NerExclusionsRoute() {
                         size="sm"
                         variant="ghost"
                         disabled={unban.isPending}
-                        title="O extrator volta a considerar o termo. As entidades já expurgadas voltam pelo ledger do expurgo."
+                        title={messages.pages.nerExclusions.unbanTitle}
                         onClick={() => unban.mutate(row.term)}
                       >
                         {ACTION.remove.label}
@@ -263,13 +277,15 @@ export function NerExclusionsRoute() {
         ) : null}
 
         <Card className="ring-(--color-danger)/30">
-          <CardHeader className="text-sm font-semibold text-(--color-danger)">Expurgar do passado</CardHeader>
+          <CardHeader className="text-sm font-semibold text-(--color-danger)">
+            {messages.pages.nerExclusions.purge.title}
+          </CardHeader>
           <CardBody className="grid gap-3">
             <p className="text-xs text-(--color-muted)">
-              O expurgo exclui toda entidade cujo nome seja um termo vetado. Os vínculos caem junto e o
-              nome sai do vocabulário. Cada entidade excluída entra no <strong>ledger de expurgos</strong>{" "}
-              antes de sair, então o desfazer restaura a entidade, os vínculos e as grafias — mas não
-              levanta o veto.
+              <Trans
+                text={messages.pages.nerExclusions.purge.body}
+                values={{ ledger: <strong>{messages.pages.nerExclusions.purge.bodyLedger}</strong> }}
+              />
             </p>
 
             <div className="flex flex-wrap items-center gap-2">
@@ -279,14 +295,16 @@ export function NerExclusionsRoute() {
               <Button
                 variant="danger"
                 disabled={!preview || preview.total_entities === 0 || purge.isPending}
-                title={preview ? undefined : "O impacto é obrigatório: confira o que seria excluído primeiro."}
+                title={preview ? undefined : messages.pages.nerExclusions.purge.previewRequired}
                 onClick={() => purge.mutate()}
               >
                 {purge.isPending
                   ? ACTION.exclude.pending
                   : preview
-                    ? `Expurgar ${formatCount(preview.total_entities)} entidade(s)`
-                    : "Expurgar (confira antes)"}
+                    ? fill(messages.pages.nerExclusions.purge.purgeCount, {
+                        count: formatCount(preview.total_entities),
+                      })
+                    : messages.pages.nerExclusions.purge.purgeFirst}
               </Button>
             </div>
 
@@ -296,18 +314,34 @@ export function NerExclusionsRoute() {
             {preview ? (
               <Notice tone="danger" as="div" className="grid gap-2">
                 <p>
-                  Nada foi excluído ainda. Seriam <strong>{formatCount(preview.total_entities)} entidade(s)</strong>{" "}
-                  em <strong>{formatCount(preview.total_documents)} vínculo(s)</strong>.
+                  <Trans
+                    text={messages.pages.nerExclusions.purge.previewLead}
+                    values={{
+                      entities: (
+                        <strong>
+                          {fill(messages.pages.nerExclusions.purge.previewEntities, {
+                            count: formatCount(preview.total_entities),
+                          })}
+                        </strong>
+                      ),
+                      links: (
+                        <strong>
+                          {fill(messages.pages.nerExclusions.purge.previewLinks, {
+                            count: formatCount(preview.total_documents),
+                          })}
+                        </strong>
+                      ),
+                    }}
+                  />
                 </p>
                 {(preview.excluded_terms ?? []).length > 0 ? (
                   <p className="text-(--color-muted)">
-                    termos que o expurgo alcança: <code>{(preview.excluded_terms ?? []).join(", ")}</code>
+                    {messages.pages.nerExclusions.purge.reached}{" "}
+                    <code>{(preview.excluded_terms ?? []).join(", ")}</code>
                   </p>
                 ) : null}
                 {preview.total_entities === 0 ? (
-                  <p className="text-(--color-muted)">
-                    Nenhuma entidade do acervo tem um desses nomes — não há o que expurgar.
-                  </p>
+                  <p className="text-(--color-muted)">{messages.pages.nerExclusions.purge.nothingToPurge}</p>
                 ) : (
                   <ul className="max-h-64 overflow-y-auto">
                     {(preview.entities ?? []).map((entity) => (
@@ -316,9 +350,13 @@ export function NerExclusionsRoute() {
                           {entity.name} <span className="text-(--color-muted)">· {entity.entity_type}</span>
                         </span>
                         <span className="shrink-0 tabular-nums text-(--color-muted)">
-                          {formatCount(entity.document_count)} doc
+                          {fill(messages.pages.nerExclusions.purge.documents, {
+                            count: formatCount(entity.document_count),
+                          })}
                           {(entity.synonym_names ?? []).length > 0
-                            ? ` · ${formatCount((entity.synonym_names ?? []).length)} grafia(s)`
+                            ? ` · ${fill(messages.pages.nerExclusions.purge.synonyms, {
+                                count: formatCount((entity.synonym_names ?? []).length),
+                              })}`
                             : ""}
                         </span>
                       </li>
@@ -330,23 +368,25 @@ export function NerExclusionsRoute() {
 
             {purged !== null ? (
               <Notice tone="ok" as="div" className="grid gap-2">
-                <p>{formatCount(purged)} entidade(s) excluída(s) e registrada(s) no ledger de expurgos.</p>
+                <p>
+                  {fill(messages.pages.nerExclusions.purge.purged, { count: formatCount(purged) })}
+                </p>
                 {purgeIds.length > 0 ? (
                   <div className="flex flex-wrap items-center gap-2">
                     <Button
                       size="sm"
                       variant="ghost"
                       disabled={revertPurge.isPending}
-                      title="Restaura a entidade, os vínculos e as grafias deste expurgo. O veto continua."
+                      title={messages.pages.nerExclusions.purge.undoTitle}
                       onClick={() => {
                         const [first] = purgeIds;
                         if (first !== undefined) revertPurge.mutate(first);
                       }}
                     >
-                      desfazer este expurgo
+                      {messages.pages.nerExclusions.purge.undo}
                     </Button>
                     <span className="text-(--color-muted)">
-                      entradas no ledger: <code>{purgeIds.join(", ")}</code>
+                      {messages.pages.nerExclusions.purge.entries} <code>{purgeIds.join(", ")}</code>
                     </span>
                   </div>
                 ) : null}
@@ -357,12 +397,13 @@ export function NerExclusionsRoute() {
         </Card>
 
         <Card>
-          <CardHeader className="text-sm font-semibold">Ledger dos expurgos</CardHeader>
+          <CardHeader className="text-sm font-semibold">{messages.pages.nerExclusions.log.title}</CardHeader>
           <CardBody className="grid gap-2">
             <p className="text-xs text-(--color-muted)">
-              Cada linha é uma entidade excluída pelo expurgo, com o antes guardado: nome, tipo, vínculos e
-              grafias. O desfazer restaura a entidade — e <strong>não</strong> levanta o veto, que continua
-              fora da próxima extração.
+              <Trans
+                text={messages.pages.nerExclusions.log.hint}
+                values={{ strong: <strong>{messages.pages.nerExclusions.log.hintStrong}</strong> }}
+              />
             </p>
             {/*
               The search is server-side: the ledger only grows, and a box that filtered the loaded page
@@ -371,18 +412,22 @@ export function NerExclusionsRoute() {
             <Input
               className="max-w-xs"
               value={logTerm}
-              placeholder="buscar por entidade expurgada…"
+              placeholder={messages.pages.nerExclusions.log.searchPlaceholder}
               onChange={(event) => setLogTerm(event.target.value)}
             />
-            {log.isPending ? <Spinner label="Lendo o ledger…" /> : null}
+            {log.isPending ? <Spinner label={messages.pages.nerExclusions.log.reading} /> : null}
             {log.error ? <ErrorState error={log.error} /> : null}
             {log.data && (log.data.items ?? []).length === 0 ? (
               <EmptyState
-                title={logTerm.trim() ? `Nenhum expurgo para “${logTerm.trim()}”` : "Nenhum expurgo registrado ainda"}
+                title={
+                  logTerm.trim()
+                    ? fill(messages.pages.nerExclusions.log.emptyTerm, { term: logTerm.trim() })
+                    : messages.pages.nerExclusions.log.empty
+                }
                 hint={
                   logTerm.trim()
-                    ? "A busca cobre o nome da entidade expurgada."
-                    : "O ledger registra cada entidade excluída, com o antes."
+                    ? messages.pages.nerExclusions.log.emptyTermHint
+                    : messages.pages.nerExclusions.log.emptyHint
                 }
               />
             ) : null}
@@ -393,22 +438,32 @@ export function NerExclusionsRoute() {
                     <span className="font-medium">{entry.purged_name}</span>
                     <span className="text-(--color-muted)">
                       {" "}
-                      · {entry.entity_type} · {formatCount(entry.document_count)} doc(s) ·{" "}
-                      {formatDateTime(entry.changed_at)}
-                      {entry.changed_by ? ` · por ${entry.changed_by}` : ""} · veto <code>{entry.excluded_term}</code>
+                      · {entry.entity_type} ·{" "}
+                      {fill(messages.pages.nerExclusions.log.documents, {
+                        count: formatCount(entry.document_count),
+                      })}{" "}
+                      · {formatDateTime(entry.changed_at)}
+                      {entry.changed_by
+                        ? ` ${fill(messages.pages.nerExclusions.log.by, { name: entry.changed_by })}`
+                        : ""}{" "}
+                      · {messages.pages.nerExclusions.log.veto} <code>{entry.excluded_term}</code>
                     </span>
                   </span>
                   {entry.undone_at ? (
-                    <Badge tone="neutral">restaurada em {formatDateTime(entry.undone_at)}</Badge>
+                    <Badge tone="neutral">
+                      {fill(messages.pages.nerExclusions.log.restored, {
+                        date: formatDateTime(entry.undone_at),
+                      })}
+                    </Badge>
                   ) : (
                     <Button
                       size="sm"
                       variant="ghost"
                       disabled={revertPurge.isPending}
-                      title="Restaura a entidade, os vínculos e as grafias. O veto do termo continua."
+                      title={messages.pages.nerExclusions.log.undoTitle}
                       onClick={() => revertPurge.mutate(entry.purge_id)}
                     >
-                      desfazer
+                      {messages.pages.nerExclusions.log.undo}
                     </Button>
                   )}
                 </li>
@@ -426,12 +481,19 @@ export function NerExclusionsRoute() {
                     variant="ghost"
                     onClick={() => setLogLimit((current) => current + MERGE_LOG_PAGE_SIZE)}
                   >
-                    ver mais
+                    {messages.pages.nerExclusions.log.seeMore}
                   </Button>
                 ) : null}
                 <span className="text-xs text-(--color-muted)">
-                  mostrando {formatCount((log.data.items ?? []).length)} de {formatCount(log.data.total)}{" "}
-                  {settledLogTerm.trim() ? "expurgo(s) que casam com a busca" : "expurgo(s) registrado(s)"}
+                  {fill(
+                    settledLogTerm.trim()
+                      ? messages.pages.nerExclusions.log.showingFiltered
+                      : messages.pages.nerExclusions.log.showing,
+                    {
+                      shown: formatCount((log.data.items ?? []).length),
+                      total: formatCount(log.data.total),
+                    },
+                  )}
                 </span>
               </div>
             ) : null}

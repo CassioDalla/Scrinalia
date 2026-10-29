@@ -37,6 +37,8 @@ import {
 import { labelOf } from "@/lib/hierarchy";
 import { asEnum } from "@/lib/search";
 import { routeMessage } from "@/lib/messages";
+import { useCopy } from "@/i18n/context";
+import { fill } from "@/i18n/maps";
 
 const routeApi = getRouteApi("/qualidade/trechos");
 
@@ -66,6 +68,7 @@ const SCOPES: TemplateScope[] = ["EMBEDDING", "NER", "TITLE"];
 export function TextTemplatesRoute() {
   const search = routeApi.useSearch();
   const navigate = useNavigate();
+  const messages = useCopy();
   const queryClient = useQueryClient();
 
   const [minRatio, setMinRatio] = useState(0.05);
@@ -93,39 +96,29 @@ export function TextTemplatesRoute() {
         status={
           templates.data
             ? rows.length === 0
-              ? "Nenhum trecho no filtro atual"
-              : `${formatCount(rows.length)} trechos no filtro atual`
+              ? messages.pages.textTemplates.statusEmpty
+              : fill(messages.pages.textTemplates.statusCount, { count: formatCount(rows.length) })
             : undefined
         }
       />
 
       <PageBody>
-        <Notice tone="accent">
-          <strong>O escopo é a decisão que importa.</strong> Cada trecho diz de qual consumidor ele sai
-          — vetor, extração de nomes ou título sugerido. Aprovar tudo o que a máquina sugeriu
-          <strong> piorou</strong> o ranking (Hit@10 0.562 → 0.500): o prefixo de título ajudava o
-          título e prejudicava o vetor. Por isso não existe botão de aprovar todos aqui.
-        </Notice>
+        <Notice tone="accent">{messages.pages.textTemplates.notice}</Notice>
 
         <Disclosure
-          triggerLabel="+ Procurar trechos"
-          toggleLabel="Procurar trechos repetidos"
+          triggerLabel={messages.pages.textTemplates.searchTrigger}
+          toggleLabel={messages.pages.textTemplates.searchToggle}
           header={
             <div className="grid gap-1">
-              <span className="text-sm font-semibold">Procurar trechos repetidos</span>
-              <span className="text-xs text-(--color-muted)">
-                A varredura registra candidatos inativos: nada entra no texto da IA antes de você aprovar um escopo.
-              </span>
+              <span className="text-sm font-semibold">{messages.pages.textTemplates.searchToggle}</span>
+              <span className="text-xs text-(--color-muted)">{messages.pages.textTemplates.searchHint}</span>
             </div>
           }
         >
           <div className="grid gap-2">
-            <p className="text-xs text-(--color-muted)">
-              A varredura registra os candidatos como <strong>sugestões inativas</strong>: nada entra no
-              texto da IA antes de você aprovar um escopo.
-            </p>
+            <p className="text-xs text-(--color-muted)">{messages.pages.textTemplates.scanHint}</p>
             <div className="flex flex-wrap items-end gap-3">
-              <Field label="Fração mínima do acervo">
+              <Field label={messages.pages.textTemplates.minRatio}>
                 <Input
                   type="number"
                   min={0.01}
@@ -136,7 +129,7 @@ export function TextTemplatesRoute() {
                   className="w-32"
                 />
               </Field>
-              <Field label="Documentos mínimos">
+              <Field label={messages.pages.textTemplates.minDocuments}>
                 <Input
                   type="number"
                   min={2}
@@ -146,13 +139,16 @@ export function TextTemplatesRoute() {
                 />
               </Field>
               <Button variant="primary" disabled={suggest.isPending} onClick={() => suggest.mutate()}>
-                {suggest.isPending ? "Varrendo…" : "Procurar"}
+                {suggest.isPending ? messages.pages.textTemplates.scanning : messages.pages.textTemplates.search}
               </Button>
             </div>
             {suggest.data ? (
               <p className="text-xs text-(--color-muted)">
-                {routeMessage(suggest.data)} {formatCount(suggest.data.documents_scanned)} documentos lidos ·{" "}
-                {formatCount(suggest.data.persisted)} candidatos registrados.
+                {routeMessage(suggest.data)}{" "}
+                {fill(messages.pages.textTemplates.scannedLine, {
+                  scanned: formatCount(suggest.data.documents_scanned),
+                  persisted: formatCount(suggest.data.persisted),
+                })}
               </p>
             ) : null}
             {suggest.error ? <ErrorState error={suggest.error} /> : null}
@@ -170,7 +166,7 @@ export function TextTemplatesRoute() {
               variant={search.status === status ? "primary" : "secondary"}
               onClick={() => navigate({ to: "/qualidade/trechos", search: { status } })}
             >
-              {status ? labelOf(TEMPLATE_STATUS_LABEL, status) : "Todos"}
+              {status ? labelOf(TEMPLATE_STATUS_LABEL, status) : messages.pages.textTemplates.allStatuses}
             </Button>
           ))}
         </div>
@@ -179,8 +175,8 @@ export function TextTemplatesRoute() {
         {templates.isPending ? <Spinner /> : null}
         {templates.data && rows.length === 0 ? (
           <EmptyState
-            title="Nenhum trecho neste filtro"
-            hint="Rode a procura acima, ou escreva um trecho à mão. Os 5 candidatos do acervo real vieram dessa varredura: um bloco de escopo compartilhado por 2.467 documentos e o prefixo de título 'Registros Fotográficos -'."
+            title={messages.pages.textTemplates.emptyTitle}
+            hint={messages.pages.textTemplates.emptyHint}
           />
         ) : null}
 
@@ -199,6 +195,7 @@ function scopeOf(template: TextTemplate): TemplateScope[] {
 }
 
 function TemplateCard({ template, onChanged }: { template: TextTemplate; onChanged: () => void }) {
+  const messages = useCopy();
   const [preview, setPreview] = useState<TemplateDryRunResponse | null>(null);
   const [scope, setScope] = useState<TemplateScope[]>(scopeOf(template));
 
@@ -236,13 +233,15 @@ function TemplateCard({ template, onChanged }: { template: TextTemplate; onChang
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex min-w-0 flex-wrap items-center gap-2">
             <Badge tone={TEMPLATE_STATUS_TONE[status] ?? "neutral"}>{labelOf(TEMPLATE_STATUS_LABEL, status)}</Badge>
-            <Badge tone="neutral" title="Documentos em que o trecho aparece">
+            <Badge tone="neutral" title={messages.pages.textTemplates.documentsBadgeTitle}>
               {formatCount(template.occurrence_count ?? 0)} documentos
             </Badge>
             <Badge tone={template.source === "SUGGESTED" ? "warn" : "accent"}>
-              {template.source === "SUGGESTED" ? "sugerido pela máquina" : "escrito por humano"}
+              {template.source === "SUGGESTED"
+                ? messages.pages.textTemplates.machineSuggested
+                : messages.pages.textTemplates.humanWritten}
             </Badge>
-            {!template.is_active ? <Badge tone="neutral">inativo</Badge> : null}
+            {!template.is_active ? <Badge tone="neutral">{messages.pages.textTemplates.inactive}</Badge> : null}
           </div>
           <code className="text-[10px] text-(--color-muted)">#{template.template_id}</code>
         </div>
@@ -253,12 +252,12 @@ function TemplateCard({ template, onChanged }: { template: TextTemplate; onChang
 
         {(template.variants ?? []).length > 0 ? (
           <p className="text-xs text-(--color-muted)">
-            grafias: {(template.variants ?? []).join(" · ")}
+            {fill(messages.pages.textTemplates.variants, { list: (template.variants ?? []).join(" · ") })}
           </p>
         ) : null}
 
         <div className="flex flex-wrap items-center gap-3 text-xs">
-          <span className="text-(--color-muted)">sai de:</span>
+          <span className="text-(--color-muted)">{messages.pages.textTemplates.removeFrom}</span>
           {SCOPES.map((value) => (
             <label key={value} className="flex items-center gap-1" title={TEMPLATE_SCOPE_HINT[value]}>
               <input
@@ -280,7 +279,7 @@ function TemplateCard({ template, onChanged }: { template: TextTemplate; onChang
               disabled={save.isPending}
               onClick={() => save.mutate({ scope })}
             >
-              {save.isPending ? ACTION.save.pending : "Salvar escopo"}
+              {save.isPending ? ACTION.save.pending : messages.pages.textTemplates.saveScope}
             </Button>
           ) : null}
         </div>
@@ -297,7 +296,7 @@ function TemplateCard({ template, onChanged }: { template: TextTemplate; onChang
               disabled={save.isPending}
               onClick={() => save.mutate({ status: "APPROVED", is_active: true, scope })}
             >
-              Aprovar
+              {messages.pages.textTemplates.approve}
             </Button>
           ) : (
             <Button
@@ -312,7 +311,7 @@ function TemplateCard({ template, onChanged }: { template: TextTemplate; onChang
 
           {status !== "REJECTED" ? (
             <Button size="sm" variant="ghost" disabled={save.isPending} onClick={() => save.mutate({ status: "REJECTED" })}>
-              Rejeitar
+              {messages.pages.textTemplates.reject}
             </Button>
           ) : null}
 
@@ -320,7 +319,7 @@ function TemplateCard({ template, onChanged }: { template: TextTemplate; onChang
             size="sm"
             variant="danger"
             disabled={remove.isPending}
-            title="Remove do catálogo e devolve os documentos afetados à fila da IA"
+            title={messages.pages.textTemplates.removeTitle}
             onClick={() => remove.mutate()}
           >
             {ACTION.remove.label}
@@ -329,14 +328,19 @@ function TemplateCard({ template, onChanged }: { template: TextTemplate; onChang
 
         {save.data ? (
           <p className="text-xs text-(--color-muted)">
-            {routeMessage(save.data)} {formatCount(save.data.documents_requeued)} documentos voltaram à fila.
+            {routeMessage(save.data)}{" "}
+            {fill(messages.pages.textTemplates.requeued, {
+              count: formatCount(save.data.documents_requeued),
+            })}
           </p>
         ) : null}
         {preview ? (
           <div className="rounded-md bg-black/[0.03] px-3 py-2 text-xs">
             <p>
-              <strong>{formatCount(preview.documents_affected)}</strong> de{" "}
-              {formatCount(preview.documents_scanned)} documentos mudariam.
+              {fill(messages.pages.textTemplates.previewSummary, {
+                affected: formatCount(preview.documents_affected),
+                scanned: formatCount(preview.documents_scanned),
+              })}
             </p>
             {(preview.samples ?? []).length > 0 ? (
               <ul className="mt-1 grid gap-1">
@@ -366,6 +370,7 @@ function TemplateCard({ template, onChanged }: { template: TextTemplate; onChang
  * that writes stays disabled until the archivist has seen how many documents change.
  */
 function NewTemplateCard({ onCreated }: { onCreated: () => void }) {
+  const messages = useCopy();
   const [text, setText] = useState("");
   const [action, setAction] = useState<TemplateAction>("IGNORE");
   const [replacement, setReplacement] = useState("");
@@ -390,22 +395,17 @@ function NewTemplateCard({ onCreated }: { onCreated: () => void }) {
 
   return (
     <Disclosure
-      triggerLabel="+ Escrever trecho"
-      toggleLabel="Escrever um trecho"
+      triggerLabel={messages.pages.textTemplates.newTrigger}
+      toggleLabel={messages.pages.textTemplates.newToggle}
       header={
         <div className="grid gap-1">
-          <span className="text-sm font-semibold">Escrever um trecho</span>
-          <span className="text-xs text-(--color-muted)">
-            Criar o trecho já o aplica e devolve os documentos afetados à fila da IA; só libera depois do impacto.
-          </span>
+          <span className="text-sm font-semibold">{messages.pages.textTemplates.newToggle}</span>
+          <span className="text-xs text-(--color-muted)">{messages.pages.textTemplates.newHint}</span>
         </div>
       }
     >
       <div className="grid gap-2">
-        <p className="text-xs text-(--color-muted)">
-          Criar o trecho já o aplica e devolve os documentos afetados à fila da IA. Por isso o
-          botão de criar só libera depois de conferir o impacto.
-        </p>
+        <p className="text-xs text-(--color-muted)">{messages.pages.textTemplates.newExplain}</p>
         <textarea
           value={text}
           onChange={(event) => {
@@ -413,11 +413,11 @@ function NewTemplateCard({ onCreated }: { onCreated: () => void }) {
             setPreview(null);
           }}
           rows={3}
-          placeholder="trecho exato, como aparece nos documentos"
+          placeholder={messages.pages.textTemplates.textPlaceholder}
           className="w-full rounded-md bg-white px-3 py-2 font-mono text-xs ring-1 ring-(--color-line) focus:ring-2 focus:ring-(--color-accent) focus:outline-none"
         />
         <div className="flex flex-wrap items-end gap-3">
-          <Field label="O que fazer com ele">
+          <Field label={messages.pages.textTemplates.actionField}>
             <Select
               value={action}
               onChange={(event) => setAction(event.target.value as TemplateAction)}
@@ -432,17 +432,17 @@ function NewTemplateCard({ onCreated }: { onCreated: () => void }) {
           </Field>
           {action === "REPLACE" ? (
             <label className="flex flex-1 flex-col gap-1 text-xs">
-              <span className="text-(--color-muted)">Substituir por</span>
+              <span className="text-(--color-muted)">{messages.pages.textTemplates.replaceWith}</span>
               <Input
                 value={replacement}
                 onChange={(event) => setReplacement(event.target.value)}
-                placeholder="texto que fica no lugar"
+                placeholder={messages.pages.textTemplates.replacementPlaceholder}
               />
             </label>
           ) : null}
         </div>
         <div className="flex flex-wrap items-center gap-3 text-xs">
-          <span className="text-(--color-muted)">sai de:</span>
+          <span className="text-(--color-muted)">Remover de:</span>
           {SCOPES.map((value) => (
             <label key={value} className="flex items-center gap-1" title={TEMPLATE_SCOPE_HINT[value]}>
               <input
@@ -474,18 +474,23 @@ function NewTemplateCard({ onCreated }: { onCreated: () => void }) {
             disabled={text.trim().length === 0 || preview === null || create.isPending}
             onClick={() => create.mutate()}
           >
-            {create.isPending ? ACTION.create.pending : "Criar e aplicar"}
+            {create.isPending ? ACTION.create.pending : messages.pages.textTemplates.createApply}
           </Button>
         </div>
         {preview ? (
           <p className="text-xs text-(--color-muted)">
-            {formatCount(preview.documents_affected)} de {formatCount(preview.documents_scanned)}{" "}
-            documentos mudariam.
+            {fill(messages.pages.textTemplates.previewSummary, {
+              affected: formatCount(preview.documents_affected),
+              scanned: formatCount(preview.documents_scanned),
+            })}
           </p>
         ) : null}
         {create.data ? (
           <p className="text-xs text-(--color-muted)">
-            {routeMessage(create.data)} {formatCount(create.data.documents_requeued)} documentos na fila.
+            {routeMessage(create.data)}{" "}
+            {fill(messages.pages.textTemplates.queued, {
+              count: formatCount(create.data.documents_requeued),
+            })}
           </p>
         ) : null}
         {create.error ? <ErrorState error={create.error} /> : null}

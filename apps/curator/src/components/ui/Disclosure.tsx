@@ -23,7 +23,7 @@ export function Disclosure({
   children,
   actions,
   triggerLabel,
-  triggerCloseLabel = "fechar",
+  triggerCloseLabel = "Fechar",
   defaultOpen = false,
   open,
   onOpenChange,

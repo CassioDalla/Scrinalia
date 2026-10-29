@@ -12,6 +12,8 @@ import { cn } from "@/lib/cn";
 import { formatCount, formatDate, REVIEW_STATUS_LABEL, REVIEW_STATUS_TONE } from "@/lib/format";
 import { ANOMALY_REASON_HINT, anomalyReasonCode, anomalyReasonLabel } from "@/lib/quality";
 import { asNumber } from "@/lib/search";
+import { useCopy } from "@/i18n/context";
+import { Trans } from "@/i18n/trans";
 
 const routeApi = getRouteApi("/qualidade/anomalias");
 
@@ -31,11 +33,11 @@ export function validateAnomaliesSearch(search: Record<string, unknown>): Anomal
 /**
  * What the quality validator marked.
  *
- * The empty state is the point of this screen, not a decoration. An empty anomaly queue has two very
- * different causes and the archivist has to be able to tell them apart: the collection is clean, or
- * **no rule that flags anything is active**. Only ``VALIDATE`` and ``LLM_CHECK`` rules write an
- * anomaly — a ``REWRITE`` rule changes the text and never flags it — so an empty queue with no such
- * rule means the check never ran, and the screen says so and links to the rules.
+ * The empty state is the point of this screen, not a decoration. An empty queue has two causes and
+ * the archivist has to be able to tell them apart: the collection has none of the defects the check
+ * looks for, or the check never ran. The validator marks structural defects (missing date, empty
+ * title, all-caps title, repeated title) with no rule at all; ``VALIDATE`` and ``LLM_CHECK`` rules
+ * add their own reasons on top, while a ``REWRITE`` rule changes the text and never flags it.
  *
  * The counts by reason are the search's own facet, over the whole filtered set — the screen used to
  * count the page in hand and say so, because the API had no dimension to offer. They are also the
@@ -47,6 +49,7 @@ export function validateAnomaliesSearch(search: Record<string, unknown>): Anomal
  * a rule is a catalogue entry, and "which rule flagged this?" is the question worth asking.
  */
 export function AnomaliesRoute() {
+  const messages = useCopy();
   const search = routeApi.useSearch();
   const navigate = useNavigate();
 
@@ -66,10 +69,10 @@ export function AnomaliesRoute() {
       <PageHeader
         screen="anomalies"
         pending={page.isPending}
-        status={page.data ? `${formatCount(total)} descrições aguardando revisão` : undefined}
+        status={page.data ? messages.pages.anomalies.status.replace("{count}", formatCount(total)) : undefined}
         actions={
           <Link to="/qualidade/regras">
-            <Button size="sm">Regras</Button>
+            <Button size="sm">{messages.pages.anomalies.rules}</Button>
           </Link>
         }
       />
@@ -77,31 +80,31 @@ export function AnomaliesRoute() {
       <PageBody>
         {inbox.data && (queue?.count ?? 0) === 0 ? (
           <EmptyState
-            title="Nenhuma anomalia detectada"
+            title={messages.pages.anomalies.emptyTitle}
             hint={
-              <>
-                Isso quer dizer que nenhuma regra <code>VALIDATE</code> ou <code>LLM_CHECK</code> está
-                ativa — não que o acervo esteja impecável. Uma regra <code>REWRITE</code> muda o texto e
-                nunca marca anomalia. Veja as{" "}
-                <Link to="/qualidade/regras" className="underline">
-                  regras de limpeza
-                </Link>
-                .
-              </>
+              <Trans
+                text={messages.pages.anomalies.emptyHint}
+                values={{
+                  link: (
+                    <Link to="/qualidade/regras" className="underline">
+                      {messages.pages.anomalies.cleaningRulesLink}
+                    </Link>
+                  ),
+                }}
+              />
             }
           />
         ) : null}
 
         {reasons.length > 0 ? (
           <div className="flex flex-wrap items-center gap-2 text-xs">
-            <span className="text-(--color-muted)">motivos no acervo filtrado:</span>
+            <span className="text-(--color-muted)">{messages.pages.anomalies.reasonsFound}</span>
             {reasons.map((item) => (
               <button
                 key={item.key}
                 type="button"
                 title={
-                  ANOMALY_REASON_HINT[anomalyReasonCode(item.key)] ??
-                  "Código gravado pelo validador de qualidade"
+                  ANOMALY_REASON_HINT[anomalyReasonCode(item.key)] ?? messages.pages.anomalies.reasonHint
                 }
                 onClick={() =>
                   navigate({
@@ -125,7 +128,7 @@ export function AnomaliesRoute() {
                 variant="ghost"
                 onClick={() => navigate({ to: "/qualidade/anomalias", search: { offset: undefined } })}
               >
-                limpar filtro
+                Limpar filtro
               </Button>
             ) : null}
           </div>
@@ -170,10 +173,7 @@ export function AnomaliesRoute() {
                     </div>
                   ) : null}
 
-                  <p className="text-xs text-(--color-muted)">
-                    A correção é a revisão humana da ficha: editar salva o antes/depois na trilha e marca
-                    a descrição como revisada.
-                  </p>
+                  <p className="text-xs text-(--color-muted)">{messages.pages.anomalies.fixHint}</p>
                 </CardBody>
               </Card>
             </li>
@@ -192,11 +192,13 @@ export function AnomaliesRoute() {
                 })
               }
             >
-              ← Anterior
+              {messages.common.previous}
             </Button>
             <span className="text-xs text-(--color-muted)">
-              {formatCount(offset + 1)}–{formatCount(Math.min(offset + ANOMALIES_PAGE_SIZE, total))} de{" "}
-              {formatCount(total)}
+              {messages.common.range
+                .replace("{from}", formatCount(offset + 1))
+                .replace("{to}", formatCount(Math.min(offset + ANOMALIES_PAGE_SIZE, total)))
+                .replace("{total}", formatCount(total))}
             </span>
             <Button
               size="sm"
@@ -208,7 +210,7 @@ export function AnomaliesRoute() {
                 })
               }
             >
-              Próxima →
+              {messages.common.next}
             </Button>
           </div>
         ) : null}

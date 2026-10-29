@@ -287,3 +287,78 @@ def test_too_many_attempts_from_one_address_answer_429(api_client: TestClient, g
 
     assert refused.status_code == 429
     assert refused.json()["error_code"] == "TooManyLoginAttemptsError"
+
+
+# ==========================================
+# THE ACCOUNT'S LANGUAGE (ADR 0020 §3)
+# ==========================================
+
+
+def test_the_account_stores_the_interface_language(api_client: TestClient, generate_user) -> None:
+    """The choice is stored on the account, so it follows the person and not the browser."""
+    generate_user(email=EMAIL, password=PASSWORD)
+    _login(api_client)
+
+    response = api_client.patch("/api/v1/auth/me", json={"locale": "en"})
+
+    assert response.status_code == 200
+    assert response.json()["locale"] == "en"
+    assert api_client.get("/api/v1/auth/me").json()["locale"] == "en"
+
+
+def test_automatic_clears_the_language(api_client: TestClient, generate_user) -> None:
+    """``null`` is a choice: automatic means the SPA follows the browser again."""
+    generate_user(email=EMAIL, password=PASSWORD)
+    _login(api_client)
+    api_client.patch("/api/v1/auth/me", json={"locale": "en"})
+
+    response = api_client.patch("/api/v1/auth/me", json={"locale": None})
+
+    assert response.status_code == 200
+    assert response.json()["locale"] is None
+
+
+def test_an_unknown_language_is_refused(api_client: TestClient, generate_user) -> None:
+    generate_user(email=EMAIL, password=PASSWORD)
+    _login(api_client)
+
+    response = api_client.patch("/api/v1/auth/me", json={"locale": "fr"})
+
+    # Litestar answers a malformed body with 400; 422 is the domain's refusal, not the schema's.
+    assert response.status_code == 400
+
+
+def test_the_language_needs_a_session(api_client: TestClient) -> None:
+    response = api_client.patch("/api/v1/auth/me", json={"locale": "en"})
+
+    assert response.status_code == 401
+
+
+def test_logout_answers_in_the_requested_language(api_client: TestClient, generate_user) -> None:
+    """The sentence a screen shows is composed in the language of the request (ADR 0020 §4)."""
+    generate_user(email=EMAIL, password=PASSWORD)
+    _login(api_client)
+
+    english = api_client.post("/api/v1/auth/logout", headers={"Accept-Language": "en-US"})
+    assert english.json()["message"] == "Signed out."
+
+    _login(api_client)
+    portuguese = api_client.post("/api/v1/auth/logout", headers={"Accept-Language": "pt-BR"})
+    assert portuguese.json()["message"] == "Sessão encerrada."
+
+
+def test_a_login_refusal_answers_in_the_requested_language(api_client: TestClient, generate_user) -> None:
+    """The refusal is composed by code and facts, so the English is not a parse of the Portuguese."""
+    generate_user(email=EMAIL, password=PASSWORD)
+
+    portuguese = _login(api_client, password="a senha errada")
+    assert portuguese.status_code == 401
+    assert portuguese.json()["message"] == "E-mail ou senha inválidos."
+
+    english = api_client.post(
+        "/api/v1/auth/login",
+        json={"email": EMAIL, "password": "a senha errada"},
+        headers={"Accept-Language": "en-US"},
+    )
+    assert english.status_code == 401
+    assert english.json()["message"] == "Invalid e-mail or password."

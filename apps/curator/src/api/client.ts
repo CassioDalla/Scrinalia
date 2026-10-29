@@ -1,5 +1,7 @@
 import createClient from "openapi-fetch";
 
+import { activeLocale, activeMessages, type Locale } from "@/i18n/locale";
+
 import type { components, paths } from "./schema";
 
 /**
@@ -15,6 +17,20 @@ import type { components, paths } from "./schema";
  * environment variable to get wrong.
  */
 export const client = createClient<paths>({ baseUrl: "" });
+
+/**
+ * Every request says which language the interface is in.
+ *
+ * The API composes the sentence a screen shows — a route's confirmation, a refusal — and renders it
+ * from a catalogue keyed by code (ADR 0020 §4). The header is the only channel: the request that
+ * fails and the request that confirms are both answered in the language the person is reading.
+ */
+client.use({
+  onRequest({ request }) {
+    request.headers.set("Accept-Language", activeLocale());
+    return request;
+  },
+});
 
 export class ApiError extends Error {
   constructor(
@@ -62,7 +78,9 @@ async function unwrap<T>(result: ApiResult): Promise<T> {
     throw new ApiError(
       result.response.status,
       payload?.error_code ?? "UNKNOWN",
-      payload?.message ?? payload?.detail ?? `Erro ${result.response.status}`,
+      payload?.message ??
+        payload?.detail ??
+        activeMessages().errors.requestFailed.replace("{status}", String(result.response.status)),
       result.response.headers.get("X-Request-ID") ?? undefined,
       payload?.details,
     );
@@ -138,6 +156,10 @@ export type PlanStatus = PlanDecision["status"];
 
 // --- The vocabulary of the dossier: tags, entities and the drawers of subject ------------------
 export type TagSearchResult = components["schemas"]["TagSearchResult"];
+export type AccessPointPreviewItem = components["schemas"]["AccessPointResolution"];
+export type AccessPointPreviewResponse = components["schemas"]["AccessPointPreviewResponse"];
+/** The preview body, derived from the model the route declares; never retyped here. */
+export type PreviewAccessPointsBody = components["schemas"]["AccessPointPreviewRequest"];
 export type TagCurationRequest = components["schemas"]["TagCurationRequest"];
 export type TagCurationResult = components["schemas"]["TagCurationResult"];
 export type TagCatalogState = components["schemas"]["TagCatalogState"];
@@ -379,6 +401,8 @@ export type WorkerRunRequest = components["schemas"]["WorkerRunRequest"];
 /** The ingestion origin and the writes its screen owns (#44). */
 export type IngestionOrigin = components["schemas"]["IngestionOriginDTO"];
 export type IngestionOriginList = components["schemas"]["IngestionOriginListResponse"];
+/** A source the package ships and this installation has not configured yet (#206). */
+export type OriginAvailable = components["schemas"]["OriginAvailableDTO"];
 export type IngestionOriginUpdateRequest = components["schemas"]["IngestionOriginUpdateRequest"];
 export type IngestionScheduleRequest = components["schemas"]["IngestionScheduleRequest"];
 export type IngestionRunRequest = components["schemas"]["IngestionRunRequest"];
@@ -719,6 +743,19 @@ export async function moveHierarchyNode(
 export async function searchTags(term: string, limit = 10): Promise<TagSearchResult[]> {
   return unwrap<TagSearchResult[]>(
     await client.GET("/api/v1/taxonomy/tags", { params: { query: { term, limit } } }),
+  );
+}
+
+/**
+ * Reads a raw access-point string into what the transfer will create, map or discard.
+ *
+ * Read-only: an unknown spelling is ``NEW``, not a row. The transfer is still the only writer, and
+ * the same classifier answers, so the summary the form shows cannot promise a spelling the archive
+ * will not carry.
+ */
+export async function previewAccessPoints(body: PreviewAccessPointsBody): Promise<AccessPointPreviewResponse> {
+  return unwrap<AccessPointPreviewResponse>(
+    await client.POST("/api/v1/taxonomy/tags/preview", { body }),
   );
 }
 
@@ -1908,6 +1945,11 @@ export async function login(email: string, password: string): Promise<AuthUser> 
 /** Ends the session and clears the cookie. */
 export async function logout(): Promise<RouteResponse> {
   return unwrap<RouteResponse>(await client.POST("/api/v1/auth/logout"));
+}
+
+/** Stores the signed-in account's interface language; ``null`` follows the browser. */
+export async function updateLocale(locale: Locale | null): Promise<AuthUser> {
+  return unwrap<AuthUser>(await client.PATCH("/api/v1/auth/me", { body: { locale } }));
 }
 
 /** Replaces the signed-in account's own password, proving the current one. */

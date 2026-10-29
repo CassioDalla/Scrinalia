@@ -19,6 +19,7 @@ import { Notice } from "@/components/ui/Notice";
 import { PageBody } from "@/components/layout/PageBody";
 import { ACTION } from "@/lib/copy";
 import { descricoes, formatCount } from "@/lib/format";
+import { useCopy } from "@/i18n/context";
 
 /**
  * The ladder the arrangement is written against.
@@ -36,6 +37,7 @@ import { descricoes, formatCount } from "@/lib/format";
  *   human editing a description must not be allowed to invent one.
  */
 export function LevelsRoute() {
+  const messages = useCopy();
   const queryClient = useQueryClient();
   const levels = useQuery(queries.levelCatalog());
 
@@ -55,18 +57,15 @@ export function LevelsRoute() {
         pending={levels.isPending}
         status={
           levels.data
-            ? `${rows.length} níveis · ${formatCount(withDocuments)} descrições classificadas`
+            ? messages.pages.levels.status
+                .replace("{levels}", String(rows.length))
+                .replace("{documents}", formatCount(withDocuments))
             : undefined
         }
       />
 
       <PageBody>
-        <Notice tone="accent">
-          A norma é o padrão, não a lei — mas ela é a assimetria que sustenta a carga: um nível
-          desconhecido que chega da origem <strong>entra</strong> (a descrição fica sem nível e o
-          diagnóstico a lista), enquanto o arquivista <strong>não</strong> pode salvar um nível que
-          não existe. Sem isso, uma lote inteiro falharia por causa de uma grafia nova.
-        </Notice>
+        <Notice tone="accent">{messages.pages.levels.normNotice}</Notice>
 
         {levels.error ? <ErrorState error={levels.error} /> : null}
         {levels.isPending ? (
@@ -99,6 +98,7 @@ export function LevelsRoute() {
 }
 
 function LevelCard({ level, onChanged }: { level: DescriptionLevel; onChanged: () => void }) {
+  const messages = useCopy();
   const [name, setName] = useState(level.name);
   const [description, setDescription] = useState(level.description ?? "");
   const [aliases, setAliases] = useState((level.aliases ?? []).join(", "));
@@ -126,17 +126,21 @@ function LevelCard({ level, onChanged }: { level: DescriptionLevel; onChanged: (
 
   return (
     <Disclosure
-      toggleLabel="Editar este nível"
+      toggleLabel={messages.pages.levels.editToggle}
       className={level.is_active ? undefined : "opacity-80"}
       header={
         <div className="flex flex-wrap items-center gap-2">
-          <Badge tone="accent" title="Posição na escada; não é editável depois de criada">
+          <Badge tone="accent" title={messages.pages.levels.ordinalTitle}>
             {level.ordinal}
           </Badge>
           <span className="text-sm font-medium">{level.name}</span>
           <code className="text-xs text-(--color-muted)">{level.code}</code>
-          {level.is_active ? <Badge tone="ok">ativo</Badge> : <Badge tone="neutral">desativado</Badge>}
-          <Badge tone="neutral" title="Descrições classificadas neste nível">
+          {level.is_active ? (
+            <Badge tone="ok">{messages.pages.levels.activeBadge}</Badge>
+          ) : (
+            <Badge tone="neutral">{messages.pages.levels.retiredBadge}</Badge>
+          )}
+          <Badge tone="neutral" title={messages.pages.levels.documentsBadgeTitle}>
             {descricoes(level.document_count ?? 0)}
           </Badge>
           {level.description ? (
@@ -157,19 +161,19 @@ function LevelCard({ level, onChanged }: { level: DescriptionLevel; onChanged: (
     >
       <div className="grid gap-2">
         <div className="grid gap-2 sm:grid-cols-2">
-          <Field label="Nome">
+          <Field label={messages.pages.levels.nameField}>
             <Input value={name} onChange={(event) => setName(event.target.value)} maxLength={60} />
           </Field>
-          <Field label="Grafias aceitas (separadas por vírgula)">
+          <Field label={messages.pages.levels.aliasesField}>
             <Input
               value={aliases}
               onChange={(event) => setAliases(event.target.value)}
-              placeholder="ex.: subsérie, sub-serie"
+              placeholder={messages.pages.levels.aliasesPlaceholder}
             />
           </Field>
         </div>
 
-        <Field label="Descrição (o que o arquivista lê)">
+        <Field label={messages.pages.levels.descriptionField}>
           <Input value={description} onChange={(event) => setDescription(event.target.value)} />
         </Field>
 
@@ -180,7 +184,7 @@ function LevelCard({ level, onChanged }: { level: DescriptionLevel; onChanged: (
               checked={requiresParent}
               onChange={(event) => setRequiresParent(event.target.checked)}
             />
-            <span>exige unidade superior</span>
+            <span>{messages.pages.levels.requiresParent}</span>
           </label>
           <label className="flex items-center gap-2">
             <input
@@ -188,7 +192,7 @@ function LevelCard({ level, onChanged }: { level: DescriptionLevel; onChanged: (
               checked={allowsChildren}
               onChange={(event) => setAllowsChildren(event.target.checked)}
             />
-            <span>pode ter filhos</span>
+            <span>{messages.pages.levels.allowsChildren}</span>
           </label>
         </div>
 
@@ -212,7 +216,7 @@ function LevelCard({ level, onChanged }: { level: DescriptionLevel; onChanged: (
           >
             {save.isPending ? ACTION.save.pending : ACTION.save.label}
           </Button>
-          {dirty ? <span className="text-xs text-(--color-muted)">alterações não salvas</span> : null}
+          {dirty ? <span className="text-xs text-(--color-muted)">{messages.pages.levels.unsaved}</span> : null}
         </div>
         {save.error ? <ErrorState error={save.error} /> : null}
       </div>
@@ -221,6 +225,7 @@ function LevelCard({ level, onChanged }: { level: DescriptionLevel; onChanged: (
 }
 
 function CreateLevelCard({ onCreated }: { onCreated: () => void }) {
+  const messages = useCopy();
   const empty: DescriptionLevelCreateRequest = {
     ordinal: 0,
     code: "",
@@ -246,25 +251,19 @@ function CreateLevelCard({ onCreated }: { onCreated: () => void }) {
 
   return (
     <Disclosure
-      triggerLabel="+ Novo degrau"
-      toggleLabel="Acrescentar um degrau"
+      triggerLabel={messages.pages.levels.newRung}
+      toggleLabel={messages.pages.levels.addRung}
       header={
         <div className="grid gap-1">
-          <span className="text-sm font-semibold">Acrescentar um degrau</span>
-          <span className="text-xs text-(--color-muted)">
-            Um ordinal novo e um código novo são um degrau novo; o ordinal não é editável depois.
-          </span>
+          <span className="text-sm font-semibold">{messages.pages.levels.addRung}</span>
+          <span className="text-xs text-(--color-muted)">{messages.pages.levels.ordinalFixed}</span>
         </div>
       }
     >
       <div className="grid gap-2">
-        <p className="text-xs text-(--color-muted)">
-          O ordinal é a posição na escada: um nível só pode ser filho de outro de ordinal menor. Ele
-          não é editável depois — mudá-lo renumeraria a árvore, e a árvore passada foi decidida contra
-          estes números. Um ordinal novo e um código novo são um degrau novo.
-        </p>
+        <p className="text-xs text-(--color-muted)">{messages.pages.levels.ordinalExplanation}</p>
         <div className="grid gap-2 sm:grid-cols-4">
-          <Field label="Ordinal">
+          <Field label={messages.pages.levels.ordinalField}>
             <Input
               type="number"
               min={0}
@@ -272,11 +271,11 @@ function CreateLevelCard({ onCreated }: { onCreated: () => void }) {
               onChange={(event) => setDraft({ ...draft, ordinal: Number(event.target.value) })}
             />
           </Field>
-          <Field label="Código">
+          <Field label={messages.pages.levels.codeField}>
             <Input
               value={draft.code}
               onChange={(event) => setDraft({ ...draft, code: event.target.value })}
-              placeholder="ex.: serie"
+              placeholder={messages.pages.levels.codePlaceholder}
               maxLength={20}
             />
           </Field>
@@ -284,15 +283,15 @@ function CreateLevelCard({ onCreated }: { onCreated: () => void }) {
             <Input
               value={draft.name}
               onChange={(event) => setDraft({ ...draft, name: event.target.value })}
-              placeholder="ex.: Série"
+              placeholder={messages.pages.levels.namePlaceholder}
               maxLength={60}
             />
           </Field>
-          <Field label="Grafias aceitas">
+          <Field label={messages.pages.levels.aliasesFieldShort}>
             <Input value={aliases} onChange={(event) => setAliases(event.target.value)} />
           </Field>
         </div>
-        <Field label="Descrição">
+        <Field label={messages.pages.levels.descriptionFieldShort}>
           <Input
             value={draft.description ?? ""}
             onChange={(event) => setDraft({ ...draft, description: event.target.value || null })}
@@ -305,7 +304,7 @@ function CreateLevelCard({ onCreated }: { onCreated: () => void }) {
               checked={draft.requires_parent}
               onChange={(event) => setDraft({ ...draft, requires_parent: event.target.checked })}
             />
-            <span>exige unidade superior</span>
+            <span>{messages.pages.levels.requiresParent}</span>
           </label>
           <label className="flex items-center gap-2">
             <input
@@ -313,12 +312,12 @@ function CreateLevelCard({ onCreated }: { onCreated: () => void }) {
               checked={draft.allows_children}
               onChange={(event) => setDraft({ ...draft, allows_children: event.target.checked })}
             />
-            <span>pode ter filhos</span>
+            <span>{messages.pages.levels.allowsChildren}</span>
           </label>
         </div>
         <div>
           <Button variant="primary" disabled={!valid || create.isPending} onClick={() => create.mutate()}>
-            {create.isPending ? ACTION.create.pending : `${ACTION.create.label} nível`}
+            {create.isPending ? ACTION.create.pending : messages.pages.levels.createLevel}
           </Button>
         </div>
         {create.error ? <ErrorState error={create.error} /> : null}

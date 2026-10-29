@@ -272,17 +272,32 @@ padrões da assinatura). Nada aparece no histórico de execuções, então nada 
 Uma origem é uma definição em código mais uma linha em `ingestion_origins` (ADR 0016). A definição —
 o adaptador e o `SourceSchema` que diz qual rótulo dela preenche qual coluna do staging — fica ao
 lado do adaptador; a linha é o ciclo de vida: habilitada/pausada, as URLs, a política de execução que
-uma execução agendada herda e o cron/fuso da agenda. A origem `csv` não tem configuração de adaptador:
-a entrada dela é o arquivo que o navegador lê, e o `SourceSchema` dela mapeia os cabeçalhos desse
-arquivo para as colunas do staging. Adicionar uma origem é um módulo, uma entrada no registro e uma
-linha; o transform de staging não aprende site nenhum.
+uma execução agendada herda e o cron/fuso da agenda. As definições `manual` e `csv` são **formas de
+entrada**, não fontes: não têm adaptador e nunca são oferecidas pelo seletor. As linhas delas existem
+para a proveniência e para o formulário/importação, e a tela as mostra só para leitura. Adicionar uma
+origem é um módulo e uma entrada no registro; a linha é adicionada pela tela, e o transform de
+staging não aprende site nenhum.
 
-`/sistema/ingestao` é a tela. Cada cartão responde *qual fila é esta, o que ela lê, quando roda e o
-que aconteceu na última vez*: os números de pendentes/processados/falhas da própria origem, a última
-execução e a ativa, a agenda e a disponibilidade de runner. O operador pode **Enfileirar execução**,
-editar a configuração e salvar a agenda; um curador chega à tela pelo formulário manual e vê os
-mesmos cartões só para leitura. As rotas genéricas de worker recusam `ingestion`: uma execução dela
-precisa da origem, então as rotas da origem são o seletor (`/api/v1/ingestion/origins/...`).
+`/sistema/ingestao` é a tela, e ela tem duas seções (#206). **Origens** lista as fontes configuradas,
+um cartão cada: a fila que a próxima execução leria, os números de processados/falhas, a última
+execução e a ativa, a agenda, a configuração efetiva e a disponibilidade de runner. O operador pode
+**Adicionar origem** — um seletor das definições que o pacote traz e esta instalação ainda não tem
+linha; adicionar ativa —, **Configurar**, **Agenda**, **Desativar/Ativar** e **Enfileirar execução**.
+**Configurar** e **Agenda** são os dois painéis do cartão: o clique abre o cartão, mostra o formulário
+e o traz para a vista, e um segundo clique fecha o formulário e deixa o cartão aberto.
+Pausar é o ciclo de vida, não uma remoção: o cartão, a agenda e as execuções ficam, e só a execução é
+recusada. Uma instalação nova começa sem fonte configurada (a linha `pmc` semeada é apagada por
+`f1090f825a94`), então a seção mostra **Nenhuma origem configurada** e o fluxo de adicionar.
+**Entradas** lista as linhas manual e CSV só para leitura, com o status e um link para
+`/acervo/nova`: elas são as formas de entrada, não fontes.
+
+As duas formas de entrada do acervo são as abas de `/acervo/nova` (#205). As rotas genéricas de
+worker recusam `ingestion`: uma execução dela precisa da origem, então as rotas da origem são o
+seletor (`/api/v1/ingestion/origins/...`).
+
+O cartão é `OPERATE`: o operador adiciona, configura, agenda, pausa e executa. As rotas de leitura
+continuam autenticadas, então um curador que segue uma URL direta ainda vê os cartões só para
+leitura, com os controles de operador escondidos; a porta comum do acervo é `/acervo/nova`.
 
 A etapa roda no **mesmo** ledger, runner, lease e cancelamento dos workers de IA. Uma execução tem
 `worker_name="ingestion"` e `origin_code` preenchido; o índice parcial único é
@@ -334,20 +349,21 @@ já estruturados.
 
 ### A entrada manual
 
-A origem `manual` é o formulário em `/sistema/ingestao/nova`, e ele **não** é uma aprovação. O envio grava
-o `raw_data` (com `created_by`), uma linha em `scraping_queue` marcada como `DONE` (o formulário é a
-descoberta) e o registro de staging; em seguida enfileira o mesmo worker `transfer` que a coleta usa.
-A descrição do Acervo nasce `PENDING_AI`, e as filas de IA a veem; o curador aprova no dossiê depois
-que a IA rodar. Se já houver uma transferência em andamento, o registro fica no staging e a resposta
-diz que ele entra na próxima. Um `description_id` duplicado é recusado antes da gravação; o formulário
-gera um id `manual-<uuid>` para que um reenvio seja o mesmo registro.
+A origem `manual` é a aba **Digitar** em `/acervo/nova` (o caminho antigo `/sistema/ingestao/nova`
+redireciona para lá), e ele **não** é uma aprovação. O envio grava o `raw_data` (com `created_by`),
+uma linha em `scraping_queue` marcada como `DONE` (o formulário é a descoberta) e o registro de
+staging; em seguida enfileira o mesmo worker `transfer` que a coleta usa. A descrição do Acervo nasce
+`PENDING_AI`, e as filas de IA a veem; o curador aprova no dossiê depois que a IA rodar. Se já houver
+uma transferência em andamento, o registro fica no staging e a resposta diz que ele entra na próxima.
+Um `description_id` duplicado é recusado antes da gravação; o formulário gera um id `manual-<uuid>`
+para que um reenvio seja o mesmo registro.
 
-O formulário tem tela própria, `/sistema/ingestao/nova`, alcançada pelo cartão **Entrada manual**:
-o registro é o registro ISAD(G) inteiro — trinta controles agrupados nas sete áreas da norma, com a
-identidade aberta e o resto recolhido — e um cartão desse tamanho dentro da tela de ingestão empurraria
-os cartões de origem para baixo. Os rótulos, os tipos de controle e a ordem vêm do mesmo catálogo que
-o dossiê edita (`apps/curator/src/lib/isad.ts`), então as duas telas não podem criar dois vocabulários
-para uma norma.
+O formulário é a primeira aba da tela de entrada, em `/acervo/nova`; a importação CSV é a segunda. O
+registro é o registro ISAD(G) inteiro — trinta controles agrupados nas sete áreas da norma, com a
+identidade aberta e o resto recolhido — e divide a tela com a importação porque as duas alimentam o
+mesmo staging e a mesma fila, não porque são a mesma entrada. Os rótulos, os tipos de controle e a
+ordem vêm do mesmo catálogo que o dossiê edita (`apps/curator/src/lib/isad.ts`), então as duas telas
+não podem criar dois vocabulários para uma norma.
 
 Três comportamentos valem saber antes de digitar:
 
@@ -365,7 +381,7 @@ Três comportamentos valem saber antes de digitar:
 
 ### A importação CSV
 
-A origem `csv` é o cartão **Importação CSV** em `/sistema/ingestao`, e é uma escrita do mesmo tipo da
+A origem `csv` é a aba **Importar CSV** em `/acervo/nova?modo=csv`, e é uma escrita do mesmo tipo da
 entrada manual: as linhas entram no staging e uma `transfer` é enfileirada, então a descrição do
 Acervo nasce `PENDING_AI` (#191, ADR 0019).
 
@@ -562,17 +578,17 @@ A SPA espelha isso, como cartões de `/configuracoes` sob *Operação*:
 
 | Tela | Mostra |
 | --- | --- |
-| `/sistema/workers` | os dez workers: engine, preset e modelo, a fila, o que o carimbo de cada um nomeia (com produtor, sem produtor conhecido, sem registro) e um botão **Enfileirar execução**; acima deles, os cartões dos runners (online, host, versão, concorrência, capacidades, último sinal) e um aviso quando nenhum está online. Um worker que nenhum runner online aceita aparece como **sem runner** — a linha ainda enfileira e espera. O selo e o fato **Agenda** mostram o cron, o fuso, a próxima execução e o último período pulado. A configuração efetiva aqui é só leitura. A linha `ingestion` é a exceção: não tem engine, não tem contadores agregados de pendentes/processados/falhas, e a execução dela pertence a uma origem, então ela leva a `/sistema/ingestao` em vez de um botão genérico — os números por origem ficam naquela tela |
+| `/sistema/workers` | a tela de operação, com duas abas na URL (#207). **Painel**: os dez workers — engine, preset e modelo, a fila, o que o carimbo de cada um nomeia (com produtor, sem produtor conhecido, sem registro) e um botão **Enfileirar execução**; acima deles, os cartões dos runners (online, host, versão, concorrência, capacidades, último sinal) e um aviso quando nenhum está online. Um worker que nenhum runner online aceita aparece como **sem runner** — a linha ainda enfileira e espera. O selo e o fato **Agenda** mostram o cron, o fuso, a próxima execução e o último período pulado. A configuração efetiva aqui é só leitura. A linha `ingestion` é a exceção: não tem engine, não tem contadores agregados de pendentes/processados/falhas, e a execução dela pertence a uma origem, então ela leva a `/sistema/ingestao` em vez de um botão genérico — os números por origem ficam naquela tela. A última execução é um link para o ledger, filtrado por aquele worker e com a linha exata realçada. **Execuções**: o ledger de execuções e as falhas dos últimos 30 dias agrupadas por causa raiz; clicar numa causa filtra o ledger para as ocorrências dela. Cada linha diz quem pediu (`painel`, `linha de comando` ou `agenda`), a tentativa (`tentativa 2/3`), a linha que ela retenta e, quando está na fila com `not_before`, quando começa. Uma linha de **ensaio** carrega o selo `ensaio` e leva ao cartão de comparação, para nunca ser confundida com uma execução de produção (ADR 0018). Uma linha ativa oferece **Cancelar execução…** com confirmação embutida, e um pedido de parada aparece como nota enquanto o worker termina o lote atual. O caminho antigo `/sistema/execucoes` redireciona para cá com a busca preservada |
 | `/configuracoes/workers` | o padrão persistido de cada worker e suas revisões, com salvar e remover, e a **Agenda** do worker (o cron, o fuso, o estado habilitado e o request pinado) — a escrita que o painel carregava. Um worker que o catálogo marca `trial` (hoje a tipologia) também carrega **Comparar configurações**: duas configurações, o tamanho da amostra, a tabela lado a lado (concordância com o denominador, cobertura, abstenção, a maior gaveta, entropia, segundos por documento, a fila e as horas projetadas) e **Usar esta**, que salva o corpo medido, e **Rodar no acervo inteiro**, que lê a fila do corpo salvo e dispara a execução real |
-| `/sistema/execucoes` | o ledger de execuções e as falhas dos últimos 30 dias agrupadas por causa raiz; clicar numa causa filtra o ledger para as ocorrências dela. Cada linha diz quem pediu (`painel`, `linha de comando` ou `agenda`), a tentativa (`tentativa 2/3`), a linha que ela retenta e, quando está na fila com `not_before`, quando começa. Uma linha de **ensaio** carrega o selo `ensaio` e leva ao cartão de comparação, para nunca ser confundida com uma execução de produção (ADR 0018). Uma linha ativa oferece **Cancelar execução…** com confirmação embutida, e um pedido de parada aparece como nota enquanto o worker termina o lote atual |
-| `/sistema/ingestao` | as origens, um cartão cada: a própria fila e a última execução, a configuração do adaptador, a agenda e **Enfileirar execução** (operador); o formulário **Entrada manual**, que grava um registro como `PENDING_AI` e enfileira a transferência; e o cartão **Importação CSV**, que interpreta o arquivo no navegador, mostra os cabeçalhos e o resultado por linha e envia só as linhas (curador). A tela é um cartão de *Operação*, mas declara `CURATE`, porque o formulário manual e a importação CSV são as escritas que um curador possui; os controles só de operador ficam escondidos para um curador |
+| `/sistema/ingestao` | **Origens**, um cartão por fonte configurada: a fila e a última execução, a configuração do adaptador, a agenda, **Desativar/Ativar** e **Enfileirar execução**; **Adicionar origem** abre o seletor das definições sem linha. A seção **Entradas** mostra as linhas manual/CSV só para leitura, com link para `/acervo/nova`. O cartão é `OPERATE`; as rotas de leitura continuam autenticadas (#206) |
 | `/sistema/diagnostico` | banco, modelos do Ollama, storage das miniaturas, as origens da ingestão (ativas/total, com link para `/sistema/ingestao`) e a configuração efetiva do processo |
 
-A tela consulta a cada 5 s enquanto uma execução está rodando e a cada 15 s enquanto uma está na fila,
-porque o contador do `transfer` faz uma chamada a `/system/workers` custar cerca de dois segundos no
-acervo real; ociosa, ela não consulta. A `/configuracoes/workers` lê `/system/workers/settings`, que
-resolve a mesma configuração e não conta fila nenhuma — a separação existe para que uma tela que não
-mostra números não pague por eles.
+Só a aba ativa é montada, então só a leitura dela é consultada em ciclo: o painel a cada 5 s enquanto
+uma execução está rodando e a cada 15 s enquanto uma está na fila (o contador do `transfer` faz uma
+chamada a `/system/workers` custar cerca de dois segundos no acervo real), e o ledger a cada 5 s
+enquanto uma entrada está ativa — ociosa, nenhuma das duas consulta. A `/configuracoes/workers` lê
+`/system/workers/settings`, que resolve a mesma configuração e não conta fila nenhuma — a separação
+existe para que uma tela que não mostra números não pague por eles.
 
 ### Saúde: três endpoints, três perguntas
 
@@ -585,9 +601,10 @@ Eles não são intercambiáveis, e juntá-los é o erro a evitar.
 | `GET /api/v1/system/health` | qual peça está fora? | o painel humano: contagens do banco, os modelos do Ollama que os presets exigem e quais faltam, o bucket do storage, o resumo de `ingestion_origins` e a configuração efetiva do processo — segredos como presença, nunca como valor |
 
 O cartão de ingestão lê `ingestion_origins`, não `PUBLIC_SCRAPE_*`: desde a #44 a origem é uma linha,
-então uma instalação pode ter o `pmc` configurado com o `.env` vazio. O cartão do processo rotula a
-variável como **fallback** do adaptador de referência, e a fila, a agenda e os contadores por origem
-ficam em `/sistema/ingestao`.
+então uma instalação pode ter o `pmc` configurado com o `.env` vazio. Ele conta só as origens
+**configuráveis** (#206): as entradas manual/CSV e um código que saiu do registro não são fontes e
+não entram no número. O cartão do processo rotula a variável como **fallback** do adaptador de
+referência, e a fila, a agenda e os contadores por origem ficam em `/sistema/ingestao`.
 
 Uma sonda de liveness que consulta o banco reiniciaria a API sempre que o banco reiniciasse, e é por
 isso que `live` não toca em nada. A sonda de readiness tem engine própria, com timeout de conexão e
@@ -730,9 +747,9 @@ desfechos, e a diferença é a que a máquina de estados do ledger desenha:
 
 O pedido é idempotente: um segundo clique responde o mesmo desfecho e preserva o primeiro autor e o
 primeiro instante. Uma execução que já chegou a um estado terminal responde `409`, e um id
-desconhecido responde `404`. A SPA oferece a ação numa linha ativa de `/sistema/execucoes`, com a
-confirmação que as outras ações destrutivas usam; um pedido de parada aparece como nota enquanto a
-linha ainda está em execução.
+desconhecido responde `404`. A SPA oferece a ação numa linha ativa da aba *Execuções* de
+`/sistema/workers`, com a confirmação que as outras ações destrutivas usam; um pedido de parada
+aparece como nota enquanto a linha ainda está em execução.
 
 O limite honesto é um lote (`db_batch_size`, 64 por padrão): o `ThreadPoolExecutor` não mata uma
 thread e uma passada do torch não pode ser interrompida, então `future.cancel()` só cobre o caso na
