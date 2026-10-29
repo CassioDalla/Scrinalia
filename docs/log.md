@@ -2928,3 +2928,34 @@ with short or full shas, and part of a `## <date> — <title>` entry.
   a non-empty frame, not inspected one by one.
 - **Not verified.** The dynamic screens were opened with the first record of the collection and its
   default tab; a write was not exercised in any screen during the render.
+
+## 2026-10-28 — the origin panel action opens the card it lives in (#234)
+
+- **Range:** `d746689..e2c5018`
+- **Pages:**
+  - `guides/operate.md` — **updated**: the `/sistema/ingestao` paragraph now says what **Configurar**
+    and **Agenda** do on that screen — the click opens the card, shows the panel and brings it into
+    view, and a second click closes the panel while leaving the card open. The page also declares
+    `apps/curator/src/routes/OriginsRoute.tsx` and `components/ingestion/OriginPanel.tsx` among its
+    `sources:`, because it documents this screen and no freshness report could see it before.
+  - `guides/operate.pt.md` — **updated**: the same sentence, in the SPA's vocabulary.
+- **Why the round exists.** #234 was a state split in two: the action buttons set `panel`, but the
+  body that reads it exists only while the card is open, and every card starts collapsed. The click
+  was invisible and the form waited, unasked, for the next expansion. The fix moves the rule into
+  `useOriginPanel`, adds `aria-expanded`/`aria-controls` and a pressed state to the two buttons, and
+  scrolls the panel into view.
+- **What the round measured.** `tsc`, ESLint and 79 bun tests green (72 before, 7 in
+  `originPanel.test.tsx`). The screen **was rendered**: the headless shell over CDP against the dev
+  server and the API on `scrinalia_render`, with a session row inserted for the round and deleted
+  after. Four shots under `.render/`: the card collapsed; **Configurar** opening the card and the
+  configuration form in one click, with the button outlined, accent-tinted and pointing down; the
+  second click closing the form with the card still open; and **Agenda** reopening the card on the
+  schedule form. Measured over CDP in those states: the heading stays at `y=16`, the window and the
+  content column stay at `scrollTop=0`, and the configuration form's save button lands at `y=761` —
+  the panel fits the 1000px viewport, so `block: "nearest"` had nothing to move; the scroll itself
+  is pinned by the unit test, not by these shots.
+- **Not verified.** No write was exercised — *Salvar configuração*, *Salvar agenda* and *Pausar*
+  were not clicked, and the operator-permission case (a curator's read-only card) was not rendered.
+  The render used the one configured origin (`pmc`) in the scratch database; the long-card
+  below-the-fold case is pinned by the unit test's `scrollIntoView` assertion, not by a screenshot of
+  a card taller than the viewport.
