@@ -217,14 +217,8 @@ PORTUGUESE = re.compile(
     re.I,
 )
 
-#: The files that still hold Portuguese, and the ratchet. A file leaves this list when its screen is
-#: extracted (ADR 0020 §7); a file outside it cannot gain a Portuguese literal, and a file inside it
-#: cannot become empty without leaving — the list only shrinks.
-PENDING = {
-    "src/components/workers/WorkerTrialCard.tsx",
-    "src/components/workers/WorkersPanel.tsx",
-    "src/routes/WorkerSettingsRoute.tsx",
-}
+#: The rule is absolute: after the sweep, no Portuguese literal lives outside `src/i18n/`. The only
+#: exceptions are the data strings declared above with their reason (a stored sentinel, a URL).
 
 
 #: Strings that look Portuguese and are data, not copy. Each one needs its reason.
@@ -248,20 +242,17 @@ def _portuguese_strings(path: Path) -> list[str]:
     ]
 
 
-def test_the_extracted_surface_says_no_portuguese() -> None:
-    """Everything the catalogue owns is out; the rest is the ratchet, one file at a time."""
+def test_no_portuguese_lives_outside_the_catalogue() -> None:
+    """Every user-visible string reads from `src/i18n/`; a Portuguese literal outside it is a bug."""
     failures: list[str] = []
     for path in SOURCES:
         relative = path.relative_to(CURATOR).as_posix()
         if relative.startswith("src/i18n/") or relative == "src/api/schema.d.ts":
             continue
         values = _portuguese_strings(path)
-        if relative in PENDING:
-            if not values:
-                failures.append(f"{relative} is in PENDING but has no Portuguese left: remove it from the list")
-        elif values:
-            failures.append(f"{relative} is outside the catalogue and still says Portuguese: {values[:2]}")
-    assert not failures, "the interface is extracted file by file (ADR 0020 §7):\n  " + "\n  ".join(failures)
+        if values:
+            failures.append(f"{relative}: {values[:3]}")
+    assert not failures, "these files still carry Portuguese outside the catalogue:\n  " + "\n  ".join(failures)
 
 
 def test_the_extractor_joins_a_wrapped_text_node(tmp_path: Path) -> None:

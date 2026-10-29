@@ -25,6 +25,9 @@ import { Input, Select, Textarea } from "@/components/ui/Input";
 import { Notice } from "@/components/ui/Notice";
 import { WorkerOptionsFields, initialOptionValues, optionsForRequest } from "@/components/workers/WorkerOptionsFields";
 import { WorkerTrialCard } from "@/components/workers/WorkerTrialCard";
+import { useCopy } from "@/i18n/context";
+import { fill } from "@/i18n/maps";
+import type { Messages } from "@/i18n/pt";
 import { ACTION } from "@/lib/copy";
 import { formatCount, formatDateTime } from "@/lib/format";
 import { describeConfig, parseOptions } from "@/lib/system";
@@ -68,6 +71,7 @@ export function WorkerSettingsRoute() {
 }
 
 function WorkerSettingsCard({ worker }: { worker: WorkerSettingsItem }) {
+  const messages = useCopy();
   const [feedback, setFeedback] = useState<string | null>(null);
 
   return (
@@ -77,7 +81,7 @@ function WorkerSettingsCard({ worker }: { worker: WorkerSettingsItem }) {
       onOpenChange={(next) => {
         if (!next) setFeedback(null);
       }}
-      toggleLabel="Configurar"
+      toggleLabel={messages.pages.workerSettings.configure}
       header={<SettingsHeader worker={worker} />}
     >
       <div className="grid gap-3">
@@ -92,6 +96,7 @@ function WorkerSettingsCard({ worker }: { worker: WorkerSettingsItem }) {
 
 /** The row the configuration screen exists to read: who it is, what it runs, and what was changed. */
 function SettingsHeader({ worker }: { worker: WorkerSettingsItem }) {
+  const messages = useCopy();
   const settings = worker.settings;
   return (
     <span className="flex min-w-0 flex-wrap items-center gap-2">
@@ -101,20 +106,26 @@ function SettingsHeader({ worker }: { worker: WorkerSettingsItem }) {
       <span className="text-sm font-medium">{worker.label}</span>
       <span className="font-mono text-[11px] text-(--color-muted)">{worker.name}</span>
       {settings.overridden ? (
-        <Badge tone="accent">padrão alterado</Badge>
+        <Badge tone="accent">{messages.pages.workerSettings.changedBadge}</Badge>
       ) : (
-        <Badge tone="neutral">padrão do código</Badge>
+        <Badge tone="neutral">{messages.pages.workerSettings.codeBadge}</Badge>
       )}
       <span className="w-full font-mono text-[11px] text-(--color-muted)">
-        {settings.engine_name ?? "sem modelo"}
+        {settings.engine_name ?? messages.system.noModel}
         {settings.preset ? ` · ${settings.preset}` : ""}
         {settings.engine_name ? ` — ${describeConfig(settings.config)}` : ""}
       </span>
       <span className="w-full text-xs text-(--color-muted)">{worker.description}</span>
       {settings.updated_at ? (
         <span className="w-full text-xs text-(--color-muted)">
-          alterado em {formatDateTime(settings.updated_at)}
-          {settings.updated_by ? ` por ${settings.updated_by}` : ""}
+          {settings.updated_by
+            ? fill(messages.pages.workerSettings.changedBy, {
+                date: formatDateTime(settings.updated_at),
+                name: settings.updated_by,
+              })
+            : fill(messages.pages.workerSettings.changedAt, {
+                date: formatDateTime(settings.updated_at),
+              })}
         </span>
       ) : null}
     </span>
@@ -123,6 +134,7 @@ function SettingsHeader({ worker }: { worker: WorkerSettingsItem }) {
 
 /** The persisted default of one worker, with its audit trail. */
 function SettingsForm({ worker, onDone }: { worker: WorkerSettingsItem; onDone: (message: string) => void }) {
+  const messages = useCopy();
   const queryClient = useQueryClient();
   const settings = worker.settings;
   const [engine, setEngine] = useState(settings.engine_name ?? "");
@@ -163,7 +175,7 @@ function SettingsForm({ worker, onDone }: { worker: WorkerSettingsItem; onDone: 
     mutationFn: () => saveWorkerSettings(worker.name, buildBody()),
     onSuccess: () => {
       invalidate();
-      onDone("Padrão salvo; a próxima execução usa esta configuração.");
+      onDone(messages.pages.workerSettings.saved);
     },
   });
 
@@ -182,20 +194,17 @@ function SettingsForm({ worker, onDone }: { worker: WorkerSettingsItem; onDone: 
     mutationFn: () => clearWorkerSettings(worker.name),
     onSuccess: () => {
       invalidate();
-      onDone("Padrão removido; volta a valer a configuração original.");
+      onDone(messages.pages.workerSettings.cleared);
     },
   });
 
   return (
     <div className="grid gap-3">
-      <p className="text-xs text-(--color-muted)">
-        O padrão vale para toda execução deste worker até ser removido. Um campo vazio mantém o padrão
-        do código.
-      </p>
+      <p className="text-xs text-(--color-muted)">{messages.pages.workerSettings.intro}</p>
 
       {settings.engine_source === "signature" ? (
         <div className="grid gap-3 sm:grid-cols-2">
-          <Field label="Motor">
+          <Field label={messages.pages.workerSettings.engineField}>
             <Select
               value={engine}
               onChange={(event) => {
@@ -204,7 +213,7 @@ function SettingsForm({ worker, onDone }: { worker: WorkerSettingsItem; onDone: 
                 clearPreview();
               }}
             >
-              <option value="">(o do código)</option>
+              <option value="">{messages.pages.workerSettings.codeOption}</option>
               {(settings.available_engines ?? []).map((item) => (
                 <option key={item.name} value={item.name}>
                   {item.name}
@@ -212,7 +221,7 @@ function SettingsForm({ worker, onDone }: { worker: WorkerSettingsItem; onDone: 
               ))}
             </Select>
           </Field>
-          <Field label="Preset">
+          <Field label={messages.pages.workerSettings.presetField}>
             <Select
               value={preset}
               onChange={(event) => {
@@ -220,7 +229,7 @@ function SettingsForm({ worker, onDone }: { worker: WorkerSettingsItem; onDone: 
                 clearPreview();
               }}
             >
-              <option value="">(o do código)</option>
+              <option value="">{messages.pages.workerSettings.codeOption}</option>
               {((settings.available_engines ?? []).find((item) => item.name === engine)?.presets ?? []).map(
                 (item) => (
                   <option key={item.name} value={item.name}>
@@ -234,13 +243,13 @@ function SettingsForm({ worker, onDone }: { worker: WorkerSettingsItem; onDone: 
       ) : (
         <p className="text-xs text-(--color-muted)">
           {settings.engine_source === "llm_check_rule"
-            ? "O motor e o preset vêm da regra de limpeza ativa. Para trocá-los, ajuste a regra."
-            : "Não há modelo a escolher aqui: só os ajustes abaixo podem ser definidos."}
+            ? messages.pages.workerSettings.engineFromRule
+            : messages.pages.workerSettings.noModel}
         </p>
       )}
 
       <div className="grid gap-3 sm:grid-cols-2">
-        <Field label="Tamanho do Lote (vazio = o padrão do código)">
+        <Field label={messages.pages.workerSettings.batchField}>
           <Input
             type="number"
             min={1}
@@ -270,13 +279,13 @@ function SettingsForm({ worker, onDone }: { worker: WorkerSettingsItem; onDone: 
 
       <div className="flex flex-wrap items-center gap-2">
         <Button variant="primary" onClick={() => save.mutate()} disabled={save.isPending}>
-          {ACTION.save.label} como padrão
+          {messages.pages.workerSettings.saveAsDefault}
         </Button>
         <Button
           variant="secondary"
           onClick={() => preview.mutate()}
           disabled={preview.isPending}
-          title="Ver quantos registros a próxima execução pegaria, sem salvar nada"
+          title={messages.pages.workerSettings.previewTitle}
         >
           {preview.isPending ? ACTION.preview.pending : ACTION.preview.label}
         </Button>
@@ -284,17 +293,23 @@ function SettingsForm({ worker, onDone }: { worker: WorkerSettingsItem; onDone: 
           variant="secondary"
           onClick={() => clear.mutate()}
           disabled={!settings.overridden || clear.isPending}
-          title={settings.overridden ? "Remover o padrão salvo" : "Não há padrão salvo"}
+          title={
+            settings.overridden
+              ? messages.pages.workerSettings.clearTitle
+              : messages.pages.workerSettings.noDefaultTitle
+          }
         >
-          Voltar ao padrão do código
+          {messages.pages.workerSettings.backToCode}
         </Button>
       </div>
 
       {preview.data ? (
         <p className="text-xs text-(--color-muted)">
           {preview.data.pending == null
-            ? (preview.data.pending_reason ?? "Não é possível contar a fila para esta configuração.")
-            : `${formatCount(preview.data.pending)} na fila com esta configuração (nada foi salvo).`}
+            ? (preview.data.pending_reason ?? messages.pages.workerSettings.queueUnknown)
+            : fill(messages.pages.workerSettings.queueCount, {
+                count: formatCount(preview.data.pending),
+              })}
         </p>
       ) : null}
 
@@ -303,13 +318,17 @@ function SettingsForm({ worker, onDone }: { worker: WorkerSettingsItem; onDone: 
       {revisions.data && (revisions.data.items ?? []).length > 0 ? (
         <div className="grid gap-1 border-t border-(--color-line) pt-2">
           <p className="text-[11px] font-semibold tracking-wide text-(--color-muted) uppercase">
-            Histórico de alterações
+            {messages.pages.workerSettings.revisionsTitle}
           </p>
           {(revisions.data.items ?? []).map((revision) => (
             <p key={revision.revision_id} className="text-xs text-(--color-muted)">
               {formatDateTime(revision.changed_at)}
               {revision.changed_by ? ` · ${revision.changed_by}` : ""} ·{" "}
-              {revision.after ? `padrão definido (${describeSettings(revision.after)})` : "padrão removido"}
+              {revision.after
+                ? fill(messages.pages.workerSettings.defaultSet, {
+                    settings: describeSettings(revision.after, messages),
+                  })
+                : messages.pages.workerSettings.defaultRemoved}
             </p>
           ))}
         </div>
@@ -335,6 +354,7 @@ function ScheduleCard({ worker }: { worker: WorkerSettingsItem }) {
  * date it would have to invent.
  */
 function ScheduleForm({ worker, schedule }: { worker: WorkerSettingsItem; schedule: WorkerSchedule | null }) {
+  const messages = useCopy();
   const queryClient = useQueryClient();
   const settings = worker.settings;
   const [feedback, setFeedback] = useState<string | null>(null);
@@ -380,8 +400,8 @@ function ScheduleForm({ worker, schedule }: { worker: WorkerSettingsItem; schedu
       invalidate();
       setFeedback(
         saved.enabled
-          ? `Agenda salva; a próxima execução é ${formatDateTime(saved.next_run_at)}.`
-          : "Agenda pausada; nada roda sozinho.",
+          ? fill(messages.pages.workerSettings.scheduleSaved, { date: formatDateTime(saved.next_run_at) })
+          : messages.pages.workerSettings.schedulePausedNotice,
       );
     },
   });
@@ -392,35 +412,36 @@ function ScheduleForm({ worker, schedule }: { worker: WorkerSettingsItem; schedu
       invalidate();
       setEnabled(false);
       setCron("");
-      setFeedback("Agenda removida; nada roda sozinho.");
+      setFeedback(messages.pages.workerSettings.scheduleRemoved);
     },
   });
 
   return (
     <div className="grid gap-3 rounded-lg bg-black/[0.02] p-3 ring-1 ring-(--color-line)">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <span className="text-sm font-medium">Agenda</span>
+        <span className="text-sm font-medium">{messages.pages.workerSettings.schedule}</span>
         <span className="text-xs text-(--color-muted)">
-          {schedule ? (schedule.enabled ? `próxima ${formatDateTime(schedule.next_run_at)}` : "pausada") : "sem agenda"}
+          {schedule
+            ? schedule.enabled
+              ? fill(messages.pages.workerSettings.nextRun, { date: formatDateTime(schedule.next_run_at) })
+              : messages.pages.workerSettings.paused
+            : messages.pages.workerSettings.noSchedule}
         </span>
       </div>
 
-      <p className="text-xs text-(--color-muted)">
-        Cinco campos (minuto, hora, dia do mês, mês e dia da semana), no fuso abaixo. O que você escolher
-        aqui fica fixo nesta agenda; o que ficar em branco segue a configuração salva.
-      </p>
+      <p className="text-xs text-(--color-muted)">{messages.pages.workerSettings.scheduleIntro}</p>
 
       <div className="grid gap-3 sm:grid-cols-3">
-        <Field label="Estado">
+        <Field label={messages.pages.workerSettings.stateField}>
           <Select value={enabled ? "on" : "off"} onChange={(event) => setEnabled(event.target.value === "on")}>
-            <option value="on">ativa</option>
-            <option value="off">pausada</option>
+            <option value="on">{messages.pages.workerSettings.active}</option>
+            <option value="off">{messages.pages.workerSettings.paused}</option>
           </Select>
         </Field>
-        <Field label="Agendamento">
+        <Field label={messages.pages.workerSettings.cronField}>
           <Input value={cron} onChange={(event) => setCron(event.target.value)} placeholder="0 2 * * *" />
         </Field>
-        <Field label="Fuso Horário">
+        <Field label={messages.pages.workerSettings.timezoneField}>
           <Input
             value={timezone}
             onChange={(event) => setTimezone(event.target.value)}
@@ -431,7 +452,7 @@ function ScheduleForm({ worker, schedule }: { worker: WorkerSettingsItem; schedu
 
       {settings.engine_source === "signature" ? (
         <div className="grid gap-3 sm:grid-cols-2">
-          <Field label="Motor (fixar nesta agenda)">
+          <Field label={messages.pages.workerSettings.enginePinField}>
             <Select
               value={engine}
               onChange={(event) => {
@@ -439,7 +460,7 @@ function ScheduleForm({ worker, schedule }: { worker: WorkerSettingsItem; schedu
                 setPreset("");
               }}
             >
-              <option value="">(o da configuração salva)</option>
+              <option value="">{messages.pages.workerSettings.savedOption}</option>
               {(settings.available_engines ?? []).map((item) => (
                 <option key={item.name} value={item.name}>
                   {item.name}
@@ -447,9 +468,9 @@ function ScheduleForm({ worker, schedule }: { worker: WorkerSettingsItem; schedu
               ))}
             </Select>
           </Field>
-          <Field label="Preset">
+          <Field label={messages.pages.workerSettings.presetField}>
             <Select value={preset} onChange={(event) => setPreset(event.target.value)}>
-              <option value="">(o da configuração salva)</option>
+              <option value="">{messages.pages.workerSettings.savedOption}</option>
               {((settings.available_engines ?? []).find((item) => item.name === engine)?.presets ?? []).map(
                 (item) => (
                   <option key={item.name} value={item.name}>
@@ -463,14 +484,14 @@ function ScheduleForm({ worker, schedule }: { worker: WorkerSettingsItem; schedu
       ) : null}
 
       <div className="grid gap-3 sm:grid-cols-2">
-        <Field label="Tamanho do Lote">
+        <Field label={messages.pages.workerSettings.batchFieldShort}>
           <Input
             value={batch}
             onChange={(event) => setBatch(event.target.value)}
-            placeholder="(o da configuração salva)"
+            placeholder={messages.pages.workerSettings.savedOption}
           />
         </Field>
-        <Field label='Ajustes do Motor (JSON; ex.: {"device": "cpu"})'>
+        <Field label={messages.pages.workerSettings.engineOptionsField}>
           <Textarea
             rows={2}
             value={engineText}
@@ -500,19 +521,23 @@ function ScheduleForm({ worker, schedule }: { worker: WorkerSettingsItem; schedu
           </Button>
         ) : null}
         <span className="text-xs text-(--color-muted)">
-          {schedule ? `atualizada por ${schedule.updated_by ?? "—"}` : "sem agenda"}
+          {schedule
+            ? fill(messages.pages.workerSettings.updatedBy, { name: schedule.updated_by ?? "—" })
+            : messages.pages.workerSettings.noSchedule}
         </span>
       </div>
     </div>
   );
 }
 
-function describeSettings(snapshot: Record<string, unknown>): string {
+function describeSettings(snapshot: Record<string, unknown>, messages: Messages): string {
   const parts: string[] = [];
   if (snapshot.engine_name) parts.push(String(snapshot.engine_name));
   if (snapshot.preset) parts.push(String(snapshot.preset));
-  if (snapshot.db_batch_size) parts.push(`lote ${String(snapshot.db_batch_size)}`);
+  if (snapshot.db_batch_size) {
+    parts.push(fill(messages.pages.workerSettings.snapshotBatch, { size: String(snapshot.db_batch_size) }));
+  }
   const options = snapshot.options as Record<string, unknown> | undefined;
   if (options && Object.keys(options).length > 0) parts.push(JSON.stringify(options));
-  return parts.length > 0 ? parts.join(" · ") : "sem campos";
+  return parts.length > 0 ? parts.join(" · ") : messages.pages.workerSettings.snapshotEmpty;
 }
