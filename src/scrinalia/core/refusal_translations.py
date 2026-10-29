@@ -178,3 +178,19 @@ TRANSLATIONS.update(
         "este worker não carrega modelo.": "this worker does not load a model.",
     }
 )
+
+TRANSLATIONS.update(
+    {
+        "Informe o canal. Disponíveis: {channels}.": "Inform the channel. Available: {channels}.",
+        "Canal de difusão '{code}' não existe. Disponíveis: {channels}.": "Diffusion channel '{code}' does not exist. Available: {channels}.",
+        "Configuração inválida do canal '{code}': {exc}": "Invalid configuration of channel '{code}': {exc}",
+        "Configuração inválida do site público: {exc}": "Invalid configuration of the public site: {exc}",
+        "Informe o que mudar no canal '{code}'.": "Say what to change on channel '{code}'.",
+        "O canal '{code}' ainda não está configurado. Salve a configuração antes da agenda.": "Channel '{code}' is not configured yet. Save the configuration before scheduling.",
+        "O canal '{code}' ainda não está configurado. Salve a configuração primeiro.": "Channel '{code}' is not configured yet. Save the configuration first.",
+        "O canal '{code}' não está configurado.": "Channel '{code}' is not configured.",
+        "O canal '{code}' é lido a cada requisição e não tem opções de execução.": "Channel '{code}' is read on every request and has no run options.",
+        "O canal '{code}' é o site público: ele é lido a cada requisição e não tem agenda.": "Channel '{code}' is the public site: it is read on every request and has no schedule.",
+        "O site público ainda não está configurado nesta instalação.": "The public site is not configured in this installation yet.",
+    }
+)

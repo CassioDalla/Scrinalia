@@ -18,6 +18,7 @@ from importlib import import_module
 #: CodeQL's ``py/unused-import`` does not model the side effect the import is for.
 MODEL_PACKAGES: tuple[str, ...] = (
     "scrinalia.domains.archive.models",
+    "scrinalia.domains.diffusion.models",
     "scrinalia.domains.identity.models",
     "scrinalia.domains.ingestion.models",
     "scrinalia.domains.staging.models",

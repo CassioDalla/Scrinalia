@@ -45,6 +45,7 @@ from scrinalia.domains.archive.services.typology_service import TypologyService
 from scrinalia.domains.archive.services.worker_operations_service import WorkerOperationsService
 from scrinalia.domains.archive.services.worker_run_service import WorkerRunService
 from scrinalia.domains.archive.services.worker_schedule_service import WorkerScheduleService
+from scrinalia.domains.diffusion.service import DiffusionChannelService
 from scrinalia.domains.identity.repository.login_attempt_repo import LoginAttemptRecorder
 from scrinalia.domains.identity.repository.session_repo import SessionRepository
 from scrinalia.domains.identity.repository.user_repo import UserRepository
@@ -236,6 +237,16 @@ def provide_ingestion_origin_service(unit_of_work: NamedDependency[UnitOfWork]) 
     committed session, exactly like every other execution the panel enqueues.
     """
     return IngestionOriginService(unit_of_work.db)
+
+
+def provide_diffusion_channel_service(unit_of_work: NamedDependency[UnitOfWork]) -> DiffusionChannelService:
+    """
+    Builds the diffusion channel service over the request transaction.
+
+    The channel row and its agenda are the transaction's; there is no run here yet (#212), so the
+    service only reads and writes the lifecycle and the configuration.
+    """
+    return DiffusionChannelService(unit_of_work.db)
 
 
 def provide_failure_service(unit_of_work: NamedDependency[UnitOfWork]) -> FailureService:

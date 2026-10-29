@@ -18,6 +18,9 @@ from scrinalia.domains.archive.schemas.document_schema import (
     DocumentTagSummary,
 )
 from scrinalia.domains.archive.services.document_service import DocumentService
+from scrinalia.domains.diffusion.diffusion_registry import PublicSiteConfig
+from scrinalia.domains.diffusion.exceptions import PublicSiteNotConfiguredError
+from scrinalia.domains.diffusion.service import DiffusionChannelService
 
 
 @pytest.fixture
@@ -104,6 +107,30 @@ def test_an_unpublished_document_is_a_404_not_a_403(client: TestClient, mocker) 
 
     assert response.status_code == HTTP_404_NOT_FOUND
     assert response.json()["error_code"] == "DocumentNotFoundError"
+
+
+def test_the_public_site_identity_is_a_404_while_unconfigured(client: TestClient, mocker) -> None:
+    mock = mocker.patch.object(DiffusionChannelService, "public_site")
+    mock.side_effect = PublicSiteNotConfiguredError("O site público ainda não está configurado.")
+
+    response = client.get("/api/v1/public/site")
+
+    assert response.status_code == HTTP_404_NOT_FOUND
+    assert response.json()["error_code"] == "PublicSiteNotConfiguredError"
+
+
+def test_the_public_site_identity_carries_no_internal_field(client: TestClient, mocker) -> None:
+    mock = mocker.patch.object(DiffusionChannelService, "public_site")
+    mock.return_value = PublicSiteConfig(site_title="Acervo", locale="pt-BR", allow_indexing=False)
+
+    response = client.get("/api/v1/public/site")
+
+    assert response.status_code == HTTP_200_OK
+    body = response.json()
+    assert body["site_title"] == "Acervo"
+    assert body["allow_indexing"] is False
+    for forbidden in ("config", "configured", "enabled", "schedule", "updated_by"):
+        assert forbidden not in body
 
 
 def test_the_public_surface_exposes_no_write_route() -> None:

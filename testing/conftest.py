@@ -31,6 +31,9 @@ from scrinalia.domains.archive.models import (
 )
 from scrinalia.domains.archive.schemas import ArchiveEntityDTO
 from scrinalia.domains.archive.schemas.document_schema import ArchiveDocumentDTO
+
+# Imported for ``Base.metadata.create_all``; the module has no direct use in this file.
+from scrinalia.domains.diffusion import models as diffusion_model  # noqa: F401
 from scrinalia.domains.identity.domain.credentials import _decoy_hash, _hasher, hash_password, normalize_email
 from scrinalia.domains.identity.domain.permissions import Role
 from scrinalia.domains.identity.models import AuthUser

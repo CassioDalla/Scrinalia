@@ -137,4 +137,5 @@ nav:
       - 0020 The interface speaks two languages: adr/0020-the-interface-speaks-two-languages.md
       - 0021 The URL speaks the interface's language: adr/0021-the-url-speaks-the-interfaces-language.md
       - 0022 An unconfigured installation advertises no object-backed URL: adr/0022-an-unconfigured-installation-advertises-no-object-backed-url.md
+      - 0023 Diffusion is a channel registry and a scope: adr/0023-diffusion-is-a-channel-registry-and-a-scope.md
   - Documentation log: log.md

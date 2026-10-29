@@ -2218,6 +2218,346 @@
         "title": "DescriptionLevelUpdateRequest",
         "type": "object"
       },
+      "DiffusionCapability": {
+        "description": "How a channel leaves the archive: read live on every request, or exported by a run.",
+        "enum": [
+          "LIVE",
+          "EXPORT"
+        ],
+        "title": "DiffusionCapability",
+        "type": "string"
+      },
+      "DiffusionChannelDTO": {
+        "properties": {
+          "active_run_id": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "active_run_status": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/WorkerRunStatus"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "capability": {
+            "$ref": "#/components/schemas/DiffusionCapability"
+          },
+          "code": {
+            "type": "string"
+          },
+          "config": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "config_fields": {
+            "items": {
+              "$ref": "#/components/schemas/DiffusionConfigFieldDTO"
+            },
+            "type": "array"
+          },
+          "configured": {
+            "description": "Se o canal foi adicionado (existe uma linha na tabela).",
+            "type": "boolean"
+          },
+          "description": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "label": {
+            "type": "string"
+          },
+          "last_run_at": {
+            "oneOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "last_run_id": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "last_run_status": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/WorkerRunStatus"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "options": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "schedule": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/DiffusionScheduleDTO"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "updated_at": {
+            "oneOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "updated_by": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "capability",
+          "code",
+          "configured",
+          "description",
+          "enabled",
+          "label"
+        ],
+        "title": "DiffusionChannelDTO",
+        "type": "object"
+      },
+      "DiffusionChannelListResponse": {
+        "properties": {
+          "channels": {
+            "items": {
+              "$ref": "#/components/schemas/DiffusionChannelDTO"
+            },
+            "type": "array"
+          },
+          "generated_at": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "generated_at"
+        ],
+        "title": "DiffusionChannelListResponse",
+        "type": "object"
+      },
+      "DiffusionChannelUpdateRequest": {
+        "properties": {
+          "config": {
+            "description": "A configuração do canal, validada pelo modelo dele (a identidade do site).",
+            "oneOf": [
+              {
+                "additionalProperties": {},
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "enabled": {
+            "oneOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "options": {
+            "description": "A política de execução de um canal de exportação; vazia em um canal LIVE.",
+            "oneOf": [
+              {
+                "additionalProperties": {},
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [],
+        "title": "DiffusionChannelUpdateRequest",
+        "type": "object"
+      },
+      "DiffusionConfigFieldDTO": {
+        "properties": {
+          "default": {},
+          "help": {
+            "type": "string"
+          },
+          "kind": {
+            "default": "text",
+            "enum": [
+              "text",
+              "number",
+              "boolean"
+            ],
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "required": {
+            "default": false,
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "help",
+          "label",
+          "name"
+        ],
+        "title": "DiffusionConfigFieldDTO",
+        "type": "object"
+      },
+      "DiffusionScheduleDTO": {
+        "properties": {
+          "cron": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "last_enqueued_at": {
+            "oneOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "last_skipped_at": {
+            "oneOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "next_run_at": {
+            "oneOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "timezone": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "updated_at": {
+            "oneOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "updated_by": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [],
+        "title": "DiffusionScheduleDTO",
+        "type": "object"
+      },
+      "DiffusionScheduleRequest": {
+        "properties": {
+          "cron": {
+            "description": "Cinco campos: minuto, hora, dia, mês, semana.",
+            "maxLength": 120,
+            "minLength": 1,
+            "type": "string"
+          },
+          "timezone": {
+            "description": "Zona IANA; o padrão é DEFAULT_TIMEZONE.",
+            "maxLength": 64,
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "cron"
+        ],
+        "title": "DiffusionScheduleRequest",
+        "type": "object"
+      },
       "DocumentAncestorSummary": {
         "properties": {
           "description_id": {
@@ -7924,6 +8264,93 @@
         "title": "PublicMacroCategorySummary",
         "type": "object"
       },
+      "PublicSiteConfig": {
+        "properties": {
+          "allow_indexing": {
+            "default": true,
+            "description": "Se os buscadores podem indexar o site público.",
+            "type": "boolean"
+          },
+          "contact_email": {
+            "description": "O endereço que o visitante usa para falar com a instituição.",
+            "maxLength": 254,
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "institution_name": {
+            "description": "O nome da instituição responsável pelo acervo.",
+            "maxLength": 200,
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "locale": {
+            "default": "pt-BR",
+            "description": "O idioma do site público. O aplicativo pode oferecer apenas pt-BR primeiro.",
+            "enum": [
+              "pt-BR",
+              "en"
+            ],
+            "type": "string"
+          },
+          "logo_url": {
+            "oneOf": [
+              {
+                "format": "url",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "public_base_url": {
+            "oneOf": [
+              {
+                "format": "url",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "site_description": {
+            "description": "Uma frase sobre o acervo, para a página inicial do site.",
+            "maxLength": 500,
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "site_title": {
+            "description": "O título que o site público mostra no cabeçalho.",
+            "maxLength": 200,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "site_title"
+        ],
+        "title": "PublicSiteConfig",
+        "type": "object"
+      },
       "PublicTagSummary": {
         "properties": {
           "name": {
@@ -12083,6 +12510,333 @@
         ]
       }
     },
+    "/api/v1/diffusion/channels": {
+      "get": {
+        "deprecated": false,
+        "operationId": "ApiV1DiffusionChannelsListChannels",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DiffusionChannelListResponse"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          }
+        },
+        "summary": "ListChannels",
+        "tags": [
+          "Diffusion"
+        ]
+      }
+    },
+    "/api/v1/diffusion/channels/{code}": {
+      "get": {
+        "deprecated": false,
+        "operationId": "ApiV1DiffusionChannelsCodeGetChannel",
+        "parameters": [
+          {
+            "deprecated": false,
+            "in": "path",
+            "name": "code",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DiffusionChannelDTO"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "GetChannel",
+        "tags": [
+          "Diffusion"
+        ]
+      },
+      "patch": {
+        "deprecated": false,
+        "operationId": "ApiV1DiffusionChannelsCodeUpdateChannel",
+        "parameters": [
+          {
+            "deprecated": false,
+            "in": "path",
+            "name": "code",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DiffusionChannelUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DiffusionChannelDTO"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "UpdateChannel",
+        "tags": [
+          "Diffusion"
+        ]
+      }
+    },
+    "/api/v1/diffusion/channels/{code}/schedule": {
+      "delete": {
+        "deprecated": false,
+        "operationId": "ApiV1DiffusionChannelsCodeScheduleDeleteSchedule",
+        "parameters": [
+          {
+            "deprecated": false,
+            "in": "path",
+            "name": "code",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DiffusionChannelDTO"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "DeleteSchedule",
+        "tags": [
+          "Diffusion"
+        ]
+      },
+      "put": {
+        "deprecated": false,
+        "operationId": "ApiV1DiffusionChannelsCodeSchedulePutSchedule",
+        "parameters": [
+          {
+            "deprecated": false,
+            "in": "path",
+            "name": "code",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DiffusionScheduleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DiffusionChannelDTO"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "PutSchedule",
+        "tags": [
+          "Diffusion"
+        ]
+      }
+    },
     "/api/v1/documents": {
       "get": {
         "deprecated": false,
@@ -15668,6 +16422,29 @@
           }
         },
         "summary": "GetPublished",
+        "tags": [
+          "Public"
+        ]
+      }
+    },
+    "/api/v1/public/site": {
+      "get": {
+        "deprecated": false,
+        "operationId": "ApiV1PublicSiteGetSite",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicSiteConfig"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          }
+        },
+        "summary": "GetSite",
         "tags": [
           "Public"
         ]

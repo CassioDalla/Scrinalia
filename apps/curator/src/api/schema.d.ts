@@ -90,6 +90,59 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/diffusion/channels": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** ListChannels */
+        get: operations["ApiV1DiffusionChannelsListChannels"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/diffusion/channels/{code}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** GetChannel */
+        get: operations["ApiV1DiffusionChannelsCodeGetChannel"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** UpdateChannel */
+        patch: operations["ApiV1DiffusionChannelsCodeUpdateChannel"];
+        trace?: never;
+    };
+    "/api/v1/diffusion/channels/{code}/schedule": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** PutSchedule */
+        put: operations["ApiV1DiffusionChannelsCodeSchedulePutSchedule"];
+        post?: never;
+        /** DeleteSchedule */
+        delete: operations["ApiV1DiffusionChannelsCodeScheduleDeleteSchedule"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/documents": {
         parameters: {
             query?: never;
@@ -733,6 +786,23 @@ export interface paths {
         };
         /** GetPublished */
         get: operations["ApiV1PublicDocumentsDescriptionIdGetPublished"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/public/site": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** GetSite */
+        get: operations["ApiV1PublicSiteGetSite"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2854,6 +2924,86 @@ export interface components {
             name?: string | null;
             requires_parent?: boolean | null;
         };
+        /**
+         * DiffusionCapability
+         * @description How a channel leaves the archive: read live on every request, or exported by a run.
+         * @enum {string}
+         */
+        DiffusionCapability: "LIVE" | "EXPORT";
+        /** DiffusionChannelDTO */
+        DiffusionChannelDTO: {
+            active_run_id?: number | null;
+            active_run_status?: components["schemas"]["WorkerRunStatus"] | null;
+            capability: components["schemas"]["DiffusionCapability"];
+            code: string;
+            config?: {
+                [key: string]: unknown;
+            };
+            config_fields?: components["schemas"]["DiffusionConfigFieldDTO"][];
+            /** @description Se o canal foi adicionado (existe uma linha na tabela). */
+            configured: boolean;
+            description: string;
+            enabled: boolean;
+            label: string;
+            last_run_at?: string | null;
+            last_run_id?: number | null;
+            last_run_status?: components["schemas"]["WorkerRunStatus"] | null;
+            options?: {
+                [key: string]: unknown;
+            };
+            schedule?: components["schemas"]["DiffusionScheduleDTO"] | null;
+            updated_at?: string | null;
+            updated_by?: string | null;
+        };
+        /** DiffusionChannelListResponse */
+        DiffusionChannelListResponse: {
+            channels?: components["schemas"]["DiffusionChannelDTO"][];
+            /** Format: date-time */
+            generated_at: string;
+        };
+        /** DiffusionChannelUpdateRequest */
+        DiffusionChannelUpdateRequest: {
+            /** @description A configuração do canal, validada pelo modelo dele (a identidade do site). */
+            config?: {
+                [key: string]: unknown;
+            } | null;
+            enabled?: boolean | null;
+            /** @description A política de execução de um canal de exportação; vazia em um canal LIVE. */
+            options?: {
+                [key: string]: unknown;
+            } | null;
+        };
+        /** DiffusionConfigFieldDTO */
+        DiffusionConfigFieldDTO: {
+            default?: unknown;
+            help: string;
+            /**
+             * @default text
+             * @enum {string}
+             */
+            kind: "text" | "number" | "boolean";
+            label: string;
+            name: string;
+            /** @default false */
+            required: boolean;
+        };
+        /** DiffusionScheduleDTO */
+        DiffusionScheduleDTO: {
+            cron?: string | null;
+            last_enqueued_at?: string | null;
+            last_skipped_at?: string | null;
+            next_run_at?: string | null;
+            timezone?: string | null;
+            updated_at?: string | null;
+            updated_by?: string | null;
+        };
+        /** DiffusionScheduleRequest */
+        DiffusionScheduleRequest: {
+            /** @description Cinco campos: minuto, hora, dia, mês, semana. */
+            cron: string;
+            /** @description Zona IANA; o padrão é DEFAULT_TIMEZONE. */
+            timezone?: string | null;
+        };
         /** DocumentAncestorSummary */
         DocumentAncestorSummary: {
             description_id: string;
@@ -4196,6 +4346,30 @@ export interface components {
             name: string;
             tag_count: number;
         };
+        /** PublicSiteConfig */
+        PublicSiteConfig: {
+            /**
+             * @description Se os buscadores podem indexar o site público.
+             * @default true
+             */
+            allow_indexing: boolean;
+            /** @description O endereço que o visitante usa para falar com a instituição. */
+            contact_email?: string | null;
+            /** @description O nome da instituição responsável pelo acervo. */
+            institution_name?: string | null;
+            /**
+             * @description O idioma do site público. O aplicativo pode oferecer apenas pt-BR primeiro.
+             * @default pt-BR
+             * @enum {string}
+             */
+            locale: "pt-BR" | "en";
+            logo_url?: string | null;
+            public_base_url?: string | null;
+            /** @description Uma frase sobre o acervo, para a página inicial do site. */
+            site_description?: string | null;
+            /** @description O título que o site público mostra no cabeçalho. */
+            site_title: string;
+        };
         /** PublicTagSummary */
         PublicTagSummary: {
             name: string;
@@ -5473,6 +5647,182 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CurationInbox"];
+                };
+            };
+        };
+    };
+    ApiV1DiffusionChannelsListChannels: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DiffusionChannelListResponse"];
+                };
+            };
+        };
+    };
+    ApiV1DiffusionChannelsCodeGetChannel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DiffusionChannelDTO"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                        status_code: number;
+                    };
+                };
+            };
+        };
+    };
+    ApiV1DiffusionChannelsCodeUpdateChannel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DiffusionChannelUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DiffusionChannelDTO"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                        status_code: number;
+                    };
+                };
+            };
+        };
+    };
+    ApiV1DiffusionChannelsCodeSchedulePutSchedule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DiffusionScheduleRequest"];
+            };
+        };
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DiffusionChannelDTO"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                        status_code: number;
+                    };
+                };
+            };
+        };
+    };
+    ApiV1DiffusionChannelsCodeScheduleDeleteSchedule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DiffusionChannelDTO"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                        status_code: number;
+                    };
                 };
             };
         };
@@ -7056,6 +7406,26 @@ export interface operations {
                         } | unknown[];
                         status_code: number;
                     };
+                };
+            };
+        };
+    };
+    ApiV1PublicSiteGetSite: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicSiteConfig"];
                 };
             };
         };

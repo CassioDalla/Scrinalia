@@ -67,6 +67,11 @@ from scrinalia.domains.archive.exceptions import (
 )
 from scrinalia.domains.archive.repository.api_error_repo import ApiErrorRecorder
 from scrinalia.domains.archive.schemas.responses import RouteMessageCode
+from scrinalia.domains.diffusion.exceptions import (
+    DiffusionChannelNotFoundError,
+    InvalidDiffusionConfigError,
+    PublicSiteNotConfiguredError,
+)
 from scrinalia.domains.identity.exceptions import (
     AccountLockedError,
     DuplicateUserEmailError,
@@ -126,6 +131,8 @@ def domain_exception_handler(request: Request, exc: DomainException) -> Response
             WorkerRunNotFoundError,
             WorkerScheduleNotFoundError,
             OriginNotFoundError,
+            DiffusionChannelNotFoundError,
+            PublicSiteNotConfiguredError,
             UserNotFoundError,
             SessionNotFoundError,
         ),
@@ -191,6 +198,7 @@ def domain_exception_handler(request: Request, exc: DomainException) -> Response
             InvalidWorkerScheduleError,
             InvalidWorkerSettingsError,
             InvalidOriginConfigError,
+            InvalidDiffusionConfigError,
             InvalidCurrentPasswordError,
             InvalidEmailError,
             WeakPasswordError,
