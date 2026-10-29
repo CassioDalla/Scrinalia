@@ -260,8 +260,8 @@ jobs:
           persist-credentials: false
 
       - name: Set up Buildx
-        # The build runs as a command and not through a build action on purpose: one action to trust
-        # instead of two, and the command is what a contributor reproduces locally.
+        # A container-driver builder is what the cache export needs: the default ``docker`` driver
+        # has no exporter at all, so the cache would be written nowhere.
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
 
       - name: The compose file validates
@@ -270,19 +270,23 @@ jobs:
         run: docker compose -f docker-compose.yml config -q
 
       - name: Build the application image
-        # ``--load`` because the next two steps run the image. The cache lives in the GitHub Actions
-        # cache (``type=gha``), because a hosted runner starts with no Docker layers of its own and
-        # a cache kept on the runner would never be reused. ``mode=max`` caches the intermediate
+        # An action and not ``docker buildx build`` in a ``run`` step, and that is measured: buildx
+        # only activates ``type=gha`` when ``ACTIONS_RUNTIME_TOKEN`` and ``ACTIONS_CACHE_URL`` are in
+        # its environment (``build/opt.go``, ``isActive``), and the runner exposes those to an action
+        # but not to a shell step — with the command line, ``--cache-to type=gha`` is silently
+        # dropped and every run rebuilds every layer.
+        #
+        # ``load`` because the next two steps run the image. ``mode=max`` caches the intermediate
         # Python stage too — the one carrying torch and spaCy, which is the expensive half.
         # ``ignore-error`` keeps a cache over the repository's 10 GB budget from failing a build that
         # is otherwise green: the cache is an optimization, the build is the gate.
-        run: |
-          docker buildx build \
-            --tag scrinalia-app:ci \
-            --load \
-            --cache-from type=gha,scope=scrinalia-app \
-            --cache-to type=gha,scope=scrinalia-app,mode=max,ignore-error=true \
-            .
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          tags: scrinalia-app:ci
+          load: true
+          cache-from: type=gha,scope=scrinalia-app
+          cache-to: type=gha,scope=scrinalia-app,mode=max,ignore-error=true
 
       - name: The application composes inside the image
         # The entrypoint's ``alembic upgrade head`` needs a database, so this bypasses the entrypoint
