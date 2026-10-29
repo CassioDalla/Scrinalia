@@ -703,9 +703,13 @@ com o vínculo `_user_id`) é gravado enquanto a linha ainda está `QUEUED`/`RUN
 lote do worker o transforma em `CANCELLED`. [Cancelar uma execução](#cancelar-uma-execucao) é a
 história inteira.
 
-`uq_worker_run_active` é um **índice único parcial** sobre `(worker_name)` quando o status é `QUEUED`
-ou `RUNNING`. É ele, e não um lock de processo, a trava de concorrência: no máximo uma execução por
-worker em andamento, entre processos e através de um reload. Um segundo envio vira um
+`uq_worker_run_active` é um **índice único parcial** sobre
+`(worker_name, COALESCE(origin_code, ''), COALESCE(channel_code, ''))` quando o status é `QUEUED` ou
+`RUNNING`. É ele, e não um lock de processo, a trava de concorrência: no máximo uma execução por
+worker e por linha do eixo em andamento, entre processos e através de um reload. A origem e o canal
+na chave são o que dá a cada origem de ingestão e a cada canal de difusão uma vaga própria sem
+enfraquecer a regra de uma vaga por worker dos workers de archive (as duas colunas deles são nulas e
+coalescem para um valor). Um segundo envio vira um
 `IntegrityError` que a API transforma em `409` com uma frase ("Já existe uma execução em andamento
 para o worker '…'"). A CLI chega ao mesmo erro, mas não tem tratamento para ele, então termina com o
 traceback em vez da frase.

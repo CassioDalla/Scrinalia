@@ -765,11 +765,12 @@ A cancellation is a **request** before it is a status: `cancel_requested_at` (an
 and only the worker's batch boundary turns it into `CANCELLED`. [Cancelling a run](#cancelling-a-run)
 is the whole story.
 
-`uq_worker_run_active` is a **partial unique index** on `(worker_name, COALESCE(origin_code, ''))`
-where the status is `QUEUED` or `RUNNING`. It, and not a process lock, is the concurrency guard: at
-most one run per worker may be in flight, across processes and across a reload. The origin in the
-key is what gives each ingestion origin a slot of its own without weakening the archive workers'
-one-slot-per-worker rule (their `origin_code` is null and coalesces to one value). A second submission becomes an
+`uq_worker_run_active` is a **partial unique index** on
+`(worker_name, COALESCE(origin_code, ''), COALESCE(channel_code, ''))` where the status is `QUEUED` or
+`RUNNING`. It, and not a process lock, is the concurrency guard: at most one run per worker and axis
+row may be in flight, across processes and across a reload. The origin and the channel in the key are
+what give each ingestion origin and each diffusion channel a slot of its own without weakening the
+archive workers' one-slot-per-worker rule (their two columns are null and coalesce to one value). A second submission becomes an
 `IntegrityError` that the API turns into `409` with a sentence ("Já existe uma execução em
 andamento para o worker '…'"). The CLI reaches the same error but has no handler for it, so it stops
 with a traceback instead of the sentence.
