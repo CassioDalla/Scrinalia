@@ -31,9 +31,6 @@ from scrinalia.domains.archive.models import (
 )
 from scrinalia.domains.archive.schemas import ArchiveEntityDTO
 from scrinalia.domains.archive.schemas.document_schema import ArchiveDocumentDTO
-
-# Imported for ``Base.metadata.create_all``; the module has no direct use in this file.
-from scrinalia.domains.diffusion import models as diffusion_model  # noqa: F401
 from scrinalia.domains.identity.domain.credentials import _decoy_hash, _hasher, hash_password, normalize_email
 from scrinalia.domains.identity.domain.permissions import Role
 from scrinalia.domains.identity.models import AuthUser
@@ -41,6 +38,7 @@ from scrinalia.domains.identity.repository import SessionRepository, UserReposit
 from scrinalia.domains.identity.repository.login_attempt_repo import LoginAttemptRecorder
 from scrinalia.domains.identity.services import AuthService
 from scrinalia.domains.ingestion import models as ingest_model
+from scrinalia.metadata import load_all_models
 from testing.reference_vocabulary import ARRANGEMENT_TERMS, COLLECTION_TERMS
 
 # Dynamically discover the absolute path of the 'tests' folder
@@ -218,6 +216,11 @@ def engine():
         conn.execute(text(ARCHIVE_ERROR_FINGERPRINT_SQL))
         conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
         _create_migration_owned_enum_types(conn)
+
+    # ``load_all_models`` is the one definition of the model packages; calling it before
+    # ``create_all`` keeps a new domain's table in the test schema without a side-effect import
+    # in this module.
+    load_all_models()
 
     # Creates all tables based on your Models
     Base.metadata.create_all(bind=engine)
