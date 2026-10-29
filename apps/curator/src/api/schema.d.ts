@@ -125,6 +125,23 @@ export interface paths {
         patch: operations["ApiV1DiffusionChannelsCodeUpdateChannel"];
         trace?: never;
     };
+    "/api/v1/diffusion/channels/{code}/runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** TriggerRun */
+        post: operations["ApiV1DiffusionChannelsCodeRunsTriggerRun"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/diffusion/channels/{code}/schedule": {
         parameters: {
             query?: never;
@@ -5087,6 +5104,8 @@ export interface components {
             cancel_requested_at?: string | null;
             /** @description Quem pediu o cancelamento; nulo quando o pedido veio de um sinal do processo, não do painel. */
             cancel_requested_by?: string | null;
+            /** @description O canal de difusão que esta execução de exportação escreveu; nulo em qualquer outro worker, inclusive na ingestão, cujo eixo é a origem (ADR 0023). */
+            channel_code?: string | null;
             /** @description Configuração resolvida (preset já mesclado com os overrides), para o registro não mudar de sentido quando um preset mudar no código. */
             config?: {
                 [key: string]: unknown;
@@ -5140,6 +5159,8 @@ export interface components {
             cancel_requested_at?: string | null;
             /** @description Quem pediu o cancelamento; nulo quando o pedido veio de um sinal do processo, não do painel. */
             cancel_requested_by?: string | null;
+            /** @description O canal de difusão que esta execução de exportação escreveu; nulo em qualquer outro worker, inclusive na ingestão, cujo eixo é a origem (ADR 0023). */
+            channel_code?: string | null;
             /** @description Configuração resolvida (preset já mesclado com os overrides), para o registro não mudar de sentido quando um preset mudar no código. */
             config?: {
                 [key: string]: unknown;
@@ -5375,7 +5396,7 @@ export interface components {
             settings: components["schemas"]["WorkerSettingsDTO"];
             stamp_breakdown?: components["schemas"]["WorkerStampBreakdownDTO"] | null;
             /** @enum {string} */
-            unit: "origin" | "staging" | "document" | "tag" | "pair";
+            unit: "origin" | "channel" | "staging" | "document" | "tag" | "pair";
         };
         /** WorkerTrialConfigDTO */
         WorkerTrialConfigDTO: {
@@ -5730,6 +5751,43 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DiffusionChannelDTO"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                        status_code: number;
+                    };
+                };
+            };
+        };
+    };
+    ApiV1DiffusionChannelsCodeRunsTriggerRun: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Document created, URL follows */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkerRunDTO"];
                 };
             };
             /** @description Bad request syntax or unsupported method */
@@ -7995,6 +8053,7 @@ export interface operations {
             query?: {
                 worker?: string | null;
                 origin?: string | null;
+                channel?: string | null;
                 status?: components["schemas"]["WorkerRunStatus"] | null;
                 fingerprint?: string | null;
                 trial?: boolean | null;

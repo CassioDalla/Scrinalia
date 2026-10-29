@@ -48,10 +48,38 @@ from scrinalia.domains.archive.models.enums import (
 )
 from scrinalia.domains.archive.models.operations import MAX_ERROR_LENGTH, WorkerRun
 from scrinalia.domains.archive.schemas.system_schema import WorkerRunDetailDTO, WorkerRunDTO, WorkerTrialResultDTO
+from scrinalia.domains.archive.workers.catalogue import WORKER_CATALOGUE
 
 #: The error a swept claim is closed with. It names the cause (the runner stopped signalling) and
 #: not a stack trace; the fingerprint groups every sweep under one root cause.
 ORPHANED_CLAIM_ERROR = "O runner parou de enviar sinal antes do fim desta execução."
+
+
+def _validate_axis(worker_name: str, origin_code: str | None, channel_code: str | None) -> None:
+    """
+    The ledger's one invariant: a run names the axis its worker has, and no other.
+
+    The catalogue is the definition of which worker has which axis (``origin_axis`` for
+    ``ingestion``, ``channel_axis`` for ``diffusion``), so the writer reads it instead of repeating
+    the list. A run of an axis worker without its axis would share a slot with every other run of
+    that worker (both columns coalesce to ``''``), and a run with both axes would be a slot no
+    reader expects — the partial unique index cannot tell either apart, which is why this is a
+    programming error and not a database constraint.
+
+    A worker that is not in the catalogue is not refused: the ledger is allowed to remember a run of
+    a worker that left the code, and the writer has no axis rule to apply to it.
+    """
+    spec = WORKER_CATALOGUE.get(worker_name)
+    if spec is None:
+        return
+    if spec.origin_axis:
+        if origin_code is None or channel_code is not None:
+            raise ValueError(f"a run of '{worker_name}' names the origin and no channel")
+    elif spec.channel_axis:
+        if channel_code is None or origin_code is not None:
+            raise ValueError(f"a run of '{worker_name}' names the channel and no origin")
+    elif origin_code is not None or channel_code is not None:
+        raise ValueError(f"a run of '{worker_name}' names neither an origin nor a channel")
 
 
 @dataclass(frozen=True)
@@ -63,6 +91,8 @@ class ClaimedRun:
     #: The origin an ingestion run processes; ``None`` for an archive worker.
     origin_code: str | None
     request: dict[str, Any]
+    #: The channel a diffusion run writes; ``None`` for every other worker (ADR 0023).
+    channel_code: str | None = None
     #: True when this row is a trial comparison rather than a production execution (ADR 0018). The
     #: runner dispatches on it: a trial runs the configurations over a sample and writes no
     #: archival content, while a production run calls the worker.
@@ -91,6 +121,7 @@ def to_dto(run: WorkerRun) -> WorkerRunDTO:
         run_id=run.id,
         worker_name=run.worker_name,
         origin_code=run.origin_code,
+        channel_code=run.channel_code,
         status=run.status,
         trigger=run.trigger,
         trial=run.trial,
@@ -132,6 +163,7 @@ class WorkerRunRepository:
         preset: str | None,
         config: dict[str, Any],
         origin_code: str | None = None,
+        channel_code: str | None = None,
         request: dict[str, Any] | None = None,
         options: dict[str, Any] | None = None,
         attempt: int = 1,
@@ -147,15 +179,21 @@ class WorkerRunRepository:
         (ADR 0014). ``config`` beside it is the resolution shown to the curator; it is a promise,
         and the runner writes the effective one when the run starts.
 
+        ``origin_code``/``channel_code`` are the run's **axis**: ``ingestion`` names the origin,
+        ``diffusion`` names the channel, and every other worker names neither. ``_validate_axis``
+        is the one check, against the catalogue.
+
         ``attempt``/``retry_of``/``not_before`` are the scheduler's (ADR 0015): a retry is a new row
         created after the previous one is terminal. A manual/CLI run leaves them at 1/None/None.
         ``trial`` marks a comparison of configurations (ADR 0018); its request carries the configs
         and its ``config`` is deliberately empty, because there is no single resolved configuration
         until the runner measures them.
         """
+        _validate_axis(worker_name, origin_code, channel_code)
         run = WorkerRun(
             worker_name=worker_name,
             origin_code=origin_code,
+            channel_code=channel_code,
             status=WorkerRunStatus.QUEUED,
             trigger=trigger,
             trial=trial,
@@ -186,6 +224,7 @@ class WorkerRunRepository:
         preset: str | None,
         config: dict[str, Any],
         origin_code: str | None = None,
+        channel_code: str | None = None,
         request: dict[str, Any] | None = None,
         options: dict[str, Any] | None = None,
         runner_id: str | None = None,
@@ -195,11 +234,14 @@ class WorkerRunRepository:
         Opens a run that is already executing (the command line path).
 
         The CLI is a one-shot runner: it gives itself a ``runner_id`` and a lease so a crash is
-        recovered by the next CLI or runner, exactly like a daemon's claim (ADR 0014).
+        recovered by the next CLI or runner, exactly like a daemon's claim (ADR 0014). The axis is
+        validated like ``create_queued``'s: a CLI run of ``diffusion`` names the channel.
         """
+        _validate_axis(worker_name, origin_code, channel_code)
         run = WorkerRun(
             worker_name=worker_name,
             origin_code=origin_code,
+            channel_code=channel_code,
             status=WorkerRunStatus.RUNNING,
             trigger=trigger,
             **author_columns("requested_by", requested_by),
@@ -218,12 +260,17 @@ class WorkerRunRepository:
         self.db.refresh(run)
         return to_dto(run)
 
-    def has_active_run(self, worker_name: str, origin_code: str | None = None) -> bool:
+    def has_active_run(
+        self,
+        worker_name: str,
+        origin_code: str | None = None,
+        channel_code: str | None = None,
+    ) -> bool:
         """
         Whether the worker already has a ``QUEUED``/``RUNNING`` row: the scheduler's skip check.
 
-        ``origin_code`` narrows the question to one origin's slot; the archive workers pass none
-        and keep their one-slot-per-worker guard.
+        ``origin_code`` narrows the question to one origin's slot and ``channel_code`` to one
+        channel's; the archive workers pass neither and keep their one-slot-per-worker guard.
         """
         conditions = [
             WorkerRun.worker_name == worker_name,
@@ -233,6 +280,10 @@ class WorkerRunRepository:
             conditions.append(WorkerRun.origin_code.is_(None))
         else:
             conditions.append(WorkerRun.origin_code == origin_code)
+        if channel_code is None:
+            conditions.append(WorkerRun.channel_code.is_(None))
+        else:
+            conditions.append(WorkerRun.channel_code == channel_code)
         return bool(self.db.scalar(select(exists().where(*conditions))))
 
     def due_retries(self, max_attempts: int) -> list[WorkerRun]:
@@ -297,18 +348,26 @@ class WorkerRunRepository:
                 heartbeat_at=func.now(),
                 lease_expires_at=_lease_deadline(lease_seconds),
             )
-            .returning(WorkerRun.id, WorkerRun.worker_name, WorkerRun.origin_code, WorkerRun.request, WorkerRun.trial)
+            .returning(
+                WorkerRun.id,
+                WorkerRun.worker_name,
+                WorkerRun.origin_code,
+                WorkerRun.channel_code,
+                WorkerRun.request,
+                WorkerRun.trial,
+            )
         ).first()
         self.db.flush()
         if row is None:
             return None
 
-        claimed_id, worker_name, origin_code, request, trial = row
+        claimed_id, worker_name, origin_code, channel_code, request, trial = row
         return ClaimedRun(
             run_id=int(claimed_id),
             worker_name=str(worker_name),
             origin_code=str(origin_code) if origin_code is not None else None,
             request=dict(request or {}),
+            channel_code=str(channel_code) if channel_code is not None else None,
             trial=bool(trial),
         )
 
@@ -562,6 +621,7 @@ class WorkerRunRepository:
         *,
         worker_name: str | None = None,
         origin_code: str | None = None,
+        channel_code: str | None = None,
         status: WorkerRunStatus | None = None,
         fingerprint: str | None = None,
         trial: bool | None = None,
@@ -573,6 +633,8 @@ class WorkerRunRepository:
             conditions.append(WorkerRun.worker_name == worker_name)
         if origin_code is not None:
             conditions.append(WorkerRun.origin_code == origin_code)
+        if channel_code is not None:
+            conditions.append(WorkerRun.channel_code == channel_code)
         if status is not None:
             conditions.append(WorkerRun.status == status)
         if fingerprint is not None:
@@ -634,3 +696,23 @@ class WorkerRunRepository:
             )
         ).all()
         return {run.origin_code: to_dto(run) for run in rows if run.origin_code is not None}
+
+    def last_diffusion_by_channel(self) -> dict[str, WorkerRunDTO]:
+        """The most recent diffusion run of each channel, one query for the operator page."""
+        rows = self.db.scalars(
+            select(WorkerRun)
+            .where(WorkerRun.worker_name == "diffusion")
+            .ext(distinct_on(WorkerRun.channel_code))
+            .order_by(WorkerRun.channel_code, WorkerRun.queued_at.desc(), WorkerRun.id.desc())
+        ).all()
+        return {run.channel_code: to_dto(run) for run in rows if run.channel_code is not None}
+
+    def active_diffusion_by_channel(self) -> dict[str, WorkerRunDTO]:
+        """The diffusion runs in flight, keyed by channel; one slot per channel."""
+        rows = self.db.scalars(
+            select(WorkerRun).where(
+                WorkerRun.worker_name == "diffusion",
+                WorkerRun.status.in_(ACTIVE_WORKER_RUN_STATUSES),
+            )
+        ).all()
+        return {run.channel_code: to_dto(run) for run in rows if run.channel_code is not None}

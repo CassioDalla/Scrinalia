@@ -46,6 +46,9 @@ from scrinalia.domains.archive.workers.configuration import resolve_configuratio
 from scrinalia.domains.archive.workers.retry import MAX_ATTEMPTS, retry_delay_seconds
 from scrinalia.domains.archive.workers.schedule import next_occurrence
 from scrinalia.domains.archive.workers.schema import assert_schema_at_head
+from scrinalia.domains.diffusion.diffusion_registry import adapter_module, get_channel_summary
+from scrinalia.domains.diffusion.models import DiffusionChannel
+from scrinalia.domains.diffusion.repository import DiffusionChannelRepository
 from scrinalia.domains.ingestion.models import IngestionOrigin
 from scrinalia.domains.ingestion.origin_registry import get_origin_summary
 from scrinalia.domains.ingestion.origin_repo import IngestionOriginRepository
@@ -139,13 +142,22 @@ class SchedulerService:
                     logger.info(f"⏭️ A origem '{origin.code}' já tem uma ingestão ativa; período pulado.")
                 except Exception as exc:
                     logger.error(f"⚠️ Could not schedule the origin '{origin.code}': {exc}")
+            channels = DiffusionChannelRepository(db).due(now)
+            for channel in channels:
+                try:
+                    with db.begin_nested():
+                        self._process_channel(db, channel, now)
+                except IntegrityError:
+                    logger.info(f"⏭️ O canal '{channel.code}' já tem uma execução ativa; período pulado.")
+                except Exception as exc:
+                    logger.error(f"⚠️ Could not schedule the channel '{channel.code}': {exc}")
             db.commit()
-            if schedules or origins or retried:
+            if schedules or origins or channels or retried:
                 logger.info(
                     f"🕒 Scheduler tick: {len(schedules)} due schedule(s), "
-                    f"{len(origins)} due origin(s), {retried} retry(ies)."
+                    f"{len(origins)} due origin(s), {len(channels)} due channel(s), {retried} retry(ies)."
                 )
-            return len(schedules) + len(origins)
+            return len(schedules) + len(origins) + len(channels)
 
     def _retry(self, db: Session, now: datetime) -> int:
         """
@@ -169,6 +181,7 @@ class SchedulerService:
                         preset=run.preset,
                         config=dict(run.config or {}),
                         origin_code=run.origin_code,
+                        channel_code=run.channel_code,
                         request=dict(run.request or {}),
                         attempt=run.attempt + 1,
                         retry_of=run.id,
@@ -270,6 +283,50 @@ class SchedulerService:
         origin.last_enqueued_at = now
         origin.next_run_at = next_occurrence(origin.cron or "", timezone, now, previous=origin.next_run_at)
         logger.info(f"🕒 Ingestão agendada para a origem '{origin.code}'.")
+
+    def _process_channel(self, db: Session, channel: DiffusionChannel, now: datetime) -> None:
+        """
+        The channel branch of the tick: one ``diffusion`` run per due channel, or a skipped period.
+
+        The run's ``worker_name`` is the shared export stage; the channel is the axis and travels in
+        ``channel_code``. The queue is one slot per channel (the partial index includes the channel),
+        so one channel's export does not wait behind another's. The request pins the channel's saved
+        run policy, and the worker re-reads the channel row at execution, exactly like the ingestion
+        run resolves its origin.
+
+        A row whose channel left the registry, or whose definition has no adapter yet, can never
+        run: the period is skipped and the row stays visible, so the page shows the stale agenda
+        instead of the scheduler enqueueing a run that would fail for a reason nobody can fix.
+        """
+        runs = WorkerRunRepository(db)
+        timezone = channel.timezone or get_settings().DEFAULT_TIMEZONE
+        if runs.has_active_run("diffusion", channel_code=channel.code):
+            channel.last_skipped_at = now
+            channel.next_run_at = next_occurrence(channel.cron or "", timezone, now, previous=channel.next_run_at)
+            logger.info(f"⏭️ O canal '{channel.code}' foi pulado: já há uma execução ativa.")
+            return
+
+        try:
+            adapter_module(get_channel_summary(channel.code))
+        except Exception as exc:
+            channel.last_skipped_at = now
+            channel.next_run_at = next_occurrence(channel.cron or "", timezone, now, previous=channel.next_run_at)
+            logger.warning(f"⚠️ A agenda do canal '{channel.code}' não pode ser executada: {exc}")
+            return
+
+        runs.create_queued(
+            "diffusion",
+            trigger=WorkerRunTrigger.SCHEDULE,
+            requested_by=SCHEDULED_BY,
+            engine_name=None,
+            preset=None,
+            config={},
+            channel_code=channel.code,
+            request={"options": dict(channel.options or {})},
+        )
+        channel.last_enqueued_at = now
+        channel.next_run_at = next_occurrence(channel.cron or "", timezone, now, previous=channel.next_run_at)
+        logger.info(f"🕒 Difusão agendada para o canal '{channel.code}'.")
 
     def _acquire(self) -> bool:
         """Takes the advisory lock on a dedicated session; ``False`` when another scheduler holds it."""

@@ -4,16 +4,27 @@ The HTTP envelope is pinned in ``testing/integration/api/controller/test_diffusi
 here the service is exercised directly, where a flush and a rollback are visible.
 """
 
+from collections.abc import Iterator
+from contextlib import contextmanager
+
 import pytest
 from sqlalchemy.orm import Session
 
+from scrinalia.core.author import Author
+from scrinalia.domains.archive.exceptions import WorkerRunAlreadyActiveError
+from scrinalia.domains.archive.models.operations import WorkerRun
+from scrinalia.domains.archive.repository.worker_run_repo import WorkerRunRepository
+from scrinalia.domains.archive.workers.ledger import WorkerRunLedger
+from scrinalia.domains.diffusion.diffusion_registry import CHANNELS
 from scrinalia.domains.diffusion.exceptions import (
+    DiffusionAdapterMissingError,
     DiffusionChannelNotFoundError,
     InvalidDiffusionConfigError,
     PublicSiteNotConfiguredError,
 )
 from scrinalia.domains.diffusion.schemas import DiffusionChannelUpdateRequest, DiffusionScheduleRequest
 from scrinalia.domains.diffusion.service import DiffusionChannelService
+from testing.integration.diffusion.fake_channel import FAKE_EXPORT, FAKE_WITHOUT_ADAPTER
 
 
 def test_the_list_starts_with_the_public_site_unconfigured(db_session: Session) -> None:
@@ -111,3 +122,89 @@ def test_an_unknown_channel_is_404_and_an_unknown_code_is_named(db_session: Sess
 
     with pytest.raises(DiffusionChannelNotFoundError, match="public_site"):
         service.get_channel("nope")
+
+
+# --- the manual export run ---------------------------------------------------------------------
+
+
+@contextmanager
+def _shared(db: Session) -> Iterator[Session]:
+    """Hands the test's session to the ledger without closing it on the way out."""
+    yield db
+
+
+def _service(db: Session) -> DiffusionChannelService:
+    return DiffusionChannelService(db, ledger=WorkerRunLedger(session_factory=lambda: _shared(db)))
+
+
+def _configured(db: Session, code: str = "fake_export", *, enabled: bool = True) -> DiffusionChannelService:
+    service = _service(db)
+    service.update_channel(code, DiffusionChannelUpdateRequest(config={}, enabled=enabled))
+    return service
+
+
+def test_the_manual_run_enqueues_a_diffusion_row(db_session: Session, monkeypatch) -> None:
+    monkeypatch.setitem(CHANNELS, "fake_export", FAKE_EXPORT)
+    service = _configured(db_session)
+
+    run = service.trigger("fake_export", requested_by=Author("test"))
+
+    assert run.worker_name == "diffusion"
+    assert run.channel_code == "fake_export"
+    assert run.origin_code is None
+    assert run.status.value == "QUEUED"
+    stored = db_session.get(WorkerRun, run.run_id)
+    assert stored is not None and stored.request == {"options": {}}
+    assert WorkerRunRepository(db_session).has_active_run("diffusion", channel_code="fake_export") is True
+
+
+def test_a_second_run_of_the_same_channel_is_refused(db_session: Session, monkeypatch) -> None:
+    monkeypatch.setitem(CHANNELS, "fake_export", FAKE_EXPORT)
+    service = _configured(db_session)
+    service.trigger("fake_export")
+
+    with pytest.raises(WorkerRunAlreadyActiveError):
+        service.trigger("fake_export")
+
+
+def test_a_live_channel_has_no_run(db_session: Session) -> None:
+    service = _service(db_session)
+    service.update_channel("public_site", DiffusionChannelUpdateRequest(config={"site_title": "Acervo"}))
+
+    with pytest.raises(InvalidDiffusionConfigError, match="não tem execução"):
+        service.trigger("public_site")
+
+
+def test_a_paused_channel_refuses_a_run(db_session: Session, monkeypatch) -> None:
+    monkeypatch.setitem(CHANNELS, "fake_export", FAKE_EXPORT)
+    service = _configured(db_session, enabled=False)
+
+    with pytest.raises(InvalidDiffusionConfigError, match="pausado"):
+        service.trigger("fake_export")
+
+
+def test_a_channel_without_an_adapter_is_refused(db_session: Session, monkeypatch) -> None:
+    monkeypatch.setitem(CHANNELS, "fake_without_adapter", FAKE_WITHOUT_ADAPTER)
+    service = _configured(db_session, "fake_without_adapter")
+
+    with pytest.raises(DiffusionAdapterMissingError, match="não exporta"):
+        service.trigger("fake_without_adapter")
+
+
+def test_an_unknown_channel_is_404(db_session: Session) -> None:
+    with pytest.raises(DiffusionChannelNotFoundError):
+        _service(db_session).trigger("nope")
+
+
+def test_the_channel_dto_carries_the_last_and_the_active_run(db_session: Session, monkeypatch) -> None:
+    monkeypatch.setitem(CHANNELS, "fake_export", FAKE_EXPORT)
+    service = _configured(db_session)
+    run = service.trigger("fake_export")
+
+    channel = next(item for item in service.list_channels().channels if item.code == "fake_export")
+
+    assert channel.last_run_id == run.run_id
+    assert channel.last_run_status == run.status
+    assert channel.last_run_at is not None
+    assert channel.active_run_id == run.run_id
+    assert channel.active_run_status == run.status

@@ -11,7 +11,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session, sessionmaker
 
 from scrinalia.core.author import Author
@@ -21,6 +21,9 @@ from scrinalia.domains.archive.repository.worker_run_repo import WorkerRunReposi
 from scrinalia.domains.archive.repository.worker_schedule_repo import WorkerScheduleRepository
 from scrinalia.domains.archive.services.worker_run_service import WorkerRunService
 from scrinalia.domains.archive.workers.scheduler import SchedulerConfig, SchedulerService
+from scrinalia.domains.diffusion.diffusion_registry import CHANNELS
+from scrinalia.domains.diffusion.repository import DiffusionChannelRepository
+from testing.integration.diffusion.fake_channel import FAKE_EXPORT, FAKE_WITHOUT_ADAPTER
 
 
 @contextmanager
@@ -293,3 +296,114 @@ def test_the_schedule_skips_while_the_retry_is_queued(db_session: Session) -> No
     schedule = WorkerScheduleRepository(db_session).get("cleaning")
     assert schedule is not None
     assert schedule.last_skipped_at is not None
+
+
+# --- the diffusion channel axis ----------------------------------------------------------------
+
+
+def _channel(
+    db: Session,
+    *,
+    code: str = "fake_export",
+    next_run_at: datetime,
+    cron: str = "*/10 * * * *",
+    enabled: bool = True,
+) -> None:
+    """One channel row with its agenda, as the operator page would have left it."""
+    channels = DiffusionChannelRepository(db)
+    channels.upsert_settings(code, enabled=enabled, author=Author("test"))
+    channels.set_schedule(code, cron=cron, timezone="UTC", next_run_at=next_run_at, author=Author("test"))
+    db.flush()
+
+
+def test_a_due_channel_enqueues_one_diffusion_run(db_session: Session, monkeypatch) -> None:
+    monkeypatch.setitem(CHANNELS, "fake_export", FAKE_EXPORT)
+    now = datetime.now(UTC)
+    _channel(db_session, next_run_at=now - timedelta(minutes=1))
+
+    assert _service(db_session).tick() == 1
+
+    runs = list(db_session.scalars(select(WorkerRun).where(WorkerRun.worker_name == "diffusion")))
+    assert len(runs) == 1
+    assert runs[0].channel_code == "fake_export"
+    assert runs[0].origin_code is None
+    assert runs[0].trigger == WorkerRunTrigger.SCHEDULE
+    assert runs[0].request == {"options": {}}
+
+    channel = DiffusionChannelRepository(db_session).get("fake_export")
+    assert channel is not None
+    assert channel.last_enqueued_at is not None
+    assert channel.next_run_at is not None and channel.next_run_at > now
+
+
+def test_a_paused_channel_is_not_due(db_session: Session, monkeypatch) -> None:
+    monkeypatch.setitem(CHANNELS, "fake_export", FAKE_EXPORT)
+    _channel(db_session, next_run_at=datetime.now(UTC) - timedelta(minutes=1), enabled=False)
+
+    assert _service(db_session).tick() == 0
+    assert _count(db_session, "diffusion") == 0
+
+
+def test_a_due_channel_is_skipped_while_a_run_is_active(db_session: Session, monkeypatch) -> None:
+    monkeypatch.setitem(CHANNELS, "fake_export", FAKE_EXPORT)
+    now = datetime.now(UTC)
+    _channel(db_session, next_run_at=now - timedelta(minutes=1))
+    WorkerRunRepository(db_session).create_queued(
+        "diffusion",
+        trigger=WorkerRunTrigger.API,
+        requested_by=None,
+        engine_name=None,
+        preset=None,
+        config={},
+        channel_code="fake_export",
+    )
+
+    assert _service(db_session).tick() == 1
+
+    channel = DiffusionChannelRepository(db_session).get("fake_export")
+    assert channel is not None
+    assert channel.last_skipped_at is not None
+    assert channel.last_enqueued_at is None
+    assert _count(db_session, "diffusion") == 1
+
+
+def test_a_channel_without_an_adapter_is_skipped(db_session: Session, monkeypatch) -> None:
+    """A definition the package ships without its writer cannot run; the period is skipped."""
+    monkeypatch.setitem(CHANNELS, "fake_without_adapter", FAKE_WITHOUT_ADAPTER)
+    now = datetime.now(UTC)
+    _channel(db_session, code="fake_without_adapter", next_run_at=now - timedelta(minutes=1))
+
+    assert _service(db_session).tick() == 1
+
+    channel = DiffusionChannelRepository(db_session).get("fake_without_adapter")
+    assert channel is not None
+    assert channel.last_skipped_at is not None
+    assert channel.last_enqueued_at is None
+    assert channel.next_run_at is not None and channel.next_run_at > now
+    assert _count(db_session, "diffusion") == 0
+
+
+def test_a_failed_scheduled_diffusion_run_is_retried_with_the_channel(db_session: Session) -> None:
+    run = WorkerRunRepository(db_session).create_queued(
+        "diffusion",
+        trigger=WorkerRunTrigger.SCHEDULE,
+        requested_by=None,
+        engine_name=None,
+        preset=None,
+        config={},
+        channel_code="fake_export",
+    )
+    db_session.execute(
+        update(WorkerRun)
+        .where(WorkerRun.id == run.run_id)
+        .values(status=WorkerRunStatus.FAILED, finished_at=func.now())
+    )
+    db_session.flush()
+
+    assert _service(db_session).tick() == 0
+
+    retries = list(db_session.scalars(select(WorkerRun).where(WorkerRun.retry_of == run.run_id)))
+    assert len(retries) == 1
+    assert retries[0].channel_code == "fake_export"
+    assert retries[0].origin_code is None
+    assert retries[0].attempt == 2

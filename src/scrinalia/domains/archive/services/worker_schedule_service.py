@@ -133,4 +133,8 @@ class WorkerScheduleService:
             raise InvalidWorkerSettingsError(
                 t("A agenda da ingestão é a da origem: use a tela de ingestão, não a agenda genérica de workers.")
             )
+        if spec.channel_axis:
+            raise InvalidWorkerSettingsError(
+                t("A agenda da difusão é a do canal: use a tela de difusão, não a agenda genérica de workers.")
+            )
         return spec

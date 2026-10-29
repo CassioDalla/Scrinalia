@@ -83,9 +83,11 @@ class WorkerRunService:
             )
         if spec.origin_axis:
             raise InvalidWorkerSettingsError(
-                t(
-                    "A ingestão é enfileirada pela origem, não pelo worker genérico: use a tela de ingestão ou POST /api/v1/ingestion/origins/{code}/runs."
-                )
+                t("A ingestão é enfileirada pela origem, não pelo worker genérico: use a tela de ingestão.")
+            )
+        if spec.channel_axis:
+            raise InvalidWorkerSettingsError(
+                t("A difusão é enfileirada pelo canal, não pelo worker genérico: use a tela de difusão.")
             )
 
         validate_engine_choice(spec, request.engine_name, request.preset)
@@ -143,6 +145,8 @@ class WorkerRunService:
             )
         if spec.origin_axis:
             raise InvalidWorkerSettingsError(t("A ingestão não tem ensaio: a unidade dela é a origem."))
+        if spec.channel_axis:
+            raise InvalidWorkerSettingsError(t("A difusão não tem ensaio: a unidade dela é o canal."))
 
         for position, config in enumerate(request.configs, start=1):
             validate_engine_choice(spec, config.engine_name, config.preset)
@@ -242,6 +246,7 @@ class WorkerRunService:
         worker_name: str | None,
         status: WorkerRunStatus | None,
         origin_code: str | None = None,
+        channel_code: str | None = None,
         fingerprint: str | None = None,
         trial: bool | None = None,
         limit: int,
@@ -250,6 +255,7 @@ class WorkerRunService:
         items, total = self.runs.list(
             worker_name=worker_name,
             origin_code=origin_code,
+            channel_code=channel_code,
             status=status,
             fingerprint=fingerprint,
             trial=trial,

@@ -243,8 +243,9 @@ def provide_diffusion_channel_service(unit_of_work: NamedDependency[UnitOfWork])
     """
     Builds the diffusion channel service over the request transaction.
 
-    The channel row and its agenda are the transaction's; there is no run here yet (#212), so the
-    service only reads and writes the lifecycle and the configuration.
+    The channel row and its agenda are the transaction's. The manual run is not: the ledger writes
+    through its own committed session, so the ``QUEUED`` row is durable before the response and a
+    runner can claim it (ADR 0014).
     """
     return DiffusionChannelService(unit_of_work.db)
 

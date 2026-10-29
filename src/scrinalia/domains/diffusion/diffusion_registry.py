@@ -20,12 +20,16 @@ import re
 from collections.abc import Mapping
 from dataclasses import dataclass
 from enum import StrEnum
-from typing import Literal
+from importlib import import_module
+from typing import TYPE_CHECKING, Literal, cast
 
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl, field_validator
 
 from scrinalia.core.i18n import t
-from scrinalia.domains.diffusion.exceptions import DiffusionChannelNotFoundError
+from scrinalia.domains.diffusion.exceptions import DiffusionAdapterMissingError, DiffusionChannelNotFoundError
+
+if TYPE_CHECKING:
+    from scrinalia.domains.diffusion.ports import DiffusionAdapter
 
 
 class DiffusionCapability(StrEnum):
@@ -122,6 +126,11 @@ class DiffusionChannelSummary:
     capability: DiffusionCapability
     config_model: type[BaseModel]
     config_fields: tuple[DiffusionConfigField, ...] = ()
+    #: The module that writes this channel's export, or ``None`` when the package ships the
+    #: definition without an adapter yet. It is a **string** so this module imports no adapter: the
+    #: API lists the channels on every panel read and must not pull a dataset writer into a process
+    #: that never exports. ``resolve_adapter`` imports it on the run that needs it.
+    adapter: str | None = None
 
 
 #: The channels the package ships. Insertion order is the order the add picker shows.
@@ -200,3 +209,27 @@ def get_channel_summary(code: str) -> DiffusionChannelSummary:
         raise DiffusionChannelNotFoundError(
             t("Canal de difusão '{code}' não existe. Disponíveis: {channels}.", code=code, channels=sorted(CHANNELS))
         ) from None
+
+
+def adapter_module(summary: DiffusionChannelSummary) -> str:
+    """
+    The module that writes this channel, or a refusal that names the channel.
+
+    It is the one definition of "this channel has an adapter": the API's enqueue and the scheduler's
+    due check call it without importing anything, and ``resolve_adapter`` imports what it returns.
+    A channel the package ships without an adapter cannot export, and the operator reads the
+    sentence instead of a run that fails for a reason they cannot fix (#214 ships the first one).
+    """
+    if summary.adapter is None:
+        raise DiffusionAdapterMissingError(t("O canal '{code}' ainda não exporta nesta versão.", code=summary.code))
+    return summary.adapter
+
+
+def resolve_adapter(summary: DiffusionChannelSummary) -> DiffusionAdapter:
+    """
+    The callable that writes this channel, imported on the run that needs it.
+
+    The definition names the module and this is the only place it is imported, which is what keeps
+    the registry cheap: listing the channels never pays for an adapter.
+    """
+    return cast("DiffusionAdapter", import_module(adapter_module(summary)).execute)

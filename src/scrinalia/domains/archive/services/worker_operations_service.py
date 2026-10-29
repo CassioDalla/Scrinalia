@@ -125,8 +125,9 @@ class WorkerOperationsService:
             )
             for order, spec, setting, resolved in self._resolved_workers()
             # The ingestion stage has no engine and its options live on the origin row; a settings
-            # card here would be a second place to configure the same crawl (ADR 0016).
-            if not spec.origin_axis
+            # card here would be a second place to configure the same crawl (ADR 0016). The
+            # diffusion export is the same case one layer out: its configuration is the channel's.
+            if not spec.origin_axis and not spec.channel_axis
         ]
         return SystemWorkerSettingsResponse(workers=workers, generated_at=datetime.now(UTC))
 
@@ -233,6 +234,10 @@ class WorkerOperationsService:
         if spec.origin_axis:
             raise InvalidWorkerSettingsError(
                 t("A ingestão não tem engine nem padrão de worker: a configuração dela é a da origem.")
+            )
+        if spec.channel_axis:
+            raise InvalidWorkerSettingsError(
+                t("A difusão não tem engine nem padrão de worker: a configuração dela é a do canal.")
             )
         return spec
 

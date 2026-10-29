@@ -1,20 +1,22 @@
 """HTTP surface of the diffusion channels (``/api/v1/diffusion``).
 
-The operator screen reads every channel in one request, edits its lifecycle/configuration and its
-agenda. Reads are ``AUTHENTICATED``; the writes are ``OPERATE``, because configuring where the archive
-goes is the installation's distribution and not a cataloguing decision. The publication itself is
-``CURATE`` and lives in #251.
+The operator screen reads every channel in one request, edits its lifecycle/configuration, its
+agenda and its manual export. Reads are ``AUTHENTICATED``; the writes are ``OPERATE``, because
+configuring where the archive goes is the installation's distribution and not a cataloguing
+decision. The publication itself is ``CURATE`` and lives in #251.
 
-The API only records the channel. The export run and its ledger axis are #212; the ``POST /runs``
-route and the ``last_run``/``active_run`` fields arrive with it, not here.
+The export is a run of the shared worker ledger with the **channel** as its axis (ADR 0023 §7), so
+the manual enqueue is this controller's route and not the generic ``/system/workers/{name}/runs``:
+the generic body has no channel to name. A ``LIVE`` channel has no run at all.
 """
 
-from litestar import Controller, delete, get, patch, put
+from litestar import Controller, delete, get, patch, post, put
 from litestar.di import NamedDependency, Provide
 from litestar.params import FromPath
 
 from scrinalia.api.dependencies import provide_current_user, provide_diffusion_channel_service
 from scrinalia.api.security import Access, AuthenticatedUser
+from scrinalia.domains.archive.schemas.system_schema import WorkerRunDTO
 from scrinalia.domains.diffusion.schemas import (
     DiffusionChannelDTO,
     DiffusionChannelListResponse,
@@ -66,6 +68,23 @@ class DiffusionController(Controller):
         JSONB the app discovers when it tries to render.
         """
         return diffusion_service.update_channel(code, data, author=current_user.author)
+
+    @post("/channels/{code:str}/runs", opt={"access": Access.OPERATE}, status_code=201, sync_to_thread=True)
+    def trigger_run(
+        self,
+        diffusion_service: NamedDependency[DiffusionChannelService],
+        code: FromPath[str],
+        current_user: NamedDependency[AuthenticatedUser],
+    ) -> WorkerRunDTO:
+        """
+        Queues one export run of the channel and answers immediately.
+
+        No body: the run repeats the channel's saved run policy, which the ledger pins in the row's
+        ``request``. A second execution of the same channel while one is in flight answers 409 — the
+        partial unique index includes the channel, not the button. A ``LIVE`` channel, a paused one
+        and one without an adapter answer 422 with a sentence.
+        """
+        return diffusion_service.trigger(code, requested_by=current_user.author)
 
     @put("/channels/{code:str}/schedule", opt={"access": Access.OPERATE}, status_code=200, sync_to_thread=True)
     def put_schedule(
