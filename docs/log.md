@@ -3118,3 +3118,10 @@ with short or full shas, and part of a `## <date> — <title>` entry.
   - `adr/index.md` — updated: the link to 0023.
 - **Not verified.** The scope tables, the derived gate and the Difusão page are #251; the `EXPORT`
   schedule/run path is #212/#214. The ADR documents the decision; the registry is the shipped half.
+
+## 2026-10-29 — the diffusion conftest import (#267 review)
+
+- **Range:** `d149174..adfb9f4`
+- **Pages:**
+  - `guides/data-model.md` — no-change: `testing/conftest.py` is a declared source and now calls
+    `load_all_models()` before `create_all`; the table documentation is the same.
