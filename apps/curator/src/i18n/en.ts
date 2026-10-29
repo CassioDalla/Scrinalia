@@ -111,6 +111,7 @@ export const en: typeof pt = {
       rules: "Rules",
     },
     inbox: {
+      countsGenerated: "Counts generated at {date}.",
       notReadyTitle: "This screen is not ready for use yet.",
       notReady: "screen in preparation",
       empty: "nothing pending",

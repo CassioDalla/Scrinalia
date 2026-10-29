@@ -8,9 +8,10 @@ import { Badge } from "@/components/ui/Badge";
 import { Card, CardBody } from "@/components/ui/Card";
 import { EmptyState, ErrorState, Skeleton } from "@/components/ui/Feedback";
 import { PageBody } from "@/components/layout/PageBody";
-import { formatCount } from "@/lib/format";
+import { formatCount, formatDateTime } from "@/lib/format";
 import { QUEUE_COPY } from "@/lib/queues";
 import { useCopy } from "@/i18n/context";
+import { fill } from "@/i18n/maps";
 
 /**
  * Screens that exist today.
@@ -134,7 +135,7 @@ export function InboxRoute() {
 
         {data ? (
           <p className="mt-4 text-xs text-(--color-muted)">
-            Contagens geradas em {new Date(data.generated_at).toLocaleString("pt-BR")}.
+            {fill(messages.pages.inbox.countsGenerated, { date: formatDateTime(data.generated_at) })}
           </p>
         ) : null}
       </PageBody>
