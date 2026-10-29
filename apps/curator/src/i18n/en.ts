@@ -104,6 +104,7 @@ export const en: typeof pt = {
       emptyHint:
         "The collection may not have any of the defects the check looks for, or the check may not have run yet. Rules that only flag add other reasons. See the {link}.",
       cleaningRulesLink: "cleaning rules",
+      reasonsFound: "reasons found:",
       fixHint:
         "Corrigir é revisar a ficha: a edição fica no histórico e marca a descrição como revisada por humano; a partir daí a IA não a sobrescreve.",
       status: "{count} descriptions with an anomaly",

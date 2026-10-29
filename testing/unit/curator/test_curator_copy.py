@@ -213,7 +213,7 @@ PORTUGUESE = re.compile(
     r"fazer|feito|vai|vão|tem|têm|nunca|sempre|nada|tudo|outro|outra|mais|menos|muito|pouco|aqui|"
     r"onde|quem|foi|era|será|sido|sendo|há|isso|isto|esse|essa|aquele|aquela|mas|porém|porque|"
     r"então|assim|cada|todos|todas|algum|alguma|nenhum|nenhuma|dois|duas|três|primeiro|último|"
-    r"novo|nova|próximo|próxima)\b",
+    r"novo|nova|próximo|próxima|motivos|encontrados|encontradas)\b",
     re.I,
 )
 

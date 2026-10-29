@@ -258,6 +258,7 @@ export const pt = {
       emptyHint:
         "Pode ser que o acervo não tenha nenhum dos defeitos que a verificação procura, ou que ela ainda não tenha rodado. Regras que só sinalizam acrescentam outros motivos. Veja as {link}.",
       cleaningRulesLink: "regras de limpeza",
+      reasonsFound: "motivos encontrados:",
       fixHint:
         "Corrigir é revisar a ficha: a edição fica no histórico e marca a descrição como revisada por humano; a partir daí a IA não a sobrescreve.",
       status: "{count} descrições com anomalia",

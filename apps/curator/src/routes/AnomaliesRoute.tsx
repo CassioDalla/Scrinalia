@@ -98,7 +98,7 @@ export function AnomaliesRoute() {
 
         {reasons.length > 0 ? (
           <div className="flex flex-wrap items-center gap-2 text-xs">
-            <span className="text-(--color-muted)">motivos encontrados:</span>
+            <span className="text-(--color-muted)">{messages.pages.anomalies.reasonsFound}</span>
             {reasons.map((item) => (
               <button
                 key={item.key}
