@@ -267,8 +267,6 @@ export const pt = {
     },
     inbox: {
       countsGenerated: "Contagens geradas em {date}.",
-      notReadyTitle: "Esta tela ainda não está pronta para uso.",
-      notReady: "tela em preparação",
       empty: "nada pendente",
       open: "abrir →",
       emptyTitle: "Nenhuma pendência recebida",

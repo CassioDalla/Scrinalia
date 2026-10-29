@@ -1963,16 +1963,11 @@
           },
           "key": {
             "$ref": "#/components/schemas/QueueKey"
-          },
-          "route": {
-            "description": "Screen that resolves the queue, already filtered.",
-            "type": "string"
           }
         },
         "required": [
           "count",
-          "key",
-          "route"
+          "key"
         ],
         "title": "CurationQueue",
         "type": "object"
@@ -7946,7 +7941,7 @@
         "type": "object"
       },
       "QueueKey": {
-        "description": "\n    The stable identity of a queue on the home screen.\n\n    The contract carries the key, not the card's copy: the SPA resolves the label and the one-line\n    description from it (ADR 0020 §5), so the copy pass and its gate can see the first screen. The\n    values are the identity of an outcome, so they never change once released.\n    ",
+        "description": "\n    The stable identity of a queue on the home screen.\n\n    The contract carries the key, not the card's copy or its destination: the SPA resolves the\n    label, the one-line description and the screen from it (ADR 0020 §5, ADR 0021), so the copy\n    pass and its gate can see the first screen. The values are the identity of an outcome, so they\n    never change once released.\n    ",
         "enum": [
           "hierarchy_orphans",
           "hierarchy_plans",
