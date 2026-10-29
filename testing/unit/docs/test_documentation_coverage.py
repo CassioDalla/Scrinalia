@@ -106,6 +106,7 @@ def _load_models() -> None:
     """
     for module in (
         "scrinalia.domains.archive.models",
+        "scrinalia.domains.diffusion.models",
         "scrinalia.domains.identity.models",
         "scrinalia.domains.ingestion.models",
         "scrinalia.domains.staging.models",

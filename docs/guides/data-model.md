@@ -3,6 +3,8 @@ sources:
   - src/scrinalia/domains/ingestion/models.py
   - src/scrinalia/domains/ingestion/origin_registry.py
   - src/scrinalia/domains/ingestion/origins.py
+  - src/scrinalia/domains/diffusion/models.py
+  - src/scrinalia/domains/diffusion/diffusion_registry.py
   - src/scrinalia/domains/staging/models.py
   - src/scrinalia/domains/archive/models/**
   - src/scrinalia/domains/identity/models/**
@@ -12,6 +14,7 @@ sources:
   - src/scrinalia/api/schemas/public.py
   - src/scrinalia/core/language/__init__.py
   - migrations/versions/44a1b2c3d4e5_the_origin_is_a_first_class_object.py
+  - migrations/versions/0b1c2d3e4f5a_add_the_diffusion_channels.py
   - migrations/versions/b7e4c2a9f1d0_the_schedule_and_the_retry.py
   - migrations/versions/fe7fcab37207_add_the_failure_fingerprint_and_the_api_.py
   - testing/conftest.py
@@ -40,7 +43,9 @@ crosses, in order:
 
 The fourth domain, `identity`, is **not** a layer of that pipeline (ADR 0009). It owns the accounts,
 the sessions and the role map — the tables that describe the installation rather than the collection.
-A record never "passes through" identity.
+The fifth, `diffusion`, is not a layer either: it owns the channels the published set leaves through
+and, from #251, the publication scopes over the arrangement (ADR 0023). A record never "passes
+through" identity or diffusion.
 
 ```text
 source site
@@ -51,6 +56,7 @@ ingestion ──────────▶ staging ─────────�
  raw_data)
 
 identity ── accounts, sessions, roles (not a pipeline layer)
+diffusion ── channels and publication (not a pipeline layer)
 ```
 
 Each layer keys a record on a hash of what it last read, so a re-run knows whether anything moved:
@@ -64,7 +70,7 @@ not change.
 Every table of `Base.metadata`. To enumerate them from the code:
 
 ```bash
-uv run python -c "from scrinalia.core.base import Base; import scrinalia.domains.archive.models, scrinalia.domains.identity.models, scrinalia.domains.ingestion.models, scrinalia.domains.staging.models; print('\n'.join(sorted(Base.metadata.tables)))"
+uv run python -c "from scrinalia.core.base import Base; import scrinalia.domains.archive.models, scrinalia.domains.diffusion.models, scrinalia.domains.identity.models, scrinalia.domains.ingestion.models, scrinalia.domains.staging.models; print('\n'.join(sorted(Base.metadata.tables)))"
 ```
 
 ### Ingestion — what the origin sent, untouched
@@ -269,6 +275,19 @@ previous one is terminal, so the partial unique index is never violated (ADR 001
 There is deliberately no foreign key from either table to a worker table: workers are code, not rows.
 `archive_api_errors` records only *unexpected* failures — a 404, a 409 and a 422 are answers the API
 owes a client, and recording them buries the real defects.
+
+### Diffusion — where the published set leaves
+
+| Table | Purpose | Key columns |
+| --- | --- | --- |
+| `diffusion_channels` | One channel's lifecycle, configuration and agenda: what the operator adds and configures without a deploy. A `LIVE` channel is read on every request; an `EXPORT` channel has an agenda and a run. | `code` (primary key), `enabled`, `config` (JSONB: the channel's presentation identity; never a secret), `options` (JSONB: the run policy), `cron`, `timezone`, `next_run_at`, `last_enqueued_at`, `last_skipped_at`, `updated_by`, `updated_by_user_id` |
+
+A diffusion channel is a definition in code plus this lifecycle row (#211, ADR 0023). The registry only
+ships channels that work: `public_site` is `LIVE` and has no run, while the dataset and AtoM are
+`EXPORT` channels with their own adapters. `enabled=false` is a pause, not an absence; a missing row
+is "never added", which is what the `configured` flag on the DTO distinguishes. The row carries no
+record: the records a channel exposes are the publication scopes of #251, and `config` never holds a
+secret — a token is named by an environment variable, not stored here.
 
 ### Identity — the installation, not the collection
 

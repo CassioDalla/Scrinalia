@@ -15,7 +15,7 @@ acusar drift; uma tabela que existe apenas em uma migration é um defeito.
 
 ## Domínios e camadas do pipeline
 
-O sistema tem quatro domínios em `src/scrinalia/domains/`. Três deles são as camadas que um registro
+O sistema tem cinco domínios em `src/scrinalia/domains/`. Três deles são as camadas que um registro
 atravessa, nesta ordem:
 
 - `ingestion` — a fila de coleta e o payload intocado (`scraping_queue`, `raw_data`);
@@ -24,8 +24,10 @@ atravessa, nesta ordem:
   (`archive_*`, `domain_*`).
 
 O quarto domínio, `identity`, **não** é uma camada desse pipeline (ADR 0009). Ele é dono das contas,
-das sessões e do mapa de papéis — as tabelas que descrevem a instalação, não o acervo. Um registro
-nunca "passa por" identity.
+das sessões e do mapa de papéis — as tabelas que descrevem a instalação, não o acervo. O quinto,
+`diffusion`, também não é uma camada: ele é dono dos canais por onde o conjunto publicado sai e, a
+partir da #251, dos escopos de publicação sobre o arranjo (ADR 0023). Um registro nunca "passa por"
+identity ou diffusion.
 
 ```text
 site de origem
@@ -36,6 +38,7 @@ ingestion ───────────▶ staging ────────�
  raw_data)
 
 identity ── contas, sessões, papéis (não é camada do pipeline)
+diffusion ── canais e publicação (não é camada do pipeline)
 ```
 
 Cada camada identifica um registro por um hash do que leu por último, para que uma nova execução
@@ -49,7 +52,7 @@ bytes da origem não mudaram.
 Todas as tabelas de `Base.metadata`. Para enumerá-las a partir do código:
 
 ```bash
-uv run python -c "from scrinalia.core.base import Base; import scrinalia.domains.archive.models, scrinalia.domains.identity.models, scrinalia.domains.ingestion.models, scrinalia.domains.staging.models; print('\n'.join(sorted(Base.metadata.tables)))"
+uv run python -c "from scrinalia.core.base import Base; import scrinalia.domains.archive.models, scrinalia.domains.diffusion.models, scrinalia.domains.identity.models, scrinalia.domains.ingestion.models, scrinalia.domains.staging.models; print('\n'.join(sorted(Base.metadata.tables)))"
 ```
 
 ### Ingestão — o que a origem enviou, sem tratamento
@@ -245,6 +248,20 @@ se um runner está vivo e se ele pode rodar determinado worker. Deliberadamente 
 estrangeira de nenhuma das duas para uma tabela de workers: workers são código, não linhas.
 `archive_api_errors` registra apenas falhas *inesperadas* — um 404, um 409 e um 422 são respostas que
 a API deve a um cliente, e registrá-las enterra os defeitos de verdade.
+
+### Difusão — por onde o conjunto publicado sai
+
+| Tabela | Para que serve | Colunas principais |
+| --- | --- | --- |
+| `diffusion_channels` | O ciclo de vida, a configuração e a agenda de um canal: o que o operador adiciona e configura sem deploy. Um canal `LIVE` é lido a cada requisição; um canal `EXPORT` tem agenda e execução. | `code` (chave primária), `enabled`, `config` (JSONB: a identidade de apresentação do canal; nunca um segredo), `options` (JSONB: a política de execução), `cron`, `timezone`, `next_run_at`, `last_enqueued_at`, `last_skipped_at`, `updated_by`, `updated_by_user_id` |
+
+Um canal de difusão é uma definição em código mais esta linha de ciclo de vida (#211, ADR 0023). O
+registro só oferece canais que funcionam: `public_site` é `LIVE` e não tem execução, enquanto o
+conjunto de dados e o AtoM são canais `EXPORT` com adaptadores próprios. `enabled=false` é uma pausa,
+não uma ausência; uma linha faltando é "nunca adicionado", que é o que o campo `configured` do DTO
+distingue. A linha não carrega registro: os registros que um canal expõe são os escopos de publicação
+da #251, e `config` nunca guarda segredo — um token é nomeado por variável de ambiente, não armazenado
+aqui.
 
 ### Identity — a instalação, não o acervo
 

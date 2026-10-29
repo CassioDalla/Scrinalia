@@ -3106,3 +3106,22 @@ with short or full shas, and part of a `## <date> — <title>` entry.
   whichever branch is selected in the Actions dropdown. The entrypoint's `alembic upgrade head` is
   still not exercised — it needs a database, and the job checks the application layer, which is the
   definition of done in #255.
+
+## 2026-10-29 — ADR 0023 and the diffusion channel registry
+
+- **Range:** `62ee30d..d149174`
+- **Pages:**
+  - `adr/0023-diffusion-is-a-channel-registry-and-a-scope.md` — created: the channel registry and the
+    node-scope exposure; the derived `is_published`; the `public_site` read.
+  - `guides/data-model.md` — updated: the `diffusion_channels` table and the fifth domain.
+  - `guides/data-model.pt.md` — updated: the same in Portuguese.
+  - `adr/index.md` — updated: the link to 0023.
+- **Not verified.** The scope tables, the derived gate and the Difusão page are #251; the `EXPORT`
+  schedule/run path is #212/#214. The ADR documents the decision; the registry is the shipped half.
+
+## 2026-10-29 — the diffusion conftest import (#267 review)
+
+- **Range:** `d149174..adfb9f4`
+- **Pages:**
+  - `guides/data-model.md` — no-change: `testing/conftest.py` is a declared source and now calls
+    `load_all_models()` before `create_all`; the table documentation is the same.

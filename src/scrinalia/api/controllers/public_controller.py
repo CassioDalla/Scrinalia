@@ -19,7 +19,7 @@ from litestar import Controller, get
 from litestar.di import NamedDependency, Provide
 from litestar.params import FromPath, FromQuery
 
-from scrinalia.api.dependencies import provide_document_service
+from scrinalia.api.dependencies import provide_diffusion_channel_service, provide_document_service
 from scrinalia.api.schemas.public import (
     PublicDocumentFacets,
     PublicDocumentListResponse,
@@ -28,6 +28,8 @@ from scrinalia.api.schemas.public import (
 from scrinalia.api.security import Access
 from scrinalia.domains.archive.schemas.query_schema import DocumentSearchQuery, SearchMode
 from scrinalia.domains.archive.services.document_service import DocumentService
+from scrinalia.domains.diffusion.diffusion_registry import PublicSiteConfig
+from scrinalia.domains.diffusion.service import DiffusionChannelService
 
 
 class PublicController(Controller):
@@ -36,6 +38,7 @@ class PublicController(Controller):
 
     dependencies = {  # noqa: RUF012
         "document_service": Provide(provide_document_service, sync_to_thread=False),
+        "diffusion_service": Provide(provide_diffusion_channel_service, sync_to_thread=False),
     }
 
     @get("/documents", opt={"access": Access.PUBLIC}, sync_to_thread=True)
@@ -91,3 +94,13 @@ class PublicController(Controller):
         confirm that the description exists, which is the fact the gate is protecting.
         """
         return PublicDocumentSummary.from_summary(document_service.get_published(description_id))
+
+    @get("/site", opt={"access": Access.PUBLIC}, sync_to_thread=True)
+    def get_site(self, diffusion_service: NamedDependency[DiffusionChannelService]) -> PublicSiteConfig:
+        """
+        The public site's identity, read before the app's first document query.
+
+        It carries no record and no internal field. **404** while the ``public_site`` channel is not
+        configured or is paused: as far as a visitor is concerned, the site is not there.
+        """
+        return diffusion_service.public_site()

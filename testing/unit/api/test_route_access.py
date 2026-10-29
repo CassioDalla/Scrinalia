@@ -53,6 +53,7 @@ PUBLIC_OPERATIONS = {
     ("POST", "/api/v1/setup/admin"),
     ("GET", "/api/v1/public/documents"),
     ("GET", "/api/v1/public/documents/{description_id:str}"),
+    ("GET", "/api/v1/public/site"),
 }
 
 #: The POSTs that only compute. Declared ``AUTHENTICATED`` on purpose — the permission is about what a
