@@ -2897,3 +2897,34 @@ with short or full shas, and part of a `## <date> — <title>` entry.
   viewport was not rendered. The render database is scratch (`scrinalia_render`) and was migrated to
   `head` for the round; the synthetic term, its ban and the temporary account were left in it and
   belong to nobody's collection.
+
+## 2026-10-28 — the interface in two languages
+
+- **Range:** `67f00ad..ba20a13`
+- **Pages:**
+  - `guides/curate.md` — **updated**: a new *The interface speaks two languages* section states the
+    account selector, the browser fallback before sign-in, the server answering in the request's
+    language, and what does not change (the Portuguese paths and the record's own content).
+  - `guides/curate.pt.md` — **updated**: the same translation, in the SPA's vocabulary.
+  - `guides/install.md` — **updated**: one sentence after the first administrator: the interface
+    opens in Portuguese and each account can switch to English in the menu.
+  - `guides/install.pt.md` — **updated**: the same sentence.
+  - `adr/0020-the-interface-speaks-two-languages.md` — **no-change**: the decision already states the
+    account locale, the browser fallback and the server catalogue; the sweep implemented it without
+    changing it.
+- **Why the round exists.** #227 is the second half of #45: #45a translated the shell, the anonymous
+  screens and the server's catalogue; this round extracted the remaining strings from the 54 files
+  the ratchet listed — the domain vocabulary and the 28 screens — so no Portuguese literal lives
+  outside `src/i18n/`.
+- **What the round measured.** `tsc`, ESLint and the Vite build green; 72 bun tests; `pytest` 2 312
+  passed, 1 skipped; the copy gate now has **no `PENDING` list**: every file outside `src/i18n/` must
+  have no Portuguese, with the two declared data exceptions (the stored `SEM TÍTULO` sentinel and a
+  URL). The whole sweep was rendered against `scrinalia_render` (4 842 descriptions) with the
+  headless shell: 56 screenshots, the 28 screens in `pt-BR` and `en`. The render found what the
+  accent detector had missed — the English inbox still said *Contagens geradas em* and formatted the
+  date with a hardcoded `pt-BR`; the line is now catalogue-backed and goes through `formatDateTime`,
+  and the re-rendered inbox says *Counts generated at 10/28/26, 9:10 PM.* The inbox, the Tags screen
+  and the dossier were read by eye in both locales; the other 50 shots were captured and checked for
+  a non-empty frame, not inspected one by one.
+- **Not verified.** The dynamic screens were opened with the first record of the collection and its
+  default tab; a write was not exercised in any screen during the render.

@@ -197,6 +197,24 @@ which clears the flag). The refusal does not depend on the screen: a script hold
 was printed to a terminal, or typed by an administrator, gets the same sentence and no access to the
 collection. The change opens the rest of the API in the same session.
 
+### The interface speaks two languages
+
+The curatorial interface is written in Portuguese and English, and the choice belongs to the
+**account**, not to the installation: *Automático*, *Português* and *English* sit in the account
+footer of the menu. A fresh account starts on *Automático*, which is stored as "no choice" and
+follows the browser — `pt*` opens in Portuguese, `en*` in English, anything else in Portuguese, the
+installation's language. After sign-in the account's choice wins, because a shared workstation must
+not hand one archivist the previous one's language.
+
+The language is not a client-side preference painted over a Portuguese server: every request carries
+`Accept-Language`, and the API composes its `message` — the confirmation of a write and the refusal
+of one — in the language the request asked for (ADR 0020 §4). The switch does not reload the page;
+the shell re-renders with the new catalogue, and dates, numbers and plurals follow it through
+`Intl`.
+
+What stays the same in both languages: the routes are still Portuguese (`/acervo/lista`), which
+#239 tracks, and the record's own content is never translated.
+
 ### The menu hides; it never grants
 
 The shell filters its entries by the area the screen **writes** (`apps/curator/src/lib/permissions.ts`,
