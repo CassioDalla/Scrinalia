@@ -107,6 +107,18 @@ Revisão é uma afirmação sobre o registro; publicação é uma decisão sobre
 público é exatamente `is_published`. Nada é publicado por padrão, então a superfície de difusão nasce
 vazia.
 
+O portão e o canal respondem a perguntas diferentes, e a interface os mantém separados. `is_published`
+diz **se** um registro pode sair; um **canal de difusão** diz **para onde** ele vai. O canal é uma
+definição em código mais uma linha de ciclo de vida (ADR 0023), e a página do operador em
+`Configurações → Operação` — **Canais de difusão**, `/configuracoes/difusao` — adiciona uma definição que
+o pacote traz, edita a configuração dela, pausa e, num canal de exportação, salva a agenda. Ela nunca
+publica: configurar um canal não altera descrição nenhuma, e os dois estados são independentes de
+propósito — um registro pode estar publicado sem canal configurado, e um canal pode estar ativo sem nada
+publicado. O registry traz o site público embutido (`public_site`), cuja configuração é a identidade de
+apresentação que o aplicativo lê (título, descrição, instituição, contato, logotipo, idioma, endereço
+público e indexação); habilitá-lo não instala o aplicativo público (#46). A página é `OPERATE`, como a de
+origens, então um curador que siga a URL vê os cartões sem os controles.
+
 Publicar expõe a descrição pela superfície aberta, sem autenticação:
 
 - `GET /api/v1/public/documents` e `GET /api/v1/public/documents/{description_id}`.
@@ -1219,6 +1231,7 @@ mesma não escreve nada.
 | Tela | Decisão | Reversível? |
 | --- | --- | --- |
 | Configurações — `/configuracoes` | qual tela de montagem abrir | sim (só leitura) |
+| Canais de difusão — `/configuracoes/difusao` | qual canal adicionar, a configuração, o ciclo de vida e (num export) a agenda | sim (a configuração, a agenda e a pausa; nada é excluído) |
 | Configuração dos Workers — `/configuracoes/workers` | o padrão persistido de cada worker, e o histórico dele | sim (remover a linha) |
 | Usuários — `/configuracoes/usuarios` | quem existe, o que pode fazer e onde está conectado | sim (desativar e reativar) |
 
@@ -1230,7 +1243,7 @@ mudou foi como se chega até ela. Três abas, na ordem da escada de permissões 
 | Aba | Cartões |
 | --- | --- |
 | Arranjo e catálogos | Plano de arranjo (`CURATE`), Níveis de descrição, Tipologias e Vocabulário do acervo (`CATALOGUE`) |
-| Operação | Workers e execuções, Configuração dos Workers e Saúde do sistema (`OPERATE`) |
+| Operação | Workers e execuções, Origens, Canais de difusão, Configuração dos Workers e Saúde do sistema (`OPERATE`) |
 | Acesso | Usuários (`ADMIN`) |
 
 A aba fica na URL (`?aba=`), então dá para mandar alguém direto aos "cartões dos workers". Uma aba que
@@ -1238,6 +1251,31 @@ a conta não pode preencher não é renderizada, e um `?aba=` que a nomeie cai n
 conta *pode* preencher: um link válido para quem mandou ainda aterrissa em algo honesto para quem lê.
 Cada cartão carrega a área em que a sua tela escreve, e a entrada que abre esta página segue as mesmas
 áreas — a regra está em *O menu esconde; nunca concede*, acima.
+
+### Canais de difusão — `/configuracoes/difusao`
+
+A página do operador para onde o acervo publicado sai (issue #213, ADR 0023), a gêmea deliberada de
+Origens: uma tela diz por onde os dados entram, esta diz por onde o registro sai. Ela lê todas as
+definições que o pacote traz em uma requisição, então uma definição sem linha é o que o seletor de
+adição oferece e uma definição com linha é um cartão. Uma instalação nova não tem linha nenhuma: o
+estado vazio é real, não decorativo.
+
+Cada cartão traz o nome do canal, a capacidade — `LIVE` (lido a cada requisição) ou `EXPORT` (produzido
+por uma execução) —, o ciclo de vida e o resumo da configuração, renderizado dos mesmos `config_fields`
+que o formulário renderiza. As ações são **Editar configuração**, **Agenda** (só `EXPORT`),
+**Desativar/Ativar** e, para o site público, **Ver site** — visível só com o canal ativo e um endereço
+público configurado, porque o link é o endereço que o operador digitou, não uma afirmação de que há um
+site no ar. Pausar é o ciclo de vida: a linha, a configuração e a agenda ficam, e o canal simplesmente
+deixa de ser oferecido a quem lê.
+
+Adicionar é um gesto só, num painel lateral: escolher uma definição que o pacote traz, preencher a
+configuração e salvar. O salvamento é um único `PATCH` que cria a linha e a ativa, porque um canal que o
+pacote não consegue validar não é linha — o título do site público é obrigatório. **Desativar** é a
+pausa (`PATCH {"enabled": false}`); nada é excluído. A configuração é validada pelo modelo do próprio
+canal a cada leitura e a cada escrita, então um erro de digitação é um 422 com uma frase, e a página
+renderiza **um formulário genérico** sobre os campos do canal, e não um componente por canal. O cartão do
+site público diz a consequência que o dono pergunta: o aplicativo público é uma superfície separada, e
+habilitar o canal não o instala.
 
 ### Configuração dos Workers — `/configuracoes/workers`
 

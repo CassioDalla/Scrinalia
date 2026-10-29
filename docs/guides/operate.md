@@ -62,6 +62,10 @@ sources:
   - apps/curator/src/routes/SystemHealthRoute.tsx
   - apps/curator/src/routes/OriginsRoute.tsx
   - apps/curator/src/components/ingestion/OriginPanel.tsx
+  - apps/curator/src/routes/DiffusionRoute.tsx
+  - apps/curator/src/components/diffusion/**
+  - src/scrinalia/api/controllers/diffusion_controller.py
+  - src/scrinalia/domains/diffusion/**
   - .github/workflows/ci.yml
   - mkdocs.yml
 ---
@@ -407,6 +411,33 @@ comparison the transform advances on, so a bounded forced run is not resumable b
 what `--after <description_id>` is for: the run logs the id its window ended at and the command to
 continue from there. Do not use `--after` without `--force`: under the comparison, skipping ahead
 would skip pending records instead of already-structured ones.
+
+### The diffusion channels
+
+A diffusion channel is a definition in code plus a row in `diffusion_channels` (ADR 0023), the same
+shape as an origin one layer out. The definition — its capability, the Pydantic model of its
+configuration and the metadata the screen renders — lives in
+`src/scrinalia/domains/diffusion/diffusion_registry.py`; the row is the lifecycle: enabled/paused, the
+configuration, the run policy an export inherits and the cron/zone of its agenda. The registry ships
+the built-in public site (`public_site`), a `LIVE` channel: it is read on every request and has no run,
+so it has no agenda and the API refuses one (`PUT /channels/{code}/schedule` answers 422).
+
+`/configuracoes/difusao` is the screen, a card of Configurações under *Operação* (issue #213). It lists
+the configured channels, one card each: the capability, the lifecycle, the configuration summary and
+the actions. **Adicionar canal de difusão** opens a picker of the definitions the package ships and
+this installation has no row for; adding is one `PATCH` that creates the row with the configuration
+the operator filled and enables it. **Editar configuração** saves the channel's own fields, validated
+by its model; **Desativar/Ativar** is the lifecycle, and it keeps the row, the configuration and the
+agenda; for an `EXPORT` channel, **Agenda** saves a five-field cron in an IANA zone. The page is
+`OPERATE`, and the read routes stay authenticated, so a curator who follows the URL sees the cards
+read-only.
+
+Nothing on this page publishes. `is_published` is the record's permission to leave, edited on the
+dossier under `CURATE`; the channel is where it goes, and the two are independent. The public site's
+identity — title, description, institution, contact, logo, locale, public address and indexing — is
+what the application reads before its first document query: `GET /api/v1/public/site` answers **404**
+until the channel exists and is enabled, so a missing row and a pause are the same fact to a visitor.
+Enabling the channel does not install the public application (#46).
 
 ### The manual entry
 
@@ -1065,6 +1096,9 @@ behaviour to expect, and so that a limit already paid for is not read as a defec
   duplicate execution after a lease expiry is possible. A hard fence is future work.
 - **The queue is one slot per worker.** A second run for a worker with one in flight answers `409`,
   and a schedule has to coalesce; a backlog or a priority is not what this queue is.
+- **One diffusion channel ships, and it is `LIVE`.** The registry carries the built-in public site;
+  no export adapter exists yet, and the run ledger has no channel axis, so the page configures
+  channels and nothing produces an export run. The card offers no enqueue action for that reason.
 - **The retry is bounded and unclassified.** A scheduled failure spends up to three attempts,
   whatever the cause: a missing model costs three bounded attempts, because a classifier that is
   wrong in the other direction either wastes the GPU or hides a real failure. The retry holds the
