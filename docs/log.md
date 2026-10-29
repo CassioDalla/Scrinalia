@@ -3157,3 +3157,15 @@ with short or full shas, and part of a `## <date> — <title>` entry.
   the channel-filtered ledger link are deliberately not in the page. The add gesture was not
   exercised against a live API in the browser: the click opened the form, and the save is pinned by
   the client types and by the API's own integration tests (#211), not by a rendered write.
+
+## 2026-10-29 — the diffusion page copy pass (#213 review)
+
+- **Range:** `b080a31..47588c7`
+- **Pages:**
+  - `guides/curate.md` — **no-change**: the screen's copy gained an introduction, a section title
+    with its hint, the capability line and a sentence of help at the form and the schedule. The page
+    describes the decisions and the writes — which channel, what is reversible, what does not
+    publish — and none of that changed; it does not quote the wording.
+  - `guides/operate.md` — **no-change**: same reason. The registry, the two capabilities, the
+    add/configure/pause/agenda gesture and the public site's 404 are unchanged, and the new
+    capability line states the same distinction the page already documents.
