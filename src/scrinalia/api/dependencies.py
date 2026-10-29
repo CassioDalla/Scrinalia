@@ -88,7 +88,8 @@ def provide_thumbnail_reader() -> ThumbnailReader:
     Cached because a boto3 client costs milliseconds to build and a page of twenty-five miniatures
     would build twenty-five of them. The import is local for the reason the health probe's is: the
     API must start — and serve every other screen — in an installation whose object storage is
-    missing or misconfigured.
+    missing or misconfigured. ``S3Storage`` itself builds the client only on the first read, so the
+    route can answer 404 for an unconfigured installation without ever touching boto3.
     """
     from scrinalia.core.storage import S3Storage
 

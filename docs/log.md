@@ -3003,3 +3003,49 @@ with short or full shas, and part of a `## <date> — <title>` entry.
   - `guides/operate.md` — **no-change**: `mkdocs.yml` moved only to add ADR 0021 to the nav. The page
     states what the site build and the nav coverage mean, and neither sentence changed; it was
     reported because it declares `mkdocs.yml` among its sources, which is correct.
+
+## 2026-10-29 — the unconfigured installation advertises no thumbnail (#258)
+
+- **Range:** `68e8012..2e63989`
+- **Pages:**
+  - `guides/install.md` — **updated**: the object-storage section now says storage is optional for
+    everything except the miniature. An installation without the four `S3_*` settings advertises no
+    `thumbnail_url` (even for a row that carries a `storage_thumbnail_uri`), the screens draw "sem
+    imagem" and send no request, the thumbnail route answers 404, and the health panel names the
+    missing settings. The "bucket does not answer" section separates `configured = false` (no
+    thumbnails in this installation) from `configured = true, ok = false` (configured, `HEAD`
+    failed, screens keep their URLs and the route answers 503).
+  - `guides/install.pt.md` — **updated**: the same two paragraphs in Portuguese.
+  - `guides/operate.md` — **updated**: the `thumbnail` bullet says an installation without `S3_*`
+    is valid, the screens advertise no miniature and the route answers 404, so this worker is the
+    only piece that fails (once, on the first document) while the rest of the pipeline runs.
+  - `guides/operate.pt.md` — **updated**: the same sentence.
+  - `guides/curate.md` — **updated**: the dossier's miniature paragraph said 503 "when the storage
+    itself is unavailable", which is now two cases. 404 covers no source image, an object that left
+    the bucket and an installation with no storage (whose read view advertises no URL and whose card
+    is the same "Sem imagem"); 503 is kept for a storage that is configured and cannot be read.
+  - `guides/curate.pt.md` — **updated**: the same paragraph.
+- **Range note.** The range includes the merge of #246 (`9e6a45b`), whose own pages are triaged in
+  the entries above; this round did not rewrite them again, except the curate page's miniature
+  paragraph, which #258 changed.
+- **ADRs.** `adr/0022-an-unconfigured-installation-advertises-no-object-backed-url.md` **created**:
+  one predicate (`missing_storage_settings`/`storage_configured` in `core/config.py`) read by the
+  health probe, `S3Storage` and the read view; an object-backed field is advertised only when the
+  storage is configured; the route answers 404 for an unconfigured installation and keeps 503 for a
+  configured one that cannot be read; the boto3 client is built on first use. It records the rule
+  #198 inherits. `adr/0017-…` §3 carries an amendment note, and the ADR is in the index and in the
+  MkDocs nav.
+- **What the round measured.** `ruff check` green and `ruff format --check` green (**583 files**);
+  basedpyright **0 errors, 0 warnings**; the full suite **2322 passed, 1 skipped in 32.78 s**
+  (Postgres test database on 5434, because another project holds 5433 on this machine); `bun run
+  contract` regenerated `openapi.json` and `schema.d.ts` with only the `thumbnail_url` docstring
+  changed; `tsc` and ESLint green in `apps/curator`; `mkdocs build --strict` green. The tests that
+  pin the new behaviour are `test_without_storage_the_summary_advertises_nothing_and_the_route_never_reads`,
+  the four parameterised settings cases in `testing/unit/core/test_storage.py`, and the lazy-client
+  test; the route tests now set or clear the four settings instead of inheriting a developer's
+  `.env`.
+- **Not verified.** No browser was opened: the SPA source did not change, and the null branch it
+  already draws for a missing image is what the new API value feeds. The route tests use the
+  Litestar test client with the settings patched, not a live API process configured without storage,
+  and the `thumbnail` worker was not run against an absent bucket — its refusal path is unchanged
+  and covered by its existing tests.

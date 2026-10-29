@@ -478,6 +478,16 @@ probe que provisiona é uma escrita escondida dentro de uma leitura.
 O que vive lá hoje são os JPEGs do worker `thumbnail`, em `thumbnails/`. O banco guarda a referência
 `s3://bucket/key` resultante em `storage_thumbnail_uri`.
 
+O armazenamento é opcional para tudo, menos para a miniatura. Uma instalação sem nenhuma das quatro
+configurações inicia e serve todas as telas; a leitura não anuncia `thumbnail_url` (ele é `null` mesmo
+para uma linha que carrega um `storage_thumbnail_uri`, como acontece com um banco copiado de uma
+instalação que tinha armazenamento), então a coleção e o dossiê desenham o espaço "sem imagem" e o
+navegador não faz nenhum pedido de miniatura. O `GET /api/v1/documents/{id}/thumbnail` responde
+**404** nessa instalação — um pedido que chega é um link antigo, e a API não lê o bucket, não constrói
+cliente e não registra um stack trace por imagem. O painel de saúde informa
+`storage.configured = false` e nomeia as configurações que faltam. A importação CSV, o cadastro
+manual e todo worker que não toca no bucket funcionam igual.
+
 ## Backup e restauração
 
 Duas peças de estado, e só duas: o banco e o bucket.
@@ -572,15 +582,18 @@ aposentadoria resolve para `gemma_4b_local` com o motivo na tela, em vez de derr
 
 ### O bucket não responde
 
-O painel distingue os dois casos: `storage.configured = false` significa endpoint, bucket ou
-credenciais faltando, e `configured = true, ok = false` significa que a configuração existe e o
-`HEAD` no bucket falhou. O worker `thumbnail` é o único consumidor do bucket, então o resto do
-pipeline continua. Suba o bucket **antes** de rodar esse worker: um documento cujo envio levanta
-exceção recebe o carimbo `thumbnail_failed`, uma marca de falha permanente que a fila respeita, então
-uma indisponibilidade passageira do armazenamento durante uma execução deixa esses documentos
-excluídos de toda execução seguinte. Corrija `S3_ENDPOINT_URL`/`S3_BUCKET_NAME`/`S3_ACCESS_KEY`/
-`S3_SECRET_KEY`, confirme que o bucket existe e verifique o alcance a partir do processo que faz o
-envio — dentro de um contêiner, `localhost` é o contêiner.
+O painel distingue os dois casos. `storage.configured = false` significa endpoint, bucket ou
+credenciais faltando: a instalação não tem miniatura nenhuma, então as telas mostram o espaço vazio
+sem pedir imagem e o detalhe nomeia as configurações ausentes. `configured = true, ok = false`
+significa que a configuração existe e o `HEAD` no bucket falhou: as telas mantêm as URLs, o pedido de
+imagem chega à API e a resposta é um 503 que a tela desenha como "indisponível". O worker `thumbnail`
+é o único consumidor do bucket, então o resto do pipeline continua. Suba o bucket **antes** de rodar
+esse worker: um documento cujo envio levanta exceção recebe o carimbo `thumbnail_failed`, uma marca de
+falha permanente que a fila respeita, então uma indisponibilidade passageira do armazenamento durante
+uma execução deixa esses documentos excluídos de toda execução seguinte. Corrija
+`S3_ENDPOINT_URL`/`S3_BUCKET_NAME`/`S3_ACCESS_KEY`/`S3_SECRET_KEY`, confirme que o bucket existe e
+verifique o alcance a partir do processo que faz o envio — dentro de um contêiner, `localhost` é o
+contêiner.
 
 ## Próximos passos
 

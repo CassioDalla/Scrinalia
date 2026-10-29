@@ -510,6 +510,16 @@ in a read.
 What lives there today is the `thumbnail` worker's JPEGs, under `thumbnails/`. The database stores
 the resulting `s3://bucket/key` reference in `storage_thumbnail_uri`.
 
+Storage is optional for everything except the miniature. An installation with none of the four
+settings starts and serves every screen; the read view advertises no `thumbnail_url` (it is `null`
+even for a row that carries a `storage_thumbnail_uri`, as a database copied from an installation
+that had storage does), so the collection and the dossier draw the "sem imagem" placeholder and the
+browser issues no thumbnail request. `GET /api/v1/documents/{id}/thumbnail` answers **404** for
+such an installation — a request that arrives is a stale link, and the API does not read the bucket,
+build a client or log a stack trace per image. The health panel reports `storage.configured = false`
+and names the settings that are missing. The CSV import, the manual entry and every worker that does
+not touch the bucket run the same.
+
 ## Backup and restore
 
 Two pieces of state, and only two: the database and the bucket.
@@ -605,12 +615,15 @@ resolves to `gemma_4b_local` with the reason on the screen instead of taking the
 
 ### The bucket does not answer
 
-The panel distinguishes the two cases: `storage.configured = false` means endpoint, bucket or
-credentials are missing, and `configured = true, ok = false` means the configuration is there and
-`HEAD` on the bucket failed. The `thumbnail` worker is the only consumer of the bucket, so the rest
-of the pipeline continues. Bring the bucket up **before** running that worker: a document whose
-upload raises is stamped `thumbnail_failed`, a permanent-failure mark the queue honours, so a
-transient storage outage during a run leaves those documents excluded from every later run. Correct
+The panel distinguishes the two cases. `storage.configured = false` means endpoint, bucket or
+credentials are missing: the installation has no thumbnails at all, so the screens show the
+placeholder without asking for an image and the missing settings are named in the detail.
+`configured = true, ok = false` means the configuration is there and `HEAD` on the bucket failed:
+the screens keep their URLs, the image request reaches the API and the answer is a 503 the screen
+draws as "indisponível". The `thumbnail` worker is the only consumer of the bucket, so the rest of
+the pipeline continues. Bring the bucket up **before** running that worker: a document whose upload
+raises is stamped `thumbnail_failed`, a permanent-failure mark the queue honours, so a transient
+storage outage during a run leaves those documents excluded from every later run. Correct
 `S3_ENDPOINT_URL`/`S3_BUCKET_NAME`/`S3_ACCESS_KEY`/`S3_SECRET_KEY`, confirm the bucket exists, and
 check reachability from the process doing the upload — inside a container, `localhost` is the
 container.

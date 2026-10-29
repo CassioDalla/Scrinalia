@@ -172,3 +172,27 @@ def resolve_ollama_host(explicit: str | None = None) -> str:
 
 
 settings = get_settings()
+
+
+def missing_storage_settings() -> list[str]:
+    """
+    Names of the object-storage settings this installation has not set.
+
+    The **one** definition of "the storage is configured", read by the health probe, by ``S3Storage``
+    and by the read view that advertises an object-backed URL. It was checked in two places before
+    — ``system_health.probe_storage`` and ``S3Storage._require_configuration`` — and the two could
+    disagree about an empty credential. A missing setting of any of the four means no object can be
+    served, so a field backed by one must not be advertised at all.
+    """
+    values = {
+        "S3_ENDPOINT_URL": settings.S3_ENDPOINT_URL,
+        "S3_BUCKET_NAME": settings.S3_BUCKET_NAME,
+        "S3_ACCESS_KEY": settings.S3_ACCESS_KEY,
+        "S3_SECRET_KEY": settings.S3_SECRET_KEY,
+    }
+    return [name for name, value in values.items() if not value]
+
+
+def storage_configured() -> bool:
+    """Whether every setting the object storage needs is present; the read view's predicate."""
+    return not missing_storage_settings()

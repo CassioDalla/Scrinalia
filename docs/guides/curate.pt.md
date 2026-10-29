@@ -431,9 +431,11 @@ arquivista escreve `final_title`.
 O primeiro cartão é a **miniatura**, e ela vem da API, não do navegador: a leitura anuncia
 `thumbnail_url` e a SPA a liga a um `<img>`, então o cliente nunca monta um caminho e nunca fala com o
 bucket (ADR 0017). Os bytes são `GET /api/v1/documents/{description_id}/thumbnail` (`AUTHENTICATED`);
-a rota responde 404 quando a origem não tinha imagem ou o objeto não está mais no bucket, e 503
-quando o próprio storage está indisponível. Quatro das 101 descrições do acervo de referência não
-têm imagem de origem, então "Sem imagem" é um estado normal, e uma URI guardada cujo objeto sumiu
+a rota responde 404 quando a origem não tinha imagem, quando o objeto não está mais no bucket ou
+quando esta instalação não tem armazenamento de objetos — neste último caso a leitura não anuncia
+`thumbnail_url`, então o cartão é o mesmo "Sem imagem" e nenhum pedido é feito (ADR 0022). O 503 fica
+para um storage configurado que não pode ser lido. Quatro das 101 descrições do acervo de referência
+não têm imagem de origem, então "Sem imagem" é um estado normal, e uma URI guardada cujo objeto sumiu
 mostra "Imagem indisponível" — nunca o ícone de imagem quebrada. A lista do acervo mostra a mesma
 miniatura a 56 px, que é como se reconhece uma fotografia sem abrir o dossiê.
 

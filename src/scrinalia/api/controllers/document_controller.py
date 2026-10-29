@@ -18,6 +18,7 @@ from scrinalia.api.schemas.documents import (
     TagLinkRequest,
 )
 from scrinalia.api.security import Access, AuthenticatedUser
+from scrinalia.core.config import storage_configured
 from scrinalia.core.exceptions import DomainException
 from scrinalia.core.logger import logger
 from scrinalia.domains.archive.models import ArchiveReviewStatus
@@ -147,12 +148,25 @@ class DocumentController(Controller):
         that may read it. ``DocumentSummary.thumbnail_url`` advertises this route, so the SPA never
         assembles the path itself.
 
-        The three answers are the three states the screen draws: **200** the image, **404** when the
-        source had no image or the object is no longer in the bucket (the URI is a reference, not a
-        guarantee), and **503** when the storage itself is unconfigured or unreachable — an operator
+        **404** is also the answer when this installation has no object storage configured: the
+        contract then advertises no thumbnail at all (``thumbnail_url`` is ``None``), so a request
+        that arrives is a stale link and there is nothing for the browser to show. It is deliberately
+        **not** a 503 and not a log line per image — the health probe is where "the storage is not
+        configured" is reported once, and an unconfigured installation does not get one stack trace
+        per card. The other answers are the states the screen draws: **200** the image, **404** when
+        the source had no image or the object is no longer in the bucket (the URI is a reference, not
+        a guarantee), and **503** when the storage **is** configured but unreachable — an operator
         problem, logged, and not a defect of the request. The body is private for five minutes so a
         page of miniatures is paid once; a forced worker run can take that long to show.
         """
+        # Before the URI lookup: an installation without storage has no URL to advertise and no
+        # image to serve, and the check keeps ``S3Storage`` from even building its client.
+        if not storage_configured():
+            raise HTTPException(
+                status_code=404,
+                detail="This installation has no object storage, so it has no stored thumbnail.",
+            )
+
         uri = document_service.get_thumbnail_uri(description_id)
         if uri is None:
             raise HTTPException(status_code=404, detail="This description has no stored thumbnail.")

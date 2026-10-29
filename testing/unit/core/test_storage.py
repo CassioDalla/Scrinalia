@@ -14,7 +14,9 @@ import pytest
 from botocore.exceptions import ClientError
 from pydantic import SecretStr
 
+from scrinalia.core import config as config_module
 from scrinalia.core import storage as storage_module
+from scrinalia.core.config import missing_storage_settings, storage_configured
 from scrinalia.core.storage import (
     ObjectStorageError,
     S3Storage,
@@ -245,3 +247,79 @@ def test_read_object_ignores_a_malformed_uri_instead_of_reading_it(monkeypatch) 
 
     assert storage.read_object("s3://") is None
     assert client.gets == []
+
+
+# ==========================================
+# "CONFIGURED" HAS ONE DEFINITION (#258)
+# ==========================================
+
+
+def _configure_storage(monkeypatch) -> None:
+    """Sets all four settings on the shared object every reader imports."""
+    monkeypatch.setattr(config_module.settings, "S3_ENDPOINT_URL", "http://storage.local:8333")
+    monkeypatch.setattr(config_module.settings, "S3_BUCKET_NAME", "thumbs")
+    monkeypatch.setattr(config_module.settings, "S3_ACCESS_KEY", SecretStr("chave"))
+    monkeypatch.setattr(config_module.settings, "S3_SECRET_KEY", SecretStr("segredo"))
+
+
+def test_all_four_storage_settings_configure_it(monkeypatch) -> None:
+    _configure_storage(monkeypatch)
+
+    assert storage_configured() is True
+    assert missing_storage_settings() == []
+
+
+@pytest.mark.parametrize("name", ["S3_ENDPOINT_URL", "S3_BUCKET_NAME", "S3_ACCESS_KEY", "S3_SECRET_KEY"])
+def test_any_of_the_four_settings_missing_leaves_the_storage_unconfigured(monkeypatch, name: str) -> None:
+    _configure_storage(monkeypatch)
+    monkeypatch.setattr(config_module.settings, name, None)
+
+    assert missing_storage_settings() == [name]
+    assert storage_configured() is False
+
+
+def test_an_empty_credential_counts_as_missing(monkeypatch) -> None:
+    """The probe used ``is None`` while the reader used truthiness; the predicate settles it."""
+    _configure_storage(monkeypatch)
+    monkeypatch.setattr(config_module.settings, "S3_ACCESS_KEY", SecretStr(""))
+
+    assert missing_storage_settings() == ["S3_ACCESS_KEY"]
+    assert storage_configured() is False
+
+
+def test_the_client_is_built_on_first_use_and_not_at_construction(monkeypatch) -> None:
+    """A page of miniatures pays one client; an unconfigured installation pays none."""
+    client = _FakeClient()
+    _configure_storage(monkeypatch)
+    built: list[_FakeClient] = []
+
+    def build(*args, **kwargs) -> _FakeClient:
+        built.append(client)
+        return client
+
+    monkeypatch.setattr(storage_module.boto3, "client", build)
+
+    storage = S3Storage()
+    assert built == []
+
+    storage.ensure_bucket()
+    assert built == [client]
+
+
+def test_no_client_is_built_when_the_storage_is_unconfigured(monkeypatch) -> None:
+    """``read_object`` must refuse before boto3 — the route's 404 cannot pay a client per image."""
+    _configure_storage(monkeypatch)
+    monkeypatch.setattr(config_module.settings, "S3_BUCKET_NAME", None)
+    built: list[object] = []
+
+    def build(*args, **kwargs) -> object:
+        built.append(object())
+        raise AssertionError("boto3.client must not be built for an unconfigured storage")
+
+    monkeypatch.setattr(storage_module.boto3, "client", build)
+
+    storage = S3Storage()
+    with pytest.raises(ObjectStorageError, match="S3 não configurado"):
+        storage.read_object("s3://thumbs/thumbnails/thumb_1.jpg")
+
+    assert built == []

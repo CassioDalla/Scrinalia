@@ -1,3 +1,4 @@
+from functools import cached_property
 from io import BytesIO
 from urllib.parse import urlsplit
 
@@ -6,7 +7,7 @@ from botocore.client import Config
 from botocore.exceptions import ClientError
 from pydantic import SecretStr
 
-from scrinalia.core.config import settings
+from scrinalia.core.config import missing_storage_settings, settings
 from scrinalia.core.exceptions import DomainException
 from scrinalia.core.logger import logger
 
@@ -88,29 +89,29 @@ def _reveal(secret: SecretStr | None) -> str | None:
 class S3Storage:
     def __init__(self) -> None:
         self.bucket = settings.S3_BUCKET_NAME
+        #: Set once the bucket is known to exist, so the ``HEAD`` is paid once per run and not once
+        #: per document.
+        self._bucket_ready = False
 
-        self.client = boto3.client(
+    @cached_property
+    def client(self):
+        """
+        The boto3 client, built on first use and **not** at construction.
+
+        Deliberately lazy: ``provide_thumbnail_reader`` builds this object on the first thumbnail
+        request, and an installation whose ``S3_*`` settings are absent must not pay a client — or
+        reach ``boto3`` at all — for an object it cannot serve (#258).
+        """
+        return boto3.client(
             "s3",
             endpoint_url=settings.S3_ENDPOINT_URL,
             aws_access_key_id=_reveal(settings.S3_ACCESS_KEY),
             aws_secret_access_key=_reveal(settings.S3_SECRET_KEY),
             config=Config(signature_version="s3v4"),
         )
-        #: Set once the bucket is known to exist, so the ``HEAD`` is paid once per run and not once
-        #: per document.
-        self._bucket_ready = False
 
     def _require_configuration(self) -> None:
-        missing = [
-            name
-            for name, value in (
-                ("S3_ENDPOINT_URL", settings.S3_ENDPOINT_URL),
-                ("S3_BUCKET_NAME", self.bucket),
-                ("S3_ACCESS_KEY", settings.S3_ACCESS_KEY),
-                ("S3_SECRET_KEY", settings.S3_SECRET_KEY),
-            )
-            if not value
-        ]
+        missing = missing_storage_settings()
         if missing:
             raise ObjectStorageError(f"S3 não configurado: falta {', '.join(missing)}.")
 
