@@ -2995,3 +2995,11 @@ with short or full shas, and part of a `## <date> — <title>` entry.
 - **Not verified.** No write was exercised; the English locale was not re-rendered (its strings did
   not change); and the `?status=` fix was verified through the inbox card and the rendered collection
   screen, not through the status select on its own.
+
+## 2026-10-29 — the ADR nav entry, and the one page it touched
+
+- **Range:** `15ff1680..68e8012`
+- **Pages:**
+  - `guides/operate.md` — **no-change**: `mkdocs.yml` moved only to add ADR 0021 to the nav. The page
+    states what the site build and the nav coverage mean, and neither sentence changed; it was
+    reported because it declares `mkdocs.yml` among its sources, which is correct.
