@@ -24,13 +24,18 @@ Create Date: 2026-10-29
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 import sqlalchemy as sa
 from alembic import op
 
+# revision identifiers, used by Alembic
 revision: str = "c3f8a1d2e4b6"
-down_revision: str | None = "0b1c2d3e4f5a"
-branch_labels = None
-depends_on = None
+down_revision: str | Sequence[str] | None = "0b1c2d3e4f5a"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
+
+__all__ = ["branch_labels", "depends_on", "down_revision", "revision"]
 
 #: The partial predicate of the guard, spelled as the model and the two migrations before this one
 #: spell it. It lives here rather than importing ``ACTIVE_RUN_PREDICATE`` because a migration is a
