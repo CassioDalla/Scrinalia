@@ -130,6 +130,7 @@ export function DiffusionConfigForm({
 
   return (
     <div className="grid gap-3 rounded-md bg-black/[0.02] p-3 ring-1 ring-(--color-line)">
+      <p className="text-xs text-(--color-muted)">{messages.pages.diffusion.configHint}</p>
       <div className="grid gap-3 sm:grid-cols-2">
         {fields.map((field) => (
           <Field

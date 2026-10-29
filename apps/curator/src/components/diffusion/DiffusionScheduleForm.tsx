@@ -43,7 +43,7 @@ export function DiffusionScheduleForm({ channel }: { channel: DiffusionChannel }
 
   return (
     <div className="grid gap-3 rounded-md bg-black/[0.02] p-3 ring-1 ring-(--color-line)">
-      <p className="text-xs text-(--color-muted)">{messages.pages.diffusion.cronHint}</p>
+      <p className="text-xs text-(--color-muted)">{messages.pages.diffusion.scheduleHint}</p>
       <div className="grid gap-3 sm:grid-cols-2">
         <Field label={messages.pages.diffusion.scheduleField}>
           <Input value={cron} onChange={(event) => setCron(event.target.value)} placeholder="0 2 * * *" />

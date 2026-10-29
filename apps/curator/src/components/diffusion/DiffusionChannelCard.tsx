@@ -65,6 +65,11 @@ export function DiffusionChannelCard({
             </Badge>
           </div>
           <p className="text-xs text-(--color-muted)">{channel.description}</p>
+          <p className="text-xs text-(--color-muted)">
+            {live
+              ? messages.pages.diffusion.capabilityLiveHint
+              : messages.pages.diffusion.capabilityExportHint}
+          </p>
           <p className="text-xs text-(--color-muted)">{configSummary(channel)}</p>
         </div>
 

@@ -9,6 +9,7 @@ import { PageBody } from "@/components/layout/PageBody";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/Button";
 import { EmptyState, ErrorState, Skeleton } from "@/components/ui/Feedback";
+import { Notice } from "@/components/ui/Notice";
 import { useCopy } from "@/i18n/context";
 import { fill } from "@/i18n/maps";
 import { formatCount } from "@/lib/format";
@@ -56,17 +57,12 @@ export function DiffusionRoute() {
                 { count: formatCount(configured.length), active: formatCount(active) },
               )
         }
-        actions={
-          canOperate && available.length > 0 && configured.length > 0 ? (
-            <Button size="sm" variant="primary" onClick={() => setPickerOpen(true)}>
-              {messages.pages.diffusion.addChannel}
-            </Button>
-          ) : null
-        }
       />
 
       <PageBody className="gap-3">
         {error ? <ErrorState error={error} /> : null}
+
+        <Notice tone="neutral">{messages.pages.diffusion.intro}</Notice>
 
         {isPending ? (
           <div className="grid gap-3">
@@ -89,9 +85,22 @@ export function DiffusionRoute() {
             }
           />
         ) : (
-          configured.map((channel) => (
-            <DiffusionChannelCard key={channel.code} channel={channel} canOperate={canOperate} />
-          ))
+          <section className="grid gap-3">
+            <div className="flex flex-wrap items-end justify-between gap-2">
+              <div>
+                <h2 className="text-sm font-semibold">{messages.pages.diffusion.channelsTitle}</h2>
+                <p className="text-xs text-(--color-muted)">{messages.pages.diffusion.channelsHint}</p>
+              </div>
+              {canOperate && available.length > 0 ? (
+                <Button size="sm" variant="primary" onClick={() => setPickerOpen(true)}>
+                  {messages.pages.diffusion.addChannel}
+                </Button>
+              ) : null}
+            </div>
+            {configured.map((channel) => (
+              <DiffusionChannelCard key={channel.code} channel={channel} canOperate={canOperate} />
+            ))}
+          </section>
         )}
 
         {!isPending && configured.length > 0 && canOperate && available.length === 0 ? (

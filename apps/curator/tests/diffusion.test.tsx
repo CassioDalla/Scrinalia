@@ -156,7 +156,7 @@ describe("the public site card", () => {
 
     expect(screen.queryByRole("button", { name: /Editar configuração/ })).toBeNull();
     expect(screen.queryByRole("button", { name: /Desativar/ })).toBeNull();
-    expect(screen.getByText(/ficam com o operador/)).toBeTruthy();
+    expect(screen.getByText(/Só o operador adiciona/)).toBeTruthy();
   });
 });
 
