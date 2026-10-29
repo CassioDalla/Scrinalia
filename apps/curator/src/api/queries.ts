@@ -43,6 +43,7 @@ import {
   previewSubjectExclusions,
   fetchSystemFailures,
   fetchSystemHealth,
+  listDiffusionChannels,
   listIngestionOrigins,
   fetchSystemRun,
   fetchSystemRuns,
@@ -670,6 +671,20 @@ export const queries = {
     queryOptions({
       queryKey: ["ingestion", "origins"],
       queryFn: listIngestionOrigins,
+      staleTime: 15_000,
+    }),
+
+  /**
+   * The diffusion channels: the registry definitions with their lifecycle and their agenda.
+   *
+   * One read for the whole screen, the way the origins page reads its sources. A channel is an
+   * operator's object and changes when they change it, not on a clock; the screen invalidates this
+   * key after every write, so a short stale time is enough.
+   */
+  diffusionChannels: () =>
+    queryOptions({
+      queryKey: ["diffusion", "channels"],
+      queryFn: listDiffusionChannels,
       staleTime: 15_000,
     }),
 

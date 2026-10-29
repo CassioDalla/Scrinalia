@@ -12,6 +12,7 @@ import { en as workerPanelEn } from "@/i18n/pages/workerPanel";
 import { en as exclusionsEn } from "@/i18n/pages/exclusions";
 import { en as browseAEn } from "@/i18n/pages/browseA";
 import { en as browseBEn } from "@/i18n/pages/browseB";
+import { en as diffusionEn } from "@/i18n/pages/diffusion";
 import { ATTRIBUTION } from "@/lib/attribution";
 
 import type { pt } from "./pt";
@@ -47,6 +48,7 @@ export const en: typeof pt = {
     ...exclusionsEn,
     ...browseAEn,
     ...browseBEn,
+    ...diffusionEn,
     cleaningRules: {
       activeOne: "1 active rule",
       activeMany: "{count} active rules",
@@ -1359,6 +1361,11 @@ export const en: typeof pt = {
       hint: "Configure, pause and schedule",
       description:
         "The sources this installation reads, with each one's queue, schedule and configuration; manual entry and CSV import live in the Collection, under New Description.",
+    },
+    diffusion: {
+      label: "Diffusion channels",
+      hint: "Where the collection goes out",
+      description: "The channel publishes nothing; Diffusion is where the curator chooses what goes to it.",
     },
     newDescription: {
       label: "New Description",

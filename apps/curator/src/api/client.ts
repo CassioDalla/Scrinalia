@@ -410,6 +410,20 @@ export type IngestionOption = components["schemas"]["IngestionOptionDTO"];
 export type OriginConfigField = components["schemas"]["OriginConfigFieldDTO"];
 export type ManualIngestionRequest = components["schemas"]["ManualIngestionRequest"];
 export type ManualIngestionResponse = components["schemas"]["ManualIngestionResponse"];
+/**
+ * A diffusion channel: where the published archive leaves (#213, ADR 0023).
+ *
+ * The definition and its lifecycle arrive in the same DTO because the operator screen reads them
+ * together: `configured` is what tells "never added" apart from "paused", and `config_fields` is the
+ * metadata the generic form renders. The capability decides what the card offers — a `LIVE` channel
+ * has no run and no agenda.
+ */
+export type DiffusionChannel = components["schemas"]["DiffusionChannelDTO"];
+export type DiffusionChannelList = components["schemas"]["DiffusionChannelListResponse"];
+export type DiffusionCapability = components["schemas"]["DiffusionCapability"];
+export type DiffusionConfigField = components["schemas"]["DiffusionConfigFieldDTO"];
+export type DiffusionChannelUpdateRequest = components["schemas"]["DiffusionChannelUpdateRequest"];
+export type DiffusionScheduleRequest = components["schemas"]["DiffusionScheduleRequest"];
 /** The CSV import's map, its bounded rows and its per-row report (#191). */
 export type CsvImportSpecResponse = components["schemas"]["CsvImportSpecResponse"];
 export type CsvImportRequest = components["schemas"]["CsvImportRequest"];
@@ -1760,6 +1774,57 @@ export async function triggerIngestionRun(code: string, body: IngestionRunReques
       params: { path: { code } },
       body,
     }),
+  );
+}
+
+// --- The diffusion channels: where the published archive leaves ------------------------------
+
+/**
+ * Every definition the package ships, configured or not — one request for the whole screen.
+ *
+ * The add picker filters `configured` instead of the API keeping a second "available" list, so the
+ * two cannot disagree about what is still addable.
+ */
+export async function listDiffusionChannels(): Promise<DiffusionChannelList> {
+  return unwrap<DiffusionChannelList>(await client.GET("/api/v1/diffusion/channels"));
+}
+
+/**
+ * Saves the channel's lifecycle and its own configuration; the agenda has its own call.
+ *
+ * The body is partial by design: a pause sends only `enabled`, and the configuration form sends
+ * only `config`. The configuration is validated by the channel's model, so a typo is a 422 here
+ * instead of a JSONB the site discovers when it tries to render.
+ */
+export async function updateDiffusionChannel(
+  code: string,
+  body: DiffusionChannelUpdateRequest,
+): Promise<DiffusionChannel> {
+  return unwrap<DiffusionChannel>(
+    await client.PATCH("/api/v1/diffusion/channels/{code}", {
+      params: { path: { code } },
+      body,
+    }),
+  );
+}
+
+/** Creates or replaces the agenda of an export channel; a live channel refuses it. */
+export async function saveDiffusionSchedule(
+  code: string,
+  body: DiffusionScheduleRequest,
+): Promise<DiffusionChannel> {
+  return unwrap<DiffusionChannel>(
+    await client.PUT("/api/v1/diffusion/channels/{code}/schedule", {
+      params: { path: { code } },
+      body,
+    }),
+  );
+}
+
+/** Removes the agenda; the channel keeps its configuration and the runs it already created. */
+export async function deleteDiffusionSchedule(code: string): Promise<DiffusionChannel> {
+  return unwrap<DiffusionChannel>(
+    await client.DELETE("/api/v1/diffusion/channels/{code}/schedule", { params: { path: { code } } }),
   );
 }
 

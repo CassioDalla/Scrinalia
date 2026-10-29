@@ -11,6 +11,7 @@ import { DeletionsRoute, validateDeletionsSearch } from "@/routes/DeletionsRoute
 import { DiagnosticsRoute, validateDiagnosticsSearch } from "@/routes/DiagnosticsRoute";
 import { DiscoverRoute } from "@/routes/DiscoverRoute";
 import { DocumentRoute } from "@/routes/DocumentRoute";
+import { DiffusionRoute } from "@/routes/DiffusionRoute";
 import { EntitiesRoute, validateEntitiesSearch } from "@/routes/EntitiesRoute";
 import { InboxRoute } from "@/routes/InboxRoute";
 import { LevelsRoute } from "@/routes/LevelsRoute";
@@ -260,6 +261,20 @@ const originsRoute = createRoute({
   component: OriginsRoute,
 });
 
+/**
+ * The other half of the archive's outside: where the published collection can go.
+ *
+ * A card of `/configuracoes`, under *Operação*, and not a top-level entry: adding and configuring a
+ * channel is the installation's distribution, decided once, while the *publication* itself is the
+ * dossier's checkbox under `CURATE` (#213, ADR 0023). The path lives under the landing so the
+ * Configurações entry stays marked while the operator is here.
+ */
+const diffusionRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/configuracoes/difusao",
+  component: DiffusionRoute,
+});
+
 /*
  * The old path of the entry screen, kept as a redirect so a shared link and the guides that named it
  * do not break (#205). It is a route without a screen: the copy gate lists it in
@@ -364,6 +379,7 @@ export const router = createRouter({
     anomaliesRoute,
     systemWorkersRoute,
     originsRoute,
+    diffusionRoute,
     legacyNewDescriptionRoute,
     legacySystemRunsRoute,
     systemHealthRoute,

@@ -19,6 +19,7 @@ import { pt as workerPanelPt } from "@/i18n/pages/workerPanel";
 import { pt as exclusionsPt } from "@/i18n/pages/exclusions";
 import { pt as browseAPt } from "@/i18n/pages/browseA";
 import { pt as browseBPt } from "@/i18n/pages/browseB";
+import { pt as diffusionPt } from "@/i18n/pages/diffusion";
 import { ATTRIBUTION } from "@/lib/attribution";
 
 /** The copy of one screen: the menu entry, the header's subtitle and, where it has one, the sentence. */
@@ -138,6 +139,11 @@ const screens: Record<ScreenId, ScreenCopy> = {
       description:
         "As fontes que esta instalação lê, com a fila, a agenda e a configuração de cada uma; a entrada manual e a importação CSV ficam no Acervo, em Nova Descrição.",
     },
+    diffusion: {
+      label: "Canais de difusão",
+      hint: "Canais de saída do acervo",
+      description: "O canal não publica nada; a Difusão é onde o curador escolhe o que vai para ele.",
+    },
     newDescription: {
       label: "Nova Descrição",
       hint: "Digitar ou importar CSV",
@@ -201,6 +207,7 @@ export const pt = {
     ...exclusionsPt,
     ...browseAPt,
     ...browseBPt,
+    ...diffusionPt,
     cleaningRules: {
       activeOne: "1 regra ativa",
       activeMany: "{count} regras ativas",

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
-import { Button } from "@/components/ui/Button";
+import { PanelToggle } from "@/components/ui/PanelToggle";
 import { useCopy } from "@/i18n/context";
 
 /**
@@ -36,14 +36,7 @@ export function useOriginPanel() {
   return { open, panel, reveal, onOpenChange };
 }
 
-/**
- * `Configurar` and `Agenda` as panel toggles.
- *
- * Each button names the region it controls and says whether that region is open. The visible state
- * is a pair on purpose — the outlined, accent-tinted button with a downward chevron is the one whose
- * form is below, so "which panel is this card showing?" is answerable from the header alone, on a
- * long card whose body starts below the fold.
- */
+/** `Configurar` and `Agenda` as panel toggles; the shared `PanelToggle` carries the visible state. */
 export function OriginPanelActions({
   panel,
   onSelect,
@@ -71,36 +64,6 @@ export function OriginPanelActions({
         onSelect={() => onSelect("schedule")}
       />
     </>
-  );
-}
-
-function PanelToggle({
-  label,
-  active,
-  controls,
-  onSelect,
-}: {
-  label: string;
-  active: boolean;
-  controls: string;
-  onSelect: () => void;
-}) {
-  return (
-    <Button
-      size="sm"
-      variant={active ? "secondary" : "ghost"}
-      aria-expanded={active}
-      // Only while the region exists: `aria-controls` pointing at an absent id is a promise with
-      // nothing behind it.
-      aria-controls={active ? controls : undefined}
-      onClick={onSelect}
-      className={active ? "text-(--color-accent) ring-(--color-accent)/40" : undefined}
-    >
-      <span aria-hidden className="text-[10px]">
-        {active ? "▾" : "▸"}
-      </span>
-      {label}
-    </Button>
   );
 }
 
