@@ -66,7 +66,9 @@ ingestion -> transfer -> cleaning -> ner -> typology -> thumbnail -> conflict-ju
   os documentos de uma execução, que é o que torna barato um teste local. O worker só escreve o
   objeto; a API o serve sob demanda em `GET /api/v1/documents/{description_id}/thumbnail` (ADR 0017).
   O endpoint precisa continuar alcançável a partir do **processo da API** e as credenciais precisam
-  permitir `GetObject` — o navegador nunca fala com ele.
+  permitir `GetObject` — o navegador nunca fala com ele. Uma instalação sem as quatro configurações
+  `S3_*` é válida: as telas não anunciam miniatura e a rota responde **404**, então este worker é a
+  única peça que falha (uma vez, no primeiro documento) e o resto do pipeline roda (ADR 0022).
 - **`conflict-judge`** compara o vocabulário de tags com o de entidades e consulta o LLM local para
   decidir se o termo ambíguo é assunto ou nome próprio. Todo veredicto, automático ou enviado a uma
   pessoa, deixa uma linha em `archive_ai_review_queue`. Uma chamada que o motor não conseguiu fazer

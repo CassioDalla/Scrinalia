@@ -127,7 +127,10 @@ ingestion -> transfer -> cleaning -> ner -> typology -> thumbnail -> conflict-ju
   caps the documents of one run, which is what makes a local test cheap. The worker only writes the
   object; the API serves it on demand through `GET
   /api/v1/documents/{description_id}/thumbnail` (ADR 0017). The endpoint must stay reachable from the
-  **API process** and the credentials must allow `GetObject` — the browser never talks to it.
+  **API process** and the credentials must allow `GetObject` — the browser never talks to it. An
+  installation without the four `S3_*` settings is a valid one: the screens advertise no miniature
+  and the route answers **404**, so this worker is the only piece that fails (once, on the first
+  document) and the rest of the pipeline runs (ADR 0022).
 - **`conflict-judge`** compares the tag vocabulary with the entity vocabulary and asks the local
   LLM whether an ambiguous term is a subject or a proper name. Every verdict, auto-resolved or sent
   to a human, leaves a row in `archive_ai_review_queue`. A call the engine could not make raises

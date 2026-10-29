@@ -457,10 +457,12 @@ The first card is the **miniature**, and it comes from the API, not from the bro
 advertises `thumbnail_url` and the SPA binds it to an `<img>`, so the client never assembles a path
 and never talks to the bucket (ADR 0017). The bytes are `GET
 /api/v1/documents/{description_id}/thumbnail` (`AUTHENTICATED`); the route answers 404 when the
-source had no image or the object is no longer in the bucket, and 503 when the storage itself is
-unavailable. Four of the reference collection's 101 descriptions have no source image, so "Sem
-imagem" is a normal state, and a stored URI whose object is gone shows "Imagem indisponível" — never
-a broken-image glyph. The collection list shows the same miniature at 56 px, which is how a
+source had no image, when the object is no longer in the bucket, or when this installation has no
+object storage at all — in that last case the read view advertises no `thumbnail_url`, so the card is
+the same "Sem imagem" and no request is made (ADR 0022). 503 is kept for a storage that is configured
+but cannot be read. Four of the reference collection's 101 descriptions have no source image, so
+"Sem imagem" is a normal state, and a stored URI whose object is gone shows "Imagem indisponível" —
+never a broken-image glyph. The collection list shows the same miniature at 56 px, which is how a
 photograph is recognised without opening the dossier.
 
 The decision is the record itself, grouped in the norm's own areas — **3.1 Identidade**, **3.2
