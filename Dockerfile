@@ -37,7 +37,14 @@ RUN bun install --frozen-lockfile
 
 # ``bun run build`` is ``tsc --noEmit && vite build``, and ``tsc`` is a devDependency — so NODE_ENV
 # must **not** be set to production here, or the type-check step loses its compiler.
+#
+# ``pyproject.toml`` is here because the SPA's build reads it: ``vite.config.ts`` injects the
+# system's version into the footer (``__APP_VERSION__``), and ``systemVersion()`` resolves
+# ``../../pyproject.toml`` from the config — ``/app/pyproject.toml`` in this stage. It is not a
+# Python dependency of the front end; it is the file where the version is defined, and the build
+# deliberately fails when it cannot read it.
 COPY apps/curator apps/curator
+COPY pyproject.toml ./
 RUN bun run --cwd apps/curator build
 
 # ------------------------------------------------------------------------------------------------
