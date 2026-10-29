@@ -106,7 +106,7 @@ export const en: typeof pt = {
       cleaningRulesLink: "cleaning rules",
       reasonsFound: "reasons found:",
       fixHint:
-        "Corrigir é revisar a ficha: a edição fica no histórico e marca a descrição como revisada por humano; a partir daí a IA não a sobrescreve.",
+        "Fixing means reviewing the record: the edit stays in the history and marks the description as reviewed by a human; from then on the AI does not overwrite it.",
       status: "{count} descriptions with an anomaly",
       reasonHint: "Reason recorded by the quality validator",
       rules: "Rules",
