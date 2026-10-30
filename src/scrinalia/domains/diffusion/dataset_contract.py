@@ -40,13 +40,43 @@ from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, HttpUrl, model
 
 from scrinalia.domains.archive.schemas.public_projection import PublicDocumentSummary
 
+#: The schema version the manifest declares. The ``Literal`` is what pins it: a bump is a code change
+#: and a new contract directory, never a value that drifts inside an old schema.
+DatasetSchemaVersion = Literal["1.0"]
+
 #: The version of the package contract, and the name of the committed directory (``v1``). The
 #: manifest carries it so a consumer can branch on the shape it received.
-DATASET_SCHEMA_VERSION = "1.0"
+DATASET_SCHEMA_VERSION: DatasetSchemaVersion = "1.0"
 
 #: The licenses an institution may declare. ``custom`` is the escape hatch for an institutional
 #: license the list does not name, and it requires the terms to be published.
 DatasetLicenseId = Literal["CC0-1.0", "CC-BY-4.0", "CC-BY-SA-4.0", "custom"]
+
+
+@dataclass(frozen=True)
+class DatasetLicenseTerms:
+    """The canonical name and URL of a license the manifest can name without the operator typing it."""
+
+    name: str
+    url: str
+
+
+#: The known licenses: the config asks for the id, and the manifest gets the canonical terms. A
+#: ``custom`` license has no entry because its terms are the institution's own fields.
+DATASET_LICENSES: dict[str, DatasetLicenseTerms] = {
+    "CC0-1.0": DatasetLicenseTerms(
+        name="CC0 1.0 Universal",
+        url="https://creativecommons.org/publicdomain/zero/1.0/",
+    ),
+    "CC-BY-4.0": DatasetLicenseTerms(
+        name="Creative Commons Attribution 4.0 International",
+        url="https://creativecommons.org/licenses/by/4.0/",
+    ),
+    "CC-BY-SA-4.0": DatasetLicenseTerms(
+        name="Creative Commons Attribution-ShareAlike 4.0 International",
+        url="https://creativecommons.org/licenses/by-sa/4.0/",
+    ),
+}
 
 
 def contract_directory() -> str:
@@ -133,7 +163,7 @@ class DatasetManifest(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    schema_version: Literal["1.0"]
+    schema_version: DatasetSchemaVersion
     snapshot_id: str = Field(pattern=r"^[0-9a-f]{64}$")
     #: ``None`` on the first snapshot, or when the destination changed.
     previous_snapshot_id: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")

@@ -393,6 +393,40 @@ class DocumentRepository:
             coverage.setdefault(description_id, []).append(channel_code)
         return coverage
 
+    def list_channel_documents(
+        self,
+        channel_code: str,
+        *,
+        after: str | None = None,
+        limit: int = 500,
+    ) -> list[DocumentSummary]:
+        """
+        The descriptions a channel covers, ordered by id, for a snapshot (ADR 0024).
+
+        Keyset pagination (``after``) and not ``offset``: the dataset is read while curators may be
+        publishing, and an offset would skip a record when an earlier id leaves the covered set
+        between two pages. The order is the stable ``description_id``, so two runs over the same
+        covered set read the same sequence — the property the snapshot's checksums rely on.
+
+        The predicate is the coverage view, the one definition; the adapter does not spell the
+        approval/scope/exclusion rule a second time.
+        """
+        stmt = (
+            select(ArchiveDocument)
+            .join(
+                ARCHIVE_DOCUMENT_CHANNELS,
+                ARCHIVE_DOCUMENT_CHANNELS.c.description_id == ArchiveDocument.description_id,
+            )
+            .where(
+                ARCHIVE_DOCUMENT_CHANNELS.c.channel_code == channel_code,
+                *([ArchiveDocument.description_id > after] if after is not None else []),
+            )
+            .order_by(ArchiveDocument.description_id)
+            .options(*self._eager_options())
+            .limit(limit)
+        )
+        return self._page_summaries([(doc, None) for doc in self.db.scalars(stmt).all()])
+
     def _to_summary(
         self,
         doc: ArchiveDocument,

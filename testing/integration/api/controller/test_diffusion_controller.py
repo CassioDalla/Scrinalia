@@ -22,12 +22,13 @@ def test_the_channel_list_is_the_registry_with_the_configured_flag(client: TestC
 
     assert response.status_code == 200
     body = response.json()
-    assert [channel["code"] for channel in body["channels"]] == ["public_site"]
+    assert [channel["code"] for channel in body["channels"]] == ["public_site", "dataset"]
     public_site = body["channels"][0]
     assert public_site["configured"] is False
     assert public_site["enabled"] is False
     assert public_site["capability"] == "LIVE"
     assert {field["name"] for field in public_site["config_fields"]} >= {"site_title", "locale", "allow_indexing"}
+    assert body["channels"][1]["capability"] == "EXPORT"
 
 
 def test_the_patch_creates_the_row_and_the_pause_keeps_it(client: TestClient) -> None:
