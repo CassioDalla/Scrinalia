@@ -59,6 +59,7 @@ NOT_PUBLIC_FIELDS = frozenset(
         "level_id",
         "typology_id",
         "is_published",
+        "channels",
         "admin_bio_history",
         "admin_archival_history",
         "access_conditions",

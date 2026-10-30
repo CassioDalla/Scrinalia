@@ -28,7 +28,7 @@ from scrinalia.api.schemas.public import (
 from scrinalia.api.security import Access
 from scrinalia.domains.archive.schemas.query_schema import DocumentSearchQuery, SearchMode
 from scrinalia.domains.archive.services.document_service import DocumentService
-from scrinalia.domains.diffusion.diffusion_registry import PublicSiteConfig
+from scrinalia.domains.diffusion.diffusion_registry import PUBLIC_SITE_CODE, PublicSiteConfig
 from scrinalia.domains.diffusion.service import DiffusionChannelService
 
 
@@ -45,6 +45,7 @@ class PublicController(Controller):
     def list_published(
         self,
         document_service: NamedDependency[DocumentService],
+        diffusion_service: NamedDependency[DiffusionChannelService],
         term: FromQuery[str | None] = None,
         mode: FromQuery[SearchMode] = "lexical",
         typology_id: FromQuery[int | None] = None,
@@ -58,6 +59,7 @@ class PublicController(Controller):
         offset: FromQuery[int] = 0,
     ) -> PublicDocumentListResponse:
         """Searches the diffused collection. Records not cleared for publication are simply absent."""
+        diffusion_service.require_enabled(PUBLIC_SITE_CODE)
         page = document_service.search(
             DocumentSearchQuery(
                 term=term,
@@ -70,7 +72,7 @@ class PublicController(Controller):
                 date_from=date_from,
                 date_to=date_to,
                 # Server-side, never a query parameter: the public cannot ask for more.
-                published_only=True,
+                publication_channel=PUBLIC_SITE_CODE,
                 limit=limit,
                 offset=offset,
             )
@@ -85,7 +87,10 @@ class PublicController(Controller):
 
     @get("/documents/{description_id:str}", opt={"access": Access.PUBLIC}, sync_to_thread=True)
     def get_published(
-        self, document_service: NamedDependency[DocumentService], description_id: FromPath[str]
+        self,
+        document_service: NamedDependency[DocumentService],
+        diffusion_service: NamedDependency[DiffusionChannelService],
+        description_id: FromPath[str],
     ) -> PublicDocumentSummary:
         """
         One diffused description.
@@ -93,7 +98,8 @@ class PublicController(Controller):
         An unpublished record answers **404**, not 403: refusing with a distinct status would
         confirm that the description exists, which is the fact the gate is protecting.
         """
-        return PublicDocumentSummary.from_summary(document_service.get_published(description_id))
+        diffusion_service.require_enabled(PUBLIC_SITE_CODE)
+        return PublicDocumentSummary.from_summary(document_service.get_published(description_id, PUBLIC_SITE_CODE))
 
     @get("/site", opt={"access": Access.PUBLIC}, sync_to_thread=True)
     def get_site(self, diffusion_service: NamedDependency[DiffusionChannelService]) -> PublicSiteConfig:

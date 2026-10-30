@@ -3213,6 +3213,8 @@ export interface components {
             appraisal_destruction?: string | null;
             archivist_notes?: string | null;
             arrangement?: string | null;
+            /** @description Os canais que carregam o registro. */
+            channels?: string[];
             /** @default 0 */
             children_count: number;
             conservation_notes?: string | null;
@@ -3314,8 +3316,6 @@ export interface components {
             finding_aids?: string | null;
             /** @description ISAD(G) 3.6.1 — notas gerais. */
             general_notes?: string | null;
-            /** @description Decisão de difusão, ortogonal ao status de revisão. Publicar não bloqueia a IA de continuar melhorando o registro; aprovar, sim. */
-            is_published?: boolean | null;
             /** @description Idioma. */
             language_name?: string | null;
             /** @description Nível de descrição: id no catálogo (GET /api/v1/hierarchy/levels). A grafia livre saiu do contrato quando a coluna de texto virou chave estrangeira. */

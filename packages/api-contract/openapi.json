@@ -2954,6 +2954,13 @@
               }
             ]
           },
+          "channels": {
+            "description": "Os canais que carregam o registro.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
           "children_count": {
             "default": 0,
             "type": "integer"
@@ -3536,17 +3543,6 @@
             "oneOf": [
               {
                 "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "is_published": {
-            "description": "Decisão de difusão, ortogonal ao status de revisão. Publicar não bloqueia a IA de continuar melhorando o registro; aprovar, sim.",
-            "oneOf": [
-              {
-                "type": "boolean"
               },
               {
                 "type": "null"

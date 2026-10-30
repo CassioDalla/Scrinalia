@@ -60,10 +60,12 @@ class DocumentSearchQuery(BaseModel):
         "('RULE_MATCH:nome da regra'). The free text of an LLM check is never a key.",
     )
     #: Diffusion gate, applied by the public surface and never exposed to it as a parameter: the
-    #: public controller sets it to ``True`` server-side, so a client cannot ask to see unpublished
-    #: records by flipping a query string. It is a *filter*, not a facet, so it constrains every
-    #: facet count as well.
-    published_only: bool = Field(default=False, description="Only descriptions cleared for diffusion.")
+    #: public controller names the channel server-side, so a client cannot ask to see a record the
+    #: channel does not carry by flipping a query string. It is a *filter*, not a facet, so it
+    #: constrains every facet count as well. ``None`` is the curator's read, which is not gated.
+    publication_channel: str | None = Field(
+        default=None, description="Only descriptions the coverage view carries on this channel."
+    )
     limit: int = Field(default=50, ge=1, le=200, description="Page size.")
     offset: int = Field(default=0, ge=0, description="Number of records to skip.")
 

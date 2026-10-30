@@ -246,6 +246,17 @@ class DiffusionChannelService:
             request={"options": dict(channel.options or {})},
         )
 
+    def require_enabled(self, code: str) -> None:
+        """
+        Refuses a public read when the channel is absent or paused.
+
+        The public documents routes answer 404 in that case, like the identity route: as far as a
+        visitor is concerned the site is not there, and an empty list would say the collection is.
+        """
+        channel = self.channels.get(code)
+        if channel is None or not channel.enabled:
+            raise PublicSiteNotConfiguredError(t("O site público ainda não está configurado nesta instalação."))
+
     # --- the public site identity ----------------------------------------------------------------
 
     def public_site(self) -> PublicSiteConfig:

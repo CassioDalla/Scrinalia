@@ -71,12 +71,6 @@ class DocumentUpdateRequest(RequestModel):
     rules_conventions: str | None = Field(default=None, description="ISAD(G) 3.7.2 — regras ou convenções.")
     description_dates: str | None = Field(default=None, description="ISAD(G) 3.7.3 — datas da descrição.")
 
-    is_published: bool | None = Field(
-        default=None,
-        description="Decisão de difusão, ortogonal ao status de revisão. Publicar não bloqueia a IA "
-        "de continuar melhorando o registro; aprovar, sim.",
-    )
-
     review_note: str | None = Field(default=None, description="Motivo da edição; fica no histórico.")
 
 

@@ -241,17 +241,6 @@ class ArchiveDocument(Base):
     is_anomaly: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, index=True)
     anomaly_reasons: Mapped[list[str] | None] = mapped_column(ARRAY(Text), nullable=True)
 
-    # --- Diffusion (Fase 4) ---
-    # Publication is deliberately *not* ``review_status = HUMAN_APPROVED``. Review is a statement
-    # about the quality of the record; publication is a statement about what the institution wants
-    # to expose. Binding them would make a typo fix equivalent to publishing, and would lock every
-    # published document against AI rewriting through ``ai_writable_documents``. It is also what
-    # makes the curation load tractable: with the arrangement materialised, a whole Série can be
-    # published at once instead of approving thousands of records one by one.
-    is_published: Mapped[bool] = mapped_column(
-        Boolean, default=False, server_default="false", nullable=False, index=True
-    )
-
     # --- Relationships---
     # The association object and not the bare ``ArchiveEntity``: the link itself carries the origin
     # (who wrote it), so a relationship over the secondary table would hide the one column the
