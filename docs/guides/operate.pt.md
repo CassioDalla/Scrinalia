@@ -399,11 +399,17 @@ o elemento ISAD(G) de cada campo, e o manifesto carrega a contagem de registros,
 de cada arquivo, a licença dos dados, as remoções desde o snapshot anterior e a identidade do software.
 
 O **destino** é um diretório absoluto em que o runner consegue escrever; no Docker é um volume montado
-no runner, e a API vai precisar de leitura no mesmo diretório quando a rota de download chegar (214c). A
-execução escreve em `snapshots/<snapshot_id>/` e depois substitui o arquivo `current`, então um leitor vê
-o pacote anterior ou o novo, nunca um diretório pela metade. `retention` mantém os snapshots mais novos; o
-atual nunca é apagado. A rota de download é a 214c — até ela, o operador lê o pacote no diretório de
-destino.
+no runner, e a API lê o mesmo diretório para servir o pacote. A execução escreve em
+`snapshots/<snapshot_id>/` e depois substitui o arquivo `current`, então um leitor vê o pacote anterior
+ou o novo, nunca um diretório pela metade. `retention` mantém os snapshots mais novos; o atual nunca é
+apagado.
+
+Um consumidor lê o pacote sem sessão: `GET /api/v1/public/dataset` devolve o manifesto atual e
+`GET /api/v1/public/dataset/download` o ZIP, ambos **404** enquanto o canal está ausente ou pausado e
+antes da primeira execução escrever um snapshot. O **Pré-visualizar** do cartão chama
+`POST /api/v1/diffusion/channels/{code}/preview` (`OPERATE`) e mostra a contagem de registros, o tamanho
+exato de cada formato habilitado, as remoções desde o snapshot atual e por que uma execução recusaria.
+A pré-visualização não escreve snapshot nem cria linha no ledger: o enfileiramento é a execução.
 
 A **licença dos dados** é obrigatória: `CC0-1.0`, `CC-BY-4.0`, `CC-BY-SA-4.0` ou `custom` (que pede o
 nome, a URL e a atribuição). CC BY e CC BY-SA exigem a linha de atribuição; CC0 não. A licença
@@ -1095,9 +1101,9 @@ comportamento esperar, e para um limite já pago não ser lido como defeito.
   `409`, e um agendamento precisa coalescer; backlog ou prioridade não é o que esta fila é.
 - **Dois canais de difusão embarcados: o site ao vivo e o conjunto de dados.** O site público é `LIVE` e
   lido a cada requisição; o conjunto é `EXPORT` e o adaptador dele escreve o pacote descrito acima. O
-  AtoM continua sendo um adaptador futuro, e um canal que o pacote traz sem adaptador responde 422 e não
-  enfileira nada. A rota de download e a pré-visualização do conjunto são a issue 214c: o snapshot é
-  escrito no diretório de destino, e a API ainda não o serve.
+  manifesto e o download públicos do conjunto são servidos a partir do diretório de destino, e a
+  pré-visualização é um ensaio que não escreve linha no ledger. O AtoM continua sendo um adaptador
+  futuro, e um canal que o pacote traz sem adaptador responde 422 e não enfileira nada.
 - **O retry é limitado e não classificado.** Uma falha agendada gasta até três tentativas, qualquer que
   seja a causa: um modelo faltando custa três tentativas limitadas, porque um classificador errado na
   outra direção ou desperdiça a GPU ou esconde uma falha real. O retry segura o slot do worker durante o

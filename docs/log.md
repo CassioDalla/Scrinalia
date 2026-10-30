@@ -3256,3 +3256,22 @@ with short or full shas, and part of a `## <date> — <title>` entry.
   The render data was removed from the database afterwards. **Not verified:** the runner claiming and
   executing the run through the ledger (the adapter is integration-tested directly; the page exercised
   the enqueue), and the download and preview routes, which are 214c.
+
+## 2026-10-30 — the public dataset and the export preview (#214c)
+
+- **Range:** `02be2a3..0c23707`
+- **Pages:**
+  - `guides/operate.md` / `.pt.md` — **updated**: the public manifest and download routes (and their
+    404), the preview route and the card's **Pré-visualizar**, and the known limit corrected from "the
+    API does not serve it yet" to the package being served from the destination.
+  - `guides/curate.md` / `.pt.md` — **updated**: the dataset card's **Pré-visualizar** is the dry run.
+  - `guides/data-model.md` / `.pt.md` — **no-change**: no table or schema moved; the registry gained a
+    lazy preview resolver, which is an adapter seam and not a documented table.
+- **Rendered:** the Canais de difusão page with the headless shell against a live API: the dataset
+  card's **Pré-visualizar** panel, showing "Pronto para executar", the record count, the destination,
+  the exact size of each enabled format, "Nenhuma remoção desde o snapshot atual" and the hint that
+  the preview writes nothing. The render was made with an empty covered set and no current snapshot.
+- **Not verified:** the public manifest and download were exercised at the HTTP layer with a mocked
+  service, and with a real package at the service layer (`execute` then `dataset_package`); they were
+  not exercised end-to-end through HTTP against a real snapshot. The download's ZIP members are
+  asserted in the service test.
