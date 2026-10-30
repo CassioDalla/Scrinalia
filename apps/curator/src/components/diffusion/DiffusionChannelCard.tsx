@@ -2,7 +2,13 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useId, useState } from "react";
 
-import { triggerDiffusionRun, updateDiffusionChannel, type DiffusionChannel } from "@/api/client";
+import {
+  previewDiffusionChannel,
+  triggerDiffusionRun,
+  updateDiffusionChannel,
+  type DiffusionChannel,
+} from "@/api/client";
+import { DatasetPreviewPanel } from "@/components/diffusion/DatasetPreviewPanel";
 import { configSummary, DiffusionConfigForm } from "@/components/diffusion/DiffusionConfigForm";
 import { DiffusionScheduleForm } from "@/components/diffusion/DiffusionScheduleForm";
 import { Badge } from "@/components/ui/Badge";
@@ -31,9 +37,8 @@ const CAPABILITY_LABEL = stringMap((m) => ({
  *
  * `LIVE` and `EXPORT` are not two screens: the capability decides what the card offers, so the
  * dataset adapter (#214) arrives as a registry entry and this file learns nothing. A `LIVE` channel
- * has no run and no agenda; an `EXPORT` one shows the agenda and the last run, and its enqueue
- * action belongs to the run ledger (#212), which is why the card does not offer one yet — an action
- * with no route behind it would be a button that answers nothing.
+ * has no run and no agenda; an `EXPORT` one shows the agenda, the last run, the dry-run preview and
+ * the enqueue action of the run ledger (#212).
  */
 export function DiffusionChannelCard({
   channel,
@@ -43,17 +48,22 @@ export function DiffusionChannelCard({
   canOperate: boolean;
 }) {
   const messages = useCopy();
-  const [panel, setPanel] = useState<"none" | "config" | "schedule">("none");
+  const [panel, setPanel] = useState<"none" | "config" | "schedule" | "preview">("none");
   const configId = useId();
   const scheduleId = useId();
+  const previewId = useId();
+  const preview = useMutation({ mutationFn: () => previewDiffusionChannel(channel.code) });
   const live = channel.capability === "LIVE";
   const siteUrl =
     live && channel.enabled && typeof (channel.config ?? {}).public_base_url === "string"
       ? String((channel.config ?? {}).public_base_url)
       : null;
 
-  const toggle = (next: "config" | "schedule") =>
-    setPanel((current) => (current === next ? "none" : next));
+  const toggle = (next: "config" | "schedule" | "preview") => {
+    const opening = panel !== next;
+    setPanel(opening ? next : "none");
+    if (opening && next === "preview") preview.mutate();
+  };
 
   return (
     <Card>
@@ -126,6 +136,16 @@ export function DiffusionChannelCard({
                   onSelect={() => toggle("schedule")}
                 />
               ) : null}
+              {!live ? (
+                <PanelToggle
+                  label={
+                    preview.isPending ? messages.pages.diffusion.previewing : messages.pages.diffusion.preview
+                  }
+                  active={panel === "preview"}
+                  controls={previewId}
+                  onSelect={() => toggle("preview")}
+                />
+              ) : null}
               {siteUrl ? <SiteLink href={siteUrl} /> : null}
               {!live ? <RunNowButton channel={channel} /> : null}
               <LifecycleButton channel={channel} />
@@ -148,6 +168,17 @@ export function DiffusionChannelCard({
         {canOperate && !live && panel === "schedule" ? (
           <div id={scheduleId}>
             <DiffusionScheduleForm channel={channel} />
+          </div>
+        ) : null}
+        {canOperate && !live && panel === "preview" ? (
+          <div id={previewId}>
+            {preview.error ? (
+              <ErrorState error={preview.error} />
+            ) : preview.data ? (
+              <DatasetPreviewPanel preview={preview.data} />
+            ) : (
+              <p className="text-xs text-(--color-muted)">{messages.pages.diffusion.previewing}</p>
+            )}
           </div>
         ) : null}
       </CardBody>
