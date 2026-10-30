@@ -266,11 +266,14 @@ não uma ausência; uma linha faltando é "nunca adicionado", que é o que o cam
 distingue. `config` nunca guarda segredo — um token é nomeado por variável de ambiente, não armazenado
 aqui.
 
-Os registros que um canal expõe são uma **leitura**, não uma tabela: `archive_document_channels` é a
-view que responde "quais canais carregam esta descrição". Ela devolve uma linha por (descrição, canal)
-quando o registro é `HUMAN_APPROVED`, um escopo positivo o cobre e nenhum escopo negativo o cobre, e
-nomeia o escopo que é a origem da cobertura (`scope_id`), para uma tela poder dizer "pelo ramo do
-Fundo A" sem reimplementar o predicado. A view lê o `path` materializado e a posição atual do nó,
+Os registros que um canal expõe são uma **leitura**, não uma tabela. Duas views, um conceito cada:
+`archive_document_channel_exclusions` é o conjunto negativo — qual exclusão cobre um registro em qual
+canal — e `archive_document_channels` a compõe com a aprovação e os escopos positivos. A view de
+cobertura devolve uma linha por (descrição, canal) quando o registro é `HUMAN_APPROVED`, um escopo
+positivo o cobre e nenhum escopo negativo o cobre, e nomeia o escopo que é a origem da cobertura
+(`scope_id`), para uma tela poder dizer "pelo ramo do Fundo A" sem reimplementar o predicado. A
+separação é o que permite o preview do curador dizer *por que* um registro é pulado — "excluído" em
+vez de "não coberto" — sem uma segunda cópia da regra de exclusão. A view lê o `path` materializado e a posição atual do nó,
 então mover um ramo move o que ele cobre; ela **não** lê `enabled`, porque pausar um canal é decisão
 do operador e o "Publicadas" do curador tem de continuar dizendo o que foi publicado.
 `archive_documents.is_published` deixa de ser coluna quando a superfície do curador chegar (#251); até

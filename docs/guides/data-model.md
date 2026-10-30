@@ -20,6 +20,7 @@ sources:
   - migrations/versions/9f2a7c1e5b30_add_the_diffusion_publication_scopes.py
   - migrations/versions/a4c8d0e2f614_derive_the_channel_coverage_in_a_view.py
   - migrations/versions/b7e3f9a1c852_add_the_publication_batch_ledger.py
+  - migrations/versions/c9e1f4b7d620_let_the_coverage_compose_the_exclusions_view.py
   - migrations/versions/b7e4c2a9f1d0_the_schedule_and_the_retry.py
   - migrations/versions/fe7fcab37207_add_the_failure_fingerprint_and_the_api_.py
   - testing/conftest.py
@@ -297,11 +298,14 @@ ships channels that work: `public_site` is `LIVE` and has no run, while the data
 is "never added", which is what the `configured` flag on the DTO distinguishes. `config` never holds a
 secret — a token is named by an environment variable, not stored here.
 
-The records a channel exposes are a **read**, not a table: `archive_document_channels` is the view
-that answers "which channels carry this description". It returns one row per (description, channel)
-when the record is `HUMAN_APPROVED`, a positive scope covers it and no negative scope does, and it
-names the scope that is the origin of the coverage (`scope_id`), so a screen can say "pelo ramo do
-Fundo A" without re-implementing the predicate. The view reads the materialised `path` and the
+The records a channel exposes are a **read**, not a table. Two views, one concept each:
+`archive_document_channel_exclusions` is the negative set — which exclusion covers a record on which
+channel — and `archive_document_channels` composes it with the approval and the positive scopes. The
+coverage view returns one row per (description, channel) when the record is `HUMAN_APPROVED`, a
+positive scope covers it and no negative scope does, and it names the scope that is the origin of the
+coverage (`scope_id`), so a screen can say "pelo ramo do Fundo A" without re-implementing the
+predicate. The split is what lets the curator's preview say *why* a record is skipped — "excluded"
+rather than "not covered" — without a second copy of the exclusion rule. The view reads the materialised `path` and the
 node's current position, so moving a branch moves what it covers; it does **not** read `enabled`,
 because pausing a channel is the operator's decision and the curator's "Publicadas" must keep saying
 what was published. `archive_documents.is_published` stops being a column when the curator surface
