@@ -258,6 +258,27 @@ Negative, accepted:
 - **AtoM in the first release.** Deferred, not rejected: the registry must prove a second export
   adapter first; the AtoM mechanism is a research task.
 
+## Amendment — 2026-10-30: the view as implemented (#251)
+
+Two details of §3 were settled when the scopes landed, and one measurement was taken.
+
+- **The view names the covering scope.** It returns (`description_id`, `channel_code`, `scope_id`) —
+  still one row per pair, with the *nearest* scope as the origin: the fundo's scope for a dossier
+  nobody scoped directly, the dossier's for one that is. The pair stays unique, so the dataset
+  (#214) still filters `channel_code = 'dataset'`; the extra column is what lets the curator's page
+  say "pelo ramo do Fundo A" without a second definition of the predicate.
+- **The branch is expanded from the path, not matched with `LIKE`.** `path LIKE node_path || '.%'`
+  builds the pattern per scope, so the planner compares every approved description against every
+  scope. On a seeded collection of **48 050 descriptions and 50 scopes** the public predicate took
+  **1 281 ms** and the whole channel read **1 137 ms**. Expanding each description into its
+  ancestors and joining the scopes on the node id is linear in the coverage: **323 ms** and
+  **178 ms** at the same size, and **6–37 ms** for the page's reads on a seeded collection of
+  **4 910** descriptions and 10 scopes. The split assumes a description id carries no dot — the
+  same assumption the dossier already makes when it splits `path` to resolve its ancestors.
+- **The view still does not read `enabled`**, and a materialised `archive_document_channels` remains
+  the revisit if the collection grows an order of magnitude: at 48 050 the header counts take
+  **158 ms** and the covered list **578 ms**, and both grow with the collection.
+
 ## Revisit trigger
 
 Reconsider if any of these becomes true:
