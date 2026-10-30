@@ -160,6 +160,109 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/diffusion/publications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** ListPublications */
+        get: operations["ApiV1DiffusionPublicationsListPublications"];
+        put?: never;
+        /** Apply */
+        post: operations["ApiV1DiffusionPublicationsApply"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/diffusion/publications/batches": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** ListBatches */
+        get: operations["ApiV1DiffusionPublicationsBatchesListBatches"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/diffusion/publications/batches/{batch_id}/undo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Undo */
+        post: operations["ApiV1DiffusionPublicationsBatchesBatchIdUndoUndo"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/diffusion/publications/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Preview */
+        post: operations["ApiV1DiffusionPublicationsPreviewPreview"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/diffusion/publications/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Summary */
+        get: operations["ApiV1DiffusionPublicationsSummarySummary"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/diffusion/scopes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** ListScopes */
+        get: operations["ApiV1DiffusionScopesListScopes"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/documents": {
         parameters: {
             query?: never;
@@ -4393,6 +4496,177 @@ export interface components {
             tag_id: number;
         };
         /**
+         * PublicationAction
+         * @description The four writes a publication can be; the ledger stores the value verbatim.
+         * @enum {string}
+         */
+        PublicationAction: "PUBLISH" | "EXCLUDE" | "REVOKE" | "UNEXCLUDE";
+        /** PublicationApplyRequest */
+        PublicationApplyRequest: {
+            request: components["schemas"]["PublicationRequest"];
+            token: string;
+        };
+        /** PublicationBatchDTO */
+        PublicationBatchDTO: {
+            action: components["schemas"]["PublicationAction"];
+            /** @default 0 */
+            applied_count: number;
+            batch_id: number;
+            channels?: string[];
+            /** Format: date-time */
+            created_at: string;
+            note?: string | null;
+            requested_by?: string | null;
+            selection?: {
+                [key: string]: unknown;
+            };
+            /** @default 0 */
+            skipped_count: number;
+            undone_at?: string | null;
+            undone_by?: string | null;
+        };
+        /** PublicationBatchListDTO */
+        PublicationBatchListDTO: {
+            batches?: components["schemas"]["PublicationBatchDTO"][];
+            /** Format: date-time */
+            generated_at: string;
+        };
+        /** PublicationChannelPreviewDTO */
+        PublicationChannelPreviewDTO: {
+            /**
+             * @description Se o gesto escreveria algo neste canal; falso para um escopo que já existe ou está bloqueado.
+             * @default true
+             */
+            actionable: boolean;
+            code: string;
+            eligible: number;
+            label: string;
+            sample?: components["schemas"]["PublicationSampleDTO"][];
+            skipped?: components["schemas"]["PublicationSkippedDTO"];
+        };
+        /** PublicationCountsDTO */
+        PublicationCountsDTO: {
+            /** @default 0 */
+            approved_without_channel: number;
+            /** @default 0 */
+            enabled_channels: number;
+            /** @default 0 */
+            in_channels: number;
+            /** @default 0 */
+            in_review: number;
+            /** @default 0 */
+            site: number;
+        };
+        /** PublicationItemDTO */
+        PublicationItemDTO: {
+            channels?: string[];
+            description_id: string;
+            document_date?: string | null;
+            level?: string | null;
+            title: string;
+        };
+        /**
+         * PublicationMode
+         * @description Whether the gesture names a branch (a node) or a selection (up to 200 records).
+         * @default BRANCH
+         * @enum {string}
+         */
+        PublicationMode: "BRANCH" | "RECORDS";
+        /** PublicationPageDTO */
+        PublicationPageDTO: {
+            counts: components["schemas"]["PublicationCountsDTO"];
+            items?: components["schemas"]["PublicationItemDTO"][];
+            /** @default 50 */
+            limit: number;
+            /** @default 0 */
+            offset: number;
+            /** @default 0 */
+            total: number;
+        };
+        /** PublicationPreviewDTO */
+        PublicationPreviewDTO: {
+            channels?: components["schemas"]["PublicationChannelPreviewDTO"][];
+            /** Format: date-time */
+            expires_at: string;
+            token: string;
+            /** @default 0 */
+            total_eligible: number;
+        };
+        /** PublicationRequest */
+        PublicationRequest: {
+            action: components["schemas"]["PublicationAction"];
+            /** @description Os canais do gesto, por código. */
+            channel_codes: string[];
+            /** @description Os registros escolhidos, quando o modo é RECORDS (no máximo 200). */
+            description_ids?: string[];
+            /**
+             * @description Se o ramo inclui os descendentes.
+             * @default true
+             */
+            include_descendants: boolean;
+            mode?: components["schemas"]["PublicationMode"];
+            /** @description O nó do ramo, quando o modo é BRANCH. */
+            node_id?: string | null;
+            /** @description Por que o curador decidiu; fica no lote. */
+            note?: string | null;
+        };
+        /** PublicationSampleDTO */
+        PublicationSampleDTO: {
+            description_id: string;
+            title: string;
+        };
+        /** PublicationScopeDTO */
+        PublicationScopeDTO: {
+            /** @default 0 */
+            approved_count: number;
+            channel_code: string;
+            channel_label: string;
+            /** @default 0 */
+            covered_count: number;
+            /** Format: date-time */
+            created_at: string;
+            created_by?: string | null;
+            include_descendants: boolean;
+            /** @enum {string} */
+            kind: "INCLUSION" | "EXCLUSION";
+            node_id: string;
+            node_path: string;
+            node_title?: string | null;
+            note?: string | null;
+            scope_id: number;
+        };
+        /** PublicationScopeListDTO */
+        PublicationScopeListDTO: {
+            /** Format: date-time */
+            generated_at: string;
+            scopes?: components["schemas"]["PublicationScopeDTO"][];
+        };
+        /** PublicationSkippedDTO */
+        PublicationSkippedDTO: {
+            /** @default 0 */
+            already_covered: number;
+            /** @default 0 */
+            excluded: number;
+            /** @default 0 */
+            missing: number;
+            /** @default 0 */
+            no_scope: number;
+            /** @default 0 */
+            not_approved: number;
+            /** @default 0 */
+            not_covered: number;
+        };
+        /** PublicationUndoDTO */
+        PublicationUndoDTO: {
+            batch_id: number;
+            /** @default 0 */
+            restored: number;
+            /** @default 0 */
+            skipped: number;
+            /** Format: date-time */
+            undone_at: string;
+        };
+        /**
          * QueueKey
          * @description The stable identity of a queue on the home screen.
          *
@@ -5866,6 +6140,257 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DiffusionChannelDTO"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                        status_code: number;
+                    };
+                };
+            };
+        };
+    };
+    ApiV1DiffusionPublicationsListPublications: {
+        parameters: {
+            query?: {
+                publication_state?: "covered" | "uncovered";
+                node_id?: string | null;
+                channel_code?: string | null;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicationPageDTO"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                        status_code: number;
+                    };
+                };
+            };
+        };
+    };
+    ApiV1DiffusionPublicationsApply: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PublicationApplyRequest"];
+            };
+        };
+        responses: {
+            /** @description Document created, URL follows */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicationBatchDTO"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                        status_code: number;
+                    };
+                };
+            };
+        };
+    };
+    ApiV1DiffusionPublicationsBatchesListBatches: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicationBatchListDTO"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                        status_code: number;
+                    };
+                };
+            };
+        };
+    };
+    ApiV1DiffusionPublicationsBatchesBatchIdUndoUndo: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                batch_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicationUndoDTO"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                        status_code: number;
+                    };
+                };
+            };
+        };
+    };
+    ApiV1DiffusionPublicationsPreviewPreview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PublicationRequest"];
+            };
+        };
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicationPreviewDTO"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                        status_code: number;
+                    };
+                };
+            };
+        };
+    };
+    ApiV1DiffusionPublicationsSummarySummary: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicationCountsDTO"];
+                };
+            };
+        };
+    };
+    ApiV1DiffusionScopesListScopes: {
+        parameters: {
+            query?: {
+                channel_code?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicationScopeListDTO"];
                 };
             };
             /** @description Bad request syntax or unsupported method */

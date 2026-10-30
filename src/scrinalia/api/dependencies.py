@@ -45,6 +45,7 @@ from scrinalia.domains.archive.services.typology_service import TypologyService
 from scrinalia.domains.archive.services.worker_operations_service import WorkerOperationsService
 from scrinalia.domains.archive.services.worker_run_service import WorkerRunService
 from scrinalia.domains.archive.services.worker_schedule_service import WorkerScheduleService
+from scrinalia.domains.diffusion.publication_service import DiffusionPublicationService
 from scrinalia.domains.diffusion.service import DiffusionChannelService
 from scrinalia.domains.identity.repository.login_attempt_repo import LoginAttemptRecorder
 from scrinalia.domains.identity.repository.session_repo import SessionRepository
@@ -248,6 +249,18 @@ def provide_diffusion_channel_service(unit_of_work: NamedDependency[UnitOfWork])
     runner can claim it (ADR 0014).
     """
     return DiffusionChannelService(unit_of_work.db)
+
+
+def provide_diffusion_publication_service(
+    unit_of_work: NamedDependency[UnitOfWork],
+) -> DiffusionPublicationService:
+    """
+    Builds the publication service over the request transaction.
+
+    The preview writes nothing; the apply and the undo write the scopes and the batch, and the
+    unit of work commits them together — the batch and the scopes it explains are one transaction.
+    """
+    return DiffusionPublicationService(unit_of_work.db)
 
 
 def provide_failure_service(unit_of_work: NamedDependency[UnitOfWork]) -> FailureService:

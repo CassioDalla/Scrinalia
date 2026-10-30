@@ -208,3 +208,16 @@ TRANSLATIONS.update(
         "A agenda da difusão é a do canal: use a tela de difusão, não a agenda genérica de workers.": "The diffusion schedule belongs to the channel: use the diffusion screen, not the generic worker schedule.",
     }
 )
+
+TRANSLATIONS.update(
+    {
+        "A pré-visualização expirou. Pré-visualize de novo antes de confirmar.": "The preview expired. Preview again before confirming.",
+        "A pré-visualização é inválida. Pré-visualize de novo antes de confirmar.": "The preview is invalid. Preview again before confirming.",
+        "O conjunto mudou desde a pré-visualização. Pré-visualize de novo antes de confirmar.": "The set changed since the preview. Preview again before confirming.",
+        "Nada a fazer: os canais escolhidos já estão neste estado. Atualize a página.": "Nothing to do: the chosen channels are already in this state. Refresh the page.",
+        "Lote de publicação {batch_id} não encontrado.": "Publication batch {batch_id} not found.",
+        "O lote {batch_id} já foi desfeito; desfazer de novo reverteria decisões posteriores.": "Batch {batch_id} was already undone; undoing it again would revert later decisions.",
+        "O canal '{code}' não está configurado ou está pausado; ative-o antes de publicar.": "Channel '{code}' is not configured or is paused; enable it before publishing.",
+        "A descrição '{description_id}' não existe no acervo.": "Description '{description_id}' does not exist in the collection.",
+    }
+)
