@@ -2573,6 +2573,16 @@
               }
             ]
           },
+          "level_code": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "title": {
             "oneOf": [
               {
@@ -3084,6 +3094,16 @@
             ]
           },
           "level": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "level_code": {
             "oneOf": [
               {
                 "type": "string"
@@ -8007,6 +8027,16 @@
               }
             ]
           },
+          "level_code": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "title": {
             "oneOf": [
               {
@@ -8087,6 +8117,16 @@
       },
       "PublicDocumentSummary": {
         "properties": {
+          "access_conditions": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "ancestors": {
             "items": {
               "$ref": "#/components/schemas/PublicAncestorSummary"
@@ -8097,8 +8137,28 @@
             "default": 0,
             "type": "integer"
           },
+          "date_expression": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "description_id": {
             "type": "string"
+          },
+          "dimension_support": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "document_date": {
             "oneOf": [
@@ -8147,6 +8207,16 @@
               }
             ]
           },
+          "level_code": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "macro_categories": {
             "items": {
               "$ref": "#/components/schemas/PublicMacroCategorySummary"
@@ -8177,16 +8247,6 @@
             ]
           },
           "scope_content": {
-            "oneOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "storage_thumbnail_uri": {
             "oneOf": [
               {
                 "type": "string"

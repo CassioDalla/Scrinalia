@@ -220,6 +220,9 @@ class DocumentAncestorSummary(BaseModel):
     description_id: str
     title: str | None = None
     level: str | None = None
+    #: The rung's stable key, beside the display name, for the same reason ``DocumentSummary`` has
+    #: both: an export groups by the code and shows the name.
+    level_code: str | None = None
 
 
 #: The collection's resource and the one sub-route a description advertises for its miniature.
@@ -253,6 +256,9 @@ class DocumentSummary(BaseModel):
     #: Name of the catalogue rung. Derived from ``level_id`` on read, kept under the same name
     #: the free-text column used to have so no existing consumer has to change.
     level: str | None = None
+    #: Stable key of the rung (``fundo``, ``dossie`` …), derived like ``level``. The name can be
+    #: renamed by the archivist; an export contract groups by this.
+    level_code: str | None = None
     level_id: int | None = None
     #: Typology is a facet of the collection, so the read view has to say which one it is without
     #: the client resolving an id per row.

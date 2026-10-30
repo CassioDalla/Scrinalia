@@ -279,6 +279,18 @@ class ArchiveDocument(Base):
         return self.level_ref.name if self.level_ref else None
 
     @property
+    def level_code(self) -> str | None:
+        """
+        Stable key of the description level, derived from the catalogue on read.
+
+        ``level`` is the name the archivist may rename; an export contract cannot key on it. The
+        catalogue's ``code`` is the machine identity the rest of the domain already uses
+        (``level_ref.has(code="dossie")``), so the read view exposes both: the label for a person
+        and the code for a consumer.
+        """
+        return self.level_ref.code if self.level_ref else None
+
+    @property
     def typology(self) -> str | None:
         """
         Name of the typology, derived from the foreign key on read.
