@@ -80,3 +80,15 @@ class PublicationRefusedError(DomainException):
     """
 
     pass
+
+
+class DatasetNotPublishedError(DomainException):
+    """
+    The dataset channel is absent, paused or has no snapshot.
+
+    The public manifest and download routes answer **404**, like the site's identity: a consumer that
+    asks for a package this installation does not publish should not be told whether the channel was
+    never added, is paused, or has not run yet.
+    """
+
+    pass

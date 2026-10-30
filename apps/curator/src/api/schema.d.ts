@@ -125,6 +125,23 @@ export interface paths {
         patch: operations["ApiV1DiffusionChannelsCodeUpdateChannel"];
         trace?: never;
     };
+    "/api/v1/diffusion/channels/{code}/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** PreviewChannel */
+        post: operations["ApiV1DiffusionChannelsCodePreviewPreviewChannel"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/diffusion/channels/{code}/runs": {
         parameters: {
             query?: never;
@@ -872,6 +889,40 @@ export interface paths {
         };
         /** ListLanguages */
         get: operations["ApiV1LanguagesListLanguages"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/public/dataset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** GetDataset */
+        get: operations["ApiV1PublicDatasetGetDataset"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/public/dataset/download": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** DownloadDataset */
+        get: operations["ApiV1PublicDatasetDownloadDownloadDataset"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2997,6 +3048,75 @@ export interface components {
             ok: boolean;
             staging_records?: number | null;
             tags?: number | null;
+        };
+        /** DatasetArtifact */
+        DatasetArtifact: {
+            bytes: number;
+            /** @enum {string} */
+            format: "json" | "ndjson" | "csv";
+            path: string;
+            records: number;
+            sha256: string;
+        };
+        /** DatasetInstitution */
+        DatasetInstitution: {
+            contact_email?: string | null;
+            name: string;
+            url?: string | null;
+        };
+        /** DatasetLicense */
+        DatasetLicense: {
+            attribution?: string | null;
+            /** @enum {string} */
+            id: "CC0-1.0" | "CC-BY-4.0" | "CC-BY-SA-4.0" | "custom";
+            name: string;
+            url?: string | null;
+        };
+        /** DatasetManifest */
+        DatasetManifest: {
+            api_url: string | null;
+            artifacts: components["schemas"]["DatasetArtifact"][];
+            /** @default field-map.json */
+            field_map: string;
+            /**
+             * Format: date-time
+             * @description datetime with the constraint that the value must have timezone info
+             */
+            generated_at: string;
+            institution: components["schemas"]["DatasetInstitution"];
+            license: components["schemas"]["DatasetLicense"];
+            openapi_url: string | null;
+            previous_snapshot_id?: string | null;
+            /** @default README.md */
+            readme: string;
+            record_count: number;
+            removals: string[];
+            /** @constant */
+            schema_version: "1.0";
+            snapshot_id: string;
+            software: components["schemas"]["DatasetSoftware"];
+        };
+        /** DatasetPreviewDTO */
+        DatasetPreviewDTO: {
+            artifacts: components["schemas"]["DatasetArtifact"][];
+            destination: string | null;
+            previous_snapshot_id: string | null;
+            ready: boolean;
+            reason: string | null;
+            record_count: number;
+            removals: string[];
+            snapshot_id: string;
+            unchanged: boolean;
+        };
+        /** DatasetSoftware */
+        DatasetSoftware: {
+            license: string;
+            /** Format: url */
+            license_url: string;
+            name: string;
+            /** Format: url */
+            source_url: string;
+            version: string;
         };
         /** DescriptionLevelCreateRequest */
         DescriptionLevelCreateRequest: {
@@ -6050,6 +6170,43 @@ export interface operations {
             };
         };
     };
+    ApiV1DiffusionChannelsCodePreviewPreviewChannel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DatasetPreviewDTO"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                        status_code: number;
+                    };
+                };
+            };
+        };
+    };
     ApiV1DiffusionChannelsCodeRunsTriggerRun: {
         parameters: {
             query?: never;
@@ -7911,6 +8068,46 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["LanguageDTO"][];
+                };
+            };
+        };
+    };
+    ApiV1PublicDatasetGetDataset: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DatasetManifest"];
+                };
+            };
+        };
+    };
+    ApiV1PublicDatasetDownloadDownloadDataset: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The current open dataset snapshot as a ZIP, with the manifest and the field map. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/zip": string;
                 };
             };
         };

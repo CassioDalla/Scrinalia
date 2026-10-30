@@ -15,6 +15,7 @@ from litestar.di import NamedDependency, Provide
 from litestar.params import FromPath
 
 from scrinalia.api.dependencies import provide_current_user, provide_diffusion_channel_service
+from scrinalia.api.schemas.dataset import DatasetPreviewDTO
 from scrinalia.api.security import Access, AuthenticatedUser
 from scrinalia.domains.archive.schemas.system_schema import WorkerRunDTO
 from scrinalia.domains.diffusion.schemas import (
@@ -85,6 +86,22 @@ class DiffusionController(Controller):
         and one without an adapter answer 422 with a sentence.
         """
         return diffusion_service.trigger(code, requested_by=current_user.author)
+
+    @post("/channels/{code:str}/preview", opt={"access": Access.OPERATE}, status_code=200, sync_to_thread=True)
+    def preview_channel(
+        self,
+        diffusion_service: NamedDependency[DiffusionChannelService],
+        code: FromPath[str],
+    ) -> DatasetPreviewDTO:
+        """
+        What one export run would write, without writing it.
+
+        The dry run of ADR 0024: the record count, the exact size of each format, the removals since
+        the current snapshot and the sentence that says why a run would refuse. It creates no ledger
+        row; the enqueue is the execution. Only an adapter that offers a ``preview`` callable answers,
+        so a channel without one is a 422 rather than a shaped preview of nothing.
+        """
+        return DatasetPreviewDTO.from_preview(diffusion_service.preview_dataset(code))
 
     @put("/channels/{code:str}/schedule", opt={"access": Access.OPERATE}, status_code=200, sync_to_thread=True)
     def put_schedule(

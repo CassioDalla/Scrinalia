@@ -2034,6 +2034,333 @@
         "title": "DatabaseHealthDTO",
         "type": "object"
       },
+      "DatasetArtifact": {
+        "properties": {
+          "bytes": {
+            "minimum": 0.0,
+            "type": "integer"
+          },
+          "format": {
+            "enum": [
+              "json",
+              "ndjson",
+              "csv"
+            ],
+            "type": "string"
+          },
+          "path": {
+            "maxLength": 200,
+            "minLength": 1,
+            "type": "string"
+          },
+          "records": {
+            "minimum": 0.0,
+            "type": "integer"
+          },
+          "sha256": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "bytes",
+          "format",
+          "path",
+          "records",
+          "sha256"
+        ],
+        "title": "DatasetArtifact",
+        "type": "object"
+      },
+      "DatasetInstitution": {
+        "properties": {
+          "contact_email": {
+            "maxLength": 254,
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "name": {
+            "maxLength": 200,
+            "minLength": 1,
+            "type": "string"
+          },
+          "url": {
+            "oneOf": [
+              {
+                "format": "url",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "DatasetInstitution",
+        "type": "object"
+      },
+      "DatasetLicense": {
+        "properties": {
+          "attribution": {
+            "maxLength": 2000,
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "id": {
+            "enum": [
+              "CC0-1.0",
+              "CC-BY-4.0",
+              "CC-BY-SA-4.0",
+              "custom"
+            ],
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 200,
+            "minLength": 1,
+            "type": "string"
+          },
+          "url": {
+            "oneOf": [
+              {
+                "format": "url",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ],
+        "title": "DatasetLicense",
+        "type": "object"
+      },
+      "DatasetManifest": {
+        "properties": {
+          "api_url": {
+            "oneOf": [
+              {
+                "format": "url",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "artifacts": {
+            "items": {
+              "$ref": "#/components/schemas/DatasetArtifact"
+            },
+            "minItems": 1,
+            "type": "array"
+          },
+          "field_map": {
+            "default": "field-map.json",
+            "maxLength": 200,
+            "minLength": 1,
+            "type": "string"
+          },
+          "generated_at": {
+            "description": "datetime with the constraint that the value must have timezone info",
+            "format": "date-time",
+            "type": "string"
+          },
+          "institution": {
+            "$ref": "#/components/schemas/DatasetInstitution"
+          },
+          "license": {
+            "$ref": "#/components/schemas/DatasetLicense"
+          },
+          "openapi_url": {
+            "oneOf": [
+              {
+                "format": "url",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "previous_snapshot_id": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "readme": {
+            "default": "README.md",
+            "maxLength": 200,
+            "minLength": 1,
+            "type": "string"
+          },
+          "record_count": {
+            "minimum": 0.0,
+            "type": "integer"
+          },
+          "removals": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "schema_version": {
+            "const": "1.0",
+            "type": "string"
+          },
+          "snapshot_id": {
+            "type": "string"
+          },
+          "software": {
+            "$ref": "#/components/schemas/DatasetSoftware"
+          }
+        },
+        "required": [
+          "api_url",
+          "artifacts",
+          "generated_at",
+          "institution",
+          "license",
+          "openapi_url",
+          "record_count",
+          "removals",
+          "schema_version",
+          "snapshot_id",
+          "software"
+        ],
+        "title": "DatasetManifest",
+        "type": "object"
+      },
+      "DatasetPreviewDTO": {
+        "properties": {
+          "artifacts": {
+            "items": {
+              "$ref": "#/components/schemas/DatasetArtifact"
+            },
+            "type": "array"
+          },
+          "destination": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "previous_snapshot_id": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "ready": {
+            "type": "boolean"
+          },
+          "reason": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "record_count": {
+            "type": "integer"
+          },
+          "removals": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "snapshot_id": {
+            "type": "string"
+          },
+          "unchanged": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "artifacts",
+          "destination",
+          "previous_snapshot_id",
+          "ready",
+          "reason",
+          "record_count",
+          "removals",
+          "snapshot_id",
+          "unchanged"
+        ],
+        "title": "DatasetPreviewDTO",
+        "type": "object"
+      },
+      "DatasetSoftware": {
+        "properties": {
+          "license": {
+            "maxLength": 50,
+            "minLength": 1,
+            "type": "string"
+          },
+          "license_url": {
+            "format": "url",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 100,
+            "minLength": 1,
+            "type": "string"
+          },
+          "source_url": {
+            "format": "url",
+            "type": "string"
+          },
+          "version": {
+            "maxLength": 50,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "license",
+          "license_url",
+          "name",
+          "source_url",
+          "version"
+        ],
+        "title": "DatasetSoftware",
+        "type": "object"
+      },
       "DescriptionLevelCreateRequest": {
         "properties": {
           "aliases": {
@@ -13297,6 +13624,78 @@
         ]
       }
     },
+    "/api/v1/diffusion/channels/{code}/preview": {
+      "post": {
+        "deprecated": false,
+        "operationId": "ApiV1DiffusionChannelsCodePreviewPreviewChannel",
+        "parameters": [
+          {
+            "deprecated": false,
+            "in": "path",
+            "name": "code",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DatasetPreviewDTO"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "PreviewChannel",
+        "tags": [
+          "Diffusion"
+        ]
+      }
+    },
     "/api/v1/diffusion/channels/{code}/runs": {
       "post": {
         "deprecated": false,
@@ -17328,6 +17727,51 @@
         "summary": "ListLanguages",
         "tags": [
           "Languages"
+        ]
+      }
+    },
+    "/api/v1/public/dataset": {
+      "get": {
+        "deprecated": false,
+        "operationId": "ApiV1PublicDatasetGetDataset",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DatasetManifest"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          }
+        },
+        "summary": "GetDataset",
+        "tags": [
+          "Public"
+        ]
+      }
+    },
+    "/api/v1/public/dataset/download": {
+      "get": {
+        "deprecated": false,
+        "operationId": "ApiV1PublicDatasetDownloadDownloadDataset",
+        "responses": {
+          "200": {
+            "content": {
+              "application/zip": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "The current open dataset snapshot as a ZIP, with the manifest and the field map."
+          }
+        },
+        "summary": "DownloadDataset",
+        "tags": [
+          "Public"
         ]
       }
     },

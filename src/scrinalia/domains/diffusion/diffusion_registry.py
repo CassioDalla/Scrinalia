@@ -17,12 +17,12 @@ future adapter; the registry only offers channels that work.
 from __future__ import annotations
 
 import re
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from enum import StrEnum
 from importlib import import_module
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal, cast
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl, ValidationError, field_validator, model_validator
 
@@ -454,3 +454,20 @@ def resolve_adapter(summary: DiffusionChannelSummary) -> DiffusionAdapter:
     the registry cheap: listing the channels never pays for an adapter.
     """
     return cast("DiffusionAdapter", import_module(adapter_module(summary)).execute)
+
+
+def resolve_preview(summary: DiffusionChannelSummary) -> Callable[..., Any]:
+    """
+    The module's optional ``preview`` callable, imported on the request that asks for it.
+
+    An export adapter may offer a dry run; the dataset does (ADR 0024). The registry keeps the import
+    lazy like ``resolve_adapter``, and a channel without one refuses with a sentence instead of
+    answering a preview shape it does not have.
+    """
+    module = import_module(adapter_module(summary))
+    preview = getattr(module, "preview", None)
+    if preview is None:
+        raise DiffusionAdapterMissingError(
+            t("O canal '{code}' ainda não tem pré-visualização nesta versão.", code=summary.code)
+        )
+    return cast("Callable[..., Any]", preview)

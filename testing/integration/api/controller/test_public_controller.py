@@ -7,6 +7,7 @@ gate": ``published_only`` is set by the controller, never by the client.
 import pytest
 from litestar.status_codes import HTTP_200_OK, HTTP_404_NOT_FOUND
 from litestar.testing import TestClient
+from pydantic import HttpUrl
 
 from scrinalia.asgi import create_app
 from scrinalia.domains.archive.exceptions import DocumentNotFoundError
@@ -18,8 +19,15 @@ from scrinalia.domains.archive.schemas.document_schema import (
     DocumentTagSummary,
 )
 from scrinalia.domains.archive.services.document_service import DocumentService
+from scrinalia.domains.diffusion.dataset_contract import (
+    DatasetArtifact,
+    DatasetInstitution,
+    DatasetLicense,
+    DatasetManifest,
+    DatasetSoftware,
+)
 from scrinalia.domains.diffusion.diffusion_registry import PublicSiteConfig
-from scrinalia.domains.diffusion.exceptions import PublicSiteNotConfiguredError
+from scrinalia.domains.diffusion.exceptions import DatasetNotPublishedError, PublicSiteNotConfiguredError
 from scrinalia.domains.diffusion.service import DiffusionChannelService
 
 
@@ -154,3 +162,77 @@ def test_the_public_surface_exposes_no_write_route() -> None:
             continue
         methods = {method.upper() for method in (route.methods or set())}
         assert not (methods & write_methods), f"{route.path} aceita escrita: {sorted(methods & write_methods)}"
+
+
+# ==========================================
+# THE OPEN DATASET
+# ==========================================
+
+
+def _dataset_manifest() -> DatasetManifest:
+    """A manifest the routes can serialize; the adapter tests build the real one."""
+    from datetime import UTC, datetime
+
+    return DatasetManifest(
+        schema_version="1.0",
+        snapshot_id="a" * 64,
+        previous_snapshot_id=None,
+        generated_at=datetime.now(UTC),
+        record_count=0,
+        artifacts=[DatasetArtifact(format="ndjson", path="documents.ndjson", bytes=0, sha256="b" * 64, records=0)],
+        removals=[],
+        license=DatasetLicense(
+            id="CC-BY-4.0",
+            name="Creative Commons Attribution 4.0 International",
+            url=HttpUrl("https://creativecommons.org/licenses/by/4.0/"),
+            attribution="Acervo, CC BY 4.0",
+        ),
+        institution=DatasetInstitution(name="Instituição"),
+        software=DatasetSoftware(
+            name="Scrinalia",
+            version="1.7.0",
+            license="AGPL-3.0-only",
+            license_url=HttpUrl("https://www.gnu.org/licenses/agpl-3.0.html"),
+            source_url=HttpUrl("https://github.com/CassioDalla/Scrinalia"),
+        ),
+        api_url=None,
+        openapi_url=None,
+    )
+
+
+def test_the_public_dataset_is_404_when_there_is_no_package(client: TestClient, mocker) -> None:
+    mocker.patch.object(
+        DiffusionChannelService,
+        "public_dataset_manifest",
+        side_effect=DatasetNotPublishedError("O conjunto de dados não está disponível."),
+    )
+
+    response = client.get("/api/v1/public/dataset")
+
+    assert response.status_code == HTTP_404_NOT_FOUND
+    assert response.json()["error_code"] == "DatasetNotPublishedError"
+
+
+def test_the_public_dataset_manifest_is_the_current_snapshot(client: TestClient, mocker) -> None:
+    manifest = _dataset_manifest()
+    mocker.patch.object(DiffusionChannelService, "public_dataset_manifest", return_value=manifest)
+
+    response = client.get("/api/v1/public/dataset")
+
+    assert response.status_code == HTTP_200_OK
+    body = response.json()
+    assert body["snapshot_id"] == "a" * 64
+    assert body["license"]["id"] == "CC-BY-4.0"
+    assert body["record_count"] == 0
+
+
+def test_the_public_dataset_download_is_a_zip(client: TestClient, mocker) -> None:
+    manifest = _dataset_manifest()
+    mocker.patch.object(DiffusionChannelService, "dataset_package", return_value=(manifest, b"PK\x03\x04test"))
+
+    response = client.get("/api/v1/public/dataset/download")
+
+    assert response.status_code == HTTP_200_OK
+    assert response.headers["content-type"] == "application/zip"
+    assert f"dataset-{manifest.snapshot_id[:12]}.zip" in response.headers["content-disposition"]
+    assert response.content == b"PK\x03\x04test"
