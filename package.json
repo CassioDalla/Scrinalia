@@ -18,7 +18,7 @@
     "curator:build": "bun run --cwd apps/curator build",
     "curator:test": "bun run --cwd apps/curator test",
     "curator:codegen": "bun run --cwd apps/curator codegen",
-    "contract": "uv run python -m scrinalia.api.dump_openapi > packages/api-contract/openapi.json && bun run --cwd apps/curator codegen"
+    "contract": "uv run python -m scrinalia.api.dump_openapi > packages/api-contract/openapi.json && uv run python -m scrinalia.domains.diffusion.dump_dataset_contract && bun run --cwd apps/curator codegen"
   },
   "overrides": {
     "zod": "^4.6.7",
