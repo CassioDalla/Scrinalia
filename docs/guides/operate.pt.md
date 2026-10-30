@@ -358,7 +358,8 @@ metadados que a tela renderiza — fica em `src/scrinalia/domains/diffusion/diff
 é o ciclo de vida: ativo/pausado, a configuração, a política de execução que um export herda e o
 cron/fuso da agenda. O registry traz o site público embutido (`public_site`), um canal `LIVE`: ele é lido
 a cada requisição e não tem execução, então não tem agenda, e a API recusa uma
-(`PUT /channels/{code}/schedule` responde 422).
+(`PUT /channels/{code}/schedule` responde 422); e o conjunto de dados aberto (`dataset`), um canal
+`EXPORT` cujo adaptador escreve o pacote descrito abaixo.
 
 `/configuracoes/difusao` é a tela, um cartão de Configurações em *Operação* (issue #213). Ela lista os
 canais configurados, um cartão cada: a capacidade, o ciclo de vida, o resumo da configuração e as ações.
@@ -387,6 +388,34 @@ uv run python -m scrinalia.domains.archive.workers.runner diffusion --channel da
 
 A rota genérica `POST /api/v1/system/workers/diffusion/runs` **recusa** o worker: o corpo não tem canal
 para nomear, então o seletor é `POST /api/v1/diffusion/channels/{code}/runs`.
+
+#### O pacote do conjunto de dados
+
+O canal `dataset` é o primeiro `EXPORT` que o pacote traz (ADR 0024). Ele escreve um snapshot que a
+instituição pode hospedar em qualquer lugar: `documents.json`, `documents.ndjson` e `documents.csv` —
+os formatos que a configuração habilitar — mais `manifest.json`, `field-map.json`, `LICENSE.txt` e
+`README.md`. Os registros são a projeção pública, ordenados por `description_id`; o mapa de campos nomeia
+o elemento ISAD(G) de cada campo, e o manifesto carrega a contagem de registros, o tamanho e o SHA-256
+de cada arquivo, a licença dos dados, as remoções desde o snapshot anterior e a identidade do software.
+
+O **destino** é um diretório absoluto em que o runner consegue escrever; no Docker é um volume montado
+no runner, e a API vai precisar de leitura no mesmo diretório quando a rota de download chegar (214c). A
+execução escreve em `snapshots/<snapshot_id>/` e depois substitui o arquivo `current`, então um leitor vê
+o pacote anterior ou o novo, nunca um diretório pela metade. `retention` mantém os snapshots mais novos; o
+atual nunca é apagado. A rota de download é a 214c — até ela, o operador lê o pacote no diretório de
+destino.
+
+A **licença dos dados** é obrigatória: `CC0-1.0`, `CC-BY-4.0`, `CC-BY-SA-4.0` ou `custom` (que pede o
+nome, a URL e a atribuição). CC BY e CC BY-SA exigem a linha de atribuição; CC0 não. A licença
+AGPL-3.0-only do software é separada e sempre reportada como tal — o manifesto e o `LICENSE.txt` mantêm
+as duas distintas.
+
+Uma execução **recusa** sem destino, sem licença completa ou sem instituição (o campo do canal, ou a
+instituição do site público quando ele tem uma). Um registro que sai do conjunto some do próximo
+snapshot e seu id é listado em `removals`; o conjunto não guarda tombstone, então um consumidor que
+perde uma execução compara dois snapshots. Uma reexecução sobre o mesmo conjunto calcula o mesmo
+`snapshot_id` e **não escreve nada** — a execução termina sem um diretório novo, e os manifestos diferem
+apenas em `generated_at` enquanto os arquivos de dados não carregam timestamp nenhum.
 
 Nada nesta página publica. `is_published` é a permissão do registro para sair, editada na ficha sob
 `CURATE`; o canal é para onde ele vai, e os dois são independentes. A identidade do site público — título,
@@ -1064,11 +1093,11 @@ comportamento esperar, e para um limite já pago não ser lido como defeito.
   execução duplicada depois de um lease vencido é possível. Um fence rígido é trabalho futuro.
 - **A fila é um slot por worker.** Uma segunda execução de um worker com uma em andamento responde
   `409`, e um agendamento precisa coalescer; backlog ou prioridade não é o que esta fila é.
-- **Um canal de difusão embarcado, e ele é `LIVE`.** O registry carrega o site público embutido; não
-  existe adaptador de exportação ainda, então a página configura canais e um canal de exportação que o
-  pacote traz sem adaptador responde 422 e não enfileira nada. O eixo de execução existe: a exportação
-  de um canal é uma linha do ledger compartilhado com `channel_code`, agendada e retentada como
-  qualquer outra execução.
+- **Dois canais de difusão embarcados: o site ao vivo e o conjunto de dados.** O site público é `LIVE` e
+  lido a cada requisição; o conjunto é `EXPORT` e o adaptador dele escreve o pacote descrito acima. O
+  AtoM continua sendo um adaptador futuro, e um canal que o pacote traz sem adaptador responde 422 e não
+  enfileira nada. A rota de download e a pré-visualização do conjunto são a issue 214c: o snapshot é
+  escrito no diretório de destino, e a API ainda não o serve.
 - **O retry é limitado e não classificado.** Uma falha agendada gasta até três tentativas, qualquer que
   seja a causa: um modelo faltando custa três tentativas limitadas, porque um classificador errado na
   outra direção ou desperdiça a GPU ou esconde uma falha real. O retry segura o slot do worker durante o

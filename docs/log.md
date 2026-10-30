@@ -3236,3 +3236,23 @@ with short or full shas, and part of a `## <date> — <title>` entry.
     level code, and `mkdocs.yml` moved only because the nav gained ADR 0024.
 - **Not verified:** the adapter, the run and the download route do not exist yet (214b/214c); the
   contract is generated and tested, not exercised against a published collection.
+
+## 2026-10-30 — the dataset channel and its writer (#214b)
+
+- **Range:** `e93262a..1b79548`
+- **Pages:**
+  - `guides/operate.md` / `.pt.md` — **updated**: the `dataset` channel is the first `EXPORT` and its
+    package is described (destination, formats, data license, manifest, field map, removals,
+    determinism, the refusals); the registry sentence and the known limit now say two channels ship and
+    that the download route and preview are 214c.
+  - `guides/curate.md` / `.pt.md` — **updated**: the picker offers the open dataset, and its card
+    configures the destination, the formats and the data license.
+  - `guides/data-model.md` / `.pt.md` — **no-change**: the new channel is a row of the same table, the
+    schema did not change, and the page already describes `config` as the channel's JSONB.
+- **Rendered:** the Canais de difusão page with the headless shell against a live API (the dev database
+  and a throwaway admin): the add picker with **Conjunto de dados** and its `exportação` badge, the
+  configuration form filled (title, `CC-BY-4.0`, attribution, destination, institution), the configured
+  card with its summary and actions, and the card after **Enfileirar execução** ("Execução #2 na fila").
+  The render data was removed from the database afterwards. **Not verified:** the runner claiming and
+  executing the run through the ledger (the adapter is integration-tested directly; the page exercised
+  the enqueue), and the download and preview routes, which are 214c.

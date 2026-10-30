@@ -421,7 +421,8 @@ configuration and the metadata the screen renders — lives in
 `src/scrinalia/domains/diffusion/diffusion_registry.py`; the row is the lifecycle: enabled/paused, the
 configuration, the run policy an export inherits and the cron/zone of its agenda. The registry ships
 the built-in public site (`public_site`), a `LIVE` channel: it is read on every request and has no run,
-so it has no agenda and the API refuses one (`PUT /channels/{code}/schedule` answers 422).
+so it has no agenda and the API refuses one (`PUT /channels/{code}/schedule` answers 422), and the open
+dataset (`dataset`), an `EXPORT` channel whose adapter writes the package below.
 
 `/configuracoes/difusao` is the screen, a card of Configurações under *Operação* (issue #213). It lists
 the configured channels, one card each: the capability, the lifecycle, the configuration summary and
@@ -452,6 +453,34 @@ uv run python -m scrinalia.domains.archive.workers.runner diffusion --channel da
 
 The generic `POST /api/v1/system/workers/diffusion/runs` **refuses** the worker: the body has no
 channel to name, so the selector is `POST /api/v1/diffusion/channels/{code}/runs`.
+
+#### The dataset package
+
+The `dataset` channel is the first `EXPORT` the package ships (ADR 0024). It writes a snapshot an
+institution can host anywhere: `documents.json`, `documents.ndjson` and `documents.csv` — the formats
+the configuration enables — plus `manifest.json`, `field-map.json`, `LICENSE.txt` and `README.md`. The
+records are the public projection, ordered by `description_id`; the field map names the ISAD(G)
+element of every field, and the manifest carries the record count, each file's size and SHA-256, the
+data license, the removals since the previous snapshot and the software identity.
+
+The **destination** is an absolute directory the runner can write to; in Docker it is a volume mounted
+in the runner, and the API will need read access to the same directory when the download route lands
+(214c). The run writes into `snapshots/<snapshot_id>/` and then replaces the `current` file, so a
+reader sees the previous package or the new one, never a half-written directory. `retention` keeps the
+newest snapshots; the current one is never removed. The download route is 214c — until it lands, the
+operator reads the package from the destination directory.
+
+The **data license** is required: `CC0-1.0`, `CC-BY-4.0`, `CC-BY-SA-4.0` or `custom` (which asks for
+the name, the URL and the attribution). CC BY and CC BY-SA require the attribution line; CC0 does not.
+The software's AGPL-3.0-only license is separate and always reported as such — the manifest and the
+`LICENSE.txt` keep the two apart.
+
+A run **refuses** without a destination, without a complete license, or without an institution (the
+channel's own field, or the public site's institution when it has one). A record that leaves the
+covered set disappears from the next snapshot and its id is listed in `removals`; the dataset keeps no
+tombstone, so a consumer that misses a run compares two snapshots. A rerun over the same covered set
+computes the same `snapshot_id` and writes **nothing** — the run succeeds without a new directory, and
+the manifests differ only in `generated_at` while the data files carry no timestamp at all.
 
 Nothing on this page publishes. `is_published` is the record's permission to leave, edited on the
 dossier under `CURATE`; the channel is where it goes, and the two are independent. The public site's
@@ -1126,11 +1155,11 @@ behaviour to expect, and so that a limit already paid for is not read as a defec
   duplicate execution after a lease expiry is possible. A hard fence is future work.
 - **The queue is one slot per worker.** A second run for a worker with one in flight answers `409`,
   and a schedule has to coalesce; a backlog or a priority is not what this queue is.
-- **One diffusion channel ships, and it is `LIVE`.** The registry carries the built-in public site;
-  no export adapter exists yet, so the page configures channels and an export channel the package
-  ships without an adapter answers 422 and queues nothing. The run axis itself is in place: a
-  channel's export is a row of the shared ledger with `channel_code`, scheduled and retried like
-  any other run.
+- **Two diffusion channels ship: the live site and the dataset.** The public site is `LIVE` and read on
+  every request; the dataset is `EXPORT` and its adapter writes the package above. AtoM is still a
+  future adapter, and a channel the package ships without one answers 422 and queues nothing. The
+  dataset's download route and its preview are issue 214c: the snapshot is written to the destination
+  directory, and the API does not serve it yet.
 - **The retry is bounded and unclassified.** A scheduled failure spends up to three attempts,
   whatever the cause: a missing model costs three bounded attempts, because a classifier that is
   wrong in the other direction either wastes the GPU or hides a real failure. The retry holds the
