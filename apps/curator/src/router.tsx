@@ -11,7 +11,8 @@ import { DeletionsRoute, validateDeletionsSearch } from "@/routes/DeletionsRoute
 import { DiagnosticsRoute, validateDiagnosticsSearch } from "@/routes/DiagnosticsRoute";
 import { DiscoverRoute } from "@/routes/DiscoverRoute";
 import { DocumentRoute } from "@/routes/DocumentRoute";
-import { DiffusionRoute } from "@/routes/DiffusionRoute";
+import { DiffusionChannelsRoute } from "@/routes/DiffusionChannelsRoute";
+import { DiffusionRoute, validateDiffusionSearch } from "@/routes/DiffusionRoute";
 import { EntitiesRoute, validateEntitiesSearch } from "@/routes/EntitiesRoute";
 import { InboxRoute } from "@/routes/InboxRoute";
 import { LevelsRoute } from "@/routes/LevelsRoute";
@@ -269,10 +270,23 @@ const originsRoute = createRoute({
  * dossier's checkbox under `CURATE` (#213, ADR 0023). The path lives under the landing so the
  * Configurações entry stays marked while the operator is here.
  */
-const diffusionRoute = createRoute({
+const diffusionChannelsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/configuracoes/difusao",
+  component: DiffusionChannelsRoute,
+});
+
+/**
+ * Difusão: what the curator publishes, with the preview and the ledger.
+ *
+ * A top-level path beside ``/acervo`` because the decision is about the collection's exposure, not
+ * about one description; the dossier links here and the menu carries it under Acervo.
+ */
+const diffusionRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/difusao",
   component: DiffusionRoute,
+  validateSearch: validateDiffusionSearch,
 });
 
 /*
@@ -379,7 +393,8 @@ export const router = createRouter({
     anomaliesRoute,
     systemWorkersRoute,
     originsRoute,
-    diffusionRoute,
+    diffusionChannelsRoute,
+  diffusionRoute,
     legacyNewDescriptionRoute,
     legacySystemRunsRoute,
     systemHealthRoute,

@@ -20,6 +20,7 @@ import { pt as exclusionsPt } from "@/i18n/pages/exclusions";
 import { pt as browseAPt } from "@/i18n/pages/browseA";
 import { pt as browseBPt } from "@/i18n/pages/browseB";
 import { pt as diffusionPt } from "@/i18n/pages/diffusion";
+import { pt as publicationPt } from "@/i18n/pages/publication";
 import { ATTRIBUTION } from "@/lib/attribution";
 
 /** The copy of one screen: the menu entry, the header's subtitle and, where it has one, the sentence. */
@@ -139,10 +140,16 @@ const screens: Record<ScreenId, ScreenCopy> = {
       description:
         "As fontes que esta instalação lê, com a fila, a agenda e a configuração de cada uma; a entrada manual e a importação CSV ficam no Acervo, em Nova Descrição.",
     },
-    diffusion: {
+    diffusionChannels: {
       label: "Canais de difusão",
       hint: "Canais de saída do acervo",
       description: "O canal não publica nada; a Difusão é onde o curador escolhe o que vai para ele.",
+    },
+    diffusion: {
+      label: "Difusão",
+      hint: "O que vai para cada canal",
+      description:
+        "As aprovadas que nenhum canal carrega, o que cada canal já carrega e o que cada ramo publica — com pré-visualização e histórico. Publicar não aprova; aprovar não publica.",
     },
     newDescription: {
       label: "Nova Descrição",
@@ -208,6 +215,7 @@ export const pt = {
     ...browseAPt,
     ...browseBPt,
     ...diffusionPt,
+    ...publicationPt,
     cleaningRules: {
       activeOne: "1 regra ativa",
       activeMany: "{count} regras ativas",
@@ -274,6 +282,9 @@ export const pt = {
     },
     inbox: {
       countsGenerated: "Contagens geradas em {date}.",
+      publicationLabel: "A publicar na difusão",
+      publicationDescription:
+        "Aprovadas que nenhum canal carrega. Aprovar é uma decisão sobre o registro; publicar é uma decisão sobre onde ele aparece.",
       empty: "nada pendente",
       open: "abrir →",
       emptyTitle: "Nenhuma pendência recebida",

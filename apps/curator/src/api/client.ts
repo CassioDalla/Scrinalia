@@ -1841,6 +1841,91 @@ export async function triggerDiffusionRun(code: string): Promise<WorkerRun> {
   );
 }
 
+// --- The publication gesture: resolve, preview, apply, undo (#251) ---------------------------
+
+export type PublicationAction = components["schemas"]["PublicationAction"];
+export type PublicationMode = components["schemas"]["PublicationMode"];
+export type PublicationRequest = components["schemas"]["PublicationRequest"];
+export type PublicationApplyRequest = components["schemas"]["PublicationApplyRequest"];
+export type PublicationSample = components["schemas"]["PublicationSampleDTO"];
+export type PublicationSkipped = components["schemas"]["PublicationSkippedDTO"];
+export type PublicationChannelPreview = components["schemas"]["PublicationChannelPreviewDTO"];
+export type PublicationPreview = components["schemas"]["PublicationPreviewDTO"];
+export type PublicationCounts = components["schemas"]["PublicationCountsDTO"];
+export type PublicationItem = components["schemas"]["PublicationItemDTO"];
+export type PublicationPage = components["schemas"]["PublicationPageDTO"];
+export type PublicationScope = components["schemas"]["PublicationScopeDTO"];
+export type PublicationScopeList = components["schemas"]["PublicationScopeListDTO"];
+export type PublicationBatch = components["schemas"]["PublicationBatchDTO"];
+export type PublicationBatchList = components["schemas"]["PublicationBatchListDTO"];
+export type PublicationUndo = components["schemas"]["PublicationUndoDTO"];
+
+/**
+ * The page's list: what a channel carries, or the approved that no channel carries.
+ *
+ * ``publication_state`` is the API's name for the filter — ``state`` is reserved by the framework —
+ * and the counts travel with either page, from the same definition the home card reads.
+ */
+export async function fetchPublications(params: {
+  state: "covered" | "uncovered";
+  nodeId?: string;
+  channelCode?: string;
+  limit?: number;
+  offset?: number;
+}): Promise<PublicationPage> {
+  return unwrap<PublicationPage>(
+    await client.GET("/api/v1/diffusion/publications", {
+      params: {
+        query: {
+          publication_state: params.state,
+          node_id: params.nodeId,
+          channel_code: params.channelCode,
+          limit: params.limit,
+          offset: params.offset,
+        },
+      },
+    }),
+  );
+}
+
+/** The four numbers without a page: the header repeats them and the home card reads them. */
+export async function fetchPublicationSummary(): Promise<PublicationCounts> {
+  return unwrap<PublicationCounts>(await client.GET("/api/v1/diffusion/publications/summary"));
+}
+
+/** The active positive and negative scopes, with their node and their counts. */
+export async function fetchPublicationScopes(channelCode?: string): Promise<PublicationScopeList> {
+  return unwrap<PublicationScopeList>(
+    await client.GET("/api/v1/diffusion/scopes", { params: { query: { channel_code: channelCode } } }),
+  );
+}
+
+/** Resolves the gesture per channel and writes nothing; the token is what the apply echoes. */
+export async function previewPublication(body: PublicationRequest): Promise<PublicationPreview> {
+  return unwrap<PublicationPreview>(await client.POST("/api/v1/diffusion/publications/preview", { body }));
+}
+
+/** Writes the scopes and the batch; a stale token answers 409 and the page previews again. */
+export async function applyPublication(body: PublicationApplyRequest): Promise<PublicationBatch> {
+  return unwrap<PublicationBatch>(await client.POST("/api/v1/diffusion/publications", { body }));
+}
+
+/** The publication history, newest first. */
+export async function fetchPublicationBatches(limit = 50, offset = 0): Promise<PublicationBatchList> {
+  return unwrap<PublicationBatchList>(
+    await client.GET("/api/v1/diffusion/publications/batches", { params: { query: { limit, offset } } }),
+  );
+}
+
+/** Reverts the batch entry by entry and reports what it left alone. */
+export async function undoPublicationBatch(batchId: number): Promise<PublicationUndo> {
+  return unwrap<PublicationUndo>(
+    await client.POST("/api/v1/diffusion/publications/batches/{batch_id}/undo", {
+      params: { path: { batch_id: batchId } },
+    }),
+  );
+}
+
 /**
  * The manual origin's one-record write.
  *

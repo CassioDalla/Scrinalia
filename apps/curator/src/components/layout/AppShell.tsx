@@ -15,6 +15,7 @@ import {
   Ruler,
   Scissors,
   Search,
+  Send,
   Settings,
   Sparkles,
   Tags,
@@ -134,6 +135,11 @@ const NAV: NavGroup[] = [
       { screen: "collection", icon: Search },
       { screen: "tree", icon: Network },
       { screen: "deletions", icon: Trash2 },
+      /*
+        Difusão sits with the collection, not under Configurações: the curator decides what
+        leaves, and the operator's channels are the card that configures where it can go.
+       */
+      { screen: "diffusion", icon: Send, permission: "CURATE" },
       /*
         The arrangement diagnostic sits with the collection and not in a group of its own.
 

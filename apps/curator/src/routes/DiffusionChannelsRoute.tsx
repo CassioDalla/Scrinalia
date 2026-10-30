@@ -29,7 +29,7 @@ import { can } from "@/lib/permissions";
  * so the add picker and the cards cannot disagree about what is still addable. The empty state is
  * real: the registry seeds no row (ADR 0023).
  */
-export function DiffusionRoute() {
+export function DiffusionChannelsRoute() {
   const messages = useCopy();
   const { data, isPending, error } = useQuery({
     ...queries.diffusionChannels(),
@@ -51,7 +51,7 @@ export function DiffusionRoute() {
   return (
     <>
       <PageHeader
-        screen="diffusion"
+        screen="diffusionChannels"
         pending={isPending}
         status={
           configured.length === 0

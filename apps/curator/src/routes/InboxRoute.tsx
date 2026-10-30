@@ -10,6 +10,7 @@ import { EmptyState, ErrorState, Skeleton } from "@/components/ui/Feedback";
 import { PageBody } from "@/components/layout/PageBody";
 import { formatCount, formatDateTime } from "@/lib/format";
 import { QUEUE_COPY, QUEUE_DESTINATIONS } from "@/lib/queues";
+import { SCREENS } from "@/lib/screens";
 import { useCopy } from "@/i18n/context";
 import { fill } from "@/i18n/maps";
 
@@ -59,6 +60,10 @@ function QueueCard({ queue }: { queue: CurationQueue }) {
 export function InboxRoute() {
   const messages = useCopy();
   const { data, isPending, error } = useQuery(queries.inbox());
+  // The diffusion card exists only when there is somewhere to publish: a configured and enabled
+  // channel. The count is the same one the Difusão header reads, from the same definition.
+  const summary = useQuery(queries.publicationSummary());
+  const publicationEnabled = (summary.data?.enabled_channels ?? 0) > 0;
 
   return (
     <>
@@ -80,6 +85,29 @@ export function InboxRoute() {
               <QueueCard key={queue.key} queue={queue} />
             ))}
           </div>
+        ) : null}
+
+        {publicationEnabled ? (
+          <Link to={SCREENS.diffusion.path} className="mt-3 block max-w-sm">
+            <Card className="hover:ring-(--color-accent)/40">
+              <CardBody className="flex h-full flex-col gap-2">
+                <div className="flex items-start justify-between gap-3">
+                  <span className="text-sm font-medium">{messages.pages.inbox.publicationLabel}</span>
+                  <span className="text-2xl leading-none font-semibold tabular-nums">
+                    {formatCount(summary.data?.approved_without_channel ?? 0)}
+                  </span>
+                </div>
+                <p className="text-xs text-(--color-muted)">{messages.pages.inbox.publicationDescription}</p>
+                <div className="mt-auto pt-1">
+                  {(summary.data?.approved_without_channel ?? 0) === 0 ? (
+                    <Badge tone="neutral">{messages.pages.inbox.empty}</Badge>
+                  ) : (
+                    <span className="text-xs font-medium text-(--color-accent)">{messages.pages.inbox.open}</span>
+                  )}
+                </div>
+              </CardBody>
+            </Card>
+          </Link>
         ) : null}
 
         {data && (!data.queues || data.queues.length === 0) ? (
