@@ -35,6 +35,7 @@ from scrinalia.domains.archive.workers.schedule import (
 )
 from scrinalia.domains.diffusion.diffusion_registry import (
     CHANNELS,
+    PUBLIC_SITE_CODE,
     DiffusionCapability,
     DiffusionChannelSummary,
     PublicSiteConfig,
@@ -254,7 +255,7 @@ class DiffusionChannelService:
         A missing row and a paused channel both answer 404: the site is not configured as far as a
         visitor is concerned, and the operator sees the pause on the page instead.
         """
-        channel = self.channels.get("public_site")
+        channel = self.channels.get(PUBLIC_SITE_CODE)
         if channel is None or not channel.enabled:
             raise PublicSiteNotConfiguredError(t("O site público ainda não está configurado nesta instalação."))
         try:

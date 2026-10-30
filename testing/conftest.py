@@ -31,6 +31,7 @@ from scrinalia.domains.archive.models import (
 )
 from scrinalia.domains.archive.schemas import ArchiveEntityDTO
 from scrinalia.domains.archive.schemas.document_schema import ArchiveDocumentDTO
+from scrinalia.domains.diffusion.coverage import CREATE_COVERAGE_VIEW_SQL, DROP_COVERAGE_VIEW_SQL
 from scrinalia.domains.identity.domain.credentials import _decoy_hash, _hasher, hash_password, normalize_email
 from scrinalia.domains.identity.domain.permissions import Role
 from scrinalia.domains.identity.models import AuthUser
@@ -225,10 +226,19 @@ def engine():
     # Creates all tables based on your Models
     Base.metadata.create_all(bind=engine)
 
+    # ``create_all`` does not create views, and the coverage view is *the* definition of what a
+    # channel exposes (ADR 0023). The statement is the one the migration runs, imported and not
+    # copied, so the suite cannot pass against a predicate production does not have.
+    with engine.begin() as conn:
+        conn.execute(text(CREATE_COVERAGE_VIEW_SQL))
+
     yield engine
 
     # At the end of all tests, drop the tables — and the types `drop_all` does not own, so the
     # migrations CI applies to this same database afterwards meet the clean schema they expect.
+    # The view goes first: ``DROP TABLE`` refuses while it still depends on the documents.
+    with engine.begin() as conn:
+        conn.execute(text(DROP_COVERAGE_VIEW_SQL))
     Base.metadata.drop_all(bind=engine)
     _drop_migration_owned_enum_types(engine)
     engine.dispose()
