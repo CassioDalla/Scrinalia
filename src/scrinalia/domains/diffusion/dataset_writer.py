@@ -40,7 +40,6 @@ import re
 import shutil
 import tempfile
 from collections.abc import Iterator
-from contextlib import ExitStack
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
@@ -84,6 +83,9 @@ SNAPSHOTS_DIR = "snapshots"
 
 #: One description per page; the cancellation is checked at these boundaries.
 PAGE_SIZE = 500
+
+#: The canonical NDJSON the checksum covers, before it is renamed to the published file.
+_CANONICAL_RECORDS = ".records.ndjson"
 
 #: The file each format writes, in the order the manifest lists them.
 DATA_FILES: dict[Literal["json", "ndjson", "csv"], str] = {
@@ -329,57 +331,68 @@ def _render(
     db: Session,
     run_control: RunControl | None,
 ) -> _Rendered:
-    """Writes the enabled formats into ``directory`` and computes the snapshot's identity."""
+    """
+    Writes the enabled formats into ``directory`` and computes the snapshot's identity.
+
+    The canonical NDJSON is written first, in one explicit ``with``: it is the bytes the checksum
+    covers and the source the JSON and CSV are derived from. Deriving instead of writing three files
+    from one in-memory loop keeps every handle in a ``with`` — ``ExitStack`` is correct but invisible
+    to CodeQL's unclosed-file analysis, and a suppression would hide the next real one.
+    """
     formats = config.formats
     count = 0
     ids: set[str] = set()
     digest = hashlib.sha256()
+    canonical = directory / _CANONICAL_RECORDS
 
-    with ExitStack() as stack:
-        ndjson = (
-            stack.enter_context(open(directory / DATA_FILES["ndjson"], "w", encoding="utf-8", newline="\n"))
-            if "ndjson" in formats
-            else None
-        )
-        json_file = (
-            stack.enter_context(open(directory / DATA_FILES["json"], "w", encoding="utf-8", newline="\n"))
-            if "json" in formats
-            else None
-        )
-        csv_file = (
-            stack.enter_context(open(directory / DATA_FILES["csv"], "w", encoding="utf-8", newline=""))
-            if "csv" in formats
-            else None
-        )
-        csv_writer = csv.writer(csv_file, lineterminator="\n") if csv_file is not None else None
-        if csv_writer is not None:
-            csv_writer.writerow([field.name for field in DATASET_FIELDS])
-        if json_file is not None:
-            json_file.write(f'{{"schema_version":"{DATASET_SCHEMA_VERSION}","items":[')
-        first = True
-
+    with canonical.open("w", encoding="utf-8", newline="\n") as records:
         for record in _iter_records(db, run_control):
             line = _canonical(record)
+            records.write(line)
+            records.write("\n")
             digest.update(line.encode("utf-8"))
             digest.update(b"\n")
             ids.add(str(record["description_id"]))
-            if ndjson is not None:
-                ndjson.write(line)
-                ndjson.write("\n")
-            if json_file is not None:
-                if not first:
-                    json_file.write(",")
-                json_file.write(line)
-                first = False
-            if csv_writer is not None:
-                csv_writer.writerow([_csv_cell(record.get(field.name)) for field in DATASET_FIELDS])
             count += 1
 
-        if json_file is not None:
-            json_file.write(f'],"record_count":{count}}}')
+    if "json" in formats:
+        _write_json(directory / DATA_FILES["json"], canonical, count)
+    if "csv" in formats:
+        _write_csv(directory / DATA_FILES["csv"], canonical)
+    if "ndjson" in formats:
+        os.replace(canonical, directory / DATA_FILES["ndjson"])
+    else:
+        canonical.unlink(missing_ok=True)
 
     artifacts = tuple(_artifact(name, directory / DATA_FILES[name], count) for name in formats)
     return _Rendered(artifacts=artifacts, record_count=count, snapshot_id=digest.hexdigest(), ids=frozenset(ids))
+
+
+def _write_json(target: Path, source: Path, count: int) -> None:
+    """The envelope around the canonical records, streamed so a large set is never held in memory."""
+    with source.open(encoding="utf-8") as records, target.open("w", encoding="utf-8", newline="\n") as handle:
+        handle.write(f'{{"schema_version":"{DATASET_SCHEMA_VERSION}","items":[')
+        first = True
+        for line in records:
+            if not line.strip():
+                continue
+            if not first:
+                handle.write(",")
+            handle.write(line.rstrip("\n"))
+            first = False
+        handle.write(f'],"record_count":{count}}}')
+
+
+def _write_csv(target: Path, source: Path) -> None:
+    """The flat projection, one row per record, a list or an object as JSON in its cell."""
+    with source.open(encoding="utf-8") as records, target.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.writer(handle, lineterminator="\n")
+        writer.writerow([field.name for field in DATASET_FIELDS])
+        for line in records:
+            if not line.strip():
+                continue
+            record = json.loads(line)
+            writer.writerow([_csv_cell(record.get(field.name)) for field in DATASET_FIELDS])
 
 
 def _iter_records(db: Session, run_control: RunControl | None) -> Iterator[dict[str, Any]]:
