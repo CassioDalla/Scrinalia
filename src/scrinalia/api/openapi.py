@@ -11,36 +11,19 @@ The version comes from the **installed distribution metadata**, which ``pyprojec
 ``apps/curator/vite.config.ts`` reads that same file for the SPA footer, so the number an archivist
 reads at the foot of a page and the number a client reads in ``info.version`` are one fact;
 ``testing/unit/api/test_openapi_metadata.py`` pins them together and fails if a release moves one and
-not the other.
+not the other. The helper itself lives in ``core.version`` because the open dataset's manifest also
+reports the software version (ADR 0024), and a domain worker must not import this module.
 """
-
-from importlib.metadata import PackageNotFoundError
-from importlib.metadata import version as distribution_version
 
 from litestar.openapi.config import OpenAPIConfig
 
-#: The distribution whose metadata owns the version — the ``[project] name`` of ``pyproject.toml``.
-DISTRIBUTION = "scrinalia"
+from scrinalia.core.version import DISTRIBUTION, application_version
 
 #: What the contract calls the system. Not the framework: a consumer reading the document is
 #: integrating with Scrinalia, and ``Litestar`` is the detail of how it is served.
 TITLE = "Scrinalia API"
 
-
-def application_version() -> str:
-    """The installed distribution's version.
-
-    The failure is explicit on purpose. An environment that imported the package without installing
-    it has no version to report, and a contract that quietly fell back to ``"0.0.0"`` would be a
-    document claiming a release that does not exist — the same defect this module removes.
-    """
-    try:
-        return distribution_version(DISTRIBUTION)
-    except PackageNotFoundError as error:  # pragma: no cover - the project is always installed
-        raise RuntimeError(
-            f"the distribution '{DISTRIBUTION}' is not installed, so the contract has no version: "
-            "run `uv sync --locked` and generate it through `uv run`."
-        ) from error
+__all__ = ["DISTRIBUTION", "TITLE", "application_version", "openapi_config"]
 
 
 def openapi_config() -> OpenAPIConfig:
