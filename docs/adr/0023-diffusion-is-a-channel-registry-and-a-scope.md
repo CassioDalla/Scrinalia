@@ -212,8 +212,12 @@ Positive:
 Negative, accepted:
 
 - **The `is_published` column is dropped.** The migration, the search query, the public detail route,
-  the facets, the deletion snapshots and the revision JSON all move. The 0-published collection makes
-  the data migration safe; the old snapshots keep the key they recorded and the new ones do not.
+  the facets, the deletion snapshots and the revision JSON all move. The migration **refuses to drop
+  a decision in silence**: an installation whose collection still carries `is_published = true` is
+  stopped with the count and the procedure — list the ids, keep them, clear the flag, upgrade and
+  republish through the Difusão page — because there is no channel to convert them to and inventing
+  one would be the migration deciding what the institution publishes. The old snapshots keep the key
+  they recorded and the new ones do not.
 - **The public API's gate changes.** `published_only` becomes the `public_site` coverage; the 404
   stays. #210's "the live API is the union" is amended.
 - **The view is the hot path.** The coverage predicate joins the materialised path; the scopes are

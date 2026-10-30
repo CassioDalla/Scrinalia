@@ -120,7 +120,7 @@ approximation. `raw_metadata` keeps the keys that did not map to a column.
 
 | Table | Purpose | Key columns |
 | --- | --- | --- |
-| `archive_documents` | The final cleaned and enriched description, served to users and enriched by the AI workers. | `description_id` (primary key), `origin_code`, `original_title`, `final_title`, `document_date`, `date_expression`, `original_url`, `summary`, `staging_content_hash`, `reference_code`, `level_id`, `typology_id`, `parent_id`, `parent_reference_code`, `path`, the ISAD(G) text columns, `review_status`, `is_anomaly`, `anomaly_reasons`, `is_published`, `execution_log` (JSONB), `embedding` (`vector(384)`), `search_vector` (generated), timestamps |
+| `archive_documents` | The final cleaned and enriched description, served to users and enriched by the AI workers. | `description_id` (primary key), `origin_code`, `original_title`, `final_title`, `document_date`, `date_expression`, `original_url`, `summary`, `staging_content_hash`, `reference_code`, `level_id`, `typology_id`, `parent_id`, `parent_reference_code`, `path`, the ISAD(G) text columns, `review_status`, `is_anomaly`, `anomaly_reasons`, `execution_log` (JSONB), `embedding` (`vector(384)`), `search_vector` (generated), timestamps |
 
 The **ISAD(G) text columns** are the whole record, not a subset: `dimension_support`,
 `producers`, `admin_bio_history`, `admin_archival_history`, `provenance`, `scope_content`,
@@ -156,10 +156,11 @@ Three properties of this table carry the model:
   `NEEDS_REVIEW`, `HUMAN_APPROVED`, `REJECTED`. `HUMAN_APPROVED` blocks AI rewrites.
 
 !!! note "Diffusion is not review"
-    `is_published` is its own column, deliberately not `review_status = HUMAN_APPROVED`. Review is a
-    claim about the record; publication is a decision about what to expose. Reusing the status would
-    make a typo fix equivalent to publishing, and would lock every published document against AI
-    rewriting. Nothing is published by default, so the diffusion surface is born empty.
+    Publication is not a column: a record is public because a channel's scope covers it and it is
+    `HUMAN_APPROVED` (ADR 0023), and the read is the coverage view. Review is a claim about the
+    record; publication is a decision about where it appears. Reusing the status for publication
+    would make a typo fix equivalent to publishing, and would lock every published document against
+    AI rewriting. Nothing is published by default, so the diffusion surface is born empty.
 
 #### Subjects, categories and entities
 
@@ -308,8 +309,10 @@ predicate. The split is what lets the curator's preview say *why* a record is sk
 rather than "not covered" — without a second copy of the exclusion rule. The view reads the materialised `path` and the
 node's current position, so moving a branch moves what it covers; it does **not** read `enabled`,
 because pausing a channel is the operator's decision and the curator's "Publicadas" must keep saying
-what was published. `archive_documents.is_published` stops being a column when the curator surface
-lands (#251); until then it is still the public gate.
+what was published. `DocumentSummary.channels` is the list the dossier and the collection show, and
+`is_published` is derived from it: covered by at least one channel. There is no stored boolean — the
+`archive_documents.is_published` column was dropped, and the migration refuses to drop it while a
+row still carries a true.
 
 ### Identity — the installation, not the collection
 
@@ -566,7 +569,7 @@ Two frozensets in `api/schemas/public.py` make the default private:
 
 - `NOT_PUBLIC_FIELDS` — fields of `DocumentSummary` that are deliberately not published. It contains
   `review_status`, `is_anomaly`, `anomaly_reasons`, `archivist_notes`, `provenance`,
-  `suggested_final_title`, `rank`, `path`, `parent_id`, `level_id`, `typology_id`, `is_published`,
+  `suggested_final_title`, `rank`, `path`, `parent_id`, `level_id`, `typology_id`, `is_published`, `channels`,
   `admin_bio_history`, `admin_archival_history` and `access_conditions`.
 - `NOT_PUBLIC_FACETS` — currently just `anomaly_reason`.
 

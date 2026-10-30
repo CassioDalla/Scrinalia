@@ -12,7 +12,7 @@ A SPA é servida pela própria API (uma origem, sem CORS), e toda tela lê e esc
 a partir do contrato OpenAPI. As telas são declaradas em `apps/curator/src/router.tsx`, e **como cada
 uma se chama** em `apps/curator/src/lib/screens.ts`: um registro por tela guarda o rótulo que o menu,
 o cartão de configurações e o título da própria página leem, então os três não podem discordar
-(*Um nome por tela, um verbo por ação*, abaixo). O menu tem **16 entradas**: as telas que ninguém
+(*Um nome por tela, um verbo por ação*, abaixo). O menu tem **17 entradas**: as telas que ninguém
 abre no meio da catalogação — o plano de arranjo, os catálogos, o painel de workers, o ledger de
 execuções, os diagnósticos e as contas — são cartões de `/configuracoes`, não itens de menu
 (*Configurações*, abaixo). Uma rota também não vem do menu: a ficha da descrição,
@@ -92,40 +92,59 @@ descrição da fila da IA.
   derivado do texto, não conteúdo arquivístico: uma descrição `HUMAN_APPROVED` cujo texto mudou
   precisa ser re-embedada, ou a busca semântica serviria um vetor velho. Ele escreve só a coluna
   `embedding` e o próprio carimbo (o MD5 do texto efetivo), e pula descrições `REJECTED`.
-- **Publicar não é travar.** `is_published` é escolhido pelo mesmo `PATCH` de qualquer campo ISAD(G),
-  e **não** congela a descrição contra a IA. O predicado de escrita lê apenas `review_status`. Reusar
-  o status de revisão para a difusão teria feito uma correção de digitação equivaler a publicar, e
-  teria travado toda descrição publicada contra o melhoramento da IA.
+- **Publicar não é travar.** Publicar não altera `review_status`: é um escopo de canal mais a
+  aprovação que a cobertura exige (ADR 0023). Um registro coberto é `HUMAN_APPROVED` porque a
+  cobertura exige, e é essa aprovação — não a publicação — que bloqueia a IA. O publicador nunca
+  aprova no lugar do curador: publicar um ramo cujo filho ainda está `PENDING_AI` não cobre nada até
+  que uma pessoa o aprove.
 
 Os outros workers de IA ficam de fora de uma descrição `HUMAN_APPROVED`; o que uma pessoa decidiu não
 é reescrito pelo pipeline.
 
 ### Difusão não é revisão
 
-Revisão é uma afirmação sobre o registro; publicação é uma decisão sobre o que expor. `is_published`
-é coluna própria, editada pela caixa "Publicar na difusão" na aba `Descrição` da ficha, e o predicado
-público é exatamente `is_published`. Nada é publicado por padrão, então a superfície de difusão nasce
-vazia.
+Revisão é uma afirmação sobre o registro; publicação é uma decisão sobre onde ele aparece. Uma
+descrição é exposta num canal quando é `HUMAN_APPROVED`, um **escopo positivo** daquele canal a cobre
+— o próprio nó ou um ancestral com `include_descendants` — e nenhum **escopo negativo** a cobre. A
+cobertura é uma leitura, não um booleano guardado: um filho aprovado depois entra no canal do seu ramo
+sem um segundo ato, e a exclusão é o override deliberado. Nada é publicado por padrão, então a
+superfície de difusão nasce vazia.
 
-O portão e o canal respondem a perguntas diferentes, e a interface os mantém separados. `is_published`
-diz **se** um registro pode sair; um **canal de difusão** diz **para onde** ele vai. O canal é uma
-definição em código mais uma linha de ciclo de vida (ADR 0023), e a página do operador em
-`Configurações → Operação` — **Canais de difusão**, `/configuracoes/difusao` — adiciona uma definição que
-o pacote traz, edita a configuração dela, pausa e, num canal de exportação, salva a agenda. Ela nunca
-publica: configurar um canal não altera descrição nenhuma, e os dois estados são independentes de
-propósito — um registro pode estar publicado sem canal configurado, e um canal pode estar ativo sem nada
-publicado. O registry traz o site público embutido (`public_site`), cuja configuração é a identidade de
+O separador é a página **Difusão**, `/difusao`, em `CURATE`. Ela tem quatro visões: *A publicar* (as
+aprovadas que nenhum canal carrega, com filtro de ramo e seleção), *Publicadas* (o que cada canal
+carrega, com os selos), *Publicações por ramo* (os escopos positivos e negativos, com nó, contagens e
+autor) e *Histórico* (os lotes, com o desfazer). Uma escrita são dois passos: a pré-visualização
+resolve o ramo ou a seleção por canal e devolve os elegíveis, uma amostra e o que fica de fora — não
+aprovados, já cobertos, excluídos — com um token; a confirmação ecoa o token e aplica. O token é uma
+checagem de consistência, não uma permissão: um conjunto que mudou entre as duas chamadas é recusado
+com "pré-visualize de novo", e a escrita é autorizada pela sessão. Todo lote é uma linha de ledger e
+pode ser desfeito; o desfazer restaura o que está inalterado e reporta o que deixou.
+
+As três remoções são distintas. **Manter privado** grava o escopo negativo no nó, que vence qualquer
+escopo positivo do ramo — e revoga um escopo positivo direto no mesmo nó no mesmo lote. **Retirar o
+ramo** revoga o escopo positivo do ramo, e o que um ancestral cobre continua coberto. As exclusões são
+listadas e desfeitas em *Publicações por ramo*. A ficha não publica mais: o cartão de publicação é um
+status somente leitura com os selos dos canais e um link para cá, e o formulário de revisão é só sobre
+o registro.
+
+A superfície pública lê o canal `public_site`, não uma união:
+
+- `GET /api/v1/public/site` — a identidade do site; 404 enquanto o canal não está configurado ou está
+  pausado.
+- `GET /api/v1/public/documents` e `GET /api/v1/public/documents/{description_id}` — a cobertura de
+  `public_site`.
+
+O canal é definido **no servidor** e não é parâmetro do cliente, então nenhuma query string pode pedir
+um registro que o canal não carrega; e um identificador fora dele responde 404, nunca 403, porque um
+status distinto confirmaria que a descrição existe. As duas rotas de documentos respondem 404 enquanto
+o canal está pausado: para um visitante, o site não está lá.
+
+A página do operador, **Canais de difusão**, `/configuracoes/difusao`, adiciona uma definição,
+configura, pausa e — num canal de exportação — salva a agenda. Ela nunca publica. As duas permissões
+são diferentes de propósito: configurar um destino é `OPERATE`, decidir o que vai para ele é `CURATE`.
+O registry traz o site público embutido (`public_site`), cuja configuração é a identidade de
 apresentação que o aplicativo lê (título, descrição, instituição, contato, logotipo, idioma, endereço
-público e indexação); habilitá-lo não instala o aplicativo público (#46). A página é `OPERATE`, como a de
-origens, então um curador que siga a URL vê os cartões sem os controles.
-
-Publicar expõe a descrição pela superfície aberta, sem autenticação:
-
-- `GET /api/v1/public/documents` e `GET /api/v1/public/documents/{description_id}`.
-
-Duas regras valem ali. O filtro `published_only` é definido **no servidor** e não é parâmetro do
-cliente, então nenhuma query string pode pedir um registro não publicado; e um identificador não
-publicado responde 404, nunca 403, porque um status distinto confirmaria que a descrição existe.
+público e indexação); habilitá-lo não instala o aplicativo público (#46).
 
 A projeção pública é mais estreita que a do curador, campo a campo. Ela carrega os campos ISAD(G)
 `original_title`, `final_title`, `document_date`, `reference_code`, `level`, `scope_content`,
@@ -431,6 +450,40 @@ servidor porque a trilha não tem teto. Ela **não é uma lixeira**: cada entrad
 que a API gravou antes de excluir, e nada aqui restaura coisa alguma. Responde "fui eu que excluí
 isto?" — código, título, nível, quem excluiu, quando, quantos filhos havia, e o retrato inteiro sob
 demanda.
+
+### Difusão — `/difusao`
+
+O que o acervo expõe, e onde. Entrada de topo em Acervo, `CURATE`, e a metade do curador na decisão
+que a página de canais do operador configura: o canal é o destino, esta página é o que vai para ele.
+
+O cabeçalho carrega os mesmos quatro números em todas as visões — no site público, em canais,
+aprovadas sem canal, em revisão — da rota de resumo, a mesma definição que o cartão do Início lê.
+Quatro visões:
+
+- **A publicar** — as aprovadas que nenhum canal carrega. Filtre por ramo, selecione registros ou
+  publique o ramo inteiro; a pré-visualização mostra, por canal, os elegíveis, uma amostra e o que
+  fica de fora (não aprovados, já cobertos, excluídos). Criar um escopo de ramo sem registro elegível
+  é permitido de propósito: um filho aprovado depois entra nele sem um segundo ato.
+- **Publicadas** — o que cada canal carrega, com os selos. **Manter privado** abre o mesmo painel com
+  os canais do registro pré-selecionados: o lote revoga um escopo positivo direto no registro e grava
+  o negativo, então a exclusão vence o escopo de um ancestral. Desmarcar um canal ali é "retirar do
+  canal"; manter todos é "retirar de todos".
+- **Publicações por ramo** — os escopos positivos e negativos, com nó, canal, a contagem que o
+  desfazer alcançaria e as aprovadas do nó, o autor e a data. **Retirar o ramo** revoga o escopo
+  positivo; **Desfazer a exclusão** revoga o negativo.
+- **Histórico** — cada lote com o gesto, os canais, as contagens de aplicados e pulados, o autor, a
+  data e o desfazer. O desfazer reverte entrada por entrada, restaura o que está inalterado e reporta
+  o que pulou; um segundo desfazer é recusado.
+
+Uma escrita é pré-visualizar e confirmar. A pré-visualização é uma leitura — não escreve nada — e o
+token que ela devolve é ecoado pela confirmação: um conjunto que mudou entre as duas chamadas, um
+token expirado ou adulterado responde 409 com "pré-visualize de novo". É uma checagem de consistência,
+não uma permissão; a escrita é o `CURATE` da sessão. Publicar não aprova: um registro coberto é
+`HUMAN_APPROVED` porque a cobertura exige, e um registro ainda em revisão é pulado pela
+pré-visualização.
+
+O seletor só oferece os canais configurados e ativos; um pausado é recusado com uma frase, e a página
+de canais o marca como pausado.
 
 ### Descrição — `/acervo/$descriptionId`
 

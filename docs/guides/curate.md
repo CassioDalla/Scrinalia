@@ -40,11 +40,11 @@ the client generated from the OpenAPI contract. The screens are declared in
 `apps/curator/src/router.tsx`, and **what each one is called** in
 `apps/curator/src/lib/screens.ts`: one record per screen holds the label the menu, the settings card
 and the page's own heading all read, so the three cannot disagree (*One name per screen, one verb per
-action*, below). The menu has **16 entries**: the screens nobody opens in the middle of cataloguing —
+action*, below). The menu has **17 entries**: the screens nobody opens in the middle of cataloguing —
 the arrangement plan, the catalogues, the worker panel, the run ledger, the diagnostics and the
 accounts — are cards of `/configuracoes` rather than menu entries (*Configurações*, below). One route
 is not reached from the menu either: the description's own dossier, `/acervo/$descriptionId`, comes
-from the list and from the tree. The router therefore declares **26 screens**. The menu itself can be
+from the list and from the tree. The router therefore declares **27 screens**. The menu itself can be
 collapsed to icons, which is a presentation choice and not a permission one — *The menu collapses to
 icons*, below.
 
@@ -119,41 +119,59 @@ of the AI's queue.
   index of the text, not archival content: a `HUMAN_APPROVED` description whose text changed must be
   re-embedded, or semantic search would serve a stale vector. It writes only the `embedding` column
   and its own stamp (the MD5 of the effective text), and it skips `REJECTED` descriptions.
-- **Publishing is not a lock.** `is_published` is chosen through the same `PATCH` as any ISAD(G)
-  field, and it does **not** freeze the description against the AI. The write predicate reads
-  `review_status` only. Reusing the review status for diffusion would have made a typo fix equivalent
-  to publishing, and would have locked every published description against AI improvement.
+- **Publishing is not a lock.** Publication does not change `review_status`: it is a channel scope
+  plus the approval the coverage requires (ADR 0023). A covered record is `HUMAN_APPROVED` because
+  the coverage demands it, and it is that approval — not the publication — that blocks the AI. The
+  publisher never approves on the curator's behalf: publishing a branch whose child is still
+  `PENDING_AI` covers nothing until a human approves it.
 
 The other AI workers are excluded from a `HUMAN_APPROVED` description; what a human decided is not
 rewritten by the pipeline.
 
 ### Diffusion is not review
 
-Review is a claim about the record; publication is a decision about what to expose.
-`is_published` is its own column, edited with the "Publicar na difusão" checkbox on the dossier's
-`Descrição` tab, and the public predicate is exactly `is_published`. Nothing is published by default,
-so the diffusion surface is born empty.
+Review is a claim about the record; publication is a decision about where it appears. A description
+is exposed on a channel when it is `HUMAN_APPROVED`, a **positive scope** of that channel covers it —
+the node itself or an ancestor with `include_descendants` — and no **negative scope** covers it. The
+coverage is a read, not a stored boolean: a child approved later enters its branch's channel without
+a second act, and the exclusion is the deliberate override. Nothing is published by default, so the
+diffusion surface is born empty.
 
-The gate and the channel answer different questions, and the interface keeps them apart.
-`is_published` says **whether** a record may leave; a **diffusion channel** says **where** it goes. The
-channel is a definition in code plus a lifecycle row (ADR 0023), and the operator's page under
-`Configurações → Operação` — **Canais de difusão**, `/configuracoes/difusao` — adds a definition the
-package ships, edits its configuration, pauses it and, for an export channel, saves its agenda. It
-never publishes: configuring a channel changes no description, and the two states are independent on
-purpose — a record can be published with no channel configured, and a channel can be enabled with
-nothing published. The registry ships the built-in public site (`public_site`), whose configuration is
-the presentation identity the application reads (title, description, institution, contact, logo,
-locale, public address and indexing); enabling it does not install the public application (#46). The
-page is `OPERATE`, like the origins one, so a curator who follows the URL sees the cards without the
-controls.
+The separator is the **Difusão** page, `/difusao`, under `CURATE`. It has four views: *A publicar*
+(the approved that no channel carries, with a branch filter and a selection), *Publicadas* (what each
+channel carries, with the channel badges), *Publicações por ramo* (the positive and negative scopes,
+with their node, counts and author) and *Histórico* (the batches, with the undo). A write is two
+steps: the preview resolves the branch or the selection per channel and returns the eligible count, a
+sample and what it skips — not approved, already covered, excluded — with a token; the confirmation
+echoes the token and applies. The token is a consistency check, not a permission: a set that changed
+between the two calls is refused with "preview again", and the write is authorized by the session.
+Every batch is a ledger row and can be undone; the undo restores what is unchanged and reports what it
+left alone.
 
-Publishing exposes the description through the open, unauthenticated surface:
+The three removals are distinct. **Manter privado** writes the negative scope at the node, which wins
+over any positive scope on the branch — and revokes a direct positive scope on the same node in the
+same batch. **Retirar o ramo** revokes the branch's positive scope, and what an ancestor covers stays
+covered. The exclusions are listed and undone in *Publicações por ramo*. The dossier no longer
+publishes: its publication card is a read-only status with the channel badges and a link here, and
+the review form is about the record only.
 
-- `GET /api/v1/public/documents` and `GET /api/v1/public/documents/{description_id}`.
+The public surface reads the `public_site` channel, not a union:
 
-Two rules hold there. The `published_only` filter is set **server-side** and is not a client
-parameter, so no query string can ask for an unpublished record; and an unpublished id answers 404,
-never 403, because a distinct status would confirm that the description exists.
+- `GET /api/v1/public/site` — the site's identity; 404 while the channel is not configured or paused.
+- `GET /api/v1/public/documents` and `GET /api/v1/public/documents/{description_id}` — the coverage of
+  `public_site`.
+
+The channel is set **server-side** and is not a client parameter, so no query string can ask for a
+record the channel does not carry; and an id outside it answers 404, never 403, because a distinct
+status would confirm that the description exists. Both document routes answer 404 while the channel is
+paused: as far as a visitor is concerned, the site is not there.
+
+The operator's **Canais de difusão** page, `/configuracoes/difusao`, adds a definition, configures it,
+pauses it and — for an export channel — saves its agenda. It never publishes. The two permissions are
+different on purpose: configuring a destination is `OPERATE`, deciding what goes to it is `CURATE`.
+The registry ships the built-in public site (`public_site`), whose configuration is the presentation
+identity the application reads (title, description, institution, contact, logo, locale, public
+address and indexing); enabling it does not install the public application (#46).
 
 The public projection is narrower than the curator's, field by field. It carries the ISAD(G) fields
 `original_title`, `final_title`, `document_date`, `reference_code`, `level`, `scope_content`,
@@ -457,6 +475,40 @@ and pagination because the trail has no ceiling. It is **not a recycle bin**: ea
 ISAD(G) snapshot the API wrote before deleting, and nothing here restores anything. It answers "did I
 delete this?" — code, title, level, who excluded it, when, how many children it had, and the whole
 snapshot on demand.
+
+### Difusão — `/difusao`
+
+What the archive exposes, and where. A top-level entry under Acervo, `CURATE`, and the curator's half
+of the decision the operator's channel page configures: the channel is the destination, this page is
+what goes to it.
+
+The header carries the same four numbers on every view — on the public site, on channels, approved
+without a channel, in review — from the summary route, the same definition the home card reads. Four
+views:
+
+- **A publicar** — the approved records no channel carries. Filter by branch, select records or
+  publish the whole branch; the preview shows, per channel, the eligible count, a sample and what it
+  skips (not approved, already covered, excluded). Creating a branch scope with no eligible record is
+  allowed on purpose: a child approved later enters it without a second act.
+- **Publicadas** — what each channel carries, with the badges. **Manter privado** opens the same panel
+  with the record's channels pre-selected: the batch revokes a direct positive scope on the record and
+  writes the negative one, so the exclusion wins over an ancestor's scope. Unchecking a channel there
+  is "retirar do canal"; keeping all of them is "retirar de todos".
+- **Publicações por ramo** — the positive and negative scopes, with node, channel, the count the undo
+  would reach and the approved count of the node, the author and the date. **Retirar o ramo** revokes
+  the positive scope; **Desfazer a exclusão** revokes the negative one.
+- **Histórico** — every batch with its action, channels, applied and skipped counts, author, date and
+  the undo. The undo reverts entry by entry, restores what is unchanged and reports what it skipped; a
+  second undo is refused.
+
+A write is preview then confirm. The preview is a read — it writes nothing — and the token it returns
+is echoed by the confirmation: a set that changed between the two calls, an expired token or a tampered
+one answers 409 with "preview again". It is a consistency check, not a permission; the write is the
+session's `CURATE`. Publishing does not approve: a covered record is `HUMAN_APPROVED` because the
+coverage requires it, and a record still in review is skipped by the preview.
+
+The picker offers only the configured and enabled channels; a paused one is refused with a sentence,
+and the channel page marks it paused.
 
 ### Descrição — `/acervo/$descriptionId`
 

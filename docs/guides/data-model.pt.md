@@ -94,7 +94,7 @@ mapeadas para uma coluna.
 
 | Tabela | Para que serve | Colunas principais |
 | --- | --- | --- |
-| `archive_documents` | A descrição final, limpa e enriquecida, servida aos usuários e enriquecida pelos workers de IA. | `description_id` (chave primária), `origin_code`, `original_title`, `final_title`, `document_date`, `date_expression`, `original_url`, `summary`, `staging_content_hash`, `reference_code`, `level_id`, `typology_id`, `parent_id`, `parent_reference_code`, `path`, as colunas de texto ISAD(G), `review_status`, `is_anomaly`, `anomaly_reasons`, `is_published`, `execution_log` (JSONB), `embedding` (`vector(384)`), `search_vector` (gerada), timestamps |
+| `archive_documents` | A descrição final, limpa e enriquecida, servida aos usuários e enriquecida pelos workers de IA. | `description_id` (chave primária), `origin_code`, `original_title`, `final_title`, `document_date`, `date_expression`, `original_url`, `summary`, `staging_content_hash`, `reference_code`, `level_id`, `typology_id`, `parent_id`, `parent_reference_code`, `path`, as colunas de texto ISAD(G), `review_status`, `is_anomaly`, `anomaly_reasons`, `execution_log` (JSONB), `embedding` (`vector(384)`), `search_vector` (gerada), timestamps |
 
 As **colunas de texto ISAD(G)** são o registro inteiro, não um subconjunto: `dimension_support`,
 `producers`, `admin_bio_history`, `admin_archival_history`, `provenance`, `scope_content`,
@@ -276,8 +276,10 @@ separação é o que permite o preview do curador dizer *por que* um registro é
 vez de "não coberto" — sem uma segunda cópia da regra de exclusão. A view lê o `path` materializado e a posição atual do nó,
 então mover um ramo move o que ele cobre; ela **não** lê `enabled`, porque pausar um canal é decisão
 do operador e o "Publicadas" do curador tem de continuar dizendo o que foi publicado.
-`archive_documents.is_published` deixa de ser coluna quando a superfície do curador chegar (#251); até
-lá, ele ainda é o gate público.
+`DocumentSummary.channels` é a lista que a ficha e a lista mostram, e `is_published` é derivado
+dela: coberto por ao menos um canal. Não há booleano guardado — a coluna
+`archive_documents.is_published` foi removida, e a migração recusa removê-la enquanto uma linha ainda
+carrega um true.
 
 ### Identity — a instalação, não o acervo
 
@@ -538,7 +540,7 @@ Dois frozensets em `api/schemas/public.py` tornam o padrão privado:
 
 - `NOT_PUBLIC_FIELDS` — campos de `DocumentSummary` deliberadamente não publicados. Contém
   `review_status`, `is_anomaly`, `anomaly_reasons`, `archivist_notes`, `provenance`,
-  `suggested_final_title`, `rank`, `path`, `parent_id`, `level_id`, `typology_id`, `is_published`,
+  `suggested_final_title`, `rank`, `path`, `parent_id`, `level_id`, `typology_id`, `is_published`, `channels`,
   `admin_bio_history`, `admin_archival_history` e `access_conditions`.
 - `NOT_PUBLIC_FACETS` — atualmente apenas `anomaly_reason`.
 
