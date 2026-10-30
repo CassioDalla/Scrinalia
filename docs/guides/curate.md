@@ -14,7 +14,7 @@ sources:
   - apps/curator/src/lib/hierarchyTree.ts
   - src/scrinalia/api/controllers/**
   - src/scrinalia/domains/archive/schemas/document_schema.py
-  - src/scrinalia/api/schemas/public.py
+  - src/scrinalia/domains/archive/schemas/public_projection.py
   - src/scrinalia/api/security.py
   - src/scrinalia/domains/archive/domain/governance.py
   - src/scrinalia/domains/archive/models/enums.py

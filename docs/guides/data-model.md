@@ -13,7 +13,7 @@ sources:
   - src/scrinalia/domains/archive/worker_stamp.py
   - src/scrinalia/domains/archive/repository/text_quality_repo.py
   - src/scrinalia/domains/archive/repository/tag_repo.py
-  - src/scrinalia/api/schemas/public.py
+  - src/scrinalia/domains/archive/schemas/public_projection.py
   - src/scrinalia/core/language/__init__.py
   - migrations/versions/44a1b2c3d4e5_the_origin_is_a_first_class_object.py
   - migrations/versions/0b1c2d3e4f5a_add_the_diffusion_channels.py
@@ -565,22 +565,33 @@ is `DocumentSummary`; the public one is `PublicDocumentSummary`, built **field b
 with `model_validate` on the internal DTO — validating it would make every field the internal view
 gains automatically public.
 
-Two frozensets in `api/schemas/public.py` make the default private:
+Two frozensets in `domains/archive/schemas/public_projection.py` make the default private:
 
 - `NOT_PUBLIC_FIELDS` — fields of `DocumentSummary` that are deliberately not published. It contains
   `review_status`, `is_anomaly`, `anomaly_reasons`, `archivist_notes`, `provenance`,
-  `suggested_final_title`, `rank`, `path`, `parent_id`, `level_id`, `typology_id`, `is_published`, `channels`,
-  `admin_bio_history`, `admin_archival_history` and `access_conditions`.
+  `suggested_final_title`, `rank`, `path`, `parent_id`, `level_id`, `typology_id`, `is_published`,
+  `channels`, `storage_thumbnail_uri`, `admin_bio_history` and `admin_archival_history`.
 - `NOT_PUBLIC_FACETS` — currently just `anomaly_reason`.
+
+The projection lives in the domain and not in `api/schemas` because the allowlist is not an HTTP
+detail: the open dataset (#214) exports the same records, and a domain worker importing the API layer
+would invert the dependency. The API module keeps only the page envelope.
+
+It was widened on 2026-10-30 for the dataset (ADR 0024): `date_expression`, `level_code`,
+`dimension_support` and `access_conditions` are published because an archival interchange cannot be
+lossy about ISAD(G) 3.1.3, 3.1.4, 3.1.5 and 4.1. The projection is single (ADR 0023), so the public
+site shows them too. `storage_thumbnail_uri` left it: an `s3://bucket/key` is not an address a
+browser or a dataset consumer can read, and the resolved URL waits for #198.
 
 Together with the published fields and facets they must remain an **exact partition** of the internal
 read: every field is either published or listed, and none is both. A test fails when a new field or
 facet is left unclassified, so the default for whatever the internal view gains next is private.
 
-Two more rules complete the surface. `published_only` is set **server-side** and is not a client
-parameter, so no query string can ask for an unpublished record. An unpublished id answers **404, not
-403**: a distinct status would confirm that the description exists. And `published_only` is a filter
-that is never excluded from facet counting — no facet may lift the diffusion gate.
+Two more rules complete the surface. `publication_channel=PUBLIC_SITE_CODE` is set **server-side**
+and is not a client parameter, so no query string can ask for a record another channel carries. An id
+outside the channel answers **404, not 403**: a distinct status would confirm that the description
+exists. And the channel clause is a filter that is never excluded from facet counting — no facet may
+lift the diffusion gate.
 
 ## The revision trail of human curation
 
