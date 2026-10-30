@@ -3,11 +3,11 @@
 Two properties make this surface different from the curator's, and both are structural rather than
 procedural:
 
-* every field it returns is declared in ``api/schemas/public.py``, so a new internal field cannot
-  leak by default;
-* it never accepts the diffusion gate as input. ``published_only`` is set **here**, server-side, so
-  no query string can ask for an unpublished record. A route that forgot to set it would be a bug,
-  not a client's choice.
+* every field it returns is declared in ``domains/archive/schemas/public_projection.py``, so a new
+  internal field cannot leak by default;
+* it never accepts the diffusion gate as input. ``publication_channel=PUBLIC_SITE_CODE`` is set
+  **here**, server-side, so no query string can ask for a record another channel carries. A route
+  that forgot to set it would be a bug, not a client's choice.
 
 There is no authentication here on purpose: this surface is born open, and the boundary being
 protected is *what data exists*, not who is asking (ADR 0003).
@@ -20,12 +20,9 @@ from litestar.di import NamedDependency, Provide
 from litestar.params import FromPath, FromQuery
 
 from scrinalia.api.dependencies import provide_diffusion_channel_service, provide_document_service
-from scrinalia.api.schemas.public import (
-    PublicDocumentFacets,
-    PublicDocumentListResponse,
-    PublicDocumentSummary,
-)
+from scrinalia.api.schemas.public import PublicDocumentListResponse
 from scrinalia.api.security import Access
+from scrinalia.domains.archive.schemas.public_projection import PublicDocumentFacets, PublicDocumentSummary
 from scrinalia.domains.archive.schemas.query_schema import DocumentSearchQuery, SearchMode
 from scrinalia.domains.archive.services.document_service import DocumentService
 from scrinalia.domains.diffusion.diffusion_registry import PUBLIC_SITE_CODE, PublicSiteConfig

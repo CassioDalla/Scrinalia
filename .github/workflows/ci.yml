@@ -197,6 +197,16 @@ jobs:
             echo "::error::packages/api-contract/openapi.json está desatualizado. Rode: uv run python -m scrinalia.api.dump_openapi > packages/api-contract/openapi.json && bun run --cwd apps/curator codegen"
             exit 1
           fi
+      - name: Check the dataset contract is up to date
+        # The open dataset (#214) is a public contract too: the schema and the field map are
+        # generated from the models and committed, so a change that does not regenerate them fails
+        # here instead of reaching a consumer with a stale field map.
+        run: |
+          uv run python -m scrinalia.domains.diffusion.dump_dataset_contract --output /tmp/dataset-contract
+          if ! diff -ru packages/dataset-contract/v1 /tmp/dataset-contract; then
+            echo "::error::packages/dataset-contract/v1 está desatualizado. Rode: bun run contract"
+            exit 1
+          fi
       - name: Type check
         run: uv run basedpyright
       - name: Run tests

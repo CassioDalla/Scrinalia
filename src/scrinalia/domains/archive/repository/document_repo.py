@@ -339,6 +339,7 @@ class DocumentRepository:
                         description_id=ancestor.description_id,
                         title=ancestor.final_title or ancestor.original_title,
                         level=ancestor.level,
+                        level_code=ancestor.level_code,
                     )
                     for ancestor_id in node.path.split(".")[:-1]
                     if (ancestor := chain_nodes.get(ancestor_id)) is not None

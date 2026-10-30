@@ -3128,6 +3128,7 @@ export interface components {
         DocumentAncestorSummary: {
             description_id: string;
             level?: string | null;
+            level_code?: string | null;
             title?: string | null;
         };
         /** DocumentDeletionDTO */
@@ -3234,6 +3235,7 @@ export interface components {
             is_published: boolean;
             language_name?: string | null;
             level?: string | null;
+            level_code?: string | null;
             level_id?: number | null;
             macro_categories?: components["schemas"]["DocumentMacroCategorySummary"][];
             original_title: string;
@@ -4417,6 +4419,7 @@ export interface components {
         PublicAncestorSummary: {
             description_id: string;
             level?: string | null;
+            level_code?: string | null;
             title?: string | null;
         };
         /** PublicDocumentFacets */
@@ -4436,21 +4439,24 @@ export interface components {
         };
         /** PublicDocumentSummary */
         PublicDocumentSummary: {
+            access_conditions?: string | null;
             ancestors?: components["schemas"]["PublicAncestorSummary"][];
             /** @default 0 */
             children_count: number;
+            date_expression?: string | null;
             description_id: string;
+            dimension_support?: string | null;
             document_date?: string | null;
             entities?: components["schemas"]["PublicEntitySummary"][];
             final_title?: string | null;
             language_name?: string | null;
             level?: string | null;
+            level_code?: string | null;
             macro_categories?: components["schemas"]["PublicMacroCategorySummary"][];
             original_title: string;
             producers?: string | null;
             reference_code?: string | null;
             scope_content?: string | null;
-            storage_thumbnail_uri?: string | null;
             tags?: components["schemas"]["PublicTagSummary"][];
             typology?: string | null;
         };

@@ -1,0 +1,317 @@
+{
+  "$defs": {
+    "PublicAncestorSummary": {
+      "description": "One rung of the branch the description sits on, root first.",
+      "properties": {
+        "description_id": {
+          "title": "Description Id",
+          "type": "string"
+        },
+        "level": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Level"
+        },
+        "level_code": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Level Code"
+        },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Title"
+        }
+      },
+      "required": [
+        "description_id"
+      ],
+      "title": "PublicAncestorSummary",
+      "type": "object"
+    },
+    "PublicEntitySummary": {
+      "description": "A named entity as the public sees it.",
+      "properties": {
+        "entity_id": {
+          "title": "Entity Id",
+          "type": "integer"
+        },
+        "entity_type": {
+          "title": "Entity Type",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "entity_id",
+        "name",
+        "entity_type"
+      ],
+      "title": "PublicEntitySummary",
+      "type": "object"
+    },
+    "PublicMacroCategorySummary": {
+      "description": "How many of the document's terms belong to each subject drawer.",
+      "properties": {
+        "category_id": {
+          "title": "Category Id",
+          "type": "integer"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "tag_count": {
+          "title": "Tag Count",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "category_id",
+        "name",
+        "tag_count"
+      ],
+      "title": "PublicMacroCategorySummary",
+      "type": "object"
+    },
+    "PublicTagSummary": {
+      "description": "A subject term as the public sees it: the name, and nothing about how it was decided.",
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "tag_id": {
+          "title": "Tag Id",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "tag_id",
+        "name"
+      ],
+      "title": "PublicTagSummary",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "What the diffusion site is allowed to show about one description.\n\nBuilt by :meth:`from_summary`, never by ``model_validate`` on the internal DTO: validating the\ninternal object would make every field it gains automatically public, which is exactly the\nfailure this class exists to prevent.\n\n``extra=\"forbid\"`` makes the generated JSON Schema say the same thing the class does: this is the\ncomplete set of fields, not an open object. The dataset contract (ADR 0024) is generated from it.",
+  "properties": {
+    "access_conditions": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Access Conditions"
+    },
+    "ancestors": {
+      "items": {
+        "$ref": "#/$defs/PublicAncestorSummary"
+      },
+      "title": "Ancestors",
+      "type": "array"
+    },
+    "children_count": {
+      "default": 0,
+      "title": "Children Count",
+      "type": "integer"
+    },
+    "date_expression": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Date Expression"
+    },
+    "description_id": {
+      "title": "Description Id",
+      "type": "string"
+    },
+    "dimension_support": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Dimension Support"
+    },
+    "document_date": {
+      "anyOf": [
+        {
+          "format": "date",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Document Date"
+    },
+    "entities": {
+      "items": {
+        "$ref": "#/$defs/PublicEntitySummary"
+      },
+      "title": "Entities",
+      "type": "array"
+    },
+    "final_title": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Final Title"
+    },
+    "language_name": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Language Name"
+    },
+    "level": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Level"
+    },
+    "level_code": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Level Code"
+    },
+    "macro_categories": {
+      "items": {
+        "$ref": "#/$defs/PublicMacroCategorySummary"
+      },
+      "title": "Macro Categories",
+      "type": "array"
+    },
+    "original_title": {
+      "title": "Original Title",
+      "type": "string"
+    },
+    "producers": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Producers"
+    },
+    "reference_code": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Reference Code"
+    },
+    "scope_content": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Scope Content"
+    },
+    "tags": {
+      "items": {
+        "$ref": "#/$defs/PublicTagSummary"
+      },
+      "title": "Tags",
+      "type": "array"
+    },
+    "typology": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Typology"
+    }
+  },
+  "required": [
+    "description_id",
+    "original_title"
+  ],
+  "title": "PublicDocumentSummary",
+  "type": "object"
+}

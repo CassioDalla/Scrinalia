@@ -3211,3 +3211,28 @@ with short or full shas, and part of a `## <date> — <title>` entry.
   one covered record): the "A publicar" empty state, "Publicadas", "Histórico" and the "Manter
   privado" preview panel. **Not verified:** the confirm and the undo were not clicked in the
   browser; they are pinned by the API's integration tests.
+
+## 2026-10-30 — the open dataset contract (#214a)
+
+- **Range:** `3d99969..cfd9120`
+- **Pages:**
+  - `adr/0024-the-open-dataset-is-a-versioned-projection.md` — created: the record is the single
+    projection and it moves to the domain; the four ISAD(G) fields that join it and the storage URI
+    that leaves it; v1's formats and the EAD3 deferral; the manifest and the required data license;
+    the local snapshot and the public door; the generated contract and its versioning.
+  - `adr/index.md` — **updated**: the link to 0024.
+  - `guides/data-model.md` / `.pt.md` — **updated**: the public-surface section names
+    `domains/archive/schemas/public_projection.py`, the four widened fields with their ISAD(G)
+    elements, the `storage_thumbnail_uri` removal and its reason, and the gate by
+    `publication_channel=PUBLIC_SITE_CODE` instead of the old `published_only` name.
+  - `guides/curate.md` — **updated**: the declared source path follows the moved projection; the
+    body is unchanged because the page does not enumerate the public fields.
+  - `guides/curate.pt.md` — **no-change**: the English page changed only in its declared source path,
+    which the translation does not carry.
+  - `guides/install.md` — **no-change**: `package.json` moved its `contract` script to regenerate the
+    dataset artifacts too; the command, its purpose and every install step are the same.
+  - `guides/operate.md` — **no-change**: the dataset channel is not registered yet (no adapter, 214b)
+    and the CI contract check is not operator-facing; the read-view change is the ancestor's stable
+    level code, and `mkdocs.yml` moved only because the nav gained ADR 0024.
+- **Not verified:** the adapter, the run and the download route do not exist yet (214b/214c); the
+  contract is generated and tested, not exercised against a published collection.

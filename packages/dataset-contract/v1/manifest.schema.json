@@ -1,0 +1,315 @@
+{
+  "$defs": {
+    "DatasetArtifact": {
+      "additionalProperties": false,
+      "description": "One file of the package, with the hash a consumer verifies before ingesting it.",
+      "properties": {
+        "bytes": {
+          "minimum": 0,
+          "title": "Bytes",
+          "type": "integer"
+        },
+        "format": {
+          "enum": [
+            "json",
+            "ndjson",
+            "csv"
+          ],
+          "title": "Format",
+          "type": "string"
+        },
+        "path": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Path",
+          "type": "string"
+        },
+        "records": {
+          "minimum": 0,
+          "title": "Records",
+          "type": "integer"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "format",
+        "path",
+        "bytes",
+        "sha256",
+        "records"
+      ],
+      "title": "DatasetArtifact",
+      "type": "object"
+    },
+    "DatasetInstitution": {
+      "additionalProperties": false,
+      "description": "Who publishes the dataset, and how a consumer reaches them.",
+      "properties": {
+        "contact_email": {
+          "anyOf": [
+            {
+              "maxLength": 254,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Contact Email"
+        },
+        "name": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "url": {
+          "anyOf": [
+            {
+              "format": "uri",
+              "maxLength": 2083,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Url"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "DatasetInstitution",
+      "type": "object"
+    },
+    "DatasetLicense": {
+      "additionalProperties": false,
+      "description": "The **data** license, which is not the software license.\n\nThe software is AGPL-3.0-only with an attribution term (ADR 0006); that says nothing about the\nrecords, and an institution may diffuse a collection under CC BY while the software stays AGPL.\nThe two are separate on purpose, and the manifest carries both.\n\n``attribution`` is the TASL line (Title, Author, Source, License) a CC BY reuse must display. It is\nrequired for the licenses that demand it, and optional for CC0, which waives attribution.",
+      "properties": {
+        "attribution": {
+          "anyOf": [
+            {
+              "maxLength": 2000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Attribution"
+        },
+        "id": {
+          "enum": [
+            "CC0-1.0",
+            "CC-BY-4.0",
+            "CC-BY-SA-4.0",
+            "custom"
+          ],
+          "title": "Id",
+          "type": "string"
+        },
+        "name": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "url": {
+          "anyOf": [
+            {
+              "format": "uri",
+              "maxLength": 2083,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Url"
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ],
+      "title": "DatasetLicense",
+      "type": "object"
+    },
+    "DatasetSoftware": {
+      "additionalProperties": false,
+      "description": "The software that wrote the package, and where its source and license are.",
+      "properties": {
+        "license": {
+          "maxLength": 50,
+          "minLength": 1,
+          "title": "License",
+          "type": "string"
+        },
+        "license_url": {
+          "format": "uri",
+          "maxLength": 2083,
+          "minLength": 1,
+          "title": "License Url",
+          "type": "string"
+        },
+        "name": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "source_url": {
+          "format": "uri",
+          "maxLength": 2083,
+          "minLength": 1,
+          "title": "Source Url",
+          "type": "string"
+        },
+        "version": {
+          "maxLength": 50,
+          "minLength": 1,
+          "title": "Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "version",
+        "license",
+        "license_url",
+        "source_url"
+      ],
+      "title": "DatasetSoftware",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "``manifest.json``: what the package is, what it contains and what changed since the last one.\n\n``snapshot_id`` is the content identity: the writer derives it from the ordered records, **not**\nfrom ``generated_at``, so two runs over the same covered set share it and a consumer can tell\n\"nothing changed\" without downloading the files again. ``previous_snapshot_id`` and ``removals``\nare what let a custom site delete what left the published set; the dataset keeps no tombstone of\nits own, the coverage is the truth.\n\nThe manifest is a document the installation writes, so ``extra=\"forbid\"`` is safe: an unknown key\nis a writer bug, not a consumer's extension.",
+  "properties": {
+    "api_url": {
+      "anyOf": [
+        {
+          "format": "uri",
+          "maxLength": 2083,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Api Url"
+    },
+    "artifacts": {
+      "items": {
+        "$ref": "#/$defs/DatasetArtifact"
+      },
+      "minItems": 1,
+      "title": "Artifacts",
+      "type": "array"
+    },
+    "field_map": {
+      "default": "field-map.json",
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Field Map",
+      "type": "string"
+    },
+    "generated_at": {
+      "format": "date-time",
+      "title": "Generated At",
+      "type": "string"
+    },
+    "institution": {
+      "$ref": "#/$defs/DatasetInstitution"
+    },
+    "license": {
+      "$ref": "#/$defs/DatasetLicense"
+    },
+    "openapi_url": {
+      "anyOf": [
+        {
+          "format": "uri",
+          "maxLength": 2083,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Openapi Url"
+    },
+    "previous_snapshot_id": {
+      "anyOf": [
+        {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Previous Snapshot Id"
+    },
+    "readme": {
+      "default": "README.md",
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Readme",
+      "type": "string"
+    },
+    "record_count": {
+      "minimum": 0,
+      "title": "Record Count",
+      "type": "integer"
+    },
+    "removals": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Removals",
+      "type": "array"
+    },
+    "schema_version": {
+      "const": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "snapshot_id": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Snapshot Id",
+      "type": "string"
+    },
+    "software": {
+      "$ref": "#/$defs/DatasetSoftware"
+    }
+  },
+  "required": [
+    "schema_version",
+    "snapshot_id",
+    "generated_at",
+    "record_count",
+    "artifacts",
+    "removals",
+    "license",
+    "institution",
+    "software",
+    "api_url",
+    "openapi_url"
+  ],
+  "title": "DatasetManifest",
+  "type": "object"
+}

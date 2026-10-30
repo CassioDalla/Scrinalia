@@ -536,24 +536,34 @@ interna é `DocumentSummary`; a pública é `PublicDocumentSummary`, construída
 com `model_validate` sobre o DTO interno — validá-lo tornaria público automaticamente todo campo que a
 visão interna ganhasse.
 
-Dois frozensets em `api/schemas/public.py` tornam o padrão privado:
+Dois frozensets em `domains/archive/schemas/public_projection.py` tornam o padrão privado:
 
 - `NOT_PUBLIC_FIELDS` — campos de `DocumentSummary` deliberadamente não publicados. Contém
   `review_status`, `is_anomaly`, `anomaly_reasons`, `archivist_notes`, `provenance`,
-  `suggested_final_title`, `rank`, `path`, `parent_id`, `level_id`, `typology_id`, `is_published`, `channels`,
-  `admin_bio_history`, `admin_archival_history` e `access_conditions`.
+  `suggested_final_title`, `rank`, `path`, `parent_id`, `level_id`, `typology_id`, `is_published`,
+  `channels`, `storage_thumbnail_uri`, `admin_bio_history` e `admin_archival_history`.
 - `NOT_PUBLIC_FACETS` — atualmente apenas `anomaly_reason`.
+
+A projeção mora no domínio e não em `api/schemas` porque a allowlist não é um detalhe HTTP: o conjunto
+aberto (#214) exporta os mesmos registros, e um worker do domínio importar a camada da API inverteria a
+dependência. O módulo da API guarda apenas o envelope da página.
+
+Ela foi ampliada em 2026-10-30 para o dataset (ADR 0024): `date_expression`, `level_code`,
+`dimension_support` e `access_conditions` passaram a ser publicados porque um intercâmbio arquivístico
+não pode ser lossy em ISAD(G) 3.1.3, 3.1.4, 3.1.5 e 4.1. A projeção é única (ADR 0023), então o site
+público também os mostra. `storage_thumbnail_uri` saiu: um `s3://bucket/key` não é um endereço que um
+navegador ou um consumidor de dataset consiga ler, e a URL resolvida espera a #198.
 
 Junto com os campos e facetas publicados, eles precisam permanecer uma **partição exata** da leitura
 interna: todo campo ou é publicado ou está listado, e nenhum é as duas coisas. Um teste falha quando
 um novo campo ou faceta fica sem classificação, então o padrão para o que a visão interna ganhar a
 seguir é privado.
 
-Mais duas regras completam a superfície. `published_only` é definido **no servidor** e não é parâmetro
-de cliente, então nenhuma query string pode pedir um registro não publicado. Um id não publicado
-responde **404, não 403**: um status distinto confirmaria que a descrição existe. E `published_only`
-é um filtro que nunca é excluído da contagem de facetas — nenhuma faceta pode levantar o portão da
-difusão.
+Mais duas regras completam a superfície. `publication_channel=PUBLIC_SITE_CODE` é definido **no
+servidor** e não é parâmetro de cliente, então nenhuma query string pode pedir um registro que outro
+canal carrega. Um id fora do canal responde **404, não 403**: um status distinto confirmaria que a
+descrição existe. E a cláusula do canal é um filtro que nunca é excluído da contagem de facetas —
+nenhuma faceta pode levantar o portão da difusão.
 
 ## A trilha de revisão da curadoria humana
 
