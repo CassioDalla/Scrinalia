@@ -221,3 +221,23 @@ TRANSLATIONS.update(
         "A descrição '{description_id}' não existe no acervo.": "Description '{description_id}' does not exist in the collection.",
     }
 )
+
+TRANSLATIONS.update(
+    {
+        "'{path}' não é um documents.csv válido.": "'{path}' is not a valid documents.csv.",
+        "'{path}' não é um documents.json válido.": "'{path}' is not a valid documents.json.",
+        "A licença de dados do conjunto está incompleta: {exc}": "The dataset's data license is incomplete: {exc}",
+        "A linha {number} de '{path}' não é um registro válido.": "Line {number} of '{path}' is not a valid record.",
+        "Configuração inválida do canal 'dataset': {exc}": "Invalid 'dataset' channel configuration: {exc}",
+        "Informe a instituição responsável pelo conjunto ou configure a instituição do site público.": "State the institution responsible for the dataset, or configure the public site's institution.",
+        "O canal 'dataset' não tem destino. Informe o diretório onde o snapshot será escrito.": "The 'dataset' channel has no destination. State the directory where the snapshot will be written.",
+        "O destino '{path}' é um arquivo, não um diretório.": "The destination '{path}' is a file, not a directory.",
+        "O diretório pai do destino '{path}' não existe.": "The parent directory of the destination '{path}' does not exist.",
+        "O exportador do conjunto de dados recebeu o canal '{code}'.": "The dataset exporter received channel '{code}'.",
+        "O manifesto do snapshot '{id}' não existe em '{path}'.": "The manifest of snapshot '{id}' does not exist at '{path}'.",
+        "O manifesto do snapshot '{id}' não pôde ser lido: {exc}": "The manifest of snapshot '{id}' could not be read: {exc}",
+        "O manifesto lista um caminho inválido para o snapshot: '{path}'.": "The manifest lists an invalid path for the snapshot: '{path}'.",
+        "O ponteiro '{pointer}' do destino não aponta para um snapshot válido.": "The destination's pointer '{pointer}' does not name a valid snapshot.",
+        "O snapshot '{id}' não tem nenhum arquivo de dados que o próximo run possa comparar.": "Snapshot '{id}' has no data file the next run can compare against.",
+    }
+)

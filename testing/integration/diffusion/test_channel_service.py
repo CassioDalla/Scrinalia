@@ -30,13 +30,18 @@ from testing.integration.diffusion.fake_channel import FAKE_EXPORT, FAKE_WITHOUT
 def test_the_list_starts_with_the_public_site_unconfigured(db_session: Session) -> None:
     channels = DiffusionChannelService(db_session).list_channels()
 
-    assert [channel.code for channel in channels.channels] == ["public_site"]
+    assert [channel.code for channel in channels.channels] == ["public_site", "dataset"]
     public_site = channels.channels[0]
     assert public_site.configured is False
     assert public_site.enabled is False
     assert public_site.config == {}
     assert public_site.capability == "LIVE"
     assert {field.name for field in public_site.config_fields} >= {"site_title", "locale", "allow_indexing"}
+
+    dataset = channels.channels[1]
+    assert dataset.configured is False
+    assert dataset.capability == "EXPORT"
+    assert {field.name for field in dataset.config_fields} >= {"dataset_title", "destination_path", "license_id"}
 
 
 def test_the_patch_creates_the_row_and_a_pause_keeps_the_config(db_session: Session) -> None:

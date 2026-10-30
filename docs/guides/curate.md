@@ -1361,7 +1361,9 @@ cannot validate is not a row — the public site's title is required. **Desativa
 model on every read and write, so a typo is a 422 with a sentence, and the page renders **one generic
 form** over the channel's fields rather than one component per channel. The public site's card states
 the consequence the owner asks about: the public application is a separate surface, and enabling the
-channel does not install it.
+channel does not install it. The picker also offers the open dataset (`dataset`), the first `EXPORT`
+the package ships: its card configures the destination, the formats and the data license, and its run
+writes the package [Operação](operate.md) describes.
 
 ### Configuração dos Workers — `/configuracoes/workers`
 
