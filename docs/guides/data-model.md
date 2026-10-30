@@ -4,6 +4,8 @@ sources:
   - src/scrinalia/domains/ingestion/origin_registry.py
   - src/scrinalia/domains/ingestion/origins.py
   - src/scrinalia/domains/diffusion/models.py
+  - src/scrinalia/domains/diffusion/coverage.py
+  - src/scrinalia/domains/diffusion/publication_repository.py
   - src/scrinalia/domains/diffusion/diffusion_registry.py
   - src/scrinalia/domains/staging/models.py
   - src/scrinalia/domains/archive/models/**
@@ -15,6 +17,9 @@ sources:
   - src/scrinalia/core/language/__init__.py
   - migrations/versions/44a1b2c3d4e5_the_origin_is_a_first_class_object.py
   - migrations/versions/0b1c2d3e4f5a_add_the_diffusion_channels.py
+  - migrations/versions/9f2a7c1e5b30_add_the_diffusion_publication_scopes.py
+  - migrations/versions/a4c8d0e2f614_derive_the_channel_coverage_in_a_view.py
+  - migrations/versions/b7e3f9a1c852_add_the_publication_batch_ledger.py
   - migrations/versions/b7e4c2a9f1d0_the_schedule_and_the_retry.py
   - migrations/versions/fe7fcab37207_add_the_failure_fingerprint_and_the_api_.py
   - testing/conftest.py
@@ -281,13 +286,26 @@ owes a client, and recording them buries the real defects.
 | Table | Purpose | Key columns |
 | --- | --- | --- |
 | `diffusion_channels` | One channel's lifecycle, configuration and agenda: what the operator adds and configures without a deploy. A `LIVE` channel is read on every request; an `EXPORT` channel has an agenda and a run. | `code` (primary key), `enabled`, `config` (JSONB: the channel's presentation identity; never a secret), `options` (JSONB: the run policy), `cron`, `timezone`, `next_run_at`, `last_enqueued_at`, `last_skipped_at`, `updated_by`, `updated_by_user_id` |
+| `diffusion_channel_scopes` | The positive scope: "this branch or record goes to this channel". Its approved descendants are covered on read from the materialised `path`, so a child approved later enters without a second decision. Revoking writes `revoked_at`; the row is never deleted, because it records that the decision was taken. | `scope_id` (primary key), `channel_code` (FK → `diffusion_channels`, `RESTRICT`), `node_id` (FK → `archive_documents`, `CASCADE`), `include_descendants`, `note`, `created_by`, `created_by_user_id`, `created_at`, `revoked_at`, `revoked_by`, `revoked_by_user_id` |
+| `diffusion_channel_exclusions` | The negative scope: "this branch or record stays out of this channel", with the curator's reason. It overrides any positive scope that covers the same record. | the positive scope's shape plus `reason` |
+| `diffusion_publication_batches` | One publication gesture — publish a ramo, publish a selection, keep a record private, revoke a ramo — with the resolved selection, the counts and the author. It is the reversible unit of principle VI. | `batch_id`, `action` (`PUBLISH`/`EXCLUDE`/`REVOKE`/`UNEXCLUDE`), `selection` (JSONB), `applied_count`, `skipped_count`, `note`, `requested_by`, `requested_by_user_id`, `created_at`, `undone_at`, `undone_by`, `undone_by_user_id` |
+| `diffusion_publication_entries` | Each scope row a batch created or revoked, with the state before and after and a snapshot of the node. The undo reads it and skips what changed since; the node is a snapshot and not a foreign key, so a deleted or moved branch still has an explanation. | `entry_id`, `batch_id` (FK, `CASCADE`), `channel_code`, `kind` (`INCLUSION`/`EXCLUSION`), `scope_id`, `node_id`, `node_path`, `node_title`, `include_descendants`, `was_active`, `is_active`, `created_at` |
 
 A diffusion channel is a definition in code plus this lifecycle row (#211, ADR 0023). The registry only
 ships channels that work: `public_site` is `LIVE` and has no run, while the dataset and AtoM are
 `EXPORT` channels with their own adapters. `enabled=false` is a pause, not an absence; a missing row
-is "never added", which is what the `configured` flag on the DTO distinguishes. The row carries no
-record: the records a channel exposes are the publication scopes of #251, and `config` never holds a
+is "never added", which is what the `configured` flag on the DTO distinguishes. `config` never holds a
 secret — a token is named by an environment variable, not stored here.
+
+The records a channel exposes are a **read**, not a table: `archive_document_channels` is the view
+that answers "which channels carry this description". It returns one row per (description, channel)
+when the record is `HUMAN_APPROVED`, a positive scope covers it and no negative scope does, and it
+names the scope that is the origin of the coverage (`scope_id`), so a screen can say "pelo ramo do
+Fundo A" without re-implementing the predicate. The view reads the materialised `path` and the
+node's current position, so moving a branch moves what it covers; it does **not** read `enabled`,
+because pausing a channel is the operator's decision and the curator's "Publicadas" must keep saying
+what was published. `archive_documents.is_published` stops being a column when the curator surface
+lands (#251); until then it is still the public gate.
 
 ### Identity — the installation, not the collection
 

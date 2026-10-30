@@ -254,14 +254,27 @@ a API deve a um cliente, e registrá-las enterra os defeitos de verdade.
 | Tabela | Para que serve | Colunas principais |
 | --- | --- | --- |
 | `diffusion_channels` | O ciclo de vida, a configuração e a agenda de um canal: o que o operador adiciona e configura sem deploy. Um canal `LIVE` é lido a cada requisição; um canal `EXPORT` tem agenda e execução. | `code` (chave primária), `enabled`, `config` (JSONB: a identidade de apresentação do canal; nunca um segredo), `options` (JSONB: a política de execução), `cron`, `timezone`, `next_run_at`, `last_enqueued_at`, `last_skipped_at`, `updated_by`, `updated_by_user_id` |
+| `diffusion_channel_scopes` | O escopo positivo: "este ramo ou registro vai para este canal". Os descendentes aprovados são cobertos na leitura, pelo `path` materializado, então um filho aprovado depois entra sem uma segunda decisão. Revogar grava `revoked_at`; a linha nunca é apagada, porque registra que a decisão existiu. | `scope_id` (chave primária), `channel_code` (FK → `diffusion_channels`, `RESTRICT`), `node_id` (FK → `archive_documents`, `CASCADE`), `include_descendants`, `note`, `created_by`, `created_by_user_id`, `created_at`, `revoked_at`, `revoked_by`, `revoked_by_user_id` |
+| `diffusion_channel_exclusions` | O escopo negativo: "este ramo ou registro fica fora deste canal", com a razão do curador. Ele vence qualquer escopo positivo que cubra o mesmo registro. | a forma do escopo positivo mais `reason` |
+| `diffusion_publication_batches` | Um gesto de publicação — publicar um ramo, publicar uma seleção, manter um registro privado, revogar um ramo — com a seleção resolvida, as contagens e o autor. É a unidade reversível do princípio VI. | `batch_id`, `action` (`PUBLISH`/`EXCLUDE`/`REVOKE`/`UNEXCLUDE`), `selection` (JSONB), `applied_count`, `skipped_count`, `note`, `requested_by`, `requested_by_user_id`, `created_at`, `undone_at`, `undone_by`, `undone_by_user_id` |
+| `diffusion_publication_entries` | Cada linha de escopo que um lote criou ou revogou, com o estado antes e depois e um retrato do nó. O desfazer a lê e pula o que mudou desde então; o nó é retrato e não chave estrangeira, então um ramo excluído ou movido continua tendo explicação. | `entry_id`, `batch_id` (FK, `CASCADE`), `channel_code`, `kind` (`INCLUSION`/`EXCLUSION`), `scope_id`, `node_id`, `node_path`, `node_title`, `include_descendants`, `was_active`, `is_active`, `created_at` |
 
 Um canal de difusão é uma definição em código mais esta linha de ciclo de vida (#211, ADR 0023). O
 registro só oferece canais que funcionam: `public_site` é `LIVE` e não tem execução, enquanto o
 conjunto de dados e o AtoM são canais `EXPORT` com adaptadores próprios. `enabled=false` é uma pausa,
 não uma ausência; uma linha faltando é "nunca adicionado", que é o que o campo `configured` do DTO
-distingue. A linha não carrega registro: os registros que um canal expõe são os escopos de publicação
-da #251, e `config` nunca guarda segredo — um token é nomeado por variável de ambiente, não armazenado
+distingue. `config` nunca guarda segredo — um token é nomeado por variável de ambiente, não armazenado
 aqui.
+
+Os registros que um canal expõe são uma **leitura**, não uma tabela: `archive_document_channels` é a
+view que responde "quais canais carregam esta descrição". Ela devolve uma linha por (descrição, canal)
+quando o registro é `HUMAN_APPROVED`, um escopo positivo o cobre e nenhum escopo negativo o cobre, e
+nomeia o escopo que é a origem da cobertura (`scope_id`), para uma tela poder dizer "pelo ramo do
+Fundo A" sem reimplementar o predicado. A view lê o `path` materializado e a posição atual do nó,
+então mover um ramo move o que ele cobre; ela **não** lê `enabled`, porque pausar um canal é decisão
+do operador e o "Publicadas" do curador tem de continuar dizendo o que foi publicado.
+`archive_documents.is_published` deixa de ser coluna quando a superfície do curador chegar (#251); até
+lá, ele ainda é o gate público.
 
 ### Identity — a instalação, não o acervo
 
