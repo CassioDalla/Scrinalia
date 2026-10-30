@@ -212,8 +212,12 @@ Positive:
 Negative, accepted:
 
 - **The `is_published` column is dropped.** The migration, the search query, the public detail route,
-  the facets, the deletion snapshots and the revision JSON all move. The 0-published collection makes
-  the data migration safe; the old snapshots keep the key they recorded and the new ones do not.
+  the facets, the deletion snapshots and the revision JSON all move. The migration **refuses to drop
+  a decision in silence**: an installation whose collection still carries `is_published = true` is
+  stopped with the count and the procedure — list the ids, keep them, clear the flag, upgrade and
+  republish through the Difusão page — because there is no channel to convert them to and inventing
+  one would be the migration deciding what the institution publishes. The old snapshots keep the key
+  they recorded and the new ones do not.
 - **The public API's gate changes.** `published_only` becomes the `public_site` coverage; the 404
   stays. #210's "the live API is the union" is amended.
 - **The view is the hot path.** The coverage predicate joins the materialised path; the scopes are
@@ -257,6 +261,34 @@ Negative, accepted:
   demands a materialisation.
 - **AtoM in the first release.** Deferred, not rejected: the registry must prove a second export
   adapter first; the AtoM mechanism is a research task.
+
+## Amendment — 2026-10-30: the views as implemented (#251)
+
+Three details of §3 were settled when the scopes landed, and the measurement was taken twice.
+
+- **The views name the covering scope.** `archive_document_channels` returns (`description_id`,
+  `channel_code`, `scope_id`) — still one row per pair, with the *nearest* scope as the origin: the
+  fundo's scope for a dossier nobody scoped directly, the dossier's for one that is. The pair stays
+  unique, so the dataset (#214) still filters `channel_code = 'dataset'`; the extra column is what
+  lets the curator's page say "pelo ramo do Fundo A" without a second definition of the predicate.
+- **The negative set is its own view.** `archive_document_channel_exclusions` answers the same trio
+  for the exclusions, and the coverage view composes it instead of repeating the exclusion clause.
+  The split is what lets the preview say *why* a record is skipped — "excluded" and not "not
+  covered" — without a second implementation of the predicate.
+- **The branch is expanded from the path, not matched with `LIKE`.** `path LIKE node_path || '.%'`
+  builds the pattern per scope, so the planner compares every approved description against every
+  scope. On one seeded collection — 48 050 descriptions, 50 scopes, 100 exclusions, both views
+  answering 34 850 rows — the public predicate took **1 146 ms** and the whole channel read
+  **1 061 ms**. Expanding each description into its ancestors and joining the scopes on the node id
+  is linear in the coverage: **275 ms** and **184 ms** on the same collection, and **5–48 ms** for
+  the page's reads on 4 910 descriptions. The split assumes a description id carries no dot — the
+  same assumption `build_path` and the dossier's ancestor resolution already make.
+- **The views do not read `enabled`.** A paused channel keeps its coverage, the page marks it paused,
+  and the public surface is the one that refuses to serve it.
+- **The materialised table remains the revisit.** At 48 050 the header counts take **180 ms** and
+  the covered list **556 ms**, and both grow with the collection; a materialised
+  `archive_document_channels` is the answer if an installation's reference collection reaches that
+  size.
 
 ## Revisit trigger
 

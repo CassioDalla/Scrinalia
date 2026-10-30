@@ -36,7 +36,6 @@ import { ACTION, DIGITAL_OBJECT } from "@/lib/copy";
 import { ENTITY_ORIGIN_HINT, ENTITY_ORIGIN_LABEL, ENTITY_ORIGIN_TONE } from "@/lib/entities";
 import { formatCount, formatDate, formatDateTime, REVIEW_STATUS_LABEL, REVIEW_STATUS_TONE } from "@/lib/format";
 import { fieldsOfArea, ISAD_AREAS } from "@/lib/isad";
-import { Hint } from "@/components/ui/Hint";
 
 const routeApi = getRouteApi("/acervo/$descriptionId");
 
@@ -135,7 +134,6 @@ function DescriptionTab({ document }: { document: DocumentSummary }) {
   const [note, setNote] = useState("");
   const [levels, setLevels] = useState<number | undefined>(document.level_id ?? undefined);
   const [typology, setTypology] = useState<number | undefined>(document.typology_id ?? undefined);
-  const [published, setPublished] = useState(document.is_published);
 
   const levelOptions = useQuery(queries.levels());
   const typologyOptions = useQuery(queries.typologies());
@@ -154,7 +152,6 @@ function DescriptionTab({ document }: { document: DocumentSummary }) {
         ...(edited as DocumentUpdateRequest),
         level_id: levels ?? null,
         typology_id: typology ?? null,
-        is_published: published,
         review_note: note || null,
       };
       return updateDocument(document.description_id, body);
@@ -314,24 +311,6 @@ function DescriptionTab({ document }: { document: DocumentSummary }) {
           </CardBody>
         </Card>
       ))}
-
-      <Card>
-        <CardHeader className="text-sm font-semibold">{messages.pages.document.diffusion.title}</CardHeader>
-        <CardBody>
-          <label className="flex items-center gap-2">
-            <input type="checkbox" checked={published} onChange={(event) => setPublished(event.target.checked)} />
-            <span className="text-sm">
-              {messages.pages.document.diffusion.publish}
-              <Hint label={messages.pages.document.diffusion.publish} className="text-xs">
-                <Trans
-                  text={messages.pages.document.diffusion.publishHint}
-                  values={{ notBlocked: <strong>{messages.pages.document.diffusion.notBlocked}</strong> }}
-                />
-              </Hint>
-            </span>
-          </label>
-        </CardBody>
-      </Card>
 
       {/*
         The control is disabled on purpose, and the sentence that explains it is one definition
@@ -839,15 +818,32 @@ function ArrangementTab({ document }: { document: DocumentSummary }) {
 
       <Card>
         <CardHeader className="text-sm font-semibold">{messages.pages.document.arrangement.publicationTitle}</CardHeader>
-        <CardBody className="text-sm">
+        <CardBody className="grid gap-2 text-sm">
           {document.is_published ? (
             <Badge tone="ok">{messages.pages.document.arrangement.publishedDiffusion}</Badge>
           ) : (
             <Badge tone="neutral">{messages.pages.document.arrangement.notPublished}</Badge>
           )}
-          <p className="mt-2 text-xs text-(--color-muted)">
-            {messages.pages.document.arrangement.publicationHint}
-          </p>
+          <div className="flex flex-wrap items-center gap-1">
+            <span className="text-xs text-(--color-muted)">
+              {messages.pages.document.arrangement.channelsLabel}
+            </span>
+            {(document.channels ?? []).length === 0 ? (
+              <span className="text-xs text-(--color-muted)">
+                {messages.pages.document.arrangement.noChannel}
+              </span>
+            ) : (
+              (document.channels ?? []).map((code) => (
+                <Badge key={code} tone="accent">
+                  {code}
+                </Badge>
+              ))
+            )}
+          </div>
+          <p className="text-xs text-(--color-muted)">{messages.pages.document.arrangement.publicationHint}</p>
+          <Link to="/difusao" className="text-xs underline">
+            {messages.pages.document.arrangement.openDiffusion}
+          </Link>
         </CardBody>
       </Card>
     </div>

@@ -241,9 +241,11 @@ class DocumentSummary(BaseModel):
     review_status: ArchiveReviewStatus
     is_anomaly: bool = False
     anomaly_reasons: list[str] | None = Field(default=None, description="Codes written by the quality validator.")
-    #: Diffusion decision (Fase 4). Orthogonal to ``review_status``: a record can be corrected
-    #: without being published, and publishing it must not lock the AI out of improving it.
+    #: Derived from the coverage (ADR 0023): the channels that carry the record, and whether any
+    #: does. It is a read, not a stored decision — the scopes are the decision — and the approval it
+    #: requires is what locks the AI, not the publication.
     is_published: bool = False
+    channels: list[str] = Field(default_factory=list, description="Os canais que carregam o registro.")
     storage_thumbnail_uri: str | None = None
 
     # ISAD(G) fields the archivist may correct; exposed so the API can show what is there.

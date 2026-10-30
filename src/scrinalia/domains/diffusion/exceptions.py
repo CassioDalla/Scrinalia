@@ -37,3 +37,46 @@ class DiffusionAdapterMissingError(DomainException):
     """
 
     pass
+
+
+class PublicationPreviewStaleError(DomainException):
+    """
+    The selection a preview resolved is not the one the apply would resolve.
+
+    The token is a **consistency** check and not a capability: it exists so the confirmation cannot
+    run over a different set (a record approved meanwhile, a scope revoked by another curator), and
+    never to authorize the write — that is the session's ``CURATE``. It expires, and an expired or
+    tampered token is the same refusal: preview again.
+    """
+
+    pass
+
+
+class PublicationNodeNotFoundError(DomainException):
+    """The branch or record a publication names does not exist in the archive."""
+
+    pass
+
+
+class PublicationBatchNotFoundError(DomainException):
+    """The history has no batch with this id."""
+
+    pass
+
+
+class PublicationBatchAlreadyUndoneError(DomainException):
+    """The batch was already undone; a second undo would revert decisions taken after it."""
+
+    pass
+
+
+class PublicationRefusedError(DomainException):
+    """
+    The gesture is well formed and there is nothing it can do.
+
+    A scope the channel already has, an exclusion and an inclusion on the same node, every selected
+    record already covered: the answer is a sentence about what to do next, not a silent no-op that
+    would leave the curator believing the click wrote.
+    """
+
+    pass

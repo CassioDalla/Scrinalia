@@ -3189,3 +3189,25 @@ with short or full shas, and part of a `## <date> — <title>` entry.
   rows, the `canal dataset` badge, the channel filter and the enqueue button); the enqueue click and
   the polling were not exercised against a live API in the browser — the route, the slot and the
   refusals are pinned by the API's integration tests, not by a rendered write.
+
+## 2026-10-30 — the publication scopes, the API and the Difusão page (#251)
+
+- **Range:** `6ca3af6..c64fec7`
+- **Pages:**
+  - `guides/curate.md` / `.pt.md` — **updated**: "diffusion is not review" now describes the scope
+    model (positive and negative, the child approved later, the coverage read), the Difusão page
+    with its four views and the preview/confirm/undo, the three removals, the dossier's read-only
+    card and the `public_site` public gate (404 while absent or paused). A new screen section
+    (`/difusao`) and the menu/router counts.
+  - `guides/data-model.md` / `.pt.md` — **updated**: `is_published` left the `archive_documents`
+    row, the note explains the derived flag and `channels`, the diffusion section gained the two
+    views and the four tables, and `channels` joined `NOT_PUBLIC_FIELDS`.
+  - `adr/0023-diffusion-is-a-channel-registry-and-a-scope.md` — **updated**: the amendment records
+    the two views, the measured LIKE-vs-ancestry decision and the migration's refusal to drop a
+    decision in silence.
+  - `.dsh/skills/search/SKILL.md` and `.dsh/skills/api/SKILL.md` — **updated**: the public predicate
+    is the coverage, and the review command no longer writes `is_published`.
+- **Rendered:** the Difusão page with the headless shell against a live API (a seeded channel and
+  one covered record): the "A publicar" empty state, "Publicadas", "Histórico" and the "Manter
+  privado" preview panel. **Not verified:** the confirm and the undo were not clicked in the
+  browser; they are pinned by the API's integration tests.

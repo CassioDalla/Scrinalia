@@ -44,6 +44,7 @@ def _published_summary(description_id: str = "pub-1") -> DocumentSummary:
         document_date=date(1954, 3, 12),
         review_status=ArchiveReviewStatus.HUMAN_APPROVED,
         is_published=True,
+        channels=["public_site"],
         is_anomaly=True,
         anomaly_reasons=["BAD_DATE"],
         archivist_notes="nota interna",
@@ -65,6 +66,7 @@ def test_the_public_list_always_applies_the_diffusion_gate(client: TestClient, m
     A client that sends ``published_only=false`` — or anything else — must not be able to ask for
     unpublished records, because the parameter is not part of the public contract at all.
     """
+    mocker.patch.object(DiffusionChannelService, "require_enabled")
     mock_search = mocker.patch.object(DocumentService, "search")
     mock_search.return_value = DocumentListResponse(total=0, limit=50, offset=0, items=[])
 
@@ -72,12 +74,13 @@ def test_the_public_list_always_applies_the_diffusion_gate(client: TestClient, m
 
     assert response.status_code == HTTP_200_OK
     query = mock_search.call_args.args[0]
-    assert query.published_only is True
+    assert query.publication_channel == "public_site"
     assert query.limit == 10
 
 
 def test_the_public_list_projects_every_item_through_the_allowlist(client: TestClient, mocker) -> None:
     """What leaves the API is the projection, not the internal read view."""
+    mocker.patch.object(DiffusionChannelService, "require_enabled")
     mock_search = mocker.patch.object(DocumentService, "search")
     mock_search.return_value = DocumentListResponse(total=1, limit=50, offset=0, items=[_published_summary("pub-9")])
 
@@ -100,6 +103,7 @@ def test_an_unpublished_document_is_a_404_not_a_403(client: TestClient, mocker) 
     A 403 would tell the caller exactly the fact the gate protects: that this description is in the
     archive. The service raises the same not-found error it would for an id that does not exist.
     """
+    mocker.patch.object(DiffusionChannelService, "require_enabled")
     mock_get = mocker.patch.object(DocumentService, "get_published")
     mock_get.side_effect = DocumentNotFoundError("Documento 'x' não encontrado no acervo.")
 

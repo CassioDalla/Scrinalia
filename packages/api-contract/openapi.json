@@ -2954,6 +2954,13 @@
               }
             ]
           },
+          "channels": {
+            "description": "Os canais que carregam o registro.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
           "children_count": {
             "default": 0,
             "type": "integer"
@@ -3536,17 +3543,6 @@
             "oneOf": [
               {
                 "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "is_published": {
-            "description": "Decisão de difusão, ortogonal ao status de revisão. Publicar não bloqueia a IA de continuar melhorando o registro; aprovar, sim.",
-            "oneOf": [
-              {
-                "type": "boolean"
               },
               {
                 "type": "null"
@@ -8367,6 +8363,539 @@
         "title": "PublicTagSummary",
         "type": "object"
       },
+      "PublicationAction": {
+        "description": "The four writes a publication can be; the ledger stores the value verbatim.",
+        "enum": [
+          "PUBLISH",
+          "EXCLUDE",
+          "REVOKE",
+          "UNEXCLUDE"
+        ],
+        "title": "PublicationAction",
+        "type": "string"
+      },
+      "PublicationApplyRequest": {
+        "properties": {
+          "request": {
+            "$ref": "#/components/schemas/PublicationRequest"
+          },
+          "token": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "request",
+          "token"
+        ],
+        "title": "PublicationApplyRequest",
+        "type": "object"
+      },
+      "PublicationBatchDTO": {
+        "properties": {
+          "action": {
+            "$ref": "#/components/schemas/PublicationAction"
+          },
+          "applied_count": {
+            "default": 0,
+            "type": "integer"
+          },
+          "batch_id": {
+            "type": "integer"
+          },
+          "channels": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "note": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "requested_by": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "selection": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "skipped_count": {
+            "default": 0,
+            "type": "integer"
+          },
+          "undone_at": {
+            "oneOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "undone_by": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "action",
+          "batch_id",
+          "created_at"
+        ],
+        "title": "PublicationBatchDTO",
+        "type": "object"
+      },
+      "PublicationBatchListDTO": {
+        "properties": {
+          "batches": {
+            "items": {
+              "$ref": "#/components/schemas/PublicationBatchDTO"
+            },
+            "type": "array"
+          },
+          "generated_at": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "generated_at"
+        ],
+        "title": "PublicationBatchListDTO",
+        "type": "object"
+      },
+      "PublicationChannelPreviewDTO": {
+        "properties": {
+          "actionable": {
+            "default": true,
+            "description": "Se o gesto escreveria algo neste canal; falso para um escopo que já existe ou está bloqueado.",
+            "type": "boolean"
+          },
+          "code": {
+            "type": "string"
+          },
+          "eligible": {
+            "type": "integer"
+          },
+          "label": {
+            "type": "string"
+          },
+          "sample": {
+            "items": {
+              "$ref": "#/components/schemas/PublicationSampleDTO"
+            },
+            "type": "array"
+          },
+          "skipped": {
+            "$ref": "#/components/schemas/PublicationSkippedDTO"
+          }
+        },
+        "required": [
+          "code",
+          "eligible",
+          "label"
+        ],
+        "title": "PublicationChannelPreviewDTO",
+        "type": "object"
+      },
+      "PublicationCountsDTO": {
+        "properties": {
+          "approved_without_channel": {
+            "default": 0,
+            "type": "integer"
+          },
+          "enabled_channels": {
+            "default": 0,
+            "type": "integer"
+          },
+          "in_channels": {
+            "default": 0,
+            "type": "integer"
+          },
+          "in_review": {
+            "default": 0,
+            "type": "integer"
+          },
+          "site": {
+            "default": 0,
+            "type": "integer"
+          }
+        },
+        "required": [],
+        "title": "PublicationCountsDTO",
+        "type": "object"
+      },
+      "PublicationItemDTO": {
+        "properties": {
+          "channels": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "description_id": {
+            "type": "string"
+          },
+          "document_date": {
+            "oneOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "level": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "description_id",
+          "title"
+        ],
+        "title": "PublicationItemDTO",
+        "type": "object"
+      },
+      "PublicationMode": {
+        "default": "BRANCH",
+        "description": "Whether the gesture names a branch (a node) or a selection (up to 200 records).",
+        "enum": [
+          "BRANCH",
+          "RECORDS"
+        ],
+        "title": "PublicationMode",
+        "type": "string"
+      },
+      "PublicationPageDTO": {
+        "properties": {
+          "counts": {
+            "$ref": "#/components/schemas/PublicationCountsDTO"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PublicationItemDTO"
+            },
+            "type": "array"
+          },
+          "limit": {
+            "default": 50,
+            "type": "integer"
+          },
+          "offset": {
+            "default": 0,
+            "type": "integer"
+          },
+          "total": {
+            "default": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "counts"
+        ],
+        "title": "PublicationPageDTO",
+        "type": "object"
+      },
+      "PublicationPreviewDTO": {
+        "properties": {
+          "channels": {
+            "items": {
+              "$ref": "#/components/schemas/PublicationChannelPreviewDTO"
+            },
+            "type": "array"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "token": {
+            "type": "string"
+          },
+          "total_eligible": {
+            "default": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "expires_at",
+          "token"
+        ],
+        "title": "PublicationPreviewDTO",
+        "type": "object"
+      },
+      "PublicationRequest": {
+        "properties": {
+          "action": {
+            "$ref": "#/components/schemas/PublicationAction"
+          },
+          "channel_codes": {
+            "description": "Os canais do gesto, por código.",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 20,
+            "minItems": 1,
+            "type": "array"
+          },
+          "description_ids": {
+            "description": "Os registros escolhidos, quando o modo é RECORDS (no máximo 200).",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 200,
+            "type": "array"
+          },
+          "include_descendants": {
+            "default": true,
+            "description": "Se o ramo inclui os descendentes.",
+            "type": "boolean"
+          },
+          "mode": {
+            "$ref": "#/components/schemas/PublicationMode"
+          },
+          "node_id": {
+            "description": "O nó do ramo, quando o modo é BRANCH.",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "note": {
+            "description": "Por que o curador decidiu; fica no lote.",
+            "maxLength": 2000,
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "action",
+          "channel_codes"
+        ],
+        "title": "PublicationRequest",
+        "type": "object"
+      },
+      "PublicationSampleDTO": {
+        "properties": {
+          "description_id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "description_id",
+          "title"
+        ],
+        "title": "PublicationSampleDTO",
+        "type": "object"
+      },
+      "PublicationScopeDTO": {
+        "properties": {
+          "approved_count": {
+            "default": 0,
+            "type": "integer"
+          },
+          "channel_code": {
+            "type": "string"
+          },
+          "channel_label": {
+            "type": "string"
+          },
+          "covered_count": {
+            "default": 0,
+            "type": "integer"
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "created_by": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "include_descendants": {
+            "type": "boolean"
+          },
+          "kind": {
+            "enum": [
+              "INCLUSION",
+              "EXCLUSION"
+            ],
+            "type": "string"
+          },
+          "node_id": {
+            "type": "string"
+          },
+          "node_path": {
+            "type": "string"
+          },
+          "node_title": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "note": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "scope_id": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "channel_code",
+          "channel_label",
+          "created_at",
+          "include_descendants",
+          "kind",
+          "node_id",
+          "node_path",
+          "scope_id"
+        ],
+        "title": "PublicationScopeDTO",
+        "type": "object"
+      },
+      "PublicationScopeListDTO": {
+        "properties": {
+          "generated_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "scopes": {
+            "items": {
+              "$ref": "#/components/schemas/PublicationScopeDTO"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "generated_at"
+        ],
+        "title": "PublicationScopeListDTO",
+        "type": "object"
+      },
+      "PublicationSkippedDTO": {
+        "properties": {
+          "already_covered": {
+            "default": 0,
+            "type": "integer"
+          },
+          "excluded": {
+            "default": 0,
+            "type": "integer"
+          },
+          "missing": {
+            "default": 0,
+            "type": "integer"
+          },
+          "no_scope": {
+            "default": 0,
+            "type": "integer"
+          },
+          "not_approved": {
+            "default": 0,
+            "type": "integer"
+          },
+          "not_covered": {
+            "default": 0,
+            "type": "integer"
+          }
+        },
+        "required": [],
+        "title": "PublicationSkippedDTO",
+        "type": "object"
+      },
+      "PublicationUndoDTO": {
+        "properties": {
+          "batch_id": {
+            "type": "integer"
+          },
+          "restored": {
+            "default": 0,
+            "type": "integer"
+          },
+          "skipped": {
+            "default": 0,
+            "type": "integer"
+          },
+          "undone_at": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "batch_id",
+          "undone_at"
+        ],
+        "title": "PublicationUndoDTO",
+        "type": "object"
+      },
       "QueueKey": {
         "description": "\n    The stable identity of a queue on the home screen.\n\n    The contract carries the key, not the card's copy or its destination: the SPA resolves the\n    label, the one-line description and the screen from it (ADR 0020 §5, ADR 0021), so the copy\n    pass and its gate can see the first screen. The values are the identity of an outcome, so they\n    never change once released.\n    ",
         "enum": [
@@ -12927,6 +13456,548 @@
           }
         },
         "summary": "PutSchedule",
+        "tags": [
+          "Diffusion"
+        ]
+      }
+    },
+    "/api/v1/diffusion/publications": {
+      "get": {
+        "deprecated": false,
+        "operationId": "ApiV1DiffusionPublicationsListPublications",
+        "parameters": [
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "publication_state",
+            "required": false,
+            "schema": {
+              "default": "uncovered",
+              "enum": [
+                "covered",
+                "uncovered"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "node_id",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "channel_code",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "type": "integer"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicationPageDTO"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "ListPublications",
+        "tags": [
+          "Diffusion"
+        ]
+      },
+      "post": {
+        "deprecated": false,
+        "operationId": "ApiV1DiffusionPublicationsApply",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PublicationApplyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicationBatchDTO"
+                }
+              }
+            },
+            "description": "Document created, URL follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "Apply",
+        "tags": [
+          "Diffusion"
+        ]
+      }
+    },
+    "/api/v1/diffusion/publications/batches": {
+      "get": {
+        "deprecated": false,
+        "operationId": "ApiV1DiffusionPublicationsBatchesListBatches",
+        "parameters": [
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "type": "integer"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicationBatchListDTO"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "ListBatches",
+        "tags": [
+          "Diffusion"
+        ]
+      }
+    },
+    "/api/v1/diffusion/publications/batches/{batch_id}/undo": {
+      "post": {
+        "deprecated": false,
+        "operationId": "ApiV1DiffusionPublicationsBatchesBatchIdUndoUndo",
+        "parameters": [
+          {
+            "deprecated": false,
+            "in": "path",
+            "name": "batch_id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicationUndoDTO"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "Undo",
+        "tags": [
+          "Diffusion"
+        ]
+      }
+    },
+    "/api/v1/diffusion/publications/preview": {
+      "post": {
+        "deprecated": false,
+        "operationId": "ApiV1DiffusionPublicationsPreviewPreview",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PublicationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicationPreviewDTO"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "Preview",
+        "tags": [
+          "Diffusion"
+        ]
+      }
+    },
+    "/api/v1/diffusion/publications/summary": {
+      "get": {
+        "deprecated": false,
+        "operationId": "ApiV1DiffusionPublicationsSummarySummary",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicationCountsDTO"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          }
+        },
+        "summary": "Summary",
+        "tags": [
+          "Diffusion"
+        ]
+      }
+    },
+    "/api/v1/diffusion/scopes": {
+      "get": {
+        "deprecated": false,
+        "operationId": "ApiV1DiffusionScopesListScopes",
+        "parameters": [
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "channel_code",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicationScopeListDTO"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "ListScopes",
         "tags": [
           "Diffusion"
         ]

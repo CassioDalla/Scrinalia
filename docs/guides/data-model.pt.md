@@ -94,7 +94,7 @@ mapeadas para uma coluna.
 
 | Tabela | Para que serve | Colunas principais |
 | --- | --- | --- |
-| `archive_documents` | A descrição final, limpa e enriquecida, servida aos usuários e enriquecida pelos workers de IA. | `description_id` (chave primária), `origin_code`, `original_title`, `final_title`, `document_date`, `date_expression`, `original_url`, `summary`, `staging_content_hash`, `reference_code`, `level_id`, `typology_id`, `parent_id`, `parent_reference_code`, `path`, as colunas de texto ISAD(G), `review_status`, `is_anomaly`, `anomaly_reasons`, `is_published`, `execution_log` (JSONB), `embedding` (`vector(384)`), `search_vector` (gerada), timestamps |
+| `archive_documents` | A descrição final, limpa e enriquecida, servida aos usuários e enriquecida pelos workers de IA. | `description_id` (chave primária), `origin_code`, `original_title`, `final_title`, `document_date`, `date_expression`, `original_url`, `summary`, `staging_content_hash`, `reference_code`, `level_id`, `typology_id`, `parent_id`, `parent_reference_code`, `path`, as colunas de texto ISAD(G), `review_status`, `is_anomaly`, `anomaly_reasons`, `execution_log` (JSONB), `embedding` (`vector(384)`), `search_vector` (gerada), timestamps |
 
 As **colunas de texto ISAD(G)** são o registro inteiro, não um subconjunto: `dimension_support`,
 `producers`, `admin_bio_history`, `admin_archival_history`, `provenance`, `scope_content`,
@@ -254,14 +254,32 @@ a API deve a um cliente, e registrá-las enterra os defeitos de verdade.
 | Tabela | Para que serve | Colunas principais |
 | --- | --- | --- |
 | `diffusion_channels` | O ciclo de vida, a configuração e a agenda de um canal: o que o operador adiciona e configura sem deploy. Um canal `LIVE` é lido a cada requisição; um canal `EXPORT` tem agenda e execução. | `code` (chave primária), `enabled`, `config` (JSONB: a identidade de apresentação do canal; nunca um segredo), `options` (JSONB: a política de execução), `cron`, `timezone`, `next_run_at`, `last_enqueued_at`, `last_skipped_at`, `updated_by`, `updated_by_user_id` |
+| `diffusion_channel_scopes` | O escopo positivo: "este ramo ou registro vai para este canal". Os descendentes aprovados são cobertos na leitura, pelo `path` materializado, então um filho aprovado depois entra sem uma segunda decisão. Revogar grava `revoked_at`; a linha nunca é apagada, porque registra que a decisão existiu. | `scope_id` (chave primária), `channel_code` (FK → `diffusion_channels`, `RESTRICT`), `node_id` (FK → `archive_documents`, `CASCADE`), `include_descendants`, `note`, `created_by`, `created_by_user_id`, `created_at`, `revoked_at`, `revoked_by`, `revoked_by_user_id` |
+| `diffusion_channel_exclusions` | O escopo negativo: "este ramo ou registro fica fora deste canal", com a razão do curador. Ele vence qualquer escopo positivo que cubra o mesmo registro. | a forma do escopo positivo mais `reason` |
+| `diffusion_publication_batches` | Um gesto de publicação — publicar um ramo, publicar uma seleção, manter um registro privado, revogar um ramo — com a seleção resolvida, as contagens e o autor. É a unidade reversível do princípio VI. | `batch_id`, `action` (`PUBLISH`/`EXCLUDE`/`REVOKE`/`UNEXCLUDE`), `selection` (JSONB), `applied_count`, `skipped_count`, `note`, `requested_by`, `requested_by_user_id`, `created_at`, `undone_at`, `undone_by`, `undone_by_user_id` |
+| `diffusion_publication_entries` | Cada linha de escopo que um lote criou ou revogou, com o estado antes e depois e um retrato do nó. O desfazer a lê e pula o que mudou desde então; o nó é retrato e não chave estrangeira, então um ramo excluído ou movido continua tendo explicação. | `entry_id`, `batch_id` (FK, `CASCADE`), `channel_code`, `kind` (`INCLUSION`/`EXCLUSION`), `scope_id`, `node_id`, `node_path`, `node_title`, `include_descendants`, `was_active`, `is_active`, `created_at` |
 
 Um canal de difusão é uma definição em código mais esta linha de ciclo de vida (#211, ADR 0023). O
 registro só oferece canais que funcionam: `public_site` é `LIVE` e não tem execução, enquanto o
 conjunto de dados e o AtoM são canais `EXPORT` com adaptadores próprios. `enabled=false` é uma pausa,
 não uma ausência; uma linha faltando é "nunca adicionado", que é o que o campo `configured` do DTO
-distingue. A linha não carrega registro: os registros que um canal expõe são os escopos de publicação
-da #251, e `config` nunca guarda segredo — um token é nomeado por variável de ambiente, não armazenado
+distingue. `config` nunca guarda segredo — um token é nomeado por variável de ambiente, não armazenado
 aqui.
+
+Os registros que um canal expõe são uma **leitura**, não uma tabela. Duas views, um conceito cada:
+`archive_document_channel_exclusions` é o conjunto negativo — qual exclusão cobre um registro em qual
+canal — e `archive_document_channels` a compõe com a aprovação e os escopos positivos. A view de
+cobertura devolve uma linha por (descrição, canal) quando o registro é `HUMAN_APPROVED`, um escopo
+positivo o cobre e nenhum escopo negativo o cobre, e nomeia o escopo que é a origem da cobertura
+(`scope_id`), para uma tela poder dizer "pelo ramo do Fundo A" sem reimplementar o predicado. A
+separação é o que permite o preview do curador dizer *por que* um registro é pulado — "excluído" em
+vez de "não coberto" — sem uma segunda cópia da regra de exclusão. A view lê o `path` materializado e a posição atual do nó,
+então mover um ramo move o que ele cobre; ela **não** lê `enabled`, porque pausar um canal é decisão
+do operador e o "Publicadas" do curador tem de continuar dizendo o que foi publicado.
+`DocumentSummary.channels` é a lista que a ficha e a lista mostram, e `is_published` é derivado
+dela: coberto por ao menos um canal. Não há booleano guardado — a coluna
+`archive_documents.is_published` foi removida, e a migração recusa removê-la enquanto uma linha ainda
+carrega um true.
 
 ### Identity — a instalação, não o acervo
 
@@ -522,7 +540,7 @@ Dois frozensets em `api/schemas/public.py` tornam o padrão privado:
 
 - `NOT_PUBLIC_FIELDS` — campos de `DocumentSummary` deliberadamente não publicados. Contém
   `review_status`, `is_anomaly`, `anomaly_reasons`, `archivist_notes`, `provenance`,
-  `suggested_final_title`, `rank`, `path`, `parent_id`, `level_id`, `typology_id`, `is_published`,
+  `suggested_final_title`, `rank`, `path`, `parent_id`, `level_id`, `typology_id`, `is_published`, `channels`,
   `admin_bio_history`, `admin_archival_history` e `access_conditions`.
 - `NOT_PUBLIC_FACETS` — atualmente apenas `anomaly_reason`.
 

@@ -133,10 +133,14 @@ class DiffusionChannelSummary:
     adapter: str | None = None
 
 
+#: The built-in site's code. The one name the public surface, the coverage counts and the
+#: public site's identity read; a literal here and in four callers would drift.
+PUBLIC_SITE_CODE = "public_site"
+
 #: The channels the package ships. Insertion order is the order the add picker shows.
 CHANNELS: Mapping[str, DiffusionChannelSummary] = {
-    "public_site": DiffusionChannelSummary(
-        code="public_site",
+    PUBLIC_SITE_CODE: DiffusionChannelSummary(
+        code=PUBLIC_SITE_CODE,
         label="Site público",
         description=(
             "O site público embutido: a identidade que o aplicativo lê antes da primeira consulta de "
