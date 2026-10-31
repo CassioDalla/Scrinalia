@@ -464,11 +464,17 @@ element of every field, and the manifest carries the record count, each file's s
 data license, the removals since the previous snapshot and the software identity.
 
 The **destination** is an absolute directory the runner can write to; in Docker it is a volume mounted
-in the runner, and the API will need read access to the same directory when the download route lands
-(214c). The run writes into `snapshots/<snapshot_id>/` and then replaces the `current` file, so a
-reader sees the previous package or the new one, never a half-written directory. `retention` keeps the
-newest snapshots; the current one is never removed. The download route is 214c — until it lands, the
-operator reads the package from the destination directory.
+in the runner, and the API reads the same directory to serve the package. The run writes into
+`snapshots/<snapshot_id>/` and then replaces the `current` file, so a reader sees the previous package
+or the new one, never a half-written directory. `retention` keeps the newest snapshots; the current one
+is never removed.
+
+A consumer reads the package without a session: `GET /api/v1/public/dataset` returns the current
+manifest and `GET /api/v1/public/dataset/download` the ZIP, both **404** while the channel is absent or
+paused and before the first run wrote a snapshot. The card's **Pré-visualizar** calls
+`POST /api/v1/diffusion/channels/{code}/preview` (`OPERATE`) and shows the record count, the exact size
+of each enabled format, the removals since the current snapshot and why a run would refuse. The
+preview writes no snapshot and creates no ledger row: the enqueue is the execution.
 
 The **data license** is required: `CC0-1.0`, `CC-BY-4.0`, `CC-BY-SA-4.0` or `custom` (which asks for
 the name, the URL and the attribution). CC BY and CC BY-SA require the attribution line; CC0 does not.
@@ -1156,10 +1162,10 @@ behaviour to expect, and so that a limit already paid for is not read as a defec
 - **The queue is one slot per worker.** A second run for a worker with one in flight answers `409`,
   and a schedule has to coalesce; a backlog or a priority is not what this queue is.
 - **Two diffusion channels ship: the live site and the dataset.** The public site is `LIVE` and read on
-  every request; the dataset is `EXPORT` and its adapter writes the package above. AtoM is still a
-  future adapter, and a channel the package ships without one answers 422 and queues nothing. The
-  dataset's download route and its preview are issue 214c: the snapshot is written to the destination
-  directory, and the API does not serve it yet.
+  every request; the dataset is `EXPORT` and its adapter writes the package above. The dataset's public
+  manifest and download are served from the destination directory, and its preview is a dry run that
+  writes no ledger row. AtoM is still a future adapter, and a channel the package ships without one
+  answers 422 and queues nothing.
 - **The retry is bounded and unclassified.** A scheduled failure spends up to three attempts,
   whatever the cause: a missing model costs three bounded attempts, because a classifier that is
   wrong in the other direction either wastes the GPU or hides a real failure. The retry holds the

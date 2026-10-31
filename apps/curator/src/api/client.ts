@@ -424,6 +424,7 @@ export type DiffusionCapability = components["schemas"]["DiffusionCapability"];
 export type DiffusionConfigField = components["schemas"]["DiffusionConfigFieldDTO"];
 export type DiffusionChannelUpdateRequest = components["schemas"]["DiffusionChannelUpdateRequest"];
 export type DiffusionScheduleRequest = components["schemas"]["DiffusionScheduleRequest"];
+export type DatasetPreview = components["schemas"]["DatasetPreviewDTO"];
 /** The CSV import's map, its bounded rows and its per-row report (#191). */
 export type CsvImportSpecResponse = components["schemas"]["CsvImportSpecResponse"];
 export type CsvImportRequest = components["schemas"]["CsvImportRequest"];
@@ -1838,6 +1839,13 @@ export async function deleteDiffusionSchedule(code: string): Promise<DiffusionCh
 export async function triggerDiffusionRun(code: string): Promise<WorkerRun> {
   return unwrap<WorkerRun>(
     await client.POST("/api/v1/diffusion/channels/{code}/runs", { params: { path: { code } } }),
+  );
+}
+
+/** The dry run of an export channel (ADR 0024): what a run would write, without writing. */
+export async function previewDiffusionChannel(code: string): Promise<DatasetPreview> {
+  return unwrap<DatasetPreview>(
+    await client.POST("/api/v1/diffusion/channels/{code}/preview", { params: { path: { code } } }),
   );
 }
 

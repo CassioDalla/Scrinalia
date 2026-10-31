@@ -13,6 +13,8 @@ from litestar.testing import TestClient
 from scrinalia.domains.archive.exceptions import WorkerRunAlreadyActiveError
 from scrinalia.domains.archive.models.enums import WorkerRunStatus, WorkerRunTrigger
 from scrinalia.domains.archive.schemas.system_schema import WorkerRunDTO
+from scrinalia.domains.diffusion.dataset_writer import DatasetPreview
+from scrinalia.domains.diffusion.exceptions import DiffusionAdapterMissingError
 from scrinalia.domains.diffusion.service import DiffusionChannelService
 from scrinalia.domains.identity.domain.permissions import Role
 
@@ -97,6 +99,7 @@ def test_the_reads_are_authenticated_and_the_writes_are_operate(api_client: Test
     assert curator.get("/api/v1/diffusion/channels").status_code == 200
     refused = curator.patch("/api/v1/diffusion/channels/public_site", json={"enabled": False})
     assert refused.status_code == 403
+    assert curator.post("/api/v1/diffusion/channels/dataset/preview").status_code == 403
 
 
 def test_the_channel_run_is_enqueued_from_the_channel_route(client: TestClient, mocker) -> None:
@@ -131,3 +134,42 @@ def test_a_second_run_of_the_channel_answers_409(client: TestClient, mocker) -> 
     response = client.post("/api/v1/diffusion/channels/fake_export/runs")
 
     assert response.status_code == 409
+
+
+def test_the_preview_is_a_dry_run_of_the_channel(client: TestClient, mocker) -> None:
+    """The preview answers what a run would write; it creates no ledger row and no snapshot."""
+    preview = DatasetPreview(
+        record_count=3,
+        artifacts=(),
+        removals=("node_removed",),
+        previous_snapshot_id="b" * 64,
+        snapshot_id="c" * 64,
+        unchanged=False,
+        destination="/srv/dataset",
+        ready=True,
+        reason=None,
+    )
+    mock = mocker.patch.object(DiffusionChannelService, "preview_dataset", return_value=preview)
+
+    response = client.post("/api/v1/diffusion/channels/dataset/preview")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["record_count"] == 3
+    assert body["removals"] == ["node_removed"]
+    assert body["ready"] is True
+    assert body["destination"] == "/srv/dataset"
+    mock.assert_called_once_with("dataset")
+
+
+def test_the_preview_refuses_a_channel_without_one(client: TestClient, mocker) -> None:
+    mocker.patch.object(
+        DiffusionChannelService,
+        "preview_dataset",
+        side_effect=DiffusionAdapterMissingError("O canal 'public_site' ainda não tem pré-visualização."),
+    )
+
+    response = client.post("/api/v1/diffusion/channels/public_site/preview")
+
+    assert response.status_code == 422
+    assert response.json()["error_code"] == "DiffusionAdapterMissingError"

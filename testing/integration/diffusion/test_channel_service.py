@@ -15,8 +15,10 @@ from scrinalia.domains.archive.exceptions import WorkerRunAlreadyActiveError
 from scrinalia.domains.archive.models.operations import WorkerRun
 from scrinalia.domains.archive.repository.worker_run_repo import WorkerRunRepository
 from scrinalia.domains.archive.workers.ledger import WorkerRunLedger
+from scrinalia.domains.diffusion.dataset_writer import execute
 from scrinalia.domains.diffusion.diffusion_registry import CHANNELS
 from scrinalia.domains.diffusion.exceptions import (
+    DatasetNotPublishedError,
     DiffusionAdapterMissingError,
     DiffusionChannelNotFoundError,
     InvalidDiffusionConfigError,
@@ -213,3 +215,68 @@ def test_the_channel_dto_carries_the_last_and_the_active_run(db_session: Session
     assert channel.last_run_at is not None
     assert channel.active_run_id == run.run_id
     assert channel.active_run_status == run.status
+
+
+# ==========================================
+# THE DATASET PACKAGE
+# ==========================================
+
+
+def _dataset_config(destination) -> dict:
+    return {
+        "dataset_title": "Acervo de teste",
+        "destination_path": str(destination),
+        "license_id": "CC-BY-4.0",
+        "attribution": "Acervo de teste, CC BY 4.0",
+        "institution_name": "Instituição de teste",
+    }
+
+
+def test_the_dataset_preview_reads_without_writing(db_session: Session, tmp_path) -> None:
+    service = DiffusionChannelService(db_session)
+    service.update_channel("dataset", DiffusionChannelUpdateRequest(config=_dataset_config(tmp_path)))
+
+    preview = service.preview_dataset("dataset")
+
+    assert preview.ready is True
+    assert preview.record_count == 0
+    assert [artifact.format for artifact in preview.artifacts] == ["json", "ndjson", "csv"]
+    assert preview.removals == ()
+    assert not (tmp_path / "current").exists()
+
+
+def test_the_public_dataset_needs_a_snapshot_and_respects_the_pause(db_session: Session, tmp_path) -> None:
+    service = DiffusionChannelService(db_session)
+    service.update_channel("dataset", DiffusionChannelUpdateRequest(config=_dataset_config(tmp_path)))
+    channel = service.channels.get("dataset")
+    assert channel is not None
+
+    with pytest.raises(DatasetNotPublishedError):
+        service.public_dataset_manifest()
+
+    execute(channel, db_session=db_session)
+
+    manifest = service.public_dataset_manifest()
+    assert manifest.record_count == 0
+    assert manifest.snapshot_id
+    packaged, archive = service.dataset_package()
+    assert packaged.snapshot_id == manifest.snapshot_id
+
+    import io
+    import zipfile
+
+    with zipfile.ZipFile(io.BytesIO(archive)) as package:
+        assert {"manifest.json", "field-map.json", "documents.json"} <= set(package.namelist())
+
+    service.update_channel("dataset", DiffusionChannelUpdateRequest(enabled=False))
+
+    with pytest.raises(DatasetNotPublishedError):
+        service.public_dataset_manifest()
+
+
+def test_a_live_channel_has_no_preview(db_session: Session) -> None:
+    service = DiffusionChannelService(db_session)
+    service.update_channel("public_site", DiffusionChannelUpdateRequest(config={"site_title": "Acervo"}))
+
+    with pytest.raises(InvalidDiffusionConfigError):
+        service.preview_dataset("public_site")

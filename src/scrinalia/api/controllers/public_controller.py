@@ -15,8 +15,9 @@ protected is *what data exists*, not who is asking (ADR 0003).
 
 from datetime import date
 
-from litestar import Controller, get
+from litestar import Controller, Response, get
 from litestar.di import NamedDependency, Provide
+from litestar.openapi.datastructures import ResponseSpec
 from litestar.params import FromPath, FromQuery
 
 from scrinalia.api.dependencies import provide_diffusion_channel_service, provide_document_service
@@ -25,6 +26,7 @@ from scrinalia.api.security import Access
 from scrinalia.domains.archive.schemas.public_projection import PublicDocumentFacets, PublicDocumentSummary
 from scrinalia.domains.archive.schemas.query_schema import DocumentSearchQuery, SearchMode
 from scrinalia.domains.archive.services.document_service import DocumentService
+from scrinalia.domains.diffusion.dataset_contract import DatasetManifest
 from scrinalia.domains.diffusion.diffusion_registry import PUBLIC_SITE_CODE, PublicSiteConfig
 from scrinalia.domains.diffusion.service import DiffusionChannelService
 
@@ -97,6 +99,39 @@ class PublicController(Controller):
         """
         diffusion_service.require_enabled(PUBLIC_SITE_CODE)
         return PublicDocumentSummary.from_summary(document_service.get_published(description_id, PUBLIC_SITE_CODE))
+
+    @get("/dataset", opt={"access": Access.PUBLIC}, sync_to_thread=True)
+    def get_dataset(self, diffusion_service: NamedDependency[DiffusionChannelService]) -> DatasetManifest:
+        """
+        The current open dataset snapshot's manifest.
+
+        **404** while the channel is absent or paused, or before the first run wrote a package: a
+        consumer that asks for a dataset this installation does not publish gets the same answer in
+        every case, and the operator's card is where the distinction lives.
+        """
+        return diffusion_service.public_dataset_manifest()
+
+    @get(
+        "/dataset/download",
+        opt={"access": Access.PUBLIC},
+        sync_to_thread=True,
+        responses={
+            200: ResponseSpec(
+                data_container=bytes,
+                media_type="application/zip",
+                description="The current open dataset snapshot as a ZIP, with the manifest and the field map.",
+                generate_examples=False,
+            )
+        },
+    )
+    def download_dataset(self, diffusion_service: NamedDependency[DiffusionChannelService]) -> Response[bytes]:
+        """The package in one download: the files the manifest lists, plus the manifest itself."""
+        manifest, archive = diffusion_service.dataset_package()
+        return Response(
+            content=archive,
+            media_type="application/zip",
+            headers={"Content-Disposition": f'attachment; filename="dataset-{manifest.snapshot_id[:12]}.zip"'},
+        )
 
     @get("/site", opt={"access": Access.PUBLIC}, sync_to_thread=True)
     def get_site(self, diffusion_service: NamedDependency[DiffusionChannelService]) -> PublicSiteConfig:

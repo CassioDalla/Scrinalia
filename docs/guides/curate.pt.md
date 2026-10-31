@@ -1335,8 +1335,8 @@ canal a cada leitura e a cada escrita, então um erro de digitação é um 422 c
 renderiza **um formulário genérico** sobre os campos do canal, e não um componente por canal. O cartão do
 site público diz a consequência que o dono pergunta: o aplicativo público é uma superfície separada, e
 habilitar o canal não o instala. O seletor também oferece o conjunto de dados aberto (`dataset`), o
-primeiro `EXPORT` que o pacote traz: o cartão configura o destino, os formatos e a licença dos dados, e a
-execução escreve o pacote que a [Operação](operate.md) descreve.
+primeiro `EXPORT` que o pacote traz: o cartão configura o destino, os formatos e a licença dos dados,
+**Pré-visualizar** é o ensaio dele, e a execução escreve o pacote que a [Operação](operate.md) descreve.
 
 ### Configuração dos Workers — `/configuracoes/workers`
 

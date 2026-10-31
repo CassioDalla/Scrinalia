@@ -34,11 +34,13 @@ from __future__ import annotations
 
 import csv
 import hashlib
+import io
 import json
 import os
 import re
 import shutil
 import tempfile
+import zipfile
 from collections.abc import Iterator
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -137,6 +139,20 @@ class _Previous:
 
     manifest: DatasetManifest
     ids: frozenset[str]
+
+
+@dataclass(frozen=True)
+class PublishedSnapshot:
+    """
+    The snapshot a reader serves: its manifest and its directory.
+
+    It is the read side of the package, shared by the public manifest/download routes and by the
+    writer's "previous snapshot". Reading the ids is left to the caller: a public read needs only the
+    manifest, and reading every record of a large snapshot on each request would be wasteful.
+    """
+
+    manifest: DatasetManifest
+    path: Path
 
 
 # =========================================================================
@@ -567,12 +583,13 @@ def _write_readme(directory: Path, config: DatasetConfig, manifest: DatasetManif
 # =========================================================================
 
 
-def _current_snapshot(destination: Path) -> _Previous | None:
+def published_snapshot(destination: Path) -> PublishedSnapshot | None:
     """
-    The snapshot the ``current`` pointer names, with its ids, or ``None`` on the first run.
+    The snapshot the ``current`` pointer names, or ``None`` when the destination has none.
 
     The pointer is read from disk and validated before it becomes a path: a truncated or edited file
-    must be a sentence, not a directory traversal.
+    must be a sentence, not a directory traversal. The manifest is validated against the committed
+    contract, so a package written by an incompatible version is a sentence and not a half-read.
     """
     pointer = destination / CURRENT_POINTER
     if not pointer.is_file():
@@ -594,7 +611,15 @@ def _current_snapshot(destination: Path) -> _Previous | None:
         raise InvalidDiffusionConfigError(
             t("O manifesto do snapshot '{id}' não pôde ser lido: {exc}", id=snapshot_id, exc=exc)
         ) from exc
-    return _Previous(manifest=manifest, ids=_read_ids(snapshot, manifest))
+    return PublishedSnapshot(manifest=manifest, path=snapshot)
+
+
+def _current_snapshot(destination: Path) -> _Previous | None:
+    """The snapshot the ``current`` pointer names, with its ids, or ``None`` on the first run."""
+    snapshot = published_snapshot(destination)
+    if snapshot is None:
+        return None
+    return _Previous(manifest=snapshot.manifest, ids=_read_ids(snapshot.path, snapshot.manifest))
 
 
 def _read_ids(snapshot: Path, manifest: DatasetManifest) -> frozenset[str]:
@@ -661,6 +686,41 @@ def _ids_from_csv(path: Path) -> Iterator[str]:
                 yield str(row["description_id"])
     except (KeyError, csv.Error) as exc:
         raise InvalidDiffusionConfigError(t("'{path}' não é um documents.csv válido.", path=path)) from exc
+
+
+def snapshot_archive(snapshot: PublishedSnapshot) -> bytes:
+    """
+    The published package as a ZIP a consumer downloads in one request.
+
+    The members are the package files, with a fixed timestamp so two archives of the same snapshot
+    have the same content (the ZIP bytes are transport, not a contract the manifest checksums). A
+    missing member is a refusal: a half-package is not something to serve silently.
+    """
+    members = _archive_members(snapshot.manifest)
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
+        for name in members:
+            path = snapshot.path / name
+            if not path.is_file():
+                raise InvalidDiffusionConfigError(
+                    t("O arquivo '{name}' do snapshot '{id}' não existe.", name=name, id=snapshot.manifest.snapshot_id)
+                )
+            info = zipfile.ZipInfo(name, date_time=(1980, 1, 1, 0, 0, 0))
+            info.compress_type = zipfile.ZIP_DEFLATED
+            archive.writestr(info, path.read_bytes())
+    return buffer.getvalue()
+
+
+def _archive_members(manifest: DatasetManifest) -> list[str]:
+    """The package files in a fixed order, each a plain name inside the snapshot directory."""
+    names = ["manifest.json", manifest.field_map, manifest.readme, "LICENSE.txt"]
+    names.extend(artifact.path for artifact in manifest.artifacts)
+    for name in names:
+        if PurePosixPath(name).name != name:
+            raise InvalidDiffusionConfigError(
+                t("O manifesto lista um caminho inválido para o pacote: '{path}'.", path=name)
+            )
+    return names
 
 
 def _publish(tmp: Path, destination: Path, snapshot_id: str, retention: int) -> None:

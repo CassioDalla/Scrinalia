@@ -16,7 +16,8 @@ knows only where the archive can go, never which description goes.
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from typing import Any
+from pathlib import Path
+from typing import Any, cast
 
 from pydantic import ValidationError
 from sqlalchemy.orm import Session
@@ -33,16 +34,27 @@ from scrinalia.domains.archive.workers.schedule import (
     validate_cron,
     validate_timezone,
 )
+from scrinalia.domains.diffusion.dataset_contract import DatasetManifest
+from scrinalia.domains.diffusion.dataset_writer import (
+    DatasetPreview,
+    PublishedSnapshot,
+    published_snapshot,
+    snapshot_archive,
+)
 from scrinalia.domains.diffusion.diffusion_registry import (
     CHANNELS,
+    DATASET_CODE,
     PUBLIC_SITE_CODE,
+    DatasetConfig,
     DiffusionCapability,
     DiffusionChannelSummary,
     PublicSiteConfig,
     adapter_module,
     get_channel_summary,
+    resolve_preview,
 )
 from scrinalia.domains.diffusion.exceptions import (
+    DatasetNotPublishedError,
     DiffusionChannelNotFoundError,
     InvalidDiffusionConfigError,
     PublicSiteNotConfiguredError,
@@ -256,6 +268,70 @@ class DiffusionChannelService:
         channel = self.channels.get(code)
         if channel is None or not channel.enabled:
             raise PublicSiteNotConfiguredError(t("O site público ainda não está configurado nesta instalação."))
+
+    # --- the dataset package ---------------------------------------------------------------------
+
+    def preview_dataset(self, code: str) -> DatasetPreview:
+        """
+        What an export run would write, without writing it (ADR 0024).
+
+        The route is the channel's, but only the adapter that offers a ``preview`` callable answers;
+        a channel without one is a 422 with a sentence, not a shaped preview of nothing. The preview
+        writes no ledger row: the run is a plan, the enqueue is the execution.
+        """
+        summary = get_channel_summary(code)
+        channel = self.channels.get(code)
+        if channel is None:
+            raise DiffusionChannelNotFoundError(
+                t(
+                    "O canal '{code}' ainda não está configurado. Salve a configuração antes da pré-visualização.",
+                    code=code,
+                )
+            )
+        if summary.capability is not DiffusionCapability.EXPORT:
+            raise InvalidDiffusionConfigError(
+                t("O canal '{code}' é lido a cada requisição e não tem pré-visualização.", code=code)
+            )
+        previewer = resolve_preview(summary)
+        return cast("DatasetPreview", previewer(channel, db_session=self.db))
+
+    def public_dataset_manifest(self) -> DatasetManifest:
+        """The current snapshot's manifest, or the 404 that says this installation has no package."""
+        return self._published_dataset().manifest
+
+    def dataset_package(self) -> tuple[DatasetManifest, bytes]:
+        """The current snapshot's manifest and its ZIP, for the public download route."""
+        snapshot = self._published_dataset()
+        try:
+            return snapshot.manifest, snapshot_archive(snapshot)
+        except InvalidDiffusionConfigError as exc:
+            raise DatasetNotPublishedError(t("O conjunto de dados não está disponível nesta instalação.")) from exc
+
+    def _published_dataset(self) -> PublishedSnapshot:
+        """
+        The snapshot the public routes serve: enabled channel, configured destination, present package.
+
+        Every reason a consumer cannot download answers the same 404 with the same sentence. The
+        distinction (never added, paused, never run, unreadable) is the operator's, on the channel
+        card; a public client should not be able to map the installation's state.
+        """
+        unavailable = t("O conjunto de dados não está disponível nesta instalação.")
+        channel = self.channels.get(DATASET_CODE)
+        if channel is None or not channel.enabled:
+            raise DatasetNotPublishedError(unavailable)
+        try:
+            config = DatasetConfig.model_validate(dict(channel.config or {}))
+        except ValidationError as exc:
+            raise DatasetNotPublishedError(unavailable) from exc
+        if config.destination_path is None:
+            raise DatasetNotPublishedError(unavailable)
+        try:
+            snapshot = published_snapshot(Path(config.destination_path))
+        except InvalidDiffusionConfigError as exc:
+            raise DatasetNotPublishedError(unavailable) from exc
+        if snapshot is None:
+            raise DatasetNotPublishedError(t("O conjunto de dados ainda não foi publicado nesta instalação."))
+        return snapshot
 
     # --- the public site identity ----------------------------------------------------------------
 

@@ -68,6 +68,7 @@ from scrinalia.domains.archive.exceptions import (
 from scrinalia.domains.archive.repository.api_error_repo import ApiErrorRecorder
 from scrinalia.domains.archive.schemas.responses import RouteMessageCode
 from scrinalia.domains.diffusion.exceptions import (
+    DatasetNotPublishedError,
     DiffusionAdapterMissingError,
     DiffusionChannelNotFoundError,
     InvalidDiffusionConfigError,
@@ -137,6 +138,7 @@ def domain_exception_handler(request: Request, exc: DomainException) -> Response
             WorkerRunNotFoundError,
             WorkerScheduleNotFoundError,
             OriginNotFoundError,
+            DatasetNotPublishedError,
             DiffusionChannelNotFoundError,
             PublicationBatchNotFoundError,
             PublicationNodeNotFoundError,

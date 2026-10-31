@@ -241,3 +241,15 @@ TRANSLATIONS.update(
         "O snapshot '{id}' não tem nenhum arquivo de dados que o próximo run possa comparar.": "Snapshot '{id}' has no data file the next run can compare against.",
     }
 )
+
+TRANSLATIONS.update(
+    {
+        "O arquivo '{name}' do snapshot '{id}' não existe.": "The file '{name}' of snapshot '{id}' does not exist.",
+        "O canal '{code}' ainda não está configurado. Salve a configuração antes da pré-visualização.": "Channel '{code}' is not configured yet. Save the configuration before previewing it.",
+        "O canal '{code}' ainda não tem pré-visualização nesta versão.": "Channel '{code}' has no preview in this version yet.",
+        "O canal '{code}' é lido a cada requisição e não tem pré-visualização.": "Channel '{code}' is read on every request and has no preview.",
+        "O conjunto de dados ainda não foi publicado nesta instalação.": "The dataset has not been published in this installation yet.",
+        "O conjunto de dados não está disponível nesta instalação.": "The dataset is not available in this installation.",
+        "O manifesto lista um caminho inválido para o pacote: '{path}'.": "The manifest lists an invalid path in the package: '{path}'.",
+    }
+)
