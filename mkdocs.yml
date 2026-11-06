@@ -135,4 +135,9 @@ nav:
       - 0018 A trial is a ledger row, and the gabarito is the human decision already recorded: adr/0018-trials-and-the-human-gabarito.md
       - 0019 The CSV import is parsed in the browser: adr/0019-the-csv-import-is-parsed-in-the-browser.md
       - 0020 The interface speaks two languages: adr/0020-the-interface-speaks-two-languages.md
+      - 0021 The URL speaks the interface's language: adr/0021-the-url-speaks-the-interfaces-language.md
+      - 0022 An unconfigured installation advertises no object-backed URL: adr/0022-an-unconfigured-installation-advertises-no-object-backed-url.md
+      - 0023 Diffusion is a channel registry and a scope: adr/0023-diffusion-is-a-channel-registry-and-a-scope.md
+      - 0024 The open dataset is a versioned projection: adr/0024-the-open-dataset-is-a-versioned-projection.md
+      - 0025 The security policy lives in the application: adr/0025-the-security-policy-lives-in-the-application.md
   - Documentation log: log.md

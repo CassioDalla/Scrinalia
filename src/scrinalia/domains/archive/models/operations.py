@@ -132,6 +132,12 @@ class WorkerRun(Base):
     #: spans every origin in the collection and has no single source to name. The partial unique
     #: index below includes it, so the queue is one slot per worker *and* one per origin.
     origin_code: Mapped[str | None] = mapped_column(String(50), nullable=True, index=True)
+    #: The diffusion channel an **export** run writes. ``NULL`` for every other worker, including
+    #: ``ingestion``: the channel is the axis of ``diffusion`` and the origin is the axis of
+    #: ``ingestion``, and an archive worker spans the collection and names neither. The partial
+    #: unique index below includes it, so two channels export at the same time while a second run of
+    #: one channel waits — the same slot-per-axis rule the origin already has (ADR 0016/0023).
+    channel_code: Mapped[str | None] = mapped_column(String(50), nullable=True, index=True)
     status: Mapped[WorkerRunStatus] = mapped_column(
         Enum(WorkerRunStatus, name="worker_run_status"), nullable=False, index=True
     )
@@ -222,14 +228,16 @@ class WorkerRun(Base):
         # IntegrityError the API translates into a 409 with a sentence a person can read. It is
         # also the reason the queue is one slot per worker and not a backlog (ADR 0014).
         #
-        # The origin is part of the slot because one ``ingestion`` worker serves several origins:
-        # the archive workers keep ``origin_code IS NULL`` and therefore their one-slot-per-worker
-        # guard, while each origin gets a slot of its own. ``COALESCE`` is what makes the NULL
-        # coalesce into one value instead of the many NULLs a plain unique index would allow.
+        # The axis is part of the slot because one ``ingestion`` worker serves several origins and
+        # one ``diffusion`` worker serves several channels: the archive workers keep both columns
+        # NULL and therefore their one-slot-per-worker guard, while each origin and each channel
+        # gets a slot of its own. ``COALESCE`` is what makes the NULL coalesce into one value
+        # instead of the many NULLs a plain unique index would allow.
         Index(
             "uq_worker_run_active",
             "worker_name",
             text("COALESCE(origin_code, '')"),
+            text("COALESCE(channel_code, '')"),
             unique=True,
             postgresql_where=text(ACTIVE_RUN_PREDICATE),
         ),

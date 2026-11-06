@@ -64,10 +64,15 @@ def test_a_request_without_an_origin_is_allowed(api_client: TestClient, generate
 
 
 def test_a_read_is_not_checked(api_client: TestClient) -> None:
-    """``GET`` changes nothing, and the diffusion surface is open by design."""
+    """``GET`` changes nothing, and the diffusion surface is open by design.
+
+    The answer is 404 while the ``public_site`` channel is not configured — the site is simply not
+    there — and never the 403 the origin guard answers to a write.
+    """
     response = api_client.get("/api/v1/public/documents", headers={"Origin": "https://evil.example"})
 
-    assert response.status_code == 200
+    assert response.status_code == 404
+    assert response.json()["error_code"] == "PublicSiteNotConfiguredError"
 
 
 def test_a_configured_origin_is_allowed_when_the_host_differs(

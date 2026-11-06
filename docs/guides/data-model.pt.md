@@ -15,7 +15,7 @@ acusar drift; uma tabela que existe apenas em uma migration é um defeito.
 
 ## Domínios e camadas do pipeline
 
-O sistema tem quatro domínios em `src/scrinalia/domains/`. Três deles são as camadas que um registro
+O sistema tem cinco domínios em `src/scrinalia/domains/`. Três deles são as camadas que um registro
 atravessa, nesta ordem:
 
 - `ingestion` — a fila de coleta e o payload intocado (`scraping_queue`, `raw_data`);
@@ -24,8 +24,10 @@ atravessa, nesta ordem:
   (`archive_*`, `domain_*`).
 
 O quarto domínio, `identity`, **não** é uma camada desse pipeline (ADR 0009). Ele é dono das contas,
-das sessões e do mapa de papéis — as tabelas que descrevem a instalação, não o acervo. Um registro
-nunca "passa por" identity.
+das sessões e do mapa de papéis — as tabelas que descrevem a instalação, não o acervo. O quinto,
+`diffusion`, também não é uma camada: ele é dono dos canais por onde o conjunto publicado sai e, a
+partir da #251, dos escopos de publicação sobre o arranjo (ADR 0023). Um registro nunca "passa por"
+identity ou diffusion.
 
 ```text
 site de origem
@@ -36,6 +38,7 @@ ingestion ───────────▶ staging ────────�
  raw_data)
 
 identity ── contas, sessões, papéis (não é camada do pipeline)
+diffusion ── canais e publicação (não é camada do pipeline)
 ```
 
 Cada camada identifica um registro por um hash do que leu por último, para que uma nova execução
@@ -49,7 +52,7 @@ bytes da origem não mudaram.
 Todas as tabelas de `Base.metadata`. Para enumerá-las a partir do código:
 
 ```bash
-uv run python -c "from scrinalia.core.base import Base; import scrinalia.domains.archive.models, scrinalia.domains.identity.models, scrinalia.domains.ingestion.models, scrinalia.domains.staging.models; print('\n'.join(sorted(Base.metadata.tables)))"
+uv run python -c "from scrinalia.core.base import Base; import scrinalia.domains.archive.models, scrinalia.domains.diffusion.models, scrinalia.domains.identity.models, scrinalia.domains.ingestion.models, scrinalia.domains.staging.models; print('\n'.join(sorted(Base.metadata.tables)))"
 ```
 
 ### Ingestão — o que a origem enviou, sem tratamento
@@ -91,7 +94,7 @@ mapeadas para uma coluna.
 
 | Tabela | Para que serve | Colunas principais |
 | --- | --- | --- |
-| `archive_documents` | A descrição final, limpa e enriquecida, servida aos usuários e enriquecida pelos workers de IA. | `description_id` (chave primária), `origin_code`, `original_title`, `final_title`, `document_date`, `date_expression`, `original_url`, `summary`, `staging_content_hash`, `reference_code`, `level_id`, `typology_id`, `parent_id`, `parent_reference_code`, `path`, as colunas de texto ISAD(G), `review_status`, `is_anomaly`, `anomaly_reasons`, `is_published`, `execution_log` (JSONB), `embedding` (`vector(384)`), `search_vector` (gerada), timestamps |
+| `archive_documents` | A descrição final, limpa e enriquecida, servida aos usuários e enriquecida pelos workers de IA. | `description_id` (chave primária), `origin_code`, `original_title`, `final_title`, `document_date`, `date_expression`, `original_url`, `summary`, `staging_content_hash`, `reference_code`, `level_id`, `typology_id`, `parent_id`, `parent_reference_code`, `path`, as colunas de texto ISAD(G), `review_status`, `is_anomaly`, `anomaly_reasons`, `execution_log` (JSONB), `embedding` (`vector(384)`), `search_vector` (gerada), timestamps |
 
 As **colunas de texto ISAD(G)** são o registro inteiro, não um subconjunto: `dimension_support`,
 `producers`, `admin_bio_history`, `admin_archival_history`, `provenance`, `scope_content`,
@@ -227,7 +230,7 @@ são um estado da tag.
 | --- | --- | --- |
 | `archive_worker_settings` | A configuração padrão persistida de um worker. | `worker_name` (chave primária), `engine_name`, `preset`, `db_batch_size`, `options` (JSONB), `updated_by`, `updated_at` |
 | `archive_worker_settings_revisions` | Trilha de auditoria das escritas de configuração, uma linha por escrita. | `id`, `worker_name`, `before` (JSONB), `after` (JSONB), `changed_by`, `changed_by_user_id`, `changed_at` |
-| `archive_worker_runs` | Uma linha por execução de worker, tanto pela CLI quanto pelo painel; desde a ADR 0014 uma linha `QUEUED` é também o item de fila que um runner reivindica. Uma execução de ingestão nomeia a origem que processou em `origin_code`; a de um worker de archive a deixa nula. Um **ensaio** (`trial = true`, ADR 0018) é uma comparação de configurações que não escreve conteúdo arquivístico e carrega as medições em `trial_result`; ele ocupa a vaga do worker como qualquer execução, mas a "última execução" do painel o ignora. | `id`, `worker_name`, `origin_code`, `status` (`WorkerRunStatus`), `trigger` (`WorkerRunTrigger`), `trial`, `requested_by`, `requested_by_user_id`, `engine_name`, `preset`, `request` (JSONB, a requisição validada), `config` (JSONB), `options` (JSONB), `trial_result` (JSONB), `attempt`, `retry_of`, `not_before`, `queued_at`, `runner_id`, `started_at`, `heartbeat_at`, `lease_expires_at`, `cancel_requested_at`, `cancel_requested_by`, `cancel_requested_by_user_id`, `finished_at`, `duration_ms`, `error`, `error_fingerprint` (gerada) |
+| `archive_worker_runs` | Uma linha por execução de worker, tanto pela CLI quanto pelo painel; desde a ADR 0014 uma linha `QUEUED` é também o item de fila que um runner reivindica. Uma execução de ingestão nomeia a origem que processou em `origin_code` e uma execução de difusão nomeia o canal que escreveu em `channel_code`; a de um worker de archive deixa as duas nulas. Um **ensaio** (`trial = true`, ADR 0018) é uma comparação de configurações que não escreve conteúdo arquivístico e carrega as medições em `trial_result`; ele ocupa a vaga do worker como qualquer execução, mas a "última execução" do painel o ignora. | `id`, `worker_name`, `origin_code`, `channel_code`, `status` (`WorkerRunStatus`), `trigger` (`WorkerRunTrigger`), `trial`, `requested_by`, `requested_by_user_id`, `engine_name`, `preset`, `request` (JSONB, a requisição validada), `config` (JSONB), `options` (JSONB), `trial_result` (JSONB), `attempt`, `retry_of`, `not_before`, `queued_at`, `runner_id`, `started_at`, `heartbeat_at`, `lease_expires_at`, `cancel_requested_at`, `cancel_requested_by`, `cancel_requested_by_user_id`, `finished_at`, `duration_ms`, `error`, `error_fingerprint` (gerada) |
 | `archive_worker_schedules` | A agenda de um worker: um cron de cinco campos num fuso explícito, o request pinado que ela roda e a próxima execução. | `worker_name` (chave primária), `enabled`, `cron`, `timezone`, `request` (JSONB, a requisição validada), `next_run_at`, `last_enqueued_at`, `last_skipped_at`, `updated_by`, `updated_by_user_id`, `created_at`, `updated_at` |
 | `archive_worker_runners` | O registro dos runners vivos: quem está conectado, quais workers aceita e quando deu o último sinal. | `runner_id` (chave primária), `name`, `hostname`, `version`, `capabilities` (array de texto), `concurrency`, `heartbeat_seconds`, `started_at`, `last_heartbeat_at`, `stopped_at` |
 | `archive_api_errors` | As falhas HTTP inesperadas da própria API. | `id`, `occurred_at`, `request_id`, `method`, `path`, `status_code`, `message`, `error_fingerprint` (gerada) |
@@ -245,6 +248,38 @@ se um runner está vivo e se ele pode rodar determinado worker. Deliberadamente 
 estrangeira de nenhuma das duas para uma tabela de workers: workers são código, não linhas.
 `archive_api_errors` registra apenas falhas *inesperadas* — um 404, um 409 e um 422 são respostas que
 a API deve a um cliente, e registrá-las enterra os defeitos de verdade.
+
+### Difusão — por onde o conjunto publicado sai
+
+| Tabela | Para que serve | Colunas principais |
+| --- | --- | --- |
+| `diffusion_channels` | O ciclo de vida, a configuração e a agenda de um canal: o que o operador adiciona e configura sem deploy. Um canal `LIVE` é lido a cada requisição; um canal `EXPORT` tem agenda e execução. | `code` (chave primária), `enabled`, `config` (JSONB: a identidade de apresentação do canal; nunca um segredo), `options` (JSONB: a política de execução), `cron`, `timezone`, `next_run_at`, `last_enqueued_at`, `last_skipped_at`, `updated_by`, `updated_by_user_id` |
+| `diffusion_channel_scopes` | O escopo positivo: "este ramo ou registro vai para este canal". Os descendentes aprovados são cobertos na leitura, pelo `path` materializado, então um filho aprovado depois entra sem uma segunda decisão. Revogar grava `revoked_at`; a linha nunca é apagada, porque registra que a decisão existiu. | `scope_id` (chave primária), `channel_code` (FK → `diffusion_channels`, `RESTRICT`), `node_id` (FK → `archive_documents`, `CASCADE`), `include_descendants`, `note`, `created_by`, `created_by_user_id`, `created_at`, `revoked_at`, `revoked_by`, `revoked_by_user_id` |
+| `diffusion_channel_exclusions` | O escopo negativo: "este ramo ou registro fica fora deste canal", com a razão do curador. Ele vence qualquer escopo positivo que cubra o mesmo registro. | a forma do escopo positivo mais `reason` |
+| `diffusion_publication_batches` | Um gesto de publicação — publicar um ramo, publicar uma seleção, manter um registro privado, revogar um ramo — com a seleção resolvida, as contagens e o autor. É a unidade reversível do princípio VI. | `batch_id`, `action` (`PUBLISH`/`EXCLUDE`/`REVOKE`/`UNEXCLUDE`), `selection` (JSONB), `applied_count`, `skipped_count`, `note`, `requested_by`, `requested_by_user_id`, `created_at`, `undone_at`, `undone_by`, `undone_by_user_id` |
+| `diffusion_publication_entries` | Cada linha de escopo que um lote criou ou revogou, com o estado antes e depois e um retrato do nó. O desfazer a lê e pula o que mudou desde então; o nó é retrato e não chave estrangeira, então um ramo excluído ou movido continua tendo explicação. | `entry_id`, `batch_id` (FK, `CASCADE`), `channel_code`, `kind` (`INCLUSION`/`EXCLUSION`), `scope_id`, `node_id`, `node_path`, `node_title`, `include_descendants`, `was_active`, `is_active`, `created_at` |
+
+Um canal de difusão é uma definição em código mais esta linha de ciclo de vida (#211, ADR 0023). O
+registro só oferece canais que funcionam: `public_site` é `LIVE` e não tem execução, enquanto o
+conjunto de dados e o AtoM são canais `EXPORT` com adaptadores próprios. `enabled=false` é uma pausa,
+não uma ausência; uma linha faltando é "nunca adicionado", que é o que o campo `configured` do DTO
+distingue. `config` nunca guarda segredo — um token é nomeado por variável de ambiente, não armazenado
+aqui.
+
+Os registros que um canal expõe são uma **leitura**, não uma tabela. Duas views, um conceito cada:
+`archive_document_channel_exclusions` é o conjunto negativo — qual exclusão cobre um registro em qual
+canal — e `archive_document_channels` a compõe com a aprovação e os escopos positivos. A view de
+cobertura devolve uma linha por (descrição, canal) quando o registro é `HUMAN_APPROVED`, um escopo
+positivo o cobre e nenhum escopo negativo o cobre, e nomeia o escopo que é a origem da cobertura
+(`scope_id`), para uma tela poder dizer "pelo ramo do Fundo A" sem reimplementar o predicado. A
+separação é o que permite o preview do curador dizer *por que* um registro é pulado — "excluído" em
+vez de "não coberto" — sem uma segunda cópia da regra de exclusão. A view lê o `path` materializado e a posição atual do nó,
+então mover um ramo move o que ele cobre; ela **não** lê `enabled`, porque pausar um canal é decisão
+do operador e o "Publicadas" do curador tem de continuar dizendo o que foi publicado.
+`DocumentSummary.channels` é a lista que a ficha e a lista mostram, e `is_published` é derivado
+dela: coberto por ao menos um canal. Não há booleano guardado — a coluna
+`archive_documents.is_published` foi removida, e a migração recusa removê-la enquanto uma linha ainda
+carrega um true.
 
 ### Identity — a instalação, não o acervo
 
@@ -501,24 +536,34 @@ interna é `DocumentSummary`; a pública é `PublicDocumentSummary`, construída
 com `model_validate` sobre o DTO interno — validá-lo tornaria público automaticamente todo campo que a
 visão interna ganhasse.
 
-Dois frozensets em `api/schemas/public.py` tornam o padrão privado:
+Dois frozensets em `domains/archive/schemas/public_projection.py` tornam o padrão privado:
 
 - `NOT_PUBLIC_FIELDS` — campos de `DocumentSummary` deliberadamente não publicados. Contém
   `review_status`, `is_anomaly`, `anomaly_reasons`, `archivist_notes`, `provenance`,
   `suggested_final_title`, `rank`, `path`, `parent_id`, `level_id`, `typology_id`, `is_published`,
-  `admin_bio_history`, `admin_archival_history` e `access_conditions`.
+  `channels`, `storage_thumbnail_uri`, `admin_bio_history` e `admin_archival_history`.
 - `NOT_PUBLIC_FACETS` — atualmente apenas `anomaly_reason`.
+
+A projeção mora no domínio e não em `api/schemas` porque a allowlist não é um detalhe HTTP: o conjunto
+aberto (#214) exporta os mesmos registros, e um worker do domínio importar a camada da API inverteria a
+dependência. O módulo da API guarda apenas o envelope da página.
+
+Ela foi ampliada em 2026-10-30 para o dataset (ADR 0024): `date_expression`, `level_code`,
+`dimension_support` e `access_conditions` passaram a ser publicados porque um intercâmbio arquivístico
+não pode ser lossy em ISAD(G) 3.1.3, 3.1.4, 3.1.5 e 4.1. A projeção é única (ADR 0023), então o site
+público também os mostra. `storage_thumbnail_uri` saiu: um `s3://bucket/key` não é um endereço que um
+navegador ou um consumidor de dataset consiga ler, e a URL resolvida espera a #198.
 
 Junto com os campos e facetas publicados, eles precisam permanecer uma **partição exata** da leitura
 interna: todo campo ou é publicado ou está listado, e nenhum é as duas coisas. Um teste falha quando
 um novo campo ou faceta fica sem classificação, então o padrão para o que a visão interna ganhar a
 seguir é privado.
 
-Mais duas regras completam a superfície. `published_only` é definido **no servidor** e não é parâmetro
-de cliente, então nenhuma query string pode pedir um registro não publicado. Um id não publicado
-responde **404, não 403**: um status distinto confirmaria que a descrição existe. E `published_only`
-é um filtro que nunca é excluído da contagem de facetas — nenhuma faceta pode levantar o portão da
-difusão.
+Mais duas regras completam a superfície. `publication_channel=PUBLIC_SITE_CODE` é definido **no
+servidor** e não é parâmetro de cliente, então nenhuma query string pode pedir um registro que outro
+canal carrega. Um id fora do canal responde **404, não 403**: um status distinto confirmaria que a
+descrição existe. E a cláusula do canal é um filtro que nunca é excluído da contagem de facetas —
+nenhuma faceta pode levantar o portão da difusão.
 
 ## A trilha de revisão da curadoria humana
 

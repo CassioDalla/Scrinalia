@@ -3,15 +3,24 @@ sources:
   - src/scrinalia/domains/ingestion/models.py
   - src/scrinalia/domains/ingestion/origin_registry.py
   - src/scrinalia/domains/ingestion/origins.py
+  - src/scrinalia/domains/diffusion/models.py
+  - src/scrinalia/domains/diffusion/coverage.py
+  - src/scrinalia/domains/diffusion/publication_repository.py
+  - src/scrinalia/domains/diffusion/diffusion_registry.py
   - src/scrinalia/domains/staging/models.py
   - src/scrinalia/domains/archive/models/**
   - src/scrinalia/domains/identity/models/**
   - src/scrinalia/domains/archive/worker_stamp.py
   - src/scrinalia/domains/archive/repository/text_quality_repo.py
   - src/scrinalia/domains/archive/repository/tag_repo.py
-  - src/scrinalia/api/schemas/public.py
+  - src/scrinalia/domains/archive/schemas/public_projection.py
   - src/scrinalia/core/language/__init__.py
   - migrations/versions/44a1b2c3d4e5_the_origin_is_a_first_class_object.py
+  - migrations/versions/0b1c2d3e4f5a_add_the_diffusion_channels.py
+  - migrations/versions/9f2a7c1e5b30_add_the_diffusion_publication_scopes.py
+  - migrations/versions/a4c8d0e2f614_derive_the_channel_coverage_in_a_view.py
+  - migrations/versions/b7e3f9a1c852_add_the_publication_batch_ledger.py
+  - migrations/versions/c9e1f4b7d620_let_the_coverage_compose_the_exclusions_view.py
   - migrations/versions/b7e4c2a9f1d0_the_schedule_and_the_retry.py
   - migrations/versions/fe7fcab37207_add_the_failure_fingerprint_and_the_api_.py
   - testing/conftest.py
@@ -40,7 +49,9 @@ crosses, in order:
 
 The fourth domain, `identity`, is **not** a layer of that pipeline (ADR 0009). It owns the accounts,
 the sessions and the role map — the tables that describe the installation rather than the collection.
-A record never "passes through" identity.
+The fifth, `diffusion`, is not a layer either: it owns the channels the published set leaves through
+and, from #251, the publication scopes over the arrangement (ADR 0023). A record never "passes
+through" identity or diffusion.
 
 ```text
 source site
@@ -51,6 +62,7 @@ ingestion ──────────▶ staging ─────────�
  raw_data)
 
 identity ── accounts, sessions, roles (not a pipeline layer)
+diffusion ── channels and publication (not a pipeline layer)
 ```
 
 Each layer keys a record on a hash of what it last read, so a re-run knows whether anything moved:
@@ -64,7 +76,7 @@ not change.
 Every table of `Base.metadata`. To enumerate them from the code:
 
 ```bash
-uv run python -c "from scrinalia.core.base import Base; import scrinalia.domains.archive.models, scrinalia.domains.identity.models, scrinalia.domains.ingestion.models, scrinalia.domains.staging.models; print('\n'.join(sorted(Base.metadata.tables)))"
+uv run python -c "from scrinalia.core.base import Base; import scrinalia.domains.archive.models, scrinalia.domains.diffusion.models, scrinalia.domains.identity.models, scrinalia.domains.ingestion.models, scrinalia.domains.staging.models; print('\n'.join(sorted(Base.metadata.tables)))"
 ```
 
 ### Ingestion — what the origin sent, untouched
@@ -108,7 +120,7 @@ approximation. `raw_metadata` keeps the keys that did not map to a column.
 
 | Table | Purpose | Key columns |
 | --- | --- | --- |
-| `archive_documents` | The final cleaned and enriched description, served to users and enriched by the AI workers. | `description_id` (primary key), `origin_code`, `original_title`, `final_title`, `document_date`, `date_expression`, `original_url`, `summary`, `staging_content_hash`, `reference_code`, `level_id`, `typology_id`, `parent_id`, `parent_reference_code`, `path`, the ISAD(G) text columns, `review_status`, `is_anomaly`, `anomaly_reasons`, `is_published`, `execution_log` (JSONB), `embedding` (`vector(384)`), `search_vector` (generated), timestamps |
+| `archive_documents` | The final cleaned and enriched description, served to users and enriched by the AI workers. | `description_id` (primary key), `origin_code`, `original_title`, `final_title`, `document_date`, `date_expression`, `original_url`, `summary`, `staging_content_hash`, `reference_code`, `level_id`, `typology_id`, `parent_id`, `parent_reference_code`, `path`, the ISAD(G) text columns, `review_status`, `is_anomaly`, `anomaly_reasons`, `execution_log` (JSONB), `embedding` (`vector(384)`), `search_vector` (generated), timestamps |
 
 The **ISAD(G) text columns** are the whole record, not a subset: `dimension_support`,
 `producers`, `admin_bio_history`, `admin_archival_history`, `provenance`, `scope_content`,
@@ -144,10 +156,11 @@ Three properties of this table carry the model:
   `NEEDS_REVIEW`, `HUMAN_APPROVED`, `REJECTED`. `HUMAN_APPROVED` blocks AI rewrites.
 
 !!! note "Diffusion is not review"
-    `is_published` is its own column, deliberately not `review_status = HUMAN_APPROVED`. Review is a
-    claim about the record; publication is a decision about what to expose. Reusing the status would
-    make a typo fix equivalent to publishing, and would lock every published document against AI
-    rewriting. Nothing is published by default, so the diffusion surface is born empty.
+    Publication is not a column: a record is public because a channel's scope covers it and it is
+    `HUMAN_APPROVED` (ADR 0023), and the read is the coverage view. Review is a claim about the
+    record; publication is a decision about where it appears. Reusing the status for publication
+    would make a typo fix equivalent to publishing, and would lock every published document against
+    AI rewriting. Nothing is published by default, so the diffusion surface is born empty.
 
 #### Subjects, categories and entities
 
@@ -244,7 +257,7 @@ is what the subject axis stops guessing at — they are not a state of the tag.
 | --- | --- | --- |
 | `archive_worker_settings` | The persisted default configuration of one worker. | `worker_name` (primary key), `engine_name`, `preset`, `db_batch_size`, `options` (JSONB), `updated_by`, `updated_at` |
 | `archive_worker_settings_revisions` | Audit trail of configuration writes, one row per write. | `id`, `worker_name`, `before` (JSONB), `after` (JSONB), `changed_by`, `changed_by_user_id`, `changed_at` |
-| `archive_worker_runs` | One row per worker execution, from the CLI and from the panel alike; since ADR 0014 a `QUEUED` row is also the queue item a runner claims. An ingestion run names the origin it processed in `origin_code`; an archive worker's run leaves it null. A **trial** (`trial = true`, ADR 0018) is a comparison of configurations that writes no archival content and carries its measurements in `trial_result`; it holds the worker's slot like any run, but the panel's "last run" ignores it. | `id`, `worker_name`, `origin_code`, `status` (`WorkerRunStatus`), `trigger` (`WorkerRunTrigger`), `trial`, `requested_by`, `requested_by_user_id`, `engine_name`, `preset`, `request` (JSONB, the validated request), `config` (JSONB), `options` (JSONB), `trial_result` (JSONB), `attempt`, `retry_of`, `not_before`, `queued_at`, `runner_id`, `started_at`, `heartbeat_at`, `lease_expires_at`, `cancel_requested_at`, `cancel_requested_by`, `cancel_requested_by_user_id`, `finished_at`, `duration_ms`, `error`, `error_fingerprint` (generated) |
+| `archive_worker_runs` | One row per worker execution, from the CLI and from the panel alike; since ADR 0014 a `QUEUED` row is also the queue item a runner claims. An ingestion run names the origin it processed in `origin_code` and a diffusion run names the channel it wrote in `channel_code`; an archive worker's run leaves both null. A **trial** (`trial = true`, ADR 0018) is a comparison of configurations that writes no archival content and carries its measurements in `trial_result`; it holds the worker's slot like any run, but the panel's "last run" ignores it. | `id`, `worker_name`, `origin_code`, `channel_code`, `status` (`WorkerRunStatus`), `trigger` (`WorkerRunTrigger`), `trial`, `requested_by`, `requested_by_user_id`, `engine_name`, `preset`, `request` (JSONB, the validated request), `config` (JSONB), `options` (JSONB), `trial_result` (JSONB), `attempt`, `retry_of`, `not_before`, `queued_at`, `runner_id`, `started_at`, `heartbeat_at`, `lease_expires_at`, `cancel_requested_at`, `cancel_requested_by`, `cancel_requested_by_user_id`, `finished_at`, `duration_ms`, `error`, `error_fingerprint` (generated) |
 | `archive_worker_schedules` | The agenda of one worker: a five-field cron in an explicit zone, the pinned request it runs and the next run. | `worker_name` (primary key), `enabled`, `cron`, `timezone`, `request` (JSONB, the validated request), `next_run_at`, `last_enqueued_at`, `last_skipped_at`, `updated_by`, `updated_by_user_id`, `created_at`, `updated_at` |
 | `archive_worker_runners` | The live runner registry: who is connected, which workers it accepts, and when it last signalled. | `runner_id` (primary key), `name`, `hostname`, `version`, `capabilities` (text array), `concurrency`, `heartbeat_seconds`, `started_at`, `last_heartbeat_at`, `stopped_at` |
 | `archive_api_errors` | The API's own unexpected HTTP failures. | `id`, `occurred_at`, `request_id`, `method`, `path`, `status_code`, `message`, `error_fingerprint` (generated) |
@@ -269,6 +282,37 @@ previous one is terminal, so the partial unique index is never violated (ADR 001
 There is deliberately no foreign key from either table to a worker table: workers are code, not rows.
 `archive_api_errors` records only *unexpected* failures — a 404, a 409 and a 422 are answers the API
 owes a client, and recording them buries the real defects.
+
+### Diffusion — where the published set leaves
+
+| Table | Purpose | Key columns |
+| --- | --- | --- |
+| `diffusion_channels` | One channel's lifecycle, configuration and agenda: what the operator adds and configures without a deploy. A `LIVE` channel is read on every request; an `EXPORT` channel has an agenda and a run. | `code` (primary key), `enabled`, `config` (JSONB: the channel's presentation identity; never a secret), `options` (JSONB: the run policy), `cron`, `timezone`, `next_run_at`, `last_enqueued_at`, `last_skipped_at`, `updated_by`, `updated_by_user_id` |
+| `diffusion_channel_scopes` | The positive scope: "this branch or record goes to this channel". Its approved descendants are covered on read from the materialised `path`, so a child approved later enters without a second decision. Revoking writes `revoked_at`; the row is never deleted, because it records that the decision was taken. | `scope_id` (primary key), `channel_code` (FK → `diffusion_channels`, `RESTRICT`), `node_id` (FK → `archive_documents`, `CASCADE`), `include_descendants`, `note`, `created_by`, `created_by_user_id`, `created_at`, `revoked_at`, `revoked_by`, `revoked_by_user_id` |
+| `diffusion_channel_exclusions` | The negative scope: "this branch or record stays out of this channel", with the curator's reason. It overrides any positive scope that covers the same record. | the positive scope's shape plus `reason` |
+| `diffusion_publication_batches` | One publication gesture — publish a ramo, publish a selection, keep a record private, revoke a ramo — with the resolved selection, the counts and the author. It is the reversible unit of principle VI. | `batch_id`, `action` (`PUBLISH`/`EXCLUDE`/`REVOKE`/`UNEXCLUDE`), `selection` (JSONB), `applied_count`, `skipped_count`, `note`, `requested_by`, `requested_by_user_id`, `created_at`, `undone_at`, `undone_by`, `undone_by_user_id` |
+| `diffusion_publication_entries` | Each scope row a batch created or revoked, with the state before and after and a snapshot of the node. The undo reads it and skips what changed since; the node is a snapshot and not a foreign key, so a deleted or moved branch still has an explanation. | `entry_id`, `batch_id` (FK, `CASCADE`), `channel_code`, `kind` (`INCLUSION`/`EXCLUSION`), `scope_id`, `node_id`, `node_path`, `node_title`, `include_descendants`, `was_active`, `is_active`, `created_at` |
+
+A diffusion channel is a definition in code plus this lifecycle row (#211, ADR 0023). The registry only
+ships channels that work: `public_site` is `LIVE` and has no run, while the dataset and AtoM are
+`EXPORT` channels with their own adapters. `enabled=false` is a pause, not an absence; a missing row
+is "never added", which is what the `configured` flag on the DTO distinguishes. `config` never holds a
+secret — a token is named by an environment variable, not stored here.
+
+The records a channel exposes are a **read**, not a table. Two views, one concept each:
+`archive_document_channel_exclusions` is the negative set — which exclusion covers a record on which
+channel — and `archive_document_channels` composes it with the approval and the positive scopes. The
+coverage view returns one row per (description, channel) when the record is `HUMAN_APPROVED`, a
+positive scope covers it and no negative scope does, and it names the scope that is the origin of the
+coverage (`scope_id`), so a screen can say "pelo ramo do Fundo A" without re-implementing the
+predicate. The split is what lets the curator's preview say *why* a record is skipped — "excluded"
+rather than "not covered" — without a second copy of the exclusion rule. The view reads the materialised `path` and the
+node's current position, so moving a branch moves what it covers; it does **not** read `enabled`,
+because pausing a channel is the operator's decision and the curator's "Publicadas" must keep saying
+what was published. `DocumentSummary.channels` is the list the dossier and the collection show, and
+`is_published` is derived from it: covered by at least one channel. There is no stored boolean — the
+`archive_documents.is_published` column was dropped, and the migration refuses to drop it while a
+row still carries a true.
 
 ### Identity — the installation, not the collection
 
@@ -521,22 +565,33 @@ is `DocumentSummary`; the public one is `PublicDocumentSummary`, built **field b
 with `model_validate` on the internal DTO — validating it would make every field the internal view
 gains automatically public.
 
-Two frozensets in `api/schemas/public.py` make the default private:
+Two frozensets in `domains/archive/schemas/public_projection.py` make the default private:
 
 - `NOT_PUBLIC_FIELDS` — fields of `DocumentSummary` that are deliberately not published. It contains
   `review_status`, `is_anomaly`, `anomaly_reasons`, `archivist_notes`, `provenance`,
   `suggested_final_title`, `rank`, `path`, `parent_id`, `level_id`, `typology_id`, `is_published`,
-  `admin_bio_history`, `admin_archival_history` and `access_conditions`.
+  `channels`, `storage_thumbnail_uri`, `admin_bio_history` and `admin_archival_history`.
 - `NOT_PUBLIC_FACETS` — currently just `anomaly_reason`.
+
+The projection lives in the domain and not in `api/schemas` because the allowlist is not an HTTP
+detail: the open dataset (#214) exports the same records, and a domain worker importing the API layer
+would invert the dependency. The API module keeps only the page envelope.
+
+It was widened on 2026-10-30 for the dataset (ADR 0024): `date_expression`, `level_code`,
+`dimension_support` and `access_conditions` are published because an archival interchange cannot be
+lossy about ISAD(G) 3.1.3, 3.1.4, 3.1.5 and 4.1. The projection is single (ADR 0023), so the public
+site shows them too. `storage_thumbnail_uri` left it: an `s3://bucket/key` is not an address a
+browser or a dataset consumer can read, and the resolved URL waits for #198.
 
 Together with the published fields and facets they must remain an **exact partition** of the internal
 read: every field is either published or listed, and none is both. A test fails when a new field or
 facet is left unclassified, so the default for whatever the internal view gains next is private.
 
-Two more rules complete the surface. `published_only` is set **server-side** and is not a client
-parameter, so no query string can ask for an unpublished record. An unpublished id answers **404, not
-403**: a distinct status would confirm that the description exists. And `published_only` is a filter
-that is never excluded from facet counting — no facet may lift the diffusion gate.
+Two more rules complete the surface. `publication_channel=PUBLIC_SITE_CODE` is set **server-side**
+and is not a client parameter, so no query string can ask for a record another channel carries. An id
+outside the channel answers **404, not 403**: a distinct status would confirm that the description
+exists. And the channel clause is a filter that is never excluded from facet counting — no facet may
+lift the diffusion gate.
 
 ## The revision trail of human curation
 

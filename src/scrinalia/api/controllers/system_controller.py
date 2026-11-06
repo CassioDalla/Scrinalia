@@ -84,6 +84,7 @@ class SystemController(Controller):
         run_service: NamedDependency[WorkerRunService],
         worker: FromQuery[str | None] = None,
         origin: FromQuery[str | None] = None,
+        channel: FromQuery[str | None] = None,
         status: FromQuery[WorkerRunStatus | None] = None,
         fingerprint: FromQuery[str | None] = None,
         trial: FromQuery[bool | None] = None,
@@ -93,14 +94,17 @@ class SystemController(Controller):
         """
         The execution ledger, newest first; the filters narrow it server-side.
 
-        ``fingerprint`` is the other end of the failures screen: a group says *what* is breaking, and
-        this is how the archivist sees the executions behind it. ``trial`` separates the comparisons
-        from the production runs; the comparison card reads the latest trial of one worker.
+        ``origin`` and ``channel`` are the two axes: a run of ``ingestion`` names the origin it read
+        and a run of ``diffusion`` the channel it wrote (ADR 0016/0023). ``fingerprint`` is the other
+        end of the failures screen: a group says *what* is breaking, and this is how the archivist
+        sees the executions behind it. ``trial`` separates the comparisons from the production runs;
+        the comparison card reads the latest trial of one worker.
         """
         return run_service.list_runs(
             worker_name=worker,
             status=status,
             origin_code=origin,
+            channel_code=channel,
             fingerprint=fingerprint,
             trial=trial,
             limit=limit,

@@ -78,6 +78,10 @@ def test_storage_probe_says_it_is_not_configured(monkeypatch) -> None:
     assert health.configured is False
     assert health.ok is False
     assert "não configurado" in (health.detail or "")
+    # The detail names what is missing, from the same predicate the reader uses, instead of a
+    # generic "endpoint, bucket or credentials" that could hide an empty credential (#258).
+    assert "S3_ENDPOINT_URL" in (health.detail or "")
+    assert "S3_BUCKET_NAME" in (health.detail or "")
 
 
 def test_storage_probe_reports_a_bucket_that_does_not_answer(monkeypatch) -> None:

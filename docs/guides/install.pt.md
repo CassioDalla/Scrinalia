@@ -255,7 +255,9 @@ Depois da migração, uma instalação nova tem **nenhuma origem configurada**: 
 
 A API fica em `http://localhost:8000/`, a interface no mesmo endereço e o documento OpenAPI em
 `/schema/swagger`. O `--reload` é de desenvolvimento (`bun run api:dev`), não de uma instalação.
-Antes de expor a instância, defina o `AUTH_COOKIE_SECURE` — veja [HTTPS](#https).
+Antes de expor a instância, defina o `AUTH_COOKIE_SECURE` — veja [HTTPS](#https) — e o
+`SECURITY_HSTS_SECONDS` se todo visitante a alcança por HTTPS — veja
+[Cabeçalhos de segurança e a superfície pública](#cabecalhos-de-seguranca-e-a-superficie-publica).
 
 ## Variáveis de ambiente
 
@@ -296,6 +298,9 @@ pipeline, não o boot — a origem é uma linha em `ingestion_origins` e os `PUB
 | `AUTH_LOGIN_RATE_MAX` | `20` | tentativas de acesso permitidas por endereço de cliente na janela; um freio local ao processo, não a defesa durável |
 | `AUTH_LOGIN_RATE_WINDOW_SECONDS` | `300` | a janela em que essas tentativas são contadas |
 | `AUTH_TRUSTED_ORIGINS` | vazio | origens extras aceitas em requisição de escrita, separadas por vírgula; necessárias quando um proxy reverso reescreve o `Host` |
+| `PUBLIC_RATE_LIMIT_MAX` | `120` | requisições que um endereço de cliente pode fazer a `/api/v1/public/*` na janela; um freio local ao processo, multiplicado por `uvicorn --workers` |
+| `PUBLIC_RATE_LIMIT_WINDOW_SECONDS` | `60` | a janela em que essas requisições são contadas |
+| `SECURITY_HSTS_SECONDS` | `0` | `Strict-Transport-Security: max-age=…` em toda resposta; `0` o desliga, que é o padrão certo para uma instalação em HTTP puro |
 | `LOG_DIR` | `logs` | diretório dos sinks do loguru (`critical.log`, `ui_stream.jsonl`); criado se não existir |
 | `LOG_LEVEL` | `INFO` | nível do console e do fluxo estruturado |
 | `DEBUG` | `false` | informa o sinalizador de depuração no diagnóstico do sistema; ele é exibido, não usado para trocar o log |
@@ -383,6 +388,53 @@ pública esteja listada ali, separada por vírgulas. Leituras nunca são conferi
 sem `Origin` (curl, a CLI) é aceita. Como a API serve a interface da própria origem, não há CORS a
 configurar; encaminhe o `Host` original pelo proxy, ou declare a origem pública aqui.
 
+## Cabeçalhos de segurança e a superfície pública
+
+A aplicação envia o conjunto de cabeçalhos ela mesma, em toda resposta (ADR 0025). O proxy reverso
+termina o TLS e **não deve duplicar** o conjunto: dois CSPs ou dois `X-Frame-Options` são combinados
+pelo navegador, e uma página que quebra deixa de ter uma configuração única para conferir.
+
+| Cabeçalho | O que ele diz |
+| --- | --- |
+| `Content-Security-Policy` | só esta origem: `script-src 'self'` (o SPA compilado é um único script de módulo externo), `style-src 'self' 'unsafe-inline'` (seis telas calculam um atributo `style`), `frame-ancestors 'none'` |
+| `X-Content-Type-Options` | `nosniff`, em toda resposta |
+| `Referrer-Policy` | `no-referrer` |
+| `X-Frame-Options` | `DENY`, para navegadores anteriores ao `frame-ancestors` |
+| `Strict-Transport-Security` | `max-age=<SECURITY_HSTS_SECONDS>`, **só** quando a configuração é positiva |
+
+O `SECURITY_HSTS_SECONDS` é `0` por padrão, pelo mesmo motivo que o `AUTH_COOKIE_SECURE` é `false`:
+uma instalação em HTTP puro não pode afirmar HTTPS. Defina `31536000` só quando todo visitante alcança
+o host por HTTPS. `includeSubDomains` e `preload` nunca são emitidos — eles prendem nomes fora desta
+aplicação, e o navegador os mantém depois da próxima mudança de configuração.
+
+As páginas em `/schema` são a única exceção documentada ao CSP: Swagger, Redoc, RapiDoc e Stoplight
+carregam seus pacotes de CDNs e depois rodam um inicializador inline, então a política para nesse
+prefixo. Elas continuam recebendo os outros cabeçalhos. O documento em si é `/schema/openapi.json`.
+
+### O freio da superfície pública
+
+`/api/v1/public/*` é a superfície que responde sem sessão, e ela é limitada por endereço de cliente:
+`PUBLIC_RATE_LIMIT_MAX` requisições por `PUBLIC_RATE_LIMIT_WINDOW_SECONDS` (120 por 60 s por padrão)
+respondem **429** com `Retry-After`, `code: PUBLIC_RATE_LIMITED` e a frase de sempre da API no idioma
+da requisição. A superfície do curador e `/health/*` não são contadas.
+
+**Este limite é por processo.** Ele zera no reinício, e `uvicorn --workers N` multiplica o teto
+efetivo por N. Uma implantação que precisa de um teto global ou durável configura isso no proxy
+reverso; os dois são complementares, não alternativas.
+
+**O endereço contado é o que o ASGI vê.** Atrás de um proxy, é o próprio proxy, a menos que o uvicorn
+seja instruído a confiar no cabeçalho de encaminhamento:
+
+```bash
+uvicorn main:app --host 0.0.0.0 --port 8000 \
+    --proxy-headers --forwarded-allow-ips=172.18.0.2
+```
+
+Nomeie o endereço do proxy, nunca `*`, a menos que a API seja inalcançável a não ser por ele: com
+`*`, qualquer cliente pode definir `X-Forwarded-For` e escolher o próprio balde. Sem as opções, todo
+visitante compartilha a janela do proxy, o que transforma um freio por endereço em um freio do site
+inteiro.
+
 ## Implantação em contêiner
 
 O contêiner é a alternativa à sequência no metal acima, e empacota o que o código já assume: uma
@@ -398,6 +450,14 @@ docker compose --profile app logs -f scheduler
 
 O serviço `app` fica atrás do profile `app` de propósito, então o `docker compose up -d` — e
 portanto o `bun run dev` — continua subindo só a infraestrutura.
+
+O job `image` de `.github/workflows/ci.yml` constrói e confere esta imagem **sob demanda**, não em
+toda pull request: Actions → CI → *Run workflow*, no branch que importa (`dev` antes de um release).
+O build leva minutos e instala todo o ambiente Python e do spaCy, então ele roda quando alguém pede.
+Ele roda `create_app()` dentro da imagem, confere que o pacote da interface, a configuração do
+Alembic e as revisões de migração estão lá, e resolve o arquivo acima com
+`docker compose -f docker-compose.yml config -q`. Rode-o antes de um release: um `Dockerfile` que
+deixou de construir falha ali, e não no `docker compose up` do próximo instalador.
 
 O profile também traz um serviço `runner` e um `scheduler`: a mesma imagem, sem porta publicada, o
 módulo dos workers como entrypoint do runner e o módulo do scheduler como entrypoint do scheduler. É o formato CPU de uma instalação de um host só; um host com GPU roda a imagem
@@ -477,6 +537,16 @@ probe que provisiona é uma escrita escondida dentro de uma leitura.
 
 O que vive lá hoje são os JPEGs do worker `thumbnail`, em `thumbnails/`. O banco guarda a referência
 `s3://bucket/key` resultante em `storage_thumbnail_uri`.
+
+O armazenamento é opcional para tudo, menos para a miniatura. Uma instalação sem nenhuma das quatro
+configurações inicia e serve todas as telas; a leitura não anuncia `thumbnail_url` (ele é `null` mesmo
+para uma linha que carrega um `storage_thumbnail_uri`, como acontece com um banco copiado de uma
+instalação que tinha armazenamento), então a coleção e o dossiê desenham o espaço "sem imagem" e o
+navegador não faz nenhum pedido de miniatura. O `GET /api/v1/documents/{id}/thumbnail` responde
+**404** nessa instalação — um pedido que chega é um link antigo, e a API não lê o bucket, não constrói
+cliente e não registra um stack trace por imagem. O painel de saúde informa
+`storage.configured = false` e nomeia as configurações que faltam. A importação CSV, o cadastro
+manual e todo worker que não toca no bucket funcionam igual.
 
 ## Backup e restauração
 
@@ -572,15 +642,18 @@ aposentadoria resolve para `gemma_4b_local` com o motivo na tela, em vez de derr
 
 ### O bucket não responde
 
-O painel distingue os dois casos: `storage.configured = false` significa endpoint, bucket ou
-credenciais faltando, e `configured = true, ok = false` significa que a configuração existe e o
-`HEAD` no bucket falhou. O worker `thumbnail` é o único consumidor do bucket, então o resto do
-pipeline continua. Suba o bucket **antes** de rodar esse worker: um documento cujo envio levanta
-exceção recebe o carimbo `thumbnail_failed`, uma marca de falha permanente que a fila respeita, então
-uma indisponibilidade passageira do armazenamento durante uma execução deixa esses documentos
-excluídos de toda execução seguinte. Corrija `S3_ENDPOINT_URL`/`S3_BUCKET_NAME`/`S3_ACCESS_KEY`/
-`S3_SECRET_KEY`, confirme que o bucket existe e verifique o alcance a partir do processo que faz o
-envio — dentro de um contêiner, `localhost` é o contêiner.
+O painel distingue os dois casos. `storage.configured = false` significa endpoint, bucket ou
+credenciais faltando: a instalação não tem miniatura nenhuma, então as telas mostram o espaço vazio
+sem pedir imagem e o detalhe nomeia as configurações ausentes. `configured = true, ok = false`
+significa que a configuração existe e o `HEAD` no bucket falhou: as telas mantêm as URLs, o pedido de
+imagem chega à API e a resposta é um 503 que a tela desenha como "indisponível". O worker `thumbnail`
+é o único consumidor do bucket, então o resto do pipeline continua. Suba o bucket **antes** de rodar
+esse worker: um documento cujo envio levanta exceção recebe o carimbo `thumbnail_failed`, uma marca de
+falha permanente que a fila respeita, então uma indisponibilidade passageira do armazenamento durante
+uma execução deixa esses documentos excluídos de toda execução seguinte. Corrija
+`S3_ENDPOINT_URL`/`S3_BUCKET_NAME`/`S3_ACCESS_KEY`/`S3_SECRET_KEY`, confirme que o bucket existe e
+verifique o alcance a partir do processo que faz o envio — dentro de um contêiner, `localhost` é o
+contêiner.
 
 ## Próximos passos
 

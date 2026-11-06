@@ -1,14 +1,17 @@
 """The miniature the dossier shows: one authenticated route, advertised by the read view.
 
-These tests pin the three states the screen draws — the bytes, "no image" and "the object is gone" —
-and the one property that makes the SPA's ``<img>`` possible without a hand-built URL: the URL in
-``DocumentSummary.thumbnail_url`` is served by the application. The bucket is a dictionary here: the
-point is the HTTP contract, not boto3, which ``testing/unit/core/test_storage.py`` covers.
+These tests pin the states the screen draws — the bytes, "no image", "the object is gone" and "this
+installation has no storage" — and the one property that makes the SPA's ``<img>`` possible without a
+hand-built URL: the URL in ``DocumentSummary.thumbnail_url`` is served by the application. The bucket
+is a dictionary here: the point is the HTTP contract, not boto3, which
+``testing/unit/core/test_storage.py`` covers.
 """
 
 import pytest
 from litestar.testing import TestClient
+from pydantic import SecretStr
 
+from scrinalia.core.config import settings
 from scrinalia.core.storage import ObjectStorageError
 
 
@@ -18,8 +21,10 @@ class _FakeStorage:
     def __init__(self) -> None:
         self.objects: dict[str, tuple[bytes, str]] = {}
         self.error: Exception | None = None
+        self.reads: list[str] = []
 
     def read_object(self, uri: str) -> tuple[bytes, str] | None:
+        self.reads.append(uri)
         if self.error is not None:
             raise self.error
         return self.objects.get(uri)
@@ -27,13 +32,35 @@ class _FakeStorage:
 
 @pytest.fixture()
 def thumbnail_storage(monkeypatch):
-    """Replaces the process-wide reader and clears the cache the provider holds it in."""
+    """Replaces the process-wide reader, and configures storage so the URL is advertised."""
     from scrinalia.api import dependencies
+
+    monkeypatch.setattr(settings, "S3_ENDPOINT_URL", "http://storage.local:8333")
+    monkeypatch.setattr(settings, "S3_BUCKET_NAME", "thumbs")
+    monkeypatch.setattr(settings, "S3_ACCESS_KEY", SecretStr("chave"))
+    monkeypatch.setattr(settings, "S3_SECRET_KEY", SecretStr("segredo"))
 
     storage = _FakeStorage()
     monkeypatch.setattr("scrinalia.core.storage.S3Storage", lambda: storage)
     dependencies.provide_thumbnail_reader.cache_clear()
     yield storage
+    dependencies.provide_thumbnail_reader.cache_clear()
+
+
+@pytest.fixture()
+def unconfigured_storage(monkeypatch, thumbnail_storage: _FakeStorage):
+    """The installation the contract must not advertise an image for: no ``S3_*`` at all.
+
+    Depends on ``thumbnail_storage`` so the four settings are cleared **after** that fixture set
+    them, whichever order pytest would otherwise choose.
+    """
+    from scrinalia.api import dependencies
+
+    for name in ("S3_ENDPOINT_URL", "S3_BUCKET_NAME", "S3_ACCESS_KEY", "S3_SECRET_KEY"):
+        monkeypatch.setattr(settings, name, None)
+
+    dependencies.provide_thumbnail_reader.cache_clear()
+    yield thumbnail_storage
     dependencies.provide_thumbnail_reader.cache_clear()
 
 
@@ -56,6 +83,7 @@ def test_the_summary_advertises_a_url_the_route_actually_serves(
     assert response.headers["content-type"] == "image/jpeg"
     assert response.headers["cache-control"] == "private, max-age=300"
     assert response.headers["x-content-type-options"] == "nosniff"
+    assert thumbnail_storage.reads == [uri]
 
 
 def test_the_list_advertises_the_same_url(
@@ -84,6 +112,26 @@ def test_a_description_without_a_stored_image_has_no_url_and_answers_404(
     assert client.get(f"/api/v1/documents/{document.description_id}/thumbnail").status_code == 404
 
 
+def test_without_storage_the_summary_advertises_nothing_and_the_route_never_reads(
+    client: TestClient,
+    generate_archive_doc,
+    thumbnail_storage: _FakeStorage,
+    unconfigured_storage: _FakeStorage,
+) -> None:
+    """A database copied from an installation with storage still carries URIs; the contract hides them."""
+    document = generate_archive_doc(storage_thumbnail_uri="s3://thumbs/thumbnails/thumb_4.jpg")
+
+    summary = client.get(f"/api/v1/documents/{document.description_id}")
+
+    assert summary.status_code == 200
+    assert summary.json()["thumbnail_url"] is None
+
+    response = client.get(f"/api/v1/documents/{document.description_id}/thumbnail")
+
+    assert response.status_code == 404
+    assert thumbnail_storage.reads == [], "an unconfigured installation must not ask storage for anything"
+
+
 def test_an_object_that_left_the_bucket_answers_404_not_a_broken_image(
     client: TestClient, generate_archive_doc, thumbnail_storage: _FakeStorage
 ) -> None:
@@ -108,9 +156,9 @@ def test_the_route_is_closed_to_anonymous_readers(api_client: TestClient) -> Non
 def test_an_unreachable_storage_is_503_and_not_a_broken_image(
     client: TestClient, generate_archive_doc, thumbnail_storage: _FakeStorage
 ) -> None:
-    """Credentials, endpoint or bucket are an operator problem; the screen still renders."""
+    """Configured but unreachable — credentials, endpoint or bucket — is the operator problem, not 404."""
     document = generate_archive_doc(storage_thumbnail_uri="s3://thumbs/thumbnails/thumb_3.jpg")
-    thumbnail_storage.error = ObjectStorageError("S3 não configurado")
+    thumbnail_storage.error = ObjectStorageError("O storage recusou a leitura")
 
     response = client.get(f"/api/v1/documents/{document.description_id}/thumbnail")
 

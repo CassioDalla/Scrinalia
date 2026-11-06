@@ -196,15 +196,22 @@ function WorkerCard({ worker }: { worker: WorkerStatus }) {
       header={<WorkerHeader worker={worker} />}
       actions={
         /*
-          The ingestion stage is in this catalogue because the panel must show the stage, but its
-          run is about an origin: the generic route refuses it (there is no origin in a
-          `WorkerRunRequest`), so the row points at the screen that owns the origin instead of
-          offering a button the API would answer 422 to.
+          The two axis workers are in this catalogue because the panel must show every stage, but
+          their runs are about a row of another screen — the origin of an ingestion, the channel of
+          an export. The generic route refuses both (a `WorkerRunRequest` names neither), so the row
+          points at the screen that owns the axis instead of offering a button the API would answer
+          422 to.
         */
         worker.name === "ingestion" ? (
           <Link to="/sistema/ingestao">
             <Button size="sm" variant="secondary">
               {messages.pages.workersPanel.openOrigins}
+            </Button>
+          </Link>
+        ) : worker.name === "diffusion" ? (
+          <Link to="/configuracoes/difusao">
+            <Button size="sm" variant="secondary">
+              {messages.pages.workersPanel.openChannels}
             </Button>
           </Link>
         ) : (

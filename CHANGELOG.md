@@ -7,6 +7,112 @@ All notable changes to this project are documented here. The format is
 `1.0.0` was the first release; the newest one is at the top. Entries describe **behaviour**, not
 commits — the history is the detail.
 
+## [1.8.0] - 2026-11-06
+
+### Added
+
+- **Diffusion is a channel registry, and a record leaves through a channel scope** (issues #210, #211,
+  #251, ADR 0023). A channel is a definition in code — `public_site` is `LIVE` and read on every
+  request; `dataset` is `EXPORT` and its adapter writes a package — plus a lifecycle row in
+  `diffusion_channels`: `enabled`, the configuration validated by the channel's own model, the run
+  `options`, the cron/zone and the `last_*` facts. There is no seed, so a fresh installation shows the
+  real empty state, and `enabled=false` is a pause, not an absence. A **scope** over an arrangement
+  node is the decision "this branch is published here": a positive scope covers the approved
+  descendants, including a child approved later, a negative one keeps a branch or a record private,
+  and the coverage is a read of `archive_document_channels` — one row per description and channel —
+  never a write. `is_published` leaves the record: the column is dropped and the flag is derived from
+  the coverage, so the gate answers **whether** a record may leave and the channel answers **where**
+  it goes. The **Difusão** page (`/difusao`) carries **A publicar**, **Publicadas**, **Histórico** and
+  the **Manter privado** preview, with the confirm and its undo kept in a ledger; the dossier shows
+  the coverage read-only.
+
+- **The open dataset is a versioned projection an institution can host anywhere** (issue #214,
+  ADR 0024). The `dataset` channel writes `documents.json`, `documents.ndjson` and `documents.csv` —
+  the formats the configuration enables — plus `manifest.json`, `field-map.json`, `LICENSE.txt` and
+  `README.md`, ordered by `description_id`; the manifest carries the record count, each file's size
+  and SHA-256, the data license, the removals since the previous snapshot and the software identity,
+  and the field map names the ISAD(G) element of every field. The **destination** is an absolute
+  directory the runner can write to: the run writes `snapshots/<snapshot_id>/` and replaces `current`,
+  so a reader sees the previous package or the new one, never a half-written one, and a rerun over the
+  same covered set computes the same `snapshot_id` and writes nothing. `GET /api/v1/public/dataset`
+  serves the manifest and `GET /api/v1/public/dataset/download` the ZIP, both **404** while the channel
+  is absent or paused and before the first snapshot. The **data license** is required (`CC0-1.0`,
+  `CC-BY-4.0`, `CC-BY-SA-4.0` or `custom`, which asks for the name, the URL and the attribution), the
+  software's AGPL-3.0-only license is reported separately, and a run refuses without a destination, a
+  complete license or an institution. The card's **Pré-visualizar** is the dry run: it calls
+  `POST /api/v1/diffusion/channels/{code}/preview`, shows the count, the exact size of each enabled
+  format and the removals, and writes no snapshot and no ledger row.
+
+- **A diffusion run has its own axis in the ledger and the runner** (issue #212). The channel is named
+  in `archive_worker_runs.channel_code`, exclusive with the origin and guarded by a partial unique
+  index that keeps one slot per channel: two channels export at the same time, a second run of one
+  channel answers **409**, and an origin never shares a slot with a channel. The scheduler reads the
+  due channels like the due origins — a period that arrives while the channel is active is skipped, a
+  failed scheduled run follows the retry policy, a channel without an adapter is skipped — and the
+  ledger filters by channel. The card's **Enfileirar execução** queues one run through
+  `POST /api/v1/diffusion/channels/{code}/runs`; the generic worker route refuses `diffusion`, because
+  its body has no channel to name.
+
+- **The Canais de difusão page adds, configures and disables a channel** (issue #213).
+  `/configuracoes/difusao` is an `OPERATE` card under **Operação**: it lists the configured channels
+  with their capability and lifecycle; **Adicionar canal de difusão** offers the definitions the
+  package ships and the installation has no row for; adding is one `PATCH` that creates and enables
+  the row with the configuration the operator filled; and **Editar configuração**,
+  **Desativar/Ativar** and, for an `EXPORT` channel, **Agenda** keep the row. Pausing keeps the
+  configuration and the agenda, a `LIVE` channel refuses an agenda with **422**, and the read routes
+  stay authenticated, so a curator who follows the URL sees the cards read-only. Nothing on the page
+  publishes.
+
+- **The public surface has an explicit security policy** (issue #259, ADR 0025).
+  `SecurityHeadersMiddleware` sends the CSP, `nosniff`, `Referrer-Policy` and `X-Frame-Options` on
+  every response, and HSTS only when `SECURITY_HSTS_SECONDS` is positive (default `0`, because a
+  plain-HTTP installation on a LAN must not claim HTTPS); `PublicRateLimitMiddleware` counts
+  `/api/v1/public/*` per address and answers **429** with `error_code`, `PUBLIC_RATE_LIMITED`, the
+  sentence in the request's language and `Retry-After`. The CSP allows the built SPA and exempts
+  `/schema`, whose renderer loads from CDNs and runs an inline initialiser.
+  `PUBLIC_RATE_LIMIT_MAX=120` and `PUBLIC_RATE_LIMIT_WINDOW_SECONDS=60` are the defaults; the install
+  guide documents the three settings, the per-process boundary and the proxy's forwarded-header flags.
+
+- **The session footer is one account menu** (issue #262). The rail's foot stacked the identity, two
+  text buttons and a language select as peers, and the collapsed rail dropped the language; it is now
+  one identity trigger and a sign-out icon, with the e-mail, **Trocar senha** and the language inside
+  an account popover that opens upward in both rail widths. The voluntary password change moves to
+  `/conta/senha`, reached from the menu, so Back closes it and the screen has a URL.
+
+### Changed
+
+- **The dependency audit is blocking** (issue #261). The front-end lock's advisory is closed by a
+  floor (see **Security**), and `continue-on-error` is gone: a new advisory now fails the pull request
+  instead of leaving a red job nobody acts on.
+
+- **The front-end lock has a Dependabot updater** (issue #260). The `bun` ecosystem is configured for
+  the single root `bun.lock`, targeting `dev` and grouped minor/patch like Python. Dependabot reads
+  the text lockfile (Bun >= 1.1.39) for version updates and does not offer security updates for Bun,
+  so the audit job is the front-end security gate. The config takes effect from the default branch, so
+  it starts working once this release reaches `main`.
+
+- **The application image is built on every pull request** (issue #255) and **CI replays a release
+  fixture through the migrations** (issue #256). The image gate found an image that had not been
+  buildable since 2026-10-08 — the curator stage never copied `pyproject.toml`, which the version
+  footer reads — and the fixture is a `pg_dump` of a 1.7.0 installation, so a backfill that breaks an
+  existing one fails in the diff instead of on the first real upgrade.
+
+### Fixed
+
+- **An unconfigured installation advertises no thumbnail it cannot serve** (issue #258).
+  `thumbnail_url` is now `null` when the storage settings are missing, even for a row that still
+  carries a URI, so the SPA draws "sem imagem" and sends no request; the thumbnail route checks the
+  predicate before the URI lookup and answers **404** there, while **503** stays for a storage that is
+  configured and cannot be read.
+
+### Security
+
+- **The front-end lock's `minimatch` advisory is resolved by a floor at 11.0.5**
+  (GHSA-g3hv-75wg-m249, reached through eslint, typescript-eslint and openapi-typescript). The
+  override forces the patched major without adding a runtime dependency; the audit is clean and the
+  102 curator tests, the typecheck and the build are green. It is a floor with an expiry: remove it
+  when eslint moves to minimatch 11.
+
 ## [1.7.0] - 2026-10-28
 
 ### Added
@@ -1318,7 +1424,8 @@ commits — the history is the detail.
   reads the **runtime** export and not the development environment: an advisory in a tool that never
   reaches an installation no longer hides the ones that do.
 
-[Unreleased]: https://github.com/CassioDalla/Scrinalia/compare/v1.7.0...HEAD
+[Unreleased]: https://github.com/CassioDalla/Scrinalia/compare/v1.8.0...HEAD
+[1.8.0]: https://github.com/CassioDalla/Scrinalia/releases/tag/v1.8.0
 [1.7.0]: https://github.com/CassioDalla/Scrinalia/releases/tag/v1.7.0
 [1.6.0]: https://github.com/CassioDalla/Scrinalia/releases/tag/v1.6.0
 [1.5.0]: https://github.com/CassioDalla/Scrinalia/releases/tag/v1.5.0

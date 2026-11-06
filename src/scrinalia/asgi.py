@@ -13,6 +13,8 @@ from scrinalia.api.controllers.auth_controller import AuthController
 from scrinalia.api.controllers.cleaning_controller import CleaningController
 from scrinalia.api.controllers.collection_vocabulary_controller import CollectionVocabularyController
 from scrinalia.api.controllers.curation_controller import CurationController
+from scrinalia.api.controllers.diffusion_controller import DiffusionController
+from scrinalia.api.controllers.diffusion_publication_controller import DiffusionPublicationController
 from scrinalia.api.controllers.document_controller import DocumentController
 from scrinalia.api.controllers.health_controller import HealthController
 from scrinalia.api.controllers.hierarchy_controller import HierarchyController
@@ -36,7 +38,9 @@ from scrinalia.api.handlers import (
 from scrinalia.api.i18n import LocaleMiddleware
 from scrinalia.api.middleware import RequestContextMiddleware
 from scrinalia.api.openapi import openapi_config
+from scrinalia.api.public_rate_limit import PublicRateLimitMiddleware
 from scrinalia.api.security import access_guard, origin_guard
+from scrinalia.api.security_headers import SecurityHeadersMiddleware
 from scrinalia.api.spa import curator_spa_router
 from scrinalia.core.config import settings
 from scrinalia.core.logger import InterceptHandler, intercept_stdlib_logging
@@ -79,6 +83,8 @@ def create_app() -> Litestar:
         CollectionVocabularyController,
         CurationController,
         DocumentController,
+        DiffusionController,
+        DiffusionPublicationController,
         HierarchyController,
         IngestionController,
         LanguageController,
@@ -98,8 +104,16 @@ def create_app() -> Litestar:
     return Litestar(
         route_handlers=route_handlers,
         # The request id is minted before anything else, so the access line of a refused request
-        # carries it too.
-        middleware=[RequestContextMiddleware(), LocaleMiddleware()],
+        # carries it too. The locale comes next, so a refusal composed in the layers below speaks
+        # the language the client asked for. The header set wraps the public brake: the 429 the
+        # brake produces leaves with the same policy as every other answer, and the brake itself
+        # sits innermost so it refuses before the route resolves a dependency or opens a session.
+        middleware=[
+            RequestContextMiddleware(),
+            LocaleMiddleware(),
+            SecurityHeadersMiddleware(),
+            PublicRateLimitMiddleware(),
+        ],
         # Two guards for every route, and they answer different questions. ``origin_guard`` runs
         # first because it is the cheapest — it reads two headers and touches no database — and it
         # refuses a cross-origin mutation before the session is even resolved. ``access_guard`` then

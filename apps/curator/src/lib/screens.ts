@@ -47,11 +47,14 @@ export type ScreenId =
   | "vocabulary"
   | "workers"
   | "origins"
+  | "diffusionChannels"
+  | "diffusion"
   | "newDescription"
   | "workerSettings"
   | "health"
   | "settings"
   | "users"
+  | "password"
   | "dossier";
 
 export type Screen = {
@@ -61,7 +64,7 @@ export type Screen = {
   readonly dynamicTitle?: true;
 };
 
-export const SCREENS: Record<ScreenId, Screen> = {
+export const SCREENS = {
   inbox: { path: "/" },
   collection: { path: "/acervo/lista" },
   tree: { path: "/acervo/arvore" },
@@ -84,10 +87,13 @@ export const SCREENS: Record<ScreenId, Screen> = {
   vocabulary: { path: "/vocabulario" },
   workers: { path: "/sistema/workers" },
   origins: { path: "/sistema/ingestao" },
+  diffusionChannels: { path: "/configuracoes/difusao" },
+  diffusion: { path: "/difusao" },
   newDescription: { path: "/acervo/nova" },
   workerSettings: { path: "/configuracoes/workers" },
   health: { path: "/sistema/diagnostico" },
   settings: { path: "/configuracoes" },
   users: { path: "/configuracoes/usuarios" },
+  password: { path: "/conta/senha" },
   dossier: { path: "/acervo/$descriptionId", dynamicTitle: true },
-};
+} as const satisfies Record<ScreenId, Screen>;

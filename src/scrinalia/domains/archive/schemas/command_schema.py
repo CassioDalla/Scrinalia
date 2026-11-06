@@ -147,11 +147,6 @@ class DocumentReviewCommand(BaseModel):
     rules_conventions: str | None = None
     description_dates: str | None = None
 
-    # Diffusion (Fase 4). Not part of ISAD(G): the institution's decision about what to expose.
-    # It travels in the same command because it is edited from the same screen, but it is the
-    # only field here that does not describe the record itself.
-    is_published: bool | None = None
-
     # Authorship and note of the review itself
     changed_by: Author | None = Field(
         default=None, description="Who reviewed: the account when there is one, the name alone when there is not."

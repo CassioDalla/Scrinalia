@@ -7,6 +7,7 @@ gate": ``published_only`` is set by the controller, never by the client.
 import pytest
 from litestar.status_codes import HTTP_200_OK, HTTP_404_NOT_FOUND
 from litestar.testing import TestClient
+from pydantic import HttpUrl
 
 from scrinalia.asgi import create_app
 from scrinalia.domains.archive.exceptions import DocumentNotFoundError
@@ -18,6 +19,16 @@ from scrinalia.domains.archive.schemas.document_schema import (
     DocumentTagSummary,
 )
 from scrinalia.domains.archive.services.document_service import DocumentService
+from scrinalia.domains.diffusion.dataset_contract import (
+    DatasetArtifact,
+    DatasetInstitution,
+    DatasetLicense,
+    DatasetManifest,
+    DatasetSoftware,
+)
+from scrinalia.domains.diffusion.diffusion_registry import PublicSiteConfig
+from scrinalia.domains.diffusion.exceptions import DatasetNotPublishedError, PublicSiteNotConfiguredError
+from scrinalia.domains.diffusion.service import DiffusionChannelService
 
 
 @pytest.fixture
@@ -41,6 +52,7 @@ def _published_summary(description_id: str = "pub-1") -> DocumentSummary:
         document_date=date(1954, 3, 12),
         review_status=ArchiveReviewStatus.HUMAN_APPROVED,
         is_published=True,
+        channels=["public_site"],
         is_anomaly=True,
         anomaly_reasons=["BAD_DATE"],
         archivist_notes="nota interna",
@@ -62,6 +74,7 @@ def test_the_public_list_always_applies_the_diffusion_gate(client: TestClient, m
     A client that sends ``published_only=false`` — or anything else — must not be able to ask for
     unpublished records, because the parameter is not part of the public contract at all.
     """
+    mocker.patch.object(DiffusionChannelService, "require_enabled")
     mock_search = mocker.patch.object(DocumentService, "search")
     mock_search.return_value = DocumentListResponse(total=0, limit=50, offset=0, items=[])
 
@@ -69,12 +82,13 @@ def test_the_public_list_always_applies_the_diffusion_gate(client: TestClient, m
 
     assert response.status_code == HTTP_200_OK
     query = mock_search.call_args.args[0]
-    assert query.published_only is True
+    assert query.publication_channel == "public_site"
     assert query.limit == 10
 
 
 def test_the_public_list_projects_every_item_through_the_allowlist(client: TestClient, mocker) -> None:
     """What leaves the API is the projection, not the internal read view."""
+    mocker.patch.object(DiffusionChannelService, "require_enabled")
     mock_search = mocker.patch.object(DocumentService, "search")
     mock_search.return_value = DocumentListResponse(total=1, limit=50, offset=0, items=[_published_summary("pub-9")])
 
@@ -97,6 +111,7 @@ def test_an_unpublished_document_is_a_404_not_a_403(client: TestClient, mocker) 
     A 403 would tell the caller exactly the fact the gate protects: that this description is in the
     archive. The service raises the same not-found error it would for an id that does not exist.
     """
+    mocker.patch.object(DiffusionChannelService, "require_enabled")
     mock_get = mocker.patch.object(DocumentService, "get_published")
     mock_get.side_effect = DocumentNotFoundError("Documento 'x' não encontrado no acervo.")
 
@@ -104,6 +119,30 @@ def test_an_unpublished_document_is_a_404_not_a_403(client: TestClient, mocker) 
 
     assert response.status_code == HTTP_404_NOT_FOUND
     assert response.json()["error_code"] == "DocumentNotFoundError"
+
+
+def test_the_public_site_identity_is_a_404_while_unconfigured(client: TestClient, mocker) -> None:
+    mock = mocker.patch.object(DiffusionChannelService, "public_site")
+    mock.side_effect = PublicSiteNotConfiguredError("O site público ainda não está configurado.")
+
+    response = client.get("/api/v1/public/site")
+
+    assert response.status_code == HTTP_404_NOT_FOUND
+    assert response.json()["error_code"] == "PublicSiteNotConfiguredError"
+
+
+def test_the_public_site_identity_carries_no_internal_field(client: TestClient, mocker) -> None:
+    mock = mocker.patch.object(DiffusionChannelService, "public_site")
+    mock.return_value = PublicSiteConfig(site_title="Acervo", locale="pt-BR", allow_indexing=False)
+
+    response = client.get("/api/v1/public/site")
+
+    assert response.status_code == HTTP_200_OK
+    body = response.json()
+    assert body["site_title"] == "Acervo"
+    assert body["allow_indexing"] is False
+    for forbidden in ("config", "configured", "enabled", "schedule", "updated_by"):
+        assert forbidden not in body
 
 
 def test_the_public_surface_exposes_no_write_route() -> None:
@@ -123,3 +162,77 @@ def test_the_public_surface_exposes_no_write_route() -> None:
             continue
         methods = {method.upper() for method in (route.methods or set())}
         assert not (methods & write_methods), f"{route.path} aceita escrita: {sorted(methods & write_methods)}"
+
+
+# ==========================================
+# THE OPEN DATASET
+# ==========================================
+
+
+def _dataset_manifest() -> DatasetManifest:
+    """A manifest the routes can serialize; the adapter tests build the real one."""
+    from datetime import UTC, datetime
+
+    return DatasetManifest(
+        schema_version="1.0",
+        snapshot_id="a" * 64,
+        previous_snapshot_id=None,
+        generated_at=datetime.now(UTC),
+        record_count=0,
+        artifacts=[DatasetArtifact(format="ndjson", path="documents.ndjson", bytes=0, sha256="b" * 64, records=0)],
+        removals=[],
+        license=DatasetLicense(
+            id="CC-BY-4.0",
+            name="Creative Commons Attribution 4.0 International",
+            url=HttpUrl("https://creativecommons.org/licenses/by/4.0/"),
+            attribution="Acervo, CC BY 4.0",
+        ),
+        institution=DatasetInstitution(name="Instituição"),
+        software=DatasetSoftware(
+            name="Scrinalia",
+            version="1.7.0",
+            license="AGPL-3.0-only",
+            license_url=HttpUrl("https://www.gnu.org/licenses/agpl-3.0.html"),
+            source_url=HttpUrl("https://github.com/CassioDalla/Scrinalia"),
+        ),
+        api_url=None,
+        openapi_url=None,
+    )
+
+
+def test_the_public_dataset_is_404_when_there_is_no_package(client: TestClient, mocker) -> None:
+    mocker.patch.object(
+        DiffusionChannelService,
+        "public_dataset_manifest",
+        side_effect=DatasetNotPublishedError("O conjunto de dados não está disponível."),
+    )
+
+    response = client.get("/api/v1/public/dataset")
+
+    assert response.status_code == HTTP_404_NOT_FOUND
+    assert response.json()["error_code"] == "DatasetNotPublishedError"
+
+
+def test_the_public_dataset_manifest_is_the_current_snapshot(client: TestClient, mocker) -> None:
+    manifest = _dataset_manifest()
+    mocker.patch.object(DiffusionChannelService, "public_dataset_manifest", return_value=manifest)
+
+    response = client.get("/api/v1/public/dataset")
+
+    assert response.status_code == HTTP_200_OK
+    body = response.json()
+    assert body["snapshot_id"] == "a" * 64
+    assert body["license"]["id"] == "CC-BY-4.0"
+    assert body["record_count"] == 0
+
+
+def test_the_public_dataset_download_is_a_zip(client: TestClient, mocker) -> None:
+    manifest = _dataset_manifest()
+    mocker.patch.object(DiffusionChannelService, "dataset_package", return_value=(manifest, b"PK\x03\x04test"))
+
+    response = client.get("/api/v1/public/dataset/download")
+
+    assert response.status_code == HTTP_200_OK
+    assert response.headers["content-type"] == "application/zip"
+    assert f"dataset-{manifest.snapshot_id[:12]}.zip" in response.headers["content-disposition"]
+    assert response.content == b"PK\x03\x04test"

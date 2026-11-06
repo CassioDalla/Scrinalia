@@ -67,6 +67,18 @@ from scrinalia.domains.archive.exceptions import (
 )
 from scrinalia.domains.archive.repository.api_error_repo import ApiErrorRecorder
 from scrinalia.domains.archive.schemas.responses import RouteMessageCode
+from scrinalia.domains.diffusion.exceptions import (
+    DatasetNotPublishedError,
+    DiffusionAdapterMissingError,
+    DiffusionChannelNotFoundError,
+    InvalidDiffusionConfigError,
+    PublicationBatchAlreadyUndoneError,
+    PublicationBatchNotFoundError,
+    PublicationNodeNotFoundError,
+    PublicationPreviewStaleError,
+    PublicationRefusedError,
+    PublicSiteNotConfiguredError,
+)
 from scrinalia.domains.identity.exceptions import (
     AccountLockedError,
     DuplicateUserEmailError,
@@ -126,6 +138,11 @@ def domain_exception_handler(request: Request, exc: DomainException) -> Response
             WorkerRunNotFoundError,
             WorkerScheduleNotFoundError,
             OriginNotFoundError,
+            DatasetNotPublishedError,
+            DiffusionChannelNotFoundError,
+            PublicationBatchNotFoundError,
+            PublicationNodeNotFoundError,
+            PublicSiteNotConfiguredError,
             UserNotFoundError,
             SessionNotFoundError,
         ),
@@ -149,6 +166,8 @@ def domain_exception_handler(request: Request, exc: DomainException) -> Response
             WorkerRunAlreadyActiveError,
             WorkerRunNotCancellableError,
             OriginDisabledError,
+            PublicationPreviewStaleError,
+            PublicationBatchAlreadyUndoneError,
             DuplicateManualRecordError,
             DuplicateUserEmailError,
             LastAdminError,
@@ -191,6 +210,9 @@ def domain_exception_handler(request: Request, exc: DomainException) -> Response
             InvalidWorkerScheduleError,
             InvalidWorkerSettingsError,
             InvalidOriginConfigError,
+            InvalidDiffusionConfigError,
+            DiffusionAdapterMissingError,
+            PublicationRefusedError,
             InvalidCurrentPasswordError,
             InvalidEmailError,
             WeakPasswordError,

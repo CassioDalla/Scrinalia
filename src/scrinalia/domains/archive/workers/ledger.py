@@ -61,6 +61,7 @@ class WorkerRunLedger:
         preset: str | None,
         config: dict[str, Any],
         origin_code: str | None = None,
+        channel_code: str | None = None,
         request: dict[str, Any] | None = None,
         trial: bool = False,
     ) -> WorkerRunDTO:
@@ -83,6 +84,7 @@ class WorkerRunLedger:
                     preset=preset,
                     config=config,
                     origin_code=origin_code,
+                    channel_code=channel_code,
                     request=request,
                     trial=trial,
                 )
@@ -213,6 +215,7 @@ class WorkerRunLedger:
         preset: str | None,
         config: dict[str, Any],
         origin_code: str | None = None,
+        channel_code: str | None = None,
         request: dict[str, Any] | None = None,
         options: dict[str, Any] | None = None,
         runner_id: str | None = None,
@@ -229,6 +232,7 @@ class WorkerRunLedger:
                     preset=preset,
                     config=config,
                     origin_code=origin_code,
+                    channel_code=channel_code,
                     request=request,
                     options=options,
                     runner_id=runner_id,

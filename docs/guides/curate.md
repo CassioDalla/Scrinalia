@@ -7,6 +7,7 @@ sources:
   - apps/curator/src/components/workers/**
   - apps/curator/src/components/layout/LoginForm.tsx
   - apps/curator/src/components/layout/PasswordChangeForm.tsx
+  - apps/curator/src/components/layout/SessionFooter.tsx
   - apps/curator/src/routes/**
   - apps/curator/src/lib/permissions.ts
   - apps/curator/src/lib/screens.ts
@@ -14,7 +15,7 @@ sources:
   - apps/curator/src/lib/hierarchyTree.ts
   - src/scrinalia/api/controllers/**
   - src/scrinalia/domains/archive/schemas/document_schema.py
-  - src/scrinalia/api/schemas/public.py
+  - src/scrinalia/domains/archive/schemas/public_projection.py
   - src/scrinalia/api/security.py
   - src/scrinalia/domains/archive/domain/governance.py
   - src/scrinalia/domains/archive/models/enums.py
@@ -40,13 +41,13 @@ the client generated from the OpenAPI contract. The screens are declared in
 `apps/curator/src/router.tsx`, and **what each one is called** in
 `apps/curator/src/lib/screens.ts`: one record per screen holds the label the menu, the settings card
 and the page's own heading all read, so the three cannot disagree (*One name per screen, one verb per
-action*, below). The menu has **16 entries**: the screens nobody opens in the middle of cataloguing —
+action*, below). The menu has **17 entries**: the screens nobody opens in the middle of cataloguing —
 the arrangement plan, the catalogues, the worker panel, the run ledger, the diagnostics and the
-accounts — are cards of `/configuracoes` rather than menu entries (*Configurações*, below). One route
-is not reached from the menu either: the description's own dossier, `/acervo/$descriptionId`, comes
-from the list and from the tree. The router therefore declares **26 screens**. The menu itself can be
-collapsed to icons, which is a presentation choice and not a permission one — *The menu collapses to
-icons*, below.
+accounts — are cards of `/configuracoes` rather than menu entries (*Configurações*, below). Two routes
+are not reached from the menu either: the description's own dossier, `/acervo/$descriptionId`, comes
+from the list and from the tree, and the voluntary password change, `/conta/senha`, comes from the
+account menu. The router therefore declares **31 screens**. The menu itself can be collapsed to icons,
+which is a presentation choice and not a permission one — *The menu collapses to icons*, below.
 
 Two cross-cutting pages are worth reading with this one: [Data model](data-model.md) for what the
 ledgers and the tables mean, and [Installation and deployment](install.md) for the schema, the
@@ -119,28 +120,59 @@ of the AI's queue.
   index of the text, not archival content: a `HUMAN_APPROVED` description whose text changed must be
   re-embedded, or semantic search would serve a stale vector. It writes only the `embedding` column
   and its own stamp (the MD5 of the effective text), and it skips `REJECTED` descriptions.
-- **Publishing is not a lock.** `is_published` is chosen through the same `PATCH` as any ISAD(G)
-  field, and it does **not** freeze the description against the AI. The write predicate reads
-  `review_status` only. Reusing the review status for diffusion would have made a typo fix equivalent
-  to publishing, and would have locked every published description against AI improvement.
+- **Publishing is not a lock.** Publication does not change `review_status`: it is a channel scope
+  plus the approval the coverage requires (ADR 0023). A covered record is `HUMAN_APPROVED` because
+  the coverage demands it, and it is that approval — not the publication — that blocks the AI. The
+  publisher never approves on the curator's behalf: publishing a branch whose child is still
+  `PENDING_AI` covers nothing until a human approves it.
 
 The other AI workers are excluded from a `HUMAN_APPROVED` description; what a human decided is not
 rewritten by the pipeline.
 
 ### Diffusion is not review
 
-Review is a claim about the record; publication is a decision about what to expose.
-`is_published` is its own column, edited with the "Publicar na difusão" checkbox on the dossier's
-`Descrição` tab, and the public predicate is exactly `is_published`. Nothing is published by default,
-so the diffusion surface is born empty.
+Review is a claim about the record; publication is a decision about where it appears. A description
+is exposed on a channel when it is `HUMAN_APPROVED`, a **positive scope** of that channel covers it —
+the node itself or an ancestor with `include_descendants` — and no **negative scope** covers it. The
+coverage is a read, not a stored boolean: a child approved later enters its branch's channel without
+a second act, and the exclusion is the deliberate override. Nothing is published by default, so the
+diffusion surface is born empty.
 
-Publishing exposes the description through the open, unauthenticated surface:
+The separator is the **Difusão** page, `/difusao`, under `CURATE`. It has four views: *A publicar*
+(the approved that no channel carries, with a branch filter and a selection), *Publicadas* (what each
+channel carries, with the channel badges), *Publicações por ramo* (the positive and negative scopes,
+with their node, counts and author) and *Histórico* (the batches, with the undo). A write is two
+steps: the preview resolves the branch or the selection per channel and returns the eligible count, a
+sample and what it skips — not approved, already covered, excluded — with a token; the confirmation
+echoes the token and applies. The token is a consistency check, not a permission: a set that changed
+between the two calls is refused with "preview again", and the write is authorized by the session.
+Every batch is a ledger row and can be undone; the undo restores what is unchanged and reports what it
+left alone.
 
-- `GET /api/v1/public/documents` and `GET /api/v1/public/documents/{description_id}`.
+The three removals are distinct. **Manter privado** writes the negative scope at the node, which wins
+over any positive scope on the branch — and revokes a direct positive scope on the same node in the
+same batch. **Retirar o ramo** revokes the branch's positive scope, and what an ancestor covers stays
+covered. The exclusions are listed and undone in *Publicações por ramo*. The dossier no longer
+publishes: its publication card is a read-only status with the channel badges and a link here, and
+the review form is about the record only.
 
-Two rules hold there. The `published_only` filter is set **server-side** and is not a client
-parameter, so no query string can ask for an unpublished record; and an unpublished id answers 404,
-never 403, because a distinct status would confirm that the description exists.
+The public surface reads the `public_site` channel, not a union:
+
+- `GET /api/v1/public/site` — the site's identity; 404 while the channel is not configured or paused.
+- `GET /api/v1/public/documents` and `GET /api/v1/public/documents/{description_id}` — the coverage of
+  `public_site`.
+
+The channel is set **server-side** and is not a client parameter, so no query string can ask for a
+record the channel does not carry; and an id outside it answers 404, never 403, because a distinct
+status would confirm that the description exists. Both document routes answer 404 while the channel is
+paused: as far as a visitor is concerned, the site is not there.
+
+The operator's **Canais de difusão** page, `/configuracoes/difusao`, adds a definition, configures it,
+pauses it and — for an export channel — saves its agenda. It never publishes. The two permissions are
+different on purpose: configuring a destination is `OPERATE`, deciding what goes to it is `CURATE`.
+The registry ships the built-in public site (`public_site`), whose configuration is the presentation
+identity the application reads (title, description, institution, contact, logo, locale, public
+address and indexing); enabling it does not install the public application (#46).
 
 The public projection is narrower than the curator's, field by field. It carries the ISAD(G) fields
 `original_title`, `final_title`, `document_date`, `reference_code`, `level`, `scope_content`,
@@ -197,11 +229,18 @@ which clears the flag). The refusal does not depend on the screen: a script hold
 was printed to a terminal, or typed by an administrator, gets the same sentence and no access to the
 collection. The change opens the rest of the API in the same session.
 
+The voluntary change is its own screen, `/conta/senha`, reached from **Trocar senha** in the account
+popover. The route gives the screen an address and makes Back the ordinary way out; the account menu
+closes when the action is chosen. The API keeps the session that changed the password and ends the
+others, and the screen returns to the inbox when the change succeeds. The forced change above is not a
+route: until the temporary password is replaced, there is no screen to return to.
+
 ### The interface speaks two languages
 
 The curatorial interface is written in Portuguese and English, and the choice belongs to the
 **account**, not to the installation: *Automático*, *Português* and *English* sit in the account
-footer of the menu. A fresh account starts on *Automático*, which is stored as "no choice" and
+popover, opened from the footer of the menu. The current value is shown as text and the three choices
+stay one click away. A fresh account starts on *Automático*, which is stored as "no choice" and
 follows the browser — `pt*` opens in Portuguese, `en*` in English, anything else in Portuguese, the
 installation's language. After sign-in the account's choice wins, because a shared workstation must
 not hand one archivist the previous one's language.
@@ -323,7 +362,8 @@ Collapsed, every entry keeps its icon; the label stays the link's accessible nam
 carries label and hint, so the hint is hidden and never truncated. The active entry keeps the accent
 colour, the group headings become hairlines, and the accordion is off — a heading with no label in a
 64px column is a click that says nothing — so all sixteen entries show at once. The session footer
-folds into the account's initial plus two icon buttons.
+folds into the account's initial and the sign-out icon: the avatar is the trigger and opens the same
+account popover, where the email, the password and the language live.
 
 The wordmark leaves the menu but not the page: the attribution renders at the foot of **every**
 screen (`AttributionFooter`, ADR 0006), including the three that come before a session — the first-run
@@ -338,10 +378,10 @@ alone at the right. The icons come from `lucide-react`, one glyph per entry.
 
 ### Início — `/`
 
-The work list. It answers "what needs me today?" with one card per queue and the route that resolves
-it, already filtered. It is a **read view of existing predicates** (`GET /api/v1/curation/inbox`):
-nothing is written. A card the shell does not recognise as openable shows "tela pendente" instead of
-linking.
+The work list. It answers "what needs me today?" with one card per queue. Each card opens the screen
+that resolves the pending work, already filtered: the queue's tab and status travel as the screen's
+own typed search. It is a **read view of existing predicates**
+(`GET /api/v1/curation/inbox`): nothing is written.
 
 ## Acervo
 
@@ -445,6 +485,40 @@ ISAD(G) snapshot the API wrote before deleting, and nothing here restores anythi
 delete this?" — code, title, level, who excluded it, when, how many children it had, and the whole
 snapshot on demand.
 
+### Difusão — `/difusao`
+
+What the archive exposes, and where. A top-level entry under Acervo, `CURATE`, and the curator's half
+of the decision the operator's channel page configures: the channel is the destination, this page is
+what goes to it.
+
+The header carries the same four numbers on every view — on the public site, on channels, approved
+without a channel, in review — from the summary route, the same definition the home card reads. Four
+views:
+
+- **A publicar** — the approved records no channel carries. Filter by branch, select records or
+  publish the whole branch; the preview shows, per channel, the eligible count, a sample and what it
+  skips (not approved, already covered, excluded). Creating a branch scope with no eligible record is
+  allowed on purpose: a child approved later enters it without a second act.
+- **Publicadas** — what each channel carries, with the badges. **Manter privado** opens the same panel
+  with the record's channels pre-selected: the batch revokes a direct positive scope on the record and
+  writes the negative one, so the exclusion wins over an ancestor's scope. Unchecking a channel there
+  is "retirar do canal"; keeping all of them is "retirar de todos".
+- **Publicações por ramo** — the positive and negative scopes, with node, channel, the count the undo
+  would reach and the approved count of the node, the author and the date. **Retirar o ramo** revokes
+  the positive scope; **Desfazer a exclusão** revokes the negative one.
+- **Histórico** — every batch with its action, channels, applied and skipped counts, author, date and
+  the undo. The undo reverts entry by entry, restores what is unchanged and reports what it skipped; a
+  second undo is refused.
+
+A write is preview then confirm. The preview is a read — it writes nothing — and the token it returns
+is echoed by the confirmation: a set that changed between the two calls, an expired token or a tampered
+one answers 409 with "preview again". It is a consistency check, not a permission; the write is the
+session's `CURATE`. Publishing does not approve: a covered record is `HUMAN_APPROVED` because the
+coverage requires it, and a record still in review is skipped by the preview.
+
+The picker offers only the configured and enabled channels; a paused one is refused with a sentence,
+and the channel page marks it paused.
+
 ### Descrição — `/acervo/$descriptionId`
 
 The dossier, with four tabs in the URL. The suggested title is shown **next to** the field it
@@ -457,10 +531,12 @@ The first card is the **miniature**, and it comes from the API, not from the bro
 advertises `thumbnail_url` and the SPA binds it to an `<img>`, so the client never assembles a path
 and never talks to the bucket (ADR 0017). The bytes are `GET
 /api/v1/documents/{description_id}/thumbnail` (`AUTHENTICATED`); the route answers 404 when the
-source had no image or the object is no longer in the bucket, and 503 when the storage itself is
-unavailable. Four of the reference collection's 101 descriptions have no source image, so "Sem
-imagem" is a normal state, and a stored URI whose object is gone shows "Imagem indisponível" — never
-a broken-image glyph. The collection list shows the same miniature at 56 px, which is how a
+source had no image, when the object is no longer in the bucket, or when this installation has no
+object storage at all — in that last case the read view advertises no `thumbnail_url`, so the card is
+the same "Sem imagem" and no request is made (ADR 0022). 503 is kept for a storage that is configured
+but cannot be read. Four of the reference collection's 101 descriptions have no source image, so
+"Sem imagem" is a normal state, and a stored URI whose object is gone shows "Imagem indisponível" —
+never a broken-image glyph. The collection list shows the same miniature at 56 px, which is how a
 photograph is recognised without opening the dossier.
 
 The decision is the record itself, grouped in the norm's own areas — **3.1 Identidade**, **3.2
@@ -1244,6 +1320,7 @@ day. It writes nothing of its own.
 | Screen | Decision | Reversible? |
 | --- | --- | --- |
 | Configurações — `/configuracoes` | which setup screen to open | yes (read only) |
+| Canais de difusão — `/configuracoes/difusao` | which channel to add, its configuration, its lifecycle and (for an export) its agenda | yes (the configuration, the agenda and the pause; nothing is deleted) |
 | Configuração dos Workers — `/configuracoes/workers` | the persisted default of each worker, and its history | yes (remove the row) |
 | Usuários — `/configuracoes/usuarios` | who exists, what they may do, and where they are signed in | yes (deactivate and reactivate) |
 
@@ -1255,7 +1332,7 @@ what changed is how it is found. Three tabs, in the order of the permission ladd
 | Tab | Cards |
 | --- | --- |
 | Arranjo e catálogos | Plano de arranjo (`CURATE`), Níveis de descrição, Tipologias and Vocabulário do acervo (`CATALOGUE`) |
-| Operação | Workers e execuções, Configuração dos Workers and Saúde do sistema (`OPERATE`) |
+| Operação | Workers e execuções, Origens, Canais de difusão, Configuração dos Workers and Saúde do sistema (`OPERATE`) |
 | Acesso | Usuários (`ADMIN`) |
 
 The tab is in the URL (`?aba=`), so "the worker cards" can be sent to somebody. A tab the account
@@ -1263,6 +1340,39 @@ cannot fill is not rendered, and a `?aba=` naming one falls back to the first ta
 fill: a link that was valid for the sender still lands somewhere honest for the reader. Each card
 carries the area its screen writes, and the entry that opens this page follows the same areas — the
 rule is under *The menu hides; it never grants* above.
+
+### Canais de difusão — `/configuracoes/difusao`
+
+The operator's page for where the published collection goes out (issue #213, ADR 0023), the
+deliberate twin of Origens: one screen says where the data comes in, this one says where the record
+leaves. It reads every definition the package ships in one request, so a definition without a row is
+what the add picker offers and a definition with one is a card. A fresh installation has no row: the
+empty state is real, not decorative.
+
+Each card carries the channel's name, its capability — `LIVE` (read on every request) or `EXPORT`
+(produced by a run) — its lifecycle and the configuration summary rendered from the same
+`config_fields` the form renders. The actions are **Editar configuração**, **Agenda** (`EXPORT` only),
+**Enfileirar execução** (`EXPORT` only, disabled while the channel has a run in flight),
+**Desativar/Ativar** and, for the public site, **Ver site** — shown only while the channel is enabled
+and a public address is configured, because the link is the address the operator typed, not a claim
+that a site answers there. Pausing is the lifecycle: the row, the configuration and the agenda stay,
+and the channel is simply not offered to a reader.
+
+An `EXPORT` card also shows the agenda and the **last run**, with its status and a link to the ledger
+filtered by that channel. The run is the `diffusion` worker of the shared ledger, with the channel as
+its axis (issue #212, ADR 0023 §7): a second run of the same channel answers 409, two channels export
+at the same time, and a channel the package ships without an adapter answers 422 and queues nothing.
+
+Adding is one gesture in a side panel: pick a definition the package ships, fill its configuration and
+save. The save is a single `PATCH` that creates the row and enables it, because a channel the package
+cannot validate is not a row — the public site's title is required. **Desativar** is the pause
+(`PATCH {"enabled": false}`); nothing is deleted. The configuration is validated by the channel's own
+model on every read and write, so a typo is a 422 with a sentence, and the page renders **one generic
+form** over the channel's fields rather than one component per channel. The public site's card states
+the consequence the owner asks about: the public application is a separate surface, and enabling the
+channel does not install it. The picker also offers the open dataset (`dataset`), the first `EXPORT`
+the package ships: its card configures the destination, the formats and the data license, **Pré-visualizar**
+is its dry run, and its run writes the package [Operação](operate.md) describes.
 
 ### Configuração dos Workers — `/configuracoes/workers`
 

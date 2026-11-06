@@ -32,6 +32,7 @@ from scrinalia.domains.archive.workers.catalogue import WORKER_CATALOGUE, engine
 from scrinalia.domains.archive.workers.configuration import effective_worker_options, resolve_configuration
 from scrinalia.domains.archive.workers.lease import RunLeaseMonitor
 from scrinalia.domains.archive.workers.ledger import WorkerRunLedger
+from scrinalia.domains.diffusion import worker as diffusion_worker
 from scrinalia.domains.ingestion import worker as ingestion_worker
 
 WorkerFn = Callable[..., None]
@@ -83,6 +84,10 @@ WORKERS: dict[str, WorkerFn] = {
     "macro-category": worker_macro_category.execute,
     "quality-validator": worker_quality_validator.execute,
     "embedding": worker_embedding.execute,
+    # The stage after the archive: an export, not a step the AI reads. It is a worker of the same
+    # ledger because it needs the claim, the lease and the cancellation; it has no engine and its
+    # unit is a diffusion channel (ADR 0023).
+    "diffusion": diffusion_worker.execute,
 }
 
 # Recommended execution order for the enrichment pipeline. The macro-category step runs
@@ -91,7 +96,8 @@ WORKERS: dict[str, WorkerFn] = {
 # classifies against. The quality validator comes next, because it reads the tags, the
 # typology and the entities the earlier workers produced. The embedding step runs last,
 # after every worker that can change the document text, because it embeds that text and
-# keys its stamp on a hash of it.
+# keys its stamp on a hash of it. The diffusion export comes after all of them: it is an
+# output of the pipeline, not a stage the AI reads (ADR 0023).
 PIPELINE_ORDER = [
     "ingestion",
     "transfer",
@@ -103,6 +109,7 @@ PIPELINE_ORDER = [
     "macro-category",
     "quality-validator",
     "embedding",
+    "diffusion",
 ]
 
 
@@ -208,6 +215,7 @@ def _forward_kwargs(
     db_batch_size: int | None,
     limit: int | None,
     origin_code: str | None,
+    channel_code: str | None,
     run_control: RunControl | None,
     extra: dict[str, Any],
 ) -> dict[str, Any]:
@@ -232,6 +240,7 @@ def _forward_kwargs(
         ("db_batch_size", db_batch_size),
         ("limit", limit),
         ("origin_code", origin_code),
+        ("channel_code", channel_code),
     ):
         if value is None:
             continue
@@ -259,6 +268,7 @@ def run_worker(
     db_batch_size: int | None = None,
     limit: int | None = None,
     origin_code: str | None = None,
+    channel_code: str | None = None,
     extra: dict[str, Any] | None = None,
     engine_options: dict[str, Any] | None = None,
     db_factory: Callable[[], Any] = get_db,
@@ -340,6 +350,19 @@ def run_worker(
             resolved_engine, resolved_preset, resolved_batch = None, None, None
             forwarded = explicit_extra
             run_options = dict(explicit_extra)
+        elif spec is not None and spec.channel_axis:
+            # The diffusion export has no engine and does not read ``archive_worker_settings``: its
+            # configuration is the channel row, resolved by the worker itself. The channel is the
+            # axis and travels in its own column, and the options are the run policy pinned in the
+            # request — recorded in the ledger, not forwarded as keyword arguments, because the
+            # adapter reads them from the channel row and does not declare each one.
+            if not channel_code:
+                raise InvalidWorkerSettingsError(
+                    t("O worker 'diffusion' precisa do canal: informe --channel ou a linha da fila.")
+                )
+            resolved_engine, resolved_preset, resolved_batch = None, None, None
+            forwarded = {}
+            run_options = dict(explicit_extra)
         elif spec is None:
             resolved_engine, resolved_preset, resolved_batch = engine_name, preset, db_batch_size
             forwarded = explicit_extra
@@ -374,6 +397,7 @@ def run_worker(
                     preset=resolved_preset,
                     config=run_config,
                     origin_code=origin_code,
+                    channel_code=channel_code,
                     options=run_options,
                     runner_id=runner_id,
                     lease_seconds=lease_seconds if runner_id is not None else None,
@@ -424,6 +448,7 @@ def run_worker(
             db_batch_size=resolved_batch,
             limit=limit,
             origin_code=origin_code,
+            channel_code=channel_code,
             run_control=run_control,
             extra=forwarded,
         )
@@ -466,6 +491,12 @@ def main(argv: list[str] | None = None) -> int:
         dest="origin_code",
         default=None,
         help="Origin code for the 'ingestion' worker; the archive workers do not take one.",
+    )
+    parser.add_argument(
+        "--channel",
+        dest="channel_code",
+        default=None,
+        help="Channel code for the 'diffusion' worker; the other workers do not take one.",
     )
     parser.add_argument(
         "--limit",
@@ -554,6 +585,7 @@ def main(argv: list[str] | None = None) -> int:
             db_batch_size=args.db_batch_size,
             limit=args.limit,
             origin_code=args.origin_code,
+            channel_code=args.channel_code,
             extra=extra,
             engine_options=engine_options,
             ledger=ledger,

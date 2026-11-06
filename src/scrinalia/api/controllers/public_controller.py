@@ -3,11 +3,11 @@
 Two properties make this surface different from the curator's, and both are structural rather than
 procedural:
 
-* every field it returns is declared in ``api/schemas/public.py``, so a new internal field cannot
-  leak by default;
-* it never accepts the diffusion gate as input. ``published_only`` is set **here**, server-side, so
-  no query string can ask for an unpublished record. A route that forgot to set it would be a bug,
-  not a client's choice.
+* every field it returns is declared in ``domains/archive/schemas/public_projection.py``, so a new
+  internal field cannot leak by default;
+* it never accepts the diffusion gate as input. ``publication_channel=PUBLIC_SITE_CODE`` is set
+  **here**, server-side, so no query string can ask for a record another channel carries. A route
+  that forgot to set it would be a bug, not a client's choice.
 
 There is no authentication here on purpose: this surface is born open, and the boundary being
 protected is *what data exists*, not who is asking (ADR 0003).
@@ -15,19 +15,20 @@ protected is *what data exists*, not who is asking (ADR 0003).
 
 from datetime import date
 
-from litestar import Controller, get
+from litestar import Controller, Response, get
 from litestar.di import NamedDependency, Provide
+from litestar.openapi.datastructures import ResponseSpec
 from litestar.params import FromPath, FromQuery
 
-from scrinalia.api.dependencies import provide_document_service
-from scrinalia.api.schemas.public import (
-    PublicDocumentFacets,
-    PublicDocumentListResponse,
-    PublicDocumentSummary,
-)
+from scrinalia.api.dependencies import provide_diffusion_channel_service, provide_document_service
+from scrinalia.api.schemas.public import PublicDocumentListResponse
 from scrinalia.api.security import Access
+from scrinalia.domains.archive.schemas.public_projection import PublicDocumentFacets, PublicDocumentSummary
 from scrinalia.domains.archive.schemas.query_schema import DocumentSearchQuery, SearchMode
 from scrinalia.domains.archive.services.document_service import DocumentService
+from scrinalia.domains.diffusion.dataset_contract import DatasetManifest
+from scrinalia.domains.diffusion.diffusion_registry import PUBLIC_SITE_CODE, PublicSiteConfig
+from scrinalia.domains.diffusion.service import DiffusionChannelService
 
 
 class PublicController(Controller):
@@ -36,12 +37,14 @@ class PublicController(Controller):
 
     dependencies = {  # noqa: RUF012
         "document_service": Provide(provide_document_service, sync_to_thread=False),
+        "diffusion_service": Provide(provide_diffusion_channel_service, sync_to_thread=False),
     }
 
     @get("/documents", opt={"access": Access.PUBLIC}, sync_to_thread=True)
     def list_published(
         self,
         document_service: NamedDependency[DocumentService],
+        diffusion_service: NamedDependency[DiffusionChannelService],
         term: FromQuery[str | None] = None,
         mode: FromQuery[SearchMode] = "lexical",
         typology_id: FromQuery[int | None] = None,
@@ -55,6 +58,7 @@ class PublicController(Controller):
         offset: FromQuery[int] = 0,
     ) -> PublicDocumentListResponse:
         """Searches the diffused collection. Records not cleared for publication are simply absent."""
+        diffusion_service.require_enabled(PUBLIC_SITE_CODE)
         page = document_service.search(
             DocumentSearchQuery(
                 term=term,
@@ -67,7 +71,7 @@ class PublicController(Controller):
                 date_from=date_from,
                 date_to=date_to,
                 # Server-side, never a query parameter: the public cannot ask for more.
-                published_only=True,
+                publication_channel=PUBLIC_SITE_CODE,
                 limit=limit,
                 offset=offset,
             )
@@ -82,7 +86,10 @@ class PublicController(Controller):
 
     @get("/documents/{description_id:str}", opt={"access": Access.PUBLIC}, sync_to_thread=True)
     def get_published(
-        self, document_service: NamedDependency[DocumentService], description_id: FromPath[str]
+        self,
+        document_service: NamedDependency[DocumentService],
+        diffusion_service: NamedDependency[DiffusionChannelService],
+        description_id: FromPath[str],
     ) -> PublicDocumentSummary:
         """
         One diffused description.
@@ -90,4 +97,48 @@ class PublicController(Controller):
         An unpublished record answers **404**, not 403: refusing with a distinct status would
         confirm that the description exists, which is the fact the gate is protecting.
         """
-        return PublicDocumentSummary.from_summary(document_service.get_published(description_id))
+        diffusion_service.require_enabled(PUBLIC_SITE_CODE)
+        return PublicDocumentSummary.from_summary(document_service.get_published(description_id, PUBLIC_SITE_CODE))
+
+    @get("/dataset", opt={"access": Access.PUBLIC}, sync_to_thread=True)
+    def get_dataset(self, diffusion_service: NamedDependency[DiffusionChannelService]) -> DatasetManifest:
+        """
+        The current open dataset snapshot's manifest.
+
+        **404** while the channel is absent or paused, or before the first run wrote a package: a
+        consumer that asks for a dataset this installation does not publish gets the same answer in
+        every case, and the operator's card is where the distinction lives.
+        """
+        return diffusion_service.public_dataset_manifest()
+
+    @get(
+        "/dataset/download",
+        opt={"access": Access.PUBLIC},
+        sync_to_thread=True,
+        responses={
+            200: ResponseSpec(
+                data_container=bytes,
+                media_type="application/zip",
+                description="The current open dataset snapshot as a ZIP, with the manifest and the field map.",
+                generate_examples=False,
+            )
+        },
+    )
+    def download_dataset(self, diffusion_service: NamedDependency[DiffusionChannelService]) -> Response[bytes]:
+        """The package in one download: the files the manifest lists, plus the manifest itself."""
+        manifest, archive = diffusion_service.dataset_package()
+        return Response(
+            content=archive,
+            media_type="application/zip",
+            headers={"Content-Disposition": f'attachment; filename="dataset-{manifest.snapshot_id[:12]}.zip"'},
+        )
+
+    @get("/site", opt={"access": Access.PUBLIC}, sync_to_thread=True)
+    def get_site(self, diffusion_service: NamedDependency[DiffusionChannelService]) -> PublicSiteConfig:
+        """
+        The public site's identity, read before the app's first document query.
+
+        It carries no record and no internal field. **404** while the ``public_site`` channel is not
+        configured or is paused: as far as a visitor is concerned, the site is not there.
+        """
+        return diffusion_service.public_site()

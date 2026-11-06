@@ -77,16 +77,17 @@ class DocumentService:
             )
         return doc
 
-    def get_published(self, description_id: str) -> DocumentSummary:
+    def get_published(self, description_id: str, channel_code: str) -> DocumentSummary:
         """
-        One description, but only when the institution cleared it for diffusion.
+        One description, but only when the named channel carries it.
 
-        A record that is not published raises the same not-found error the diffusion surface already
+        A record outside the channel raises the same not-found error the diffusion surface already
         maps to 404, rather than a distinct "forbidden": telling the two apart would confirm that
-        the description exists, which is exactly the fact the gate protects.
+        the description exists, which is exactly the fact the gate protects. ``channels`` is derived
+        from the coverage view, so the check is the same definition the list filters by.
         """
         doc = self.get(description_id)
-        if not doc.is_published:
+        if channel_code not in doc.channels:
             raise DocumentNotFoundError(
                 t("Documento '{description_id}' não encontrado no acervo.", description_id=description_id)
             )

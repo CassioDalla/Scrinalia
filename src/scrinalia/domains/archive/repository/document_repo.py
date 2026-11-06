@@ -95,6 +95,7 @@ from scrinalia.domains.archive.worker_stamp import (
     HIERARCHY_PARENT_PENDING,
     HIERARCHY_PARENT_RESOLVED,
 )
+from scrinalia.domains.diffusion.coverage import ARCHIVE_DOCUMENT_CHANNELS
 
 # A document that matches only through its tags or entities (not through its own
 # text) still has to surface in the page, so a taxonomy hit outranks a document
@@ -338,6 +339,7 @@ class DocumentRepository:
                         description_id=ancestor.description_id,
                         title=ancestor.final_title or ancestor.original_title,
                         level=ancestor.level,
+                        level_code=ancestor.level_code,
                     )
                     for ancestor_id in node.path.split(".")[:-1]
                     if (ancestor := chain_nodes.get(ancestor_id)) is not None
@@ -354,9 +356,15 @@ class DocumentRepository:
         return ancestors_by_id, counts
 
     def _page_summaries(self, rows: list[tuple[ArchiveDocument, float | None]]) -> list[DocumentSummary]:
-        """Builds the read view of a page, decorating it once instead of once per row."""
+        """
+        Builds the read view of a page, decorating it once instead of once per row.
+
+        ``channels`` (and with it the derived ``is_published``) is one query for the whole page,
+        read from the coverage view: the view is the definition, and a per-row query would put it on
+        the N+1 path the rest of this method exists to avoid.
+        """
         ancestors, counts = self._decorate([node for node, _rank in rows])
-        return [
+        summaries = [
             self._to_summary(
                 node,
                 rank,
@@ -365,6 +373,59 @@ class DocumentRepository:
             )
             for node, rank in rows
         ]
+        coverage = self._coverage_for([summary.description_id for summary in summaries])
+        for summary in summaries:
+            summary.channels = coverage.get(summary.description_id, [])
+            summary.is_published = bool(summary.channels)
+        return summaries
+
+    def _coverage_for(self, description_ids: list[str]) -> dict[str, list[str]]:
+        """The channels each description is on, one query for a page, ordered by code."""
+        if not description_ids:
+            return {}
+        rows = self.db.execute(
+            select(ARCHIVE_DOCUMENT_CHANNELS.c.description_id, ARCHIVE_DOCUMENT_CHANNELS.c.channel_code)
+            .where(ARCHIVE_DOCUMENT_CHANNELS.c.description_id.in_(description_ids))
+            .order_by(ARCHIVE_DOCUMENT_CHANNELS.c.description_id, ARCHIVE_DOCUMENT_CHANNELS.c.channel_code)
+        ).all()
+        coverage: dict[str, list[str]] = {}
+        for description_id, channel_code in rows:
+            coverage.setdefault(description_id, []).append(channel_code)
+        return coverage
+
+    def list_channel_documents(
+        self,
+        channel_code: str,
+        *,
+        after: str | None = None,
+        limit: int = 500,
+    ) -> list[DocumentSummary]:
+        """
+        The descriptions a channel covers, ordered by id, for a snapshot (ADR 0024).
+
+        Keyset pagination (``after``) and not ``offset``: the dataset is read while curators may be
+        publishing, and an offset would skip a record when an earlier id leaves the covered set
+        between two pages. The order is the stable ``description_id``, so two runs over the same
+        covered set read the same sequence — the property the snapshot's checksums rely on.
+
+        The predicate is the coverage view, the one definition; the adapter does not spell the
+        approval/scope/exclusion rule a second time.
+        """
+        stmt = (
+            select(ArchiveDocument)
+            .join(
+                ARCHIVE_DOCUMENT_CHANNELS,
+                ARCHIVE_DOCUMENT_CHANNELS.c.description_id == ArchiveDocument.description_id,
+            )
+            .where(
+                ARCHIVE_DOCUMENT_CHANNELS.c.channel_code == channel_code,
+                *([ArchiveDocument.description_id > after] if after is not None else []),
+            )
+            .order_by(ArchiveDocument.description_id)
+            .options(*self._eager_options())
+            .limit(limit)
+        )
+        return self._page_summaries([(doc, None) for doc in self.db.scalars(stmt).all()])
 
     def _to_summary(
         self,
@@ -468,9 +529,19 @@ class DocumentRepository:
         filters: list[Any] = []
 
         # The diffusion gate comes first and is never excluded: it is not a filter the user chose,
-        # it is the institution's decision about what exists in public. No facet may lift it.
-        if query.published_only:
-            filters.append(ArchiveDocument.is_published.is_(True))
+        # it is the institution's decision about what exists in public. No facet may lift it, and
+        # the predicate is the coverage view — the one definition of what a channel carries.
+        if query.publication_channel is not None:
+            filters.append(
+                exists(
+                    select(1)
+                    .select_from(ARCHIVE_DOCUMENT_CHANNELS)
+                    .where(
+                        ARCHIVE_DOCUMENT_CHANNELS.c.description_id == ArchiveDocument.description_id,
+                        ARCHIVE_DOCUMENT_CHANNELS.c.channel_code == query.publication_channel,
+                    )
+                )
+            )
         if query.typology_id is not None and "typology" not in exclude:
             filters.append(ArchiveDocument.typology_id == query.typology_id)
         if query.level_id is not None and "level" not in exclude:

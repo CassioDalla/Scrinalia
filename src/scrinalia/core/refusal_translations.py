@@ -20,7 +20,7 @@ TRANSLATIONS: dict[str, str] = {
     "A importação tem {total_bytes} MB; o limite é {limit_mb} MB. Divida o arquivo em partes.": "The import is {total_bytes} MB; the limit is {limit_mb} MB. Split the file into parts.",
     "A ingestão não tem engine nem padrão de worker: a configuração dela é a da origem.": "Ingestion has no engine or worker preset: its configuration is the origin's.",
     "A ingestão não tem ensaio: a unidade dela é a origem.": "Ingestion has no trial: its unit is the origin.",
-    "A ingestão é enfileirada pela origem, não pelo worker genérico: use a tela de ingestão ou POST /api/v1/ingestion/origins/{code}/runs.": "Ingestion is enqueued by the origin, not by the generic worker: use the ingestion screen or POST /api/v1/ingestion/origins/{code}/runs.",
+    "A ingestão é enfileirada pela origem, não pelo worker genérico: use a tela de ingestão.": "Ingestion is enqueued by the origin, not by the generic worker: use the ingestion screen.",
     "A lista de tags para mesclar não pode estar vazia.": "The list of tags to merge cannot be empty.",
     "A materialização {materialisation_id} já foi desfeita em {undone_at}.": "Materialisation {materialisation_id} was already undone at {undone_at}.",
     "A mesclagem {merge_id} já foi desfeita em {undone_at}.": "Merge {merge_id} was already undone at {undone_at}.",
@@ -176,5 +176,80 @@ TRANSLATIONS.update(
         "A engine do worker '{name}' não é configurável aqui: {reason}": "Worker '{name}'s engine is not configurable here: {reason}",
         "ela vive na regra LLM_CHECK ativa (tela de regras).": "it lives in the active LLM_CHECK rule (rules screen).",
         "este worker não carrega modelo.": "this worker does not load a model.",
+    }
+)
+
+TRANSLATIONS.update(
+    {
+        "Informe o canal. Disponíveis: {channels}.": "Inform the channel. Available: {channels}.",
+        "Canal de difusão '{code}' não existe. Disponíveis: {channels}.": "Diffusion channel '{code}' does not exist. Available: {channels}.",
+        "Configuração inválida do canal '{code}': {exc}": "Invalid configuration of channel '{code}': {exc}",
+        "Configuração inválida do site público: {exc}": "Invalid configuration of the public site: {exc}",
+        "Informe o que mudar no canal '{code}'.": "Say what to change on channel '{code}'.",
+        "O canal '{code}' ainda não está configurado. Salve a configuração antes da agenda.": "Channel '{code}' is not configured yet. Save the configuration before scheduling.",
+        "O canal '{code}' ainda não está configurado. Salve a configuração primeiro.": "Channel '{code}' is not configured yet. Save the configuration first.",
+        "O canal '{code}' não está configurado.": "Channel '{code}' is not configured.",
+        "O canal '{code}' é lido a cada requisição e não tem opções de execução.": "Channel '{code}' is read on every request and has no run options.",
+        "O canal '{code}' é o site público: ele é lido a cada requisição e não tem agenda.": "Channel '{code}' is the public site: it is read on every request and has no schedule.",
+        "O site público ainda não está configurado nesta instalação.": "The public site is not configured in this installation yet.",
+    }
+)
+
+TRANSLATIONS.update(
+    {
+        "O canal '{code}' ainda não está configurado. Salve a configuração antes de executar.": "Channel '{code}' is not configured yet. Save the configuration before running it.",
+        "O canal '{code}' é lido a cada requisição e não tem execução.": "Channel '{code}' is read on every request and has no run.",
+        "O canal '{code}' está pausado; ative-o antes de executar.": "Channel '{code}' is paused; enable it before running it.",
+        "O canal '{code}' ainda não exporta nesta versão.": "Channel '{code}' does not export in this version yet.",
+        "O worker 'diffusion' precisa do canal: informe --channel ou a linha da fila.": "The 'diffusion' worker needs the channel: pass --channel or the queue row.",
+        "A difusão é enfileirada pelo canal, não pelo worker genérico: use a tela de difusão.": "Diffusion is enqueued by the channel, not by the generic worker: use the diffusion screen.",
+        "A difusão não tem ensaio: a unidade dela é o canal.": "Diffusion has no trial: its unit is the channel.",
+        "A difusão não tem engine nem padrão de worker: a configuração dela é a do canal.": "Diffusion has no engine or worker preset: its configuration is the channel's.",
+        "A agenda da difusão é a do canal: use a tela de difusão, não a agenda genérica de workers.": "The diffusion schedule belongs to the channel: use the diffusion screen, not the generic worker schedule.",
+    }
+)
+
+TRANSLATIONS.update(
+    {
+        "A pré-visualização expirou. Pré-visualize de novo antes de confirmar.": "The preview expired. Preview again before confirming.",
+        "A pré-visualização é inválida. Pré-visualize de novo antes de confirmar.": "The preview is invalid. Preview again before confirming.",
+        "O conjunto mudou desde a pré-visualização. Pré-visualize de novo antes de confirmar.": "The set changed since the preview. Preview again before confirming.",
+        "Nada a fazer: os canais escolhidos já estão neste estado. Atualize a página.": "Nothing to do: the chosen channels are already in this state. Refresh the page.",
+        "Lote de publicação {batch_id} não encontrado.": "Publication batch {batch_id} not found.",
+        "O lote {batch_id} já foi desfeito; desfazer de novo reverteria decisões posteriores.": "Batch {batch_id} was already undone; undoing it again would revert later decisions.",
+        "O canal '{code}' não está configurado ou está pausado; ative-o antes de publicar.": "Channel '{code}' is not configured or is paused; enable it before publishing.",
+        "A descrição '{description_id}' não existe no acervo.": "Description '{description_id}' does not exist in the collection.",
+    }
+)
+
+TRANSLATIONS.update(
+    {
+        "'{path}' não é um documents.csv válido.": "'{path}' is not a valid documents.csv.",
+        "'{path}' não é um documents.json válido.": "'{path}' is not a valid documents.json.",
+        "A licença de dados do conjunto está incompleta: {exc}": "The dataset's data license is incomplete: {exc}",
+        "A linha {number} de '{path}' não é um registro válido.": "Line {number} of '{path}' is not a valid record.",
+        "Configuração inválida do canal 'dataset': {exc}": "Invalid 'dataset' channel configuration: {exc}",
+        "Informe a instituição responsável pelo conjunto ou configure a instituição do site público.": "State the institution responsible for the dataset, or configure the public site's institution.",
+        "O canal 'dataset' não tem destino. Informe o diretório onde o snapshot será escrito.": "The 'dataset' channel has no destination. State the directory where the snapshot will be written.",
+        "O destino '{path}' é um arquivo, não um diretório.": "The destination '{path}' is a file, not a directory.",
+        "O diretório pai do destino '{path}' não existe.": "The parent directory of the destination '{path}' does not exist.",
+        "O exportador do conjunto de dados recebeu o canal '{code}'.": "The dataset exporter received channel '{code}'.",
+        "O manifesto do snapshot '{id}' não existe em '{path}'.": "The manifest of snapshot '{id}' does not exist at '{path}'.",
+        "O manifesto do snapshot '{id}' não pôde ser lido: {exc}": "The manifest of snapshot '{id}' could not be read: {exc}",
+        "O manifesto lista um caminho inválido para o snapshot: '{path}'.": "The manifest lists an invalid path for the snapshot: '{path}'.",
+        "O ponteiro '{pointer}' do destino não aponta para um snapshot válido.": "The destination's pointer '{pointer}' does not name a valid snapshot.",
+        "O snapshot '{id}' não tem nenhum arquivo de dados que o próximo run possa comparar.": "Snapshot '{id}' has no data file the next run can compare against.",
+    }
+)
+
+TRANSLATIONS.update(
+    {
+        "O arquivo '{name}' do snapshot '{id}' não existe.": "The file '{name}' of snapshot '{id}' does not exist.",
+        "O canal '{code}' ainda não está configurado. Salve a configuração antes da pré-visualização.": "Channel '{code}' is not configured yet. Save the configuration before previewing it.",
+        "O canal '{code}' ainda não tem pré-visualização nesta versão.": "Channel '{code}' has no preview in this version yet.",
+        "O canal '{code}' é lido a cada requisição e não tem pré-visualização.": "Channel '{code}' is read on every request and has no preview.",
+        "O conjunto de dados ainda não foi publicado nesta instalação.": "The dataset has not been published in this installation yet.",
+        "O conjunto de dados não está disponível nesta instalação.": "The dataset is not available in this installation.",
+        "O manifesto lista um caminho inválido para o pacote: '{path}'.": "The manifest lists an invalid path in the package: '{path}'.",
     }
 )

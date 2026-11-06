@@ -1,0 +1,148 @@
+{
+  "conventions": {
+    "csv": "RFC 4180, comma delimiter, UTF-8 without BOM, one header row.",
+    "dates": "document_date is an ISO 8601 date; date_expression keeps the source spelling.",
+    "ids": "description_id is opaque and stable within one installation; do not parse it.",
+    "language": "language_name is the label the archive declared, not a normalized BCP 47 tag.",
+    "multivalue": "arrays in JSON and NDJSON; the same JSON array encoded in one CSV cell.",
+    "null": "an absent value is null in JSON and an empty cell in CSV."
+  },
+  "fields": [
+    {
+      "cardinality": "one",
+      "description": "Stable identifier of the description within the installation; opaque, not a URL.",
+      "isad_g": null,
+      "kind": "derived",
+      "name": "description_id"
+    },
+    {
+      "cardinality": "one",
+      "description": "The title as the source declared it.",
+      "isad_g": "3.1.2",
+      "kind": "isad-g",
+      "name": "original_title"
+    },
+    {
+      "cardinality": "one",
+      "description": "The curator-corrected title, when one was written.",
+      "isad_g": "3.1.2",
+      "kind": "isad-g",
+      "name": "final_title"
+    },
+    {
+      "cardinality": "one",
+      "description": "The normalized date (ISO 8601 date), when the pipeline could parse one.",
+      "isad_g": "3.1.3",
+      "kind": "isad-g",
+      "name": "document_date"
+    },
+    {
+      "cardinality": "one",
+      "description": "The date as the source spelled it, e.g. '1910-1950'.",
+      "isad_g": "3.1.3",
+      "kind": "isad-g",
+      "name": "date_expression"
+    },
+    {
+      "cardinality": "one",
+      "description": "The archival reference code.",
+      "isad_g": "3.1.1",
+      "kind": "isad-g",
+      "name": "reference_code"
+    },
+    {
+      "cardinality": "one",
+      "description": "Display name of the arrangement rung; the archivist may rename it.",
+      "isad_g": "3.1.4",
+      "kind": "isad-g",
+      "name": "level"
+    },
+    {
+      "cardinality": "one",
+      "description": "Stable catalogue key of the rung; group by this, not by 'level'.",
+      "isad_g": "3.1.4",
+      "kind": "isad-g",
+      "name": "level_code"
+    },
+    {
+      "cardinality": "one",
+      "description": "Extent and medium of the unit of description.",
+      "isad_g": "3.1.5",
+      "kind": "isad-g",
+      "name": "dimension_support"
+    },
+    {
+      "cardinality": "one",
+      "description": "Scope and content.",
+      "isad_g": "3.3.1",
+      "kind": "isad-g",
+      "name": "scope_content"
+    },
+    {
+      "cardinality": "one",
+      "description": "Language of the material, as the archive declared it.",
+      "isad_g": "3.4.3",
+      "kind": "isad-g",
+      "name": "language_name"
+    },
+    {
+      "cardinality": "one",
+      "description": "Who produced the record.",
+      "isad_g": "3.2.1",
+      "kind": "isad-g",
+      "name": "producers"
+    },
+    {
+      "cardinality": "one",
+      "description": "Conditions governing access; descriptive, not the diffusion gate.",
+      "isad_g": "4.1",
+      "kind": "isad-g",
+      "name": "access_conditions"
+    },
+    {
+      "cardinality": "one",
+      "description": "Diplomatic form from the typology catalogue (ata, ofício, planta…).",
+      "isad_g": null,
+      "kind": "controlled",
+      "name": "typology"
+    },
+    {
+      "cardinality": "many",
+      "description": "Subject terms; an array of {tag_id, name}.",
+      "isad_g": null,
+      "kind": "controlled",
+      "name": "tags"
+    },
+    {
+      "cardinality": "many",
+      "description": "Named entities; an array of {entity_id, name, entity_type}.",
+      "isad_g": null,
+      "kind": "controlled",
+      "name": "entities"
+    },
+    {
+      "cardinality": "many",
+      "description": "Majority vote over the tags; an array of {category_id, name, tag_count}.",
+      "isad_g": null,
+      "kind": "derived",
+      "name": "macro_categories"
+    },
+    {
+      "cardinality": "many",
+      "description": "The branch, root first; an array of {description_id, title, level, level_code}.",
+      "isad_g": null,
+      "kind": "derived",
+      "name": "ancestors"
+    },
+    {
+      "cardinality": "one",
+      "description": "How many descriptions hang directly under this one.",
+      "isad_g": null,
+      "kind": "derived",
+      "name": "children_count"
+    }
+  ],
+  "record_model": "PublicDocumentSummary",
+  "record_schema": "documents.schema.json",
+  "schema_version": "1.0"
+}

@@ -57,6 +57,11 @@ class WorkerSpec:
     #: True for the one stage whose run is about an **origin**, not about a document or a tag. The
     #: runner resolves no engine for it, and the ledger's origin column is its axis (ADR 0016).
     origin_axis: bool = False
+    #: True for the one stage whose run is about a **diffusion channel**. The mirror of
+    #: ``origin_axis``: the runner resolves no engine, the channel travels in the ledger's
+    #: ``channel_code``, and the queue and the agenda are the channel's (ADR 0023). No worker has
+    #: both, and the ledger's writer refuses a run that names the wrong axis.
+    channel_axis: bool = False
     #: Stamp whose presence in ``execution_log`` means "this unit was processed". It is always an
     #: ``IdentityStamp``: the five catalogue workers whose ledger is a stamp all key their queue on
     #: *what produced* the answer, so the panel reads their processed/failed numbers as one breakdown
@@ -240,6 +245,31 @@ WORKER_CATALOGUE: dict[str, WorkerSpec] = {
             stamp=EMBEDDING,
             stamp_model="document",
             note="Exceção documentada: não usa o guard de governança, só pula descrições REJECTED.",
+        ),
+        WorkerSpec(
+            name="diffusion",
+            label="Difusão por canal",
+            description=(
+                "Exporta o acervo publicado de um canal para o destino dele. A unidade é o canal, "
+                "não a descrição; a fila e a agenda são as do canal, e a tela Canais de difusão "
+                "mostra cada um."
+            ),
+            module="scrinalia.domains.diffusion.worker",
+            unit="channel",
+            governed=False,
+            channel_axis=True,
+            counter=None,
+            processed_counter=None,
+            failed_counter=None,
+            unmeasurable_reason=(
+                "A fila e os contadores são por canal: a tela Canais de difusão mostra a agenda, a "
+                "última execução e a próxima de cada canal, com a mesma política que a próxima "
+                "execução usa."
+            ),
+            note=(
+                "Sem modelo e sem carimbo: é uma saída, roda depois do pipeline e não é lida pela "
+                "IA. O adaptador do canal é resolvido na execução."
+            ),
         ),
     )
 }

@@ -166,6 +166,7 @@ class RunnerService:
                 preset=_optional_str(claimed.request.get("preset")),
                 db_batch_size=_optional_int(claimed.request.get("db_batch_size")),
                 origin_code=claimed.origin_code,
+                channel_code=claimed.channel_code,
                 extra=_optional_dict(claimed.request.get("options")),
                 engine_options=_optional_dict(claimed.request.get("engine_options")),
                 db_factory=self._session_factory,

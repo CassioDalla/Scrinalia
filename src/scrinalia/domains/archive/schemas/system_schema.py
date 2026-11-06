@@ -23,7 +23,7 @@ from scrinalia.domains.archive.schemas.responses import RouteResponse
 EngineSource = Literal["signature", "llm_check_rule", "none"]
 
 #: What one unit of a worker's queue is.
-WorkerUnit = Literal["origin", "staging", "document", "tag", "pair"]
+WorkerUnit = Literal["origin", "channel", "staging", "document", "tag", "pair"]
 
 #: The control an option needs. ``columns`` is a list whose values are enumerated (the columns the
 #: AI text has); ``list`` is a free list of strings.
@@ -43,6 +43,13 @@ class WorkerRunDTO(BaseModel):
         description=(
             "A origem que esta execução de ingestão processou; nula num worker de archive, que "
             "atravessa o acervo inteiro e não tem uma única origem para nomear."
+        ),
+    )
+    channel_code: str | None = Field(
+        default=None,
+        description=(
+            "O canal de difusão que esta execução de exportação escreveu; nulo em qualquer outro "
+            "worker, inclusive na ingestão, cujo eixo é a origem (ADR 0023)."
         ),
     )
     status: WorkerRunStatus

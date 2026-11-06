@@ -1,5 +1,5 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link, Outlet, useRouterState } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
+import { Link, Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
 import {
   Ban,
   CircleSlash,
@@ -7,14 +7,13 @@ import {
   Flag,
   FolderTree,
   GitCompareArrows,
-  KeyRound,
   LayoutDashboard,
-  LogOut,
   Network,
   PanelLeftClose,
   Ruler,
   Scissors,
   Search,
+  Send,
   Settings,
   Sparkles,
   Tags,
@@ -26,13 +25,12 @@ import {
 } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 
-import { fetchCurrentUser, fetchSetupStatus, logout, updateLocale, type AuthUser } from "@/api/client";
+import { fetchCurrentUser, fetchSetupStatus, type AuthUser } from "@/api/client";
 import { Lockup } from "@/components/brand/Lockup";
 import { Mark } from "@/components/brand/Mark";
-import { Button } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/Feedback";
 import { useCopy, useLocale } from "@/i18n/context";
-import { detectLocale, LOCALE_LABEL, LOCALES, type Locale } from "@/i18n/locale";
+import { detectLocale } from "@/i18n/locale";
 import type { Messages } from "@/i18n/pt";
 import { cn } from "@/lib/cn";
 import { can, type Permission } from "@/lib/permissions";
@@ -42,6 +40,7 @@ import { SETTINGS_PATHS, SETTINGS_PERMISSIONS } from "@/lib/settings";
 import { AttributionFooter } from "./AttributionFooter";
 import { LoginForm } from "./LoginForm";
 import { PasswordChangeForm } from "./PasswordChangeForm";
+import { SessionFooter } from "./SessionFooter";
 import { SetupForm } from "./SetupForm";
 
 /**
@@ -134,6 +133,11 @@ const NAV: NavGroup[] = [
       { screen: "collection", icon: Search },
       { screen: "tree", icon: Network },
       { screen: "deletions", icon: Trash2 },
+      /*
+        Difusão sits with the collection, not under Configurações: the curator decides what
+        leaves, and the operator's channels are the card that configures where it can go.
+       */
+      { screen: "diffusion", icon: Send, permission: "CURATE" },
       /*
         The arrangement diagnostic sits with the collection and not in a group of its own.
 
@@ -280,8 +284,8 @@ function writeCollapsed(collapsed: boolean): void {
 export function AppShell() {
   const copy = useCopy();
   const { setLocale } = useLocale();
+  const navigate = useNavigate();
   const pathname = useRouterState({ select: (state) => state.location.pathname });
-  const [changingPassword, setChangingPassword] = useState(false);
   const [collapsed, setCollapsed] = useState(readCollapsed);
   /*
     The section the archivist opened by hand, **with the screen it was opened on**.
@@ -573,18 +577,13 @@ export function AppShell() {
         <SessionFooter
           user={user}
           collapsed={collapsed}
-          changing={changingPassword}
-          onTogglePassword={() => setChangingPassword((open) => !open)}
+          onChangePassword={() => navigate({ to: SCREENS.password.path })}
         />
       </aside>
 
       <main className="flex min-w-0 flex-1 flex-col">
         <div className="min-h-0 flex-1 overflow-y-auto">
-          {changingPassword ? (
-            <PasswordChangeForm onDone={() => setChangingPassword(false)} />
-          ) : (
-            <Outlet />
-          )}
+          <Outlet />
         </div>
         <AttributionFooter />
       </main>
@@ -610,132 +609,6 @@ function PublicShell({ children }: { children: ReactNode }) {
     <div className="flex min-h-dvh flex-col">
       <div className="flex flex-1 flex-col">{children}</div>
       <AttributionFooter />
-    </div>
-  );
-}
-
-/**
- * Who is signed in, and the two things they can do about it.
- *
- * The name and the role are shown because everything this person writes is recorded under them: the
- * ledgers print the name, so a screen that hid it would leave the archivist guessing what their own
- * edits are attributed to.
- *
- * Collapsed, the same three facts move into an initial and two tooltips. The initial is not a
- * decoration: it is the one place the account answers "who am I signed in as" after the name leaves
- * the rail, and it carries the full name, the role and the address in its ``title``.
- */
-function SessionFooter({
-  user,
-  collapsed,
-  changing,
-  onTogglePassword,
-}: {
-  user: AuthUser;
-  collapsed: boolean;
-  changing: boolean;
-  onTogglePassword: () => void;
-}) {
-  const copy = useCopy();
-  const { setLocale } = useLocale();
-  const queryClient = useQueryClient();
-  const signOut = useMutation({
-    mutationFn: logout,
-    // Whether the API answered or the session was already over, this browser is signed out: clearing
-    // the cached account is what draws the sign-in form.
-    onSettled: () => queryClient.setQueryData(["current-user"], null),
-  });
-  const saveLocale = useMutation({
-    mutationFn: (next: Locale | null) => updateLocale(next),
-    onSuccess: (account) => {
-      queryClient.setQueryData(["current-user"], account);
-      setLocale(account.locale ?? detectLocale(), { persist: false });
-    },
-  });
-
-  if (collapsed) {
-    const identity = `${user.name} · ${copy.roles[user.role]} · ${user.email}`;
-    return (
-      <div className="flex shrink-0 flex-col items-center gap-2 border-t border-(--color-rail-line) px-1.5 py-3">
-        <span
-          title={identity}
-          aria-label={identity}
-          className="grid size-8 place-items-center rounded-full bg-(--color-rail-active) text-xs font-semibold text-(--color-rail-ink)"
-        >
-          {user.name.trim().slice(0, 1).toUpperCase() || "?"}
-        </span>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="size-8 px-0 text-(--color-rail-muted) hover:bg-(--color-rail-hover) hover:text-(--color-rail-ink)"
-          title={changing ? copy.shell.close : copy.shell.changePassword}
-          aria-label={changing ? copy.shell.close : copy.shell.changePassword}
-          onClick={onTogglePassword}
-        >
-          <KeyRound className="size-4" aria-hidden />
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="size-8 px-0 text-(--color-rail-muted) hover:bg-(--color-rail-hover) hover:text-(--color-rail-ink)"
-          title={signOut.isPending ? copy.shell.signingOut : copy.shell.signOut}
-          aria-label={signOut.isPending ? copy.shell.signingOut : copy.shell.signOut}
-          disabled={signOut.isPending}
-          onClick={() => signOut.mutate()}
-        >
-          <LogOut className="size-4" aria-hidden />
-        </Button>
-      </div>
-    );
-  }
-
-  return (
-    <div className="shrink-0 border-t border-(--color-rail-line) px-4 py-3">
-      <p className="truncate text-sm font-medium text-(--color-rail-ink)">{user.name}</p>
-      <p className="truncate text-xs text-(--color-rail-muted)">
-        {copy.roles[user.role]} · {user.email}
-      </p>
-      <div className="flex items-center gap-1 pt-2">
-        <Button
-          variant="ghost"
-          size="sm"
-          className="text-(--color-rail-muted) hover:bg-(--color-rail-hover) hover:text-(--color-rail-ink)"
-          onClick={onTogglePassword}
-        >
-          {changing ? copy.shell.close : copy.shell.changePassword}
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="text-(--color-rail-muted) hover:bg-(--color-rail-hover) hover:text-(--color-rail-ink)"
-          disabled={signOut.isPending}
-          onClick={() => signOut.mutate()}
-        >
-          {signOut.isPending ? copy.shell.signingOut : copy.shell.signOut}
-        </Button>
-      </div>
-      <label className="flex items-center gap-2 pt-2 text-xs text-(--color-rail-muted)">
-        <span>{copy.shell.language}</span>
-        <select
-          value={user.locale ?? "auto"}
-          disabled={saveLocale.isPending}
-          onChange={(event) => {
-            const value = event.target.value;
-            saveLocale.mutate(value === "auto" ? null : (value as Locale));
-          }}
-          className="rounded border border-(--color-rail-line) bg-(--color-rail) px-1 py-0.5 text-xs text-(--color-rail-ink)"
-        >
-          <option value="auto">{copy.shell.automatic}</option>
-          {LOCALES.map((value) => (
-            <option key={value} value={value}>
-              {LOCALE_LABEL[value]}
-            </option>
-          ))}
-        </select>
-      </label>
-      {saveLocale.isError ? (
-        <p className="pt-1 text-xs text-(--color-danger)">{copy.shell.localeFailed}</p>
-      ) : null}
     </div>
   );
 }

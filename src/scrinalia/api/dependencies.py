@@ -45,6 +45,8 @@ from scrinalia.domains.archive.services.typology_service import TypologyService
 from scrinalia.domains.archive.services.worker_operations_service import WorkerOperationsService
 from scrinalia.domains.archive.services.worker_run_service import WorkerRunService
 from scrinalia.domains.archive.services.worker_schedule_service import WorkerScheduleService
+from scrinalia.domains.diffusion.publication_service import DiffusionPublicationService
+from scrinalia.domains.diffusion.service import DiffusionChannelService
 from scrinalia.domains.identity.repository.login_attempt_repo import LoginAttemptRecorder
 from scrinalia.domains.identity.repository.session_repo import SessionRepository
 from scrinalia.domains.identity.repository.user_repo import UserRepository
@@ -88,7 +90,8 @@ def provide_thumbnail_reader() -> ThumbnailReader:
     Cached because a boto3 client costs milliseconds to build and a page of twenty-five miniatures
     would build twenty-five of them. The import is local for the reason the health probe's is: the
     API must start — and serve every other screen — in an installation whose object storage is
-    missing or misconfigured.
+    missing or misconfigured. ``S3Storage`` itself builds the client only on the first read, so the
+    route can answer 404 for an unconfigured installation without ever touching boto3.
     """
     from scrinalia.core.storage import S3Storage
 
@@ -235,6 +238,29 @@ def provide_ingestion_origin_service(unit_of_work: NamedDependency[UnitOfWork]) 
     committed session, exactly like every other execution the panel enqueues.
     """
     return IngestionOriginService(unit_of_work.db)
+
+
+def provide_diffusion_channel_service(unit_of_work: NamedDependency[UnitOfWork]) -> DiffusionChannelService:
+    """
+    Builds the diffusion channel service over the request transaction.
+
+    The channel row and its agenda are the transaction's. The manual run is not: the ledger writes
+    through its own committed session, so the ``QUEUED`` row is durable before the response and a
+    runner can claim it (ADR 0014).
+    """
+    return DiffusionChannelService(unit_of_work.db)
+
+
+def provide_diffusion_publication_service(
+    unit_of_work: NamedDependency[UnitOfWork],
+) -> DiffusionPublicationService:
+    """
+    Builds the publication service over the request transaction.
+
+    The preview writes nothing; the apply and the undo write the scopes and the batch, and the
+    unit of work commits them together — the batch and the scopes it explains are one transaction.
+    """
+    return DiffusionPublicationService(unit_of_work.db)
 
 
 def provide_failure_service(unit_of_work: NamedDependency[UnitOfWork]) -> FailureService:

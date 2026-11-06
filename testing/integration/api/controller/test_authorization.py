@@ -42,8 +42,12 @@ def test_the_refusal_carries_the_request_id(api_client: TestClient) -> None:
 
 
 def test_the_diffusion_surface_answers_without_a_session(api_client: TestClient) -> None:
-    """Open by design (ADR 0003): the boundary here is *what data exists*, not who is asking."""
-    assert api_client.get("/api/v1/public/documents").status_code == 200
+    """Open by design (ADR 0003): the boundary here is *what data exists*, not who is asking.
+
+    The surface answers without a session; while the ``public_site`` channel is not configured it
+    answers 404 — the site is not there — and never 401.
+    """
+    assert api_client.get("/api/v1/public/documents").status_code == 404
 
 
 def test_the_first_run_surface_answers_without_a_session(api_client: TestClient) -> None:

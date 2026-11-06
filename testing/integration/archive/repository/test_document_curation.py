@@ -30,6 +30,8 @@ from scrinalia.domains.archive.schemas.command_schema import (
 )
 from scrinalia.domains.archive.schemas.query_schema import DocumentSearchQuery
 from scrinalia.domains.archive.schemas.text_quality_schema import TemplateCreateCommand, TemplateUpdateCommand
+from scrinalia.domains.diffusion.diffusion_registry import PUBLIC_SITE_CODE
+from scrinalia.domains.diffusion.models import DiffusionChannel, DiffusionChannelScope
 
 
 def _title_template(db_session, text: str = "Registros Fotográficos -") -> None:
@@ -529,69 +531,60 @@ def test_the_human_tag_edit_survives_a_transfer(db_session, generate_archive_doc
 
 
 # ==========================================
-# DIFFUSION (Fase 4)
+# DIFFUSION (ADR 0023)
 # ==========================================
 
 
-def test_documents_are_not_published_by_default(db_session, generate_archive_doc) -> None:
-    """Adding the column to a collection with thousands of rows must not publish anything."""
-    generate_archive_doc(description_id="pub-def", original_title="Documento")
+def test_an_approved_document_is_not_published_without_a_channel_scope(db_session, generate_archive_doc) -> None:
+    """The approval is a condition of the coverage, not the coverage."""
+    generate_archive_doc(
+        description_id="pub-def", original_title="Documento", review_status=ArchiveReviewStatus.HUMAN_APPROVED
+    )
     db_session.flush()
 
-    stored = db_session.get(ArchiveDocument, "pub-def")
-    assert stored is not None
-    assert stored.is_published is False
+    summary = DocumentRepository(db_session).get_by_id("pub-def")
+
+    assert summary is not None
+    assert summary.channels == []
+    assert summary.is_published is False
 
 
 def test_the_diffusion_gate_filters_the_search(db_session, generate_archive_doc) -> None:
-    generate_archive_doc(description_id="pub-yes", original_title="Publicado", is_published=True)
-    generate_archive_doc(description_id="pub-no", original_title="Interno", is_published=False)
+    generate_archive_doc(
+        description_id="pub-yes", original_title="Publicado", review_status=ArchiveReviewStatus.HUMAN_APPROVED
+    )
+    generate_archive_doc(
+        description_id="pub-no", original_title="Interno", review_status=ArchiveReviewStatus.HUMAN_APPROVED
+    )
+    db_session.add(DiffusionChannel(code=PUBLIC_SITE_CODE))
+    db_session.add(DiffusionChannelScope(channel_code=PUBLIC_SITE_CODE, node_id="pub-yes", include_descendants=False))
     db_session.flush()
 
-    docs, total, _facets = DocumentRepository(db_session).search(DocumentSearchQuery(published_only=True))
+    docs, total, _facets = DocumentRepository(db_session).search(
+        DocumentSearchQuery(publication_channel=PUBLIC_SITE_CODE)
+    )
 
     assert total == 1
     assert [doc.description_id for doc in docs] == ["pub-yes"]
 
 
-def test_publication_does_not_lock_the_record_against_the_ai(
-    db_session, generate_archive_doc, generate_archive_dto
-) -> None:
-    """
-    The reason ``is_published`` exists instead of reusing ``HUMAN_APPROVED``.
-
-    A *published* record must still be improvable by the pipeline; a *reviewed* one must not. If
-    these were the same column, publishing a description would freeze it forever.
-    """
+def test_a_scope_on_an_unapproved_record_covers_nothing(db_session, generate_archive_doc) -> None:
+    """The coverage requires the human approval; a scope alone is not a publication."""
     generate_archive_doc(
         description_id="pub-ai",
         original_title="Antes",
         staging_content_hash="hash_a",
-        is_published=True,
         review_status=ArchiveReviewStatus.AI_APPROVED,
     )
+    db_session.add(DiffusionChannel(code=PUBLIC_SITE_CODE))
+    db_session.add(DiffusionChannelScope(channel_code=PUBLIC_SITE_CODE, node_id="pub-ai", include_descendants=False))
+    db_session.flush()
 
-    updated = DocumentRepository(db_session).upsert_archive_document(
-        generate_archive_dto(description_id="pub-ai", original_title="Depois", staging_content_hash="hash_b")
-    )
-
-    assert updated is True
-    db_session.expire_all()
-    stored = db_session.get(ArchiveDocument, "pub-ai")
-    assert stored is not None
-    assert stored.original_title == "Depois"
-    assert stored.is_published is True
-
-
-def test_the_archivist_can_publish_through_the_review_command(db_session, generate_archive_doc) -> None:
-    generate_archive_doc(description_id="pub-cmd", original_title="Documento")
-    repository = DocumentRepository(db_session)
-
-    summary = repository.update_review(DocumentReviewCommand(description_id="pub-cmd", is_published=True))
+    summary = DocumentRepository(db_session).get_by_id("pub-ai")
 
     assert summary is not None
-    assert summary.is_published is True
-    assert repository.list_revisions("pub-cmd")[0].changes == {"is_published": {"old": False, "new": True}}
+    assert summary.channels == []
+    assert summary.is_published is False
 
 
 def test_access_conditions_is_editable_as_an_isad_g_field(db_session, generate_archive_doc) -> None:

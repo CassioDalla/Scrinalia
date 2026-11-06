@@ -3,6 +3,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, computed_field
 
+from scrinalia.core.config import storage_configured
 from scrinalia.domains.archive.models import ArchiveEntityOrigin, ArchiveReviewStatus
 from scrinalia.domains.archive.schemas.responses import RouteResponse
 
@@ -219,6 +220,9 @@ class DocumentAncestorSummary(BaseModel):
     description_id: str
     title: str | None = None
     level: str | None = None
+    #: The rung's stable key, beside the display name, for the same reason ``DocumentSummary`` has
+    #: both: an export groups by the code and shows the name.
+    level_code: str | None = None
 
 
 #: The collection's resource and the one sub-route a description advertises for its miniature.
@@ -240,9 +244,11 @@ class DocumentSummary(BaseModel):
     review_status: ArchiveReviewStatus
     is_anomaly: bool = False
     anomaly_reasons: list[str] | None = Field(default=None, description="Codes written by the quality validator.")
-    #: Diffusion decision (Fase 4). Orthogonal to ``review_status``: a record can be corrected
-    #: without being published, and publishing it must not lock the AI out of improving it.
+    #: Derived from the coverage (ADR 0023): the channels that carry the record, and whether any
+    #: does. It is a read, not a stored decision — the scopes are the decision — and the approval it
+    #: requires is what locks the AI, not the publication.
     is_published: bool = False
+    channels: list[str] = Field(default_factory=list, description="Os canais que carregam o registro.")
     storage_thumbnail_uri: str | None = None
 
     # ISAD(G) fields the archivist may correct; exposed so the API can show what is there.
@@ -250,6 +256,9 @@ class DocumentSummary(BaseModel):
     #: Name of the catalogue rung. Derived from ``level_id`` on read, kept under the same name
     #: the free-text column used to have so no existing consumer has to change.
     level: str | None = None
+    #: Stable key of the rung (``fundo``, ``dossie`` …), derived like ``level``. The name can be
+    #: renamed by the archivist; an export contract groups by this.
+    level_code: str | None = None
     level_id: int | None = None
     #: Typology is a facet of the collection, so the read view has to say which one it is without
     #: the client resolving an id per row.
@@ -322,14 +331,20 @@ class DocumentSummary(BaseModel):
     @property
     def thumbnail_url(self) -> str | None:
         """
-        Where the browser reads the miniature, or ``None`` when the source had no image to store.
+        Where the browser reads the miniature, or ``None`` when there is nothing to serve.
 
         Derived on the server from ``storage_thumbnail_uri`` and **never** assembled by the client:
         the SPA binds this string to an ``<img>``, so it does not know the bucket and cannot drift
         from the route. The bytes themselves come from the authenticated route, which answers 404
         when the object is gone; the screen shows "imagem indisponível" instead of a broken image.
+
+        **An object-backed field is advertised only when ``storage_configured()``.** An installation
+        without the four ``S3_*`` settings stores no URI of its own — but a database copied from one
+        that had storage still carries them, and advertising those URLs would make a page of
+        twenty-five rows issue twenty-five requests for objects this installation cannot read. The
+        rule applies to every future object-backed field (#198), not only to this one.
         """
-        if not self.storage_thumbnail_uri:
+        if not self.storage_thumbnail_uri or not storage_configured():
             return None
         return _THUMBNAIL_URL_TEMPLATE.format(description_id=self.description_id)
 

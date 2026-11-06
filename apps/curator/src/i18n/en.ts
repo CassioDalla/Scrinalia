@@ -12,6 +12,8 @@ import { en as workerPanelEn } from "@/i18n/pages/workerPanel";
 import { en as exclusionsEn } from "@/i18n/pages/exclusions";
 import { en as browseAEn } from "@/i18n/pages/browseA";
 import { en as browseBEn } from "@/i18n/pages/browseB";
+import { en as diffusionEn } from "@/i18n/pages/diffusion";
+import { en as publicationEn } from "@/i18n/pages/publication";
 import { ATTRIBUTION } from "@/lib/attribution";
 
 import type { pt } from "./pt";
@@ -47,6 +49,8 @@ export const en: typeof pt = {
     ...exclusionsEn,
     ...browseAEn,
     ...browseBEn,
+    ...diffusionEn,
+    ...publicationEn,
     cleaningRules: {
       activeOne: "1 active rule",
       activeMany: "{count} active rules",
@@ -113,8 +117,9 @@ export const en: typeof pt = {
     },
     inbox: {
       countsGenerated: "Counts generated at {date}.",
-      notReadyTitle: "This screen is not ready for use yet.",
-      notReady: "screen in preparation",
+      publicationLabel: "To publish in diffusion",
+      publicationDescription:
+        "Approved records no channel carries. Approving is a decision about the record; publishing is a decision about where it appears.",
       empty: "nothing pending",
       open: "open →",
       emptyTitle: "No pending item received",
@@ -642,6 +647,7 @@ export const en: typeof pt = {
     trigger: { API: "panel", CLI: "command line", SCHEDULE: "schedule" },
     unit: {
       origin: "origins",
+      channel: "channels",
       staging: "imported records",
       document: "descriptions",
       tag: "tags",
@@ -1201,6 +1207,7 @@ export const en: typeof pt = {
     expandMenu: "Expand the menu",
     collapseMenu: "Collapse the menu",
     mainMenu: "Main menu",
+    account: "Account",
     changePassword: "Change password",
     close: "Close",
     signOut: "Sign out",
@@ -1362,6 +1369,17 @@ export const en: typeof pt = {
       description:
         "The sources this installation reads, with each one's queue, schedule and configuration; manual entry and CSV import live in the Collection, under New Description.",
     },
+    diffusionChannels: {
+      label: "Diffusion channels",
+      hint: "Where the collection goes out",
+      description: "The channel publishes nothing; Diffusion is where the curator chooses what goes to it.",
+    },
+    diffusion: {
+      label: "Diffusion",
+      hint: "What goes to each channel",
+      description:
+        "The approved records no channel carries, what each channel already carries and what each branch publishes — with a preview and a history. Publishing does not approve; approving does not publish.",
+    },
     newDescription: {
       label: "New Description",
       hint: "Type or import CSV",
@@ -1387,6 +1405,10 @@ export const en: typeof pt = {
     users: {
       label: "Users",
       hint: "Accounts, roles and sessions",
+    },
+    password: {
+      label: "Change password",
+      hint: "Update the account password",
     },
     dossier: {
       label: "Description",

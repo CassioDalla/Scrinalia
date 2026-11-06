@@ -9,12 +9,6 @@ from datetime import date
 
 import pytest
 
-from scrinalia.api.schemas.public import (
-    NOT_PUBLIC_FACETS,
-    NOT_PUBLIC_FIELDS,
-    PublicDocumentFacets,
-    PublicDocumentSummary,
-)
 from scrinalia.domains.archive.models import ArchiveEntityOrigin, ArchiveReviewStatus
 from scrinalia.domains.archive.schemas.document_schema import (
     DocumentAncestorSummary,
@@ -25,6 +19,12 @@ from scrinalia.domains.archive.schemas.document_schema import (
     DocumentTagSummary,
     FacetCount,
 )
+from scrinalia.domains.archive.schemas.public_projection import (
+    NOT_PUBLIC_FACETS,
+    NOT_PUBLIC_FIELDS,
+    PublicDocumentFacets,
+    PublicDocumentSummary,
+)
 
 
 def _internal_summary() -> DocumentSummary:
@@ -33,6 +33,7 @@ def _internal_summary() -> DocumentSummary:
         original_title="Título",
         final_title=None,
         document_date=date(1954, 3, 12),
+        date_expression="12 de março de 1954",
         review_status=ArchiveReviewStatus.NEEDS_REVIEW,
         is_anomaly=True,
         anomaly_reasons=["BAD_DATE"],
@@ -40,6 +41,8 @@ def _internal_summary() -> DocumentSummary:
         storage_thumbnail_uri="s3://thumb.jpg",
         reference_code="BR PR",
         level="Dossiê",
+        level_code="dossie",
+        dimension_support="papel; 30 x 21 cm",
         level_id=5,
         typology_id=9,
         typology="Fotografia",
@@ -54,7 +57,7 @@ def _internal_summary() -> DocumentSummary:
         archivist_notes="nota interna",
         access_conditions="consulta mediante autorização",
         suggested_final_title="Título sugerido",
-        ancestors=[DocumentAncestorSummary(description_id="serie", title="Série", level="Série")],
+        ancestors=[DocumentAncestorSummary(description_id="serie", title="Série", level="Série", level_code="serie")],
         children_count=2,
         tags=[DocumentTagSummary(tag_id=1, name="urbanismo", macro_category_id=4, macro_category_name="Urbanismo")],
         entities=[
@@ -118,7 +121,7 @@ def test_every_declared_non_public_field_exists() -> None:
         "archivist_notes",
         "provenance",
         "suggested_final_title",
-        "access_conditions",
+        "storage_thumbnail_uri",
         "admin_bio_history",
         "admin_archival_history",
     ],
@@ -127,6 +130,25 @@ def test_the_projection_drops_the_internal_metadata(field: str) -> None:
     """Each field named in the ADR is actually absent from what a public client receives."""
     projected = PublicDocumentSummary.from_summary(_internal_summary())
     assert field not in projected.model_dump()
+
+
+def test_the_projection_publishes_the_isad_fields_the_dataset_needs() -> None:
+    """
+    The widening of 2026-10-30 (#214, ADR 0024), pinned field by field.
+
+    ``level_code`` is the stable catalogue key beside the renameable ``level``; ``date_expression``
+    is the source's quotation beside the normalized date; ``dimension_support`` and
+    ``access_conditions`` are ISAD(G) 3.1.5 and 4.1. The open dataset is an archival interchange,
+    so these are the fields it cannot be lossy about.
+    """
+    projected = PublicDocumentSummary.from_summary(_internal_summary())
+
+    assert projected.level == "Dossiê"
+    assert projected.level_code == "dossie"
+    assert projected.date_expression == "12 de março de 1954"
+    assert projected.dimension_support == "papel; 30 x 21 cm"
+    assert projected.access_conditions == "consulta mediante autorização"
+    assert projected.ancestors[0].level_code == "serie"
 
 
 def test_the_projection_keeps_what_describes_the_record() -> None:

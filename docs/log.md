@@ -2959,3 +2959,365 @@ with short or full shas, and part of a `## <date> — <title>` entry.
   The render used the one configured origin (`pmc`) in the scratch database; the long-card
   below-the-fold case is pinned by the unit test's `scrollIntoView` assertion, not by a screenshot of
   a card taller than the viewport.
+
+## 2026-10-29 — the queue destination has one owner (#246)
+
+- **Range:** `dfac1d0..15ff1680`
+- **Pages:**
+  - `guides/curate.md` — **updated**: the Início paragraph no longer says the API carries the route
+    that resolves a queue, nor that an unrecognised card shows "tela pendente". Each card opens the
+    screen that resolves the pending work, already filtered, with the queue's tab and status as that
+    screen's own typed search. The page's `sources:` already cover `apps/curator/src/routes/**` and
+    the generated contract, so the change was visible to the report.
+  - `guides/curate.pt.md` — **updated**: the same sentence in the SPA's vocabulary.
+  - `guides/install.md` — **no-change**: the report flagged it because the 1.7.0 release bumped
+    `pyproject.toml`, but the page documents the installation's Python/PostgreSQL versions, not the
+    project's own; the release changed no dependency and no install step.
+- **ADRs.** `adr/0020-the-interface-speaks-two-languages.md` **updated** §5: the server keeps the
+  identity, the count and the sentences; the route is not text, so it lives with the screen
+  catalogue in the SPA. `adr/0021-the-url-speaks-the-interfaces-language.md` **created**, recording
+  #239's decision — the paths and their query keys stay Portuguese because a path is an identifier
+  and not copy, and the path has one owner in `lib/screens.ts`. The ADR is linked from
+  `adr/index.md` and from the MkDocs nav, which the coverage gate checks.
+- **What the round measured.** `ruff check`, `ruff format --check`, basedpyright, `alembic check`,
+  the full suite (**2313 passed, 1 skipped**), the SPA's **79** bun tests, `tsc`, ESLint, the Vite
+  build and `mkdocs build --strict`. The inbox **was rendered** with the headless shell over CDP
+  against the dev server and the API, with a temporary session row inserted for the round and
+  deleted after: the nine cards render, none says "tela em preparação", and clicking every card
+  landed on its destination — `/arranjo/plano` twice, `/assuntos/tags` (four, two of them with
+  `?aba=classificar&subject_state=…`), `/entidades/conflitos`, `/arranjo/tipologias`,
+  `/qualidade/anomalias` and `/acervo/lista?status=PENDING_AI`.
+- **The render found a defect outside the issue's letter.** `CollectionRoute` built its status
+  vocabulary with `Object.keys(REVIEW_STATUS_LABEL)`; the labels are a `Proxy` over the locale
+  catalogue with no `ownKeys` trap, so the list was empty and every `?status=` was silently dropped
+  — including the one the "unreviewed" card has always sent. It now reads the literal tone map. The
+  rendered collection shows the `Aguardando IA` chip and **72 descrições**.
+- **Not verified.** No write was exercised; the English locale was not re-rendered (its strings did
+  not change); and the `?status=` fix was verified through the inbox card and the rendered collection
+  screen, not through the status select on its own.
+
+## 2026-10-29 — the ADR nav entry, and the one page it touched
+
+- **Range:** `15ff1680..68e8012`
+- **Pages:**
+  - `guides/operate.md` — **no-change**: `mkdocs.yml` moved only to add ADR 0021 to the nav. The page
+    states what the site build and the nav coverage mean, and neither sentence changed; it was
+    reported because it declares `mkdocs.yml` among its sources, which is correct.
+
+## 2026-10-29 — the unconfigured installation advertises no thumbnail (#258)
+
+- **Range:** `68e8012..2e63989`
+- **Pages:**
+  - `guides/install.md` — **updated**: the object-storage section now says storage is optional for
+    everything except the miniature. An installation without the four `S3_*` settings advertises no
+    `thumbnail_url` (even for a row that carries a `storage_thumbnail_uri`), the screens draw "sem
+    imagem" and send no request, the thumbnail route answers 404, and the health panel names the
+    missing settings. The "bucket does not answer" section separates `configured = false` (no
+    thumbnails in this installation) from `configured = true, ok = false` (configured, `HEAD`
+    failed, screens keep their URLs and the route answers 503).
+  - `guides/install.pt.md` — **updated**: the same two paragraphs in Portuguese.
+  - `guides/operate.md` — **updated**: the `thumbnail` bullet says an installation without `S3_*`
+    is valid, the screens advertise no miniature and the route answers 404, so this worker is the
+    only piece that fails (once, on the first document) while the rest of the pipeline runs.
+  - `guides/operate.pt.md` — **updated**: the same sentence.
+  - `guides/curate.md` — **updated**: the dossier's miniature paragraph said 503 "when the storage
+    itself is unavailable", which is now two cases. 404 covers no source image, an object that left
+    the bucket and an installation with no storage (whose read view advertises no URL and whose card
+    is the same "Sem imagem"); 503 is kept for a storage that is configured and cannot be read.
+  - `guides/curate.pt.md` — **updated**: the same paragraph.
+- **Range note.** The range includes the merge of #246 (`9e6a45b`), whose own pages are triaged in
+  the entries above; this round did not rewrite them again, except the curate page's miniature
+  paragraph, which #258 changed.
+- **ADRs.** `adr/0022-an-unconfigured-installation-advertises-no-object-backed-url.md` **created**:
+  one predicate (`missing_storage_settings`/`storage_configured` in `core/config.py`) read by the
+  health probe, `S3Storage` and the read view; an object-backed field is advertised only when the
+  storage is configured; the route answers 404 for an unconfigured installation and keeps 503 for a
+  configured one that cannot be read; the boto3 client is built on first use. It records the rule
+  #198 inherits. `adr/0017-…` §3 carries an amendment note, and the ADR is in the index and in the
+  MkDocs nav.
+- **What the round measured.** `ruff check` green and `ruff format --check` green (**583 files**);
+  basedpyright **0 errors, 0 warnings**; the full suite **2322 passed, 1 skipped in 32.78 s**
+  (Postgres test database on 5434, because another project holds 5433 on this machine); `bun run
+  contract` regenerated `openapi.json` and `schema.d.ts` with only the `thumbnail_url` docstring
+  changed; `tsc` and ESLint green in `apps/curator`; `mkdocs build --strict` green. The tests that
+  pin the new behaviour are `test_without_storage_the_summary_advertises_nothing_and_the_route_never_reads`,
+  the four parameterised settings cases in `testing/unit/core/test_storage.py`, and the lazy-client
+  test; the route tests now set or clear the four settings instead of inheriting a developer's
+  `.env`.
+- **Not verified.** No browser was opened: the SPA source did not change, and the null branch it
+  already draws for a missing image is what the new API value feeds. The route tests use the
+  Litestar test client with the settings patched, not a live API process configured without storage,
+  and the `thumbnail` worker was not run against an absent bucket — its refusal path is unchanged
+  and covered by its existing tests.
+
+## 2026-10-29 — the application image is built by CI (#255)
+
+- **Range:** `2e63989..34fdd84`
+- **Pages:**
+  - `guides/install.md` — **updated**: the container section now says the `image` job builds the
+    image on every pull request and every push, runs `create_app()` inside it, checks that the SPA
+    build, the Alembic configuration and the migration revisions are present, and resolves the
+    Compose file with `config -q` — so a `Dockerfile` that stops building fails the pull request
+    instead of the next installer.
+  - `guides/install.pt.md` — **updated**: the same paragraph in Portuguese.
+  - `guides/operate.md` — **no-change**: it declares `ci.yml` for the documentation-site section,
+    and that section did not change. The new job builds the application image, which the install
+    page owns; the workflow's job list is not documented on the operations page.
+- **The Dockerfile fix in the range.** `84d446e` copies `pyproject.toml` into the SPA stage, which
+  `vite.config.ts` reads for the version the footer renders. Without it the image had not built
+  since `01be422`: measured, `docker build -t scrinalia-app:ci .` stopped at `bun run --cwd
+  apps/curator build` with `ENOENT: no such file or directory, open '/app/pyproject.toml'`.
+- **What the round measured.** The rebuilt image (after the fix) builds, is **4.19 GB**, and serves
+  a bundle carrying `1.7.0` — the value read from `pyproject.toml`, which is the fix working;
+  `create_app()` inside the image answers in **2.2 s**; the file assertion and `docker compose -f
+  docker-compose.yml config -q` are green; `zizmor@1.30.1 --persona=pedantic` on
+  `.github/workflows` reports no findings; the docs suite is **29 passed** and `mkdocs build
+  --strict` is green.
+- **Not verified.** The `image` job has not run on GitHub at the time of this entry, so the
+  `type=gha` cache and the hosted runner's disk headroom are reasoned from the local build and not
+  measured on a runner; the entrypoint's migration was not exercised, because it needs a database
+  and the job checks the application layer instead (the DoD of #255).
+
+## 2026-10-29 — the image gate is a manual run (#255)
+
+- **Range:** `34fdd84..62ee30d`
+- **Pages:**
+  - `guides/install.md` — **updated**: this revises the entry above. The paragraph said the `image`
+    job ran on every pull request and every push; it now names the manual path — Actions → CI →
+    *Run workflow*, on `dev` before a release — and says why: the build takes minutes and installs
+    the whole Python and spaCy environment. The three checks are unchanged.
+  - `guides/install.pt.md` — **updated**: the same paragraph in Portuguese.
+  - `guides/operate.md` — **no-change**: `ci.yml` moved again (the `image` job is gated on
+    `workflow_dispatch` now); the page's CI text documents the documentation site, which did not
+    change.
+- **Why the shape changed in this round.** The job measured **6m13s** cold on its first run, and
+  **3m49s** after the free-disk step was removed. The GitHub Actions layer cache never engaged from
+  a `run` step — buildx only activates `type=gha` when `ACTIONS_RUNTIME_TOKEN` and
+  `ACTIONS_CACHE_URL` are in the environment (`build/opt.go`, `isActive`) — and behind
+  `docker/build-push-action` the cache export kept the build step over **twelve minutes** before
+  that run was canceled. The gate is now on demand, without the cache, with plain `docker build`.
+- **What the round measured.** The pull-request run of the same commit skips the job; a
+  `workflow_dispatch` of CI on the branch ran it green in **3m25s**. The image built locally is
+  **4.19 GB**, its bundle carries `1.7.0` (the value read from `pyproject.toml`), `create_app()`
+  inside it answers in **2.2 s**, and the file assertion and `docker compose -f docker-compose.yml
+  config -q` pass. `zizmor@1.30.1 --persona=pedantic` on `.github/workflows` reports no findings;
+  the docs suite is **29 passed** and `mkdocs build --strict` is green.
+- **Not verified.** The dispatch was run on the feature branch, not on `dev`; the workflow reads
+  whichever branch is selected in the Actions dropdown. The entrypoint's `alembic upgrade head` is
+  still not exercised — it needs a database, and the job checks the application layer, which is the
+  definition of done in #255.
+
+## 2026-10-29 — ADR 0023 and the diffusion channel registry
+
+- **Range:** `62ee30d..d149174`
+- **Pages:**
+  - `adr/0023-diffusion-is-a-channel-registry-and-a-scope.md` — created: the channel registry and the
+    node-scope exposure; the derived `is_published`; the `public_site` read.
+  - `guides/data-model.md` — updated: the `diffusion_channels` table and the fifth domain.
+  - `guides/data-model.pt.md` — updated: the same in Portuguese.
+  - `adr/index.md` — updated: the link to 0023.
+- **Not verified.** The scope tables, the derived gate and the Difusão page are #251; the `EXPORT`
+  schedule/run path is #212/#214. The ADR documents the decision; the registry is the shipped half.
+
+## 2026-10-29 — the diffusion conftest import (#267 review)
+
+- **Range:** `d149174..adfb9f4`
+- **Pages:**
+  - `guides/data-model.md` — no-change: `testing/conftest.py` is a declared source and now calls
+    `load_all_models()` before `create_all`; the table documentation is the same.
+
+## 2026-10-29 — the diffusion channels page (#213)
+
+- **Range:** `74df2f9..b080a31`
+- **Pages:**
+  - `guides/curate.md` — **updated**: the Configurações table and the *Operação* tab gained the new
+    card; a section for `/configuracoes/difusao` states what the page decides, what is reversible
+    (the configuration, the agenda and the pause; nothing is deleted) and that adding is one `PATCH`
+    carrying the configuration, because the channel's own model validates it; *Diffusion is not
+    review* now says the gate and the channel answer different questions, and that configuring a
+    channel publishes nothing.
+  - `guides/curate.pt.md` — **updated**: the same sections in Portuguese.
+  - `guides/operate.md` — **updated**: a section on the channel registry (definition plus lifecycle
+    row, `LIVE`/`EXPORT`, the public site's 404 until the channel is enabled, the agenda refused for
+    `LIVE`), the add/configure/pause/agenda actions and the `OPERATE` boundary; a known limit records
+    that one `LIVE` channel ships and the run ledger has no channel axis, which is why the card
+    offers no enqueue action.
+  - `guides/operate.pt.md` — **updated**: the same in Portuguese.
+  - `guides/install.md` — **no-change**: its `screens.ts`/`settings.ts` sources moved, but the one
+    sentence that reads them (`Configurações → Operação → Saúde do sistema`) still names the same
+    path; the new card adds no setting and no environment variable.
+- **What the round measured.** The SPA suite is **90 passed** (11 of them new), `tsc`, ESLint and the
+  Vite build are green, `bun run contract` produced no diff, and the copy and documentation coverage
+  gates are **59 passed**; `mkdocs build --strict` is green. The page was rendered from the built SPA
+  with the headless shell, and the states were inspected: the empty state, the configured public
+  site with its form open, the add picker, an `EXPORT` card, and the settings landing's *Operação*
+  tab with the new card.
+- **Not verified.** The `EXPORT` card was rendered from a stubbed channel response, because no export
+  definition ships yet (#214) and the run ledger has no channel axis (#212); the enqueue action and
+  the channel-filtered ledger link are deliberately not in the page. The add gesture was not
+  exercised against a live API in the browser: the click opened the form, and the save is pinned by
+  the client types and by the API's own integration tests (#211), not by a rendered write.
+
+## 2026-10-29 — the diffusion page copy pass (#213 review)
+
+- **Range:** `b080a31..47588c7`
+- **Pages:**
+  - `guides/curate.md` — **no-change**: the screen's copy gained an introduction, a section title
+    with its hint, the capability line and a sentence of help at the form and the schedule. The page
+    describes the decisions and the writes — which channel, what is reversible, what does not
+    publish — and none of that changed; it does not quote the wording.
+  - `guides/operate.md` — **no-change**: same reason. The registry, the two capabilities, the
+    add/configure/pause/agenda gesture and the public site's 404 are unchanged, and the new
+    capability line states the same distinction the page already documents.
+
+## 2026-10-29 — the diffusion run axis (#212)
+
+- **Range:** `47588c7..2bc33c7`
+- **Pages:**
+  - `guides/operate.md` — **updated**: the eleventh worker and its place in the pipeline, the channel
+    axis of the ledger (exclusive with the origin, the new partial unique index), the manual run, the
+    scheduler's skip/retry behaviour and the channel filter in the ledger table. The known limit is
+    corrected: the axis exists, and what is missing is the adapter (#214).
+  - `guides/operate.pt.md` — **updated**: the translation of the same.
+  - `guides/data-model.md` — **updated**: `channel_code` and the axis in the `archive_worker_runs`
+    row.
+  - `guides/data-model.pt.md` — **updated**: the translation of the same.
+  - `guides/curate.md` — **updated**: the card's **Enfileirar execução**, the last-run link and the
+    one-slot-per-channel rule.
+  - `guides/curate.pt.md` — **updated**: the translation of the same.
+- **Not verified:** the panel, the ledger and the card were rendered against a stub API (the eleven
+  rows, the `canal dataset` badge, the channel filter and the enqueue button); the enqueue click and
+  the polling were not exercised against a live API in the browser — the route, the slot and the
+  refusals are pinned by the API's integration tests, not by a rendered write.
+
+## 2026-10-30 — the publication scopes, the API and the Difusão page (#251)
+
+- **Range:** `6ca3af6..c64fec7`
+- **Pages:**
+  - `guides/curate.md` / `.pt.md` — **updated**: "diffusion is not review" now describes the scope
+    model (positive and negative, the child approved later, the coverage read), the Difusão page
+    with its four views and the preview/confirm/undo, the three removals, the dossier's read-only
+    card and the `public_site` public gate (404 while absent or paused). A new screen section
+    (`/difusao`) and the menu/router counts.
+  - `guides/data-model.md` / `.pt.md` — **updated**: `is_published` left the `archive_documents`
+    row, the note explains the derived flag and `channels`, the diffusion section gained the two
+    views and the four tables, and `channels` joined `NOT_PUBLIC_FIELDS`.
+  - `adr/0023-diffusion-is-a-channel-registry-and-a-scope.md` — **updated**: the amendment records
+    the two views, the measured LIKE-vs-ancestry decision and the migration's refusal to drop a
+    decision in silence.
+  - `.dsh/skills/search/SKILL.md` and `.dsh/skills/api/SKILL.md` — **updated**: the public predicate
+    is the coverage, and the review command no longer writes `is_published`.
+- **Rendered:** the Difusão page with the headless shell against a live API (a seeded channel and
+  one covered record): the "A publicar" empty state, "Publicadas", "Histórico" and the "Manter
+  privado" preview panel. **Not verified:** the confirm and the undo were not clicked in the
+  browser; they are pinned by the API's integration tests.
+
+## 2026-10-30 — the open dataset contract (#214a)
+
+- **Range:** `3d99969..cfd9120`
+- **Pages:**
+  - `adr/0024-the-open-dataset-is-a-versioned-projection.md` — created: the record is the single
+    projection and it moves to the domain; the four ISAD(G) fields that join it and the storage URI
+    that leaves it; v1's formats and the EAD3 deferral; the manifest and the required data license;
+    the local snapshot and the public door; the generated contract and its versioning.
+  - `adr/index.md` — **updated**: the link to 0024.
+  - `guides/data-model.md` / `.pt.md` — **updated**: the public-surface section names
+    `domains/archive/schemas/public_projection.py`, the four widened fields with their ISAD(G)
+    elements, the `storage_thumbnail_uri` removal and its reason, and the gate by
+    `publication_channel=PUBLIC_SITE_CODE` instead of the old `published_only` name.
+  - `guides/curate.md` — **updated**: the declared source path follows the moved projection; the
+    body is unchanged because the page does not enumerate the public fields.
+  - `guides/curate.pt.md` — **no-change**: the English page changed only in its declared source path,
+    which the translation does not carry.
+  - `guides/install.md` — **no-change**: `package.json` moved its `contract` script to regenerate the
+    dataset artifacts too; the command, its purpose and every install step are the same.
+  - `guides/operate.md` — **no-change**: the dataset channel is not registered yet (no adapter, 214b)
+    and the CI contract check is not operator-facing; the read-view change is the ancestor's stable
+    level code, and `mkdocs.yml` moved only because the nav gained ADR 0024.
+- **Not verified:** the adapter, the run and the download route do not exist yet (214b/214c); the
+  contract is generated and tested, not exercised against a published collection.
+
+## 2026-10-30 — the dataset channel and its writer (#214b)
+
+- **Range:** `e93262a..1b79548`
+- **Pages:**
+  - `guides/operate.md` / `.pt.md` — **updated**: the `dataset` channel is the first `EXPORT` and its
+    package is described (destination, formats, data license, manifest, field map, removals,
+    determinism, the refusals); the registry sentence and the known limit now say two channels ship and
+    that the download route and preview are 214c.
+  - `guides/curate.md` / `.pt.md` — **updated**: the picker offers the open dataset, and its card
+    configures the destination, the formats and the data license.
+  - `guides/data-model.md` / `.pt.md` — **no-change**: the new channel is a row of the same table, the
+    schema did not change, and the page already describes `config` as the channel's JSONB.
+- **Rendered:** the Canais de difusão page with the headless shell against a live API (the dev database
+  and a throwaway admin): the add picker with **Conjunto de dados** and its `exportação` badge, the
+  configuration form filled (title, `CC-BY-4.0`, attribution, destination, institution), the configured
+  card with its summary and actions, and the card after **Enfileirar execução** ("Execução #2 na fila").
+  The render data was removed from the database afterwards. **Not verified:** the runner claiming and
+  executing the run through the ledger (the adapter is integration-tested directly; the page exercised
+  the enqueue), and the download and preview routes, which are 214c.
+
+## 2026-10-30 — the public dataset and the export preview (#214c)
+
+- **Range:** `02be2a3..0c23707`
+- **Pages:**
+  - `guides/operate.md` / `.pt.md` — **updated**: the public manifest and download routes (and their
+    404), the preview route and the card's **Pré-visualizar**, and the known limit corrected from "the
+    API does not serve it yet" to the package being served from the destination.
+  - `guides/curate.md` / `.pt.md` — **updated**: the dataset card's **Pré-visualizar** is the dry run.
+  - `guides/data-model.md` / `.pt.md` — **no-change**: no table or schema moved; the registry gained a
+    lazy preview resolver, which is an adapter seam and not a documented table.
+- **Rendered:** the Canais de difusão page with the headless shell against a live API: the dataset
+  card's **Pré-visualizar** panel, showing "Pronto para executar", the record count, the destination,
+  the exact size of each enabled format, "Nenhuma remoção desde o snapshot atual" and the hint that
+  the preview writes nothing. The render was made with an empty covered set and no current snapshot.
+- **Not verified:** the public manifest and download were exercised at the HTTP layer with a mocked
+  service, and with a real package at the service layer (`execute` then `dataset_package`); they were
+  not exercised end-to-end through HTTP against a real snapshot. The download's ZIP members are
+  asserted in the service test.
+
+## 2026-11-05 — the public surface's security policy (#259)
+
+- **Range:** `deb9bfb..ccafa47`
+- **Pages:**
+  - `guides/install.md` — **updated**: the three settings in the variable table, the new "Security
+    headers and the public surface" section (the header set, the HSTS opt-in and why it defaults to
+    `0`, the `/schema` exemption, the per-process brake and the proxy's forwarded-header flags) and
+    the pointer from the install sequence.
+  - `guides/install.pt.md` — **updated**: the same rows and section, in the operator's Portuguese.
+  - `adr/0025-the-security-policy-lives-in-the-application.md` — **created**: the application owns
+    the header set and the per-process brake, the proxy terminates TLS, `/schema` is the documented
+    CSP exception, and the alternatives (proxy-owned policy, nonce CSP, vendored UIs, a shared
+    limiter store) are recorded with why they lost.
+  - `adr/index.md` — **updated**: the link to 0025, and `mkdocs.yml` its nav entry.
+  - `guides/operate.md` — **no-change**: the only source that moved since the page was last touched
+    was `.github/workflows/ci.yml` (the `setup-uv` version bump), which changes no command, runner or
+    panel the page describes.
+- **Rendered:** the login screen of the built SPA served by `uvicorn main:app` under the new CSP
+  (headless shell, 1280×900), with the PT Serif wordmark and the attribution footer; the dumped DOM
+  contains the form and its text, so the module script and the linked stylesheet ran, and Chromium's
+  stderr log carried no CSP refusal. The public 429 was measured on the same server with
+  `PUBLIC_RATE_LIMIT_MAX=2`: two `200`s, then `429` with `Retry-After: 60`, `PUBLIC_RATE_LIMITED`, the
+  Portuguese sentence and `X-Request-ID`.
+- **Not verified:** the public site (#46) does not exist yet, so the CSP was exercised against the
+  curator SPA only; HSTS was exercised by the tests, not by a browser over HTTPS; and the proxy's
+  forwarded-header configuration is documented, not run against a real proxy.
+
+## 2026-11-06 — the session footer's account menu (#262)
+
+- **Range:** `3b74cbd..8f667dd`
+- **Pages:**
+  - `guides/curate.md` — **updated**: the account popover holds the email, **Trocar senha** and the
+    language; the collapsed rail keeps the avatar as the trigger and one sign-out icon; the voluntary
+    password change is the `/conta/senha` screen; the router count is corrected to the measured 31.
+  - `guides/curate.pt.md` — **updated**: the same text in the operator's Portuguese.
+  - `guides/install.md` — **no-change**: the page already names the account menu as the place where
+    the interface language is chosen, and no setting, install step or deployment surface moved.
+  - `guides/install.pt.md` — **no-change**: the Portuguese page says the same and is still true.
+- **Rendered:** the expanded and collapsed rail with the account popover open in `pt-BR` and `en`,
+  and `/conta/senha`, with the headless shell at 1280×900 against the built SPA and a throwaway mock
+  API. The language switch was exercised through the select in the browser; the `PATCH /auth/me` body
+  is pinned by `apps/curator/tests/sessionFooter.test.tsx`.
+- **Not verified:** a real API session and the password write itself. The render server answered
+  `/setup/status` and `/auth/me` and was removed afterwards; the form's submit is exercised only by
+  the existing `PasswordChangeForm`, not by this change's tests.

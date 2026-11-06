@@ -38,11 +38,11 @@ def _cleanup(engine, *, run_id: int | None, runner_id: str) -> None:
         db.commit()
 
 
-def _config(runner_id: str = "runner-test") -> RunnerConfig:
+def _config(runner_id: str = "runner-test", *, capabilities: tuple[str, ...] = ("cleaning",)) -> RunnerConfig:
     return RunnerConfig(
         runner_id=runner_id,
         name="test",
-        capabilities=("cleaning",),
+        capabilities=capabilities,
         once=True,
         heartbeat_seconds=5,
         lease_seconds=60,
@@ -204,3 +204,52 @@ def test_the_daemon_dispatches_a_trial_and_records_its_result(engine, monkeypatc
             db.execute(delete(ArchiveTypology).where(ArchiveTypology.typology_id == 990))
             db.commit()
         _cleanup(engine, run_id=run_id, runner_id=runner_id)
+
+
+def test_a_diffusion_run_is_dispatched_with_the_channel(engine, monkeypatch) -> None:
+    """The channel is the run's axis: it reaches the worker, and the adapter receives the row."""
+    from scrinalia.domains.diffusion.diffusion_registry import CHANNELS
+    from scrinalia.domains.diffusion.models import DiffusionChannel
+    from scrinalia.domains.diffusion.repository import DiffusionChannelRepository
+    from testing.integration.diffusion import fake_adapter
+    from testing.integration.diffusion.fake_channel import FAKE_EXPORT
+
+    monkeypatch.setitem(CHANNELS, "fake_export", FAKE_EXPORT)
+    fake_adapter.CALLS.clear()
+    runner_id = "runner-diffusion"
+    with Session(bind=engine) as db:
+        DiffusionChannelRepository(db).upsert_settings("fake_export", enabled=True)
+        db.commit()
+    with Session(bind=engine) as db:
+        run = WorkerRunRepository(db).create_queued(
+            "diffusion",
+            trigger=WorkerRunTrigger.API,
+            requested_by=None,
+            engine_name=None,
+            preset=None,
+            config={},
+            channel_code="fake_export",
+            request={"options": {}},
+        )
+        db.commit()
+        run_id = run.run_id
+    try:
+        RunnerService(
+            _config(runner_id, capabilities=("diffusion",)),
+            session_factory=lambda: Session(bind=engine),
+        ).run()
+
+        with Session(bind=engine) as db:
+            stored = WorkerRunRepository(db).get(run_id)
+
+        assert [call["code"] for call in fake_adapter.CALLS] == ["fake_export"]
+        assert fake_adapter.CALLS[0]["run_control"] is not None
+        assert stored is not None
+        assert stored.status == WorkerRunStatus.SUCCESS
+        assert stored.channel_code == "fake_export"
+        assert stored.origin_code is None
+    finally:
+        _cleanup(engine, run_id=run_id, runner_id=runner_id)
+        with Session(bind=engine) as db:
+            db.execute(delete(DiffusionChannel).where(DiffusionChannel.code == "fake_export"))
+            db.commit()

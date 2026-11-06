@@ -29,17 +29,6 @@ export const pt = {
       sourceLabel: "Fonte",
       sourceHint: "A página de onde este registro foi lido — não o objeto digital, que ainda não é guardado.",
     },
-    diffusion: {
-      title: "Difusão",
-      publish: "Publicar na Difusão",
-      /**
-       * The sentence of the checkbox: `{notBlocked}` is the emphasised half, supplied as markup so
-       * the sentence is one string and the bold word is still the catalogue's.
-       */
-      publishHint:
-        "Publicar é decisão de difusão, separada da revisão: publicar {notBlocked} a IA de continuar melhorando o registro.",
-      notBlocked: "não impede",
-    },
     editReason: "Motivo da Edição",
     saveReviewed: "Salvar e marcar como revisado",
     saveHint:
@@ -109,7 +98,11 @@ export const pt = {
       publicationTitle: "Publicação",
       publishedDiffusion: "publicado na difusão",
       notPublished: "não publicado",
-      publicationHint: "Publicar é uma decisão de difusão, separada da revisão. O campo está na aba Descrição.",
+      publicationHint:
+        "Aprovar é uma decisão sobre o registro; publicar é uma decisão sobre onde ele aparece. O que este registro expõe é decidido na Difusão.",
+      channelsLabel: "Canais",
+      noChannel: "Nenhum canal carrega este registro.",
+      openDiffusion: "Abrir a Difusão",
     },
     history: {
       emptyTitle: "Nenhuma revisão humana",
@@ -159,13 +152,6 @@ export const en: typeof pt = {
       dateHint: "As written in the source: “{expression}”.",
       sourceLabel: "Source",
       sourceHint: "The page this record was read from — not the digital object, which is not stored yet.",
-    },
-    diffusion: {
-      title: "Dissemination",
-      publish: "Publish in Dissemination",
-      publishHint:
-        "Publishing is a dissemination decision, separate from review: publishing {notBlocked} the AI from continuing to improve the record.",
-      notBlocked: "does not prevent",
     },
     editReason: "Reason for the Edit",
     saveReviewed: "Save and mark as reviewed",
@@ -236,7 +222,11 @@ export const en: typeof pt = {
       publicationTitle: "Publication",
       publishedDiffusion: "published in dissemination",
       notPublished: "not published",
-      publicationHint: "Publishing is a dissemination decision, separate from review. The field is in the Description tab.",
+      publicationHint:
+        "Approving is a decision about the record; publishing is a decision about where it appears. What this record exposes is decided in Diffusion.",
+      channelsLabel: "Channels",
+      noChannel: "No channel carries this record.",
+      openDiffusion: "Open Diffusion",
     },
     history: {
       emptyTitle: "No human revision",

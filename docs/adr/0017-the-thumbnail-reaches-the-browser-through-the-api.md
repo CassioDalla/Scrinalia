@@ -62,6 +62,10 @@ deliberate follow-up, not a second decision: the reader and the status contract 
 
 ### 3. Three states, three answers
 
+> **Amended by [ADR 0022](0022-an-unconfigured-installation-advertises-no-object-backed-url.md):** an
+> unconfigured installation now advertises no `thumbnail_url` and answers **404**, not 503; **503**
+> is kept for a storage that *is* configured and cannot be read.
+
 - **200** — the stored bytes.
 - **404** — no stored URI, no such description, or the URI's object is no longer in the bucket. The
   dossier shows "Sem imagem" or "Imagem indisponível"; it never shows a broken-image glyph.

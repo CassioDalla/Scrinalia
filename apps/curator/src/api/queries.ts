@@ -43,6 +43,11 @@ import {
   previewSubjectExclusions,
   fetchSystemFailures,
   fetchSystemHealth,
+  fetchPublicationBatches,
+  fetchPublicationScopes,
+  fetchPublications,
+  fetchPublicationSummary,
+  listDiffusionChannels,
   listIngestionOrigins,
   fetchSystemRun,
   fetchSystemRuns,
@@ -674,6 +679,58 @@ export const queries = {
     }),
 
   /**
+   * The diffusion channels: the registry definitions with their lifecycle and their agenda.
+   *
+   * One read for the whole screen, the way the origins page reads its sources. A channel is an
+   * operator's object and changes when they change it, not on a clock; the screen invalidates this
+   * key after every write, so a short stale time is enough.
+   */
+  diffusionChannels: () =>
+    queryOptions({
+      queryKey: ["diffusion", "channels"],
+      queryFn: listDiffusionChannels,
+      staleTime: 15_000,
+    }),
+
+  /**
+   * The publication list for one state, optionally filtered by branch.
+   *
+   * Keyed by both because the two are different reads: the page switches between the approved that
+   * are not on a channel and the records a channel carries, and the invalidation after a write
+   * refreshes the whole ``["diffusion", "publications"]`` prefix.
+   */
+  publications: (state: "covered" | "uncovered", nodeId?: string) =>
+    queryOptions({
+      queryKey: ["diffusion", "publications", state, nodeId ?? null],
+      queryFn: () => fetchPublications({ state, nodeId }),
+      staleTime: 15_000,
+    }),
+
+  /** The header's four numbers; the home card reads the same ones. */
+  publicationSummary: () =>
+    queryOptions({
+      queryKey: ["diffusion", "publications", "summary"],
+      queryFn: fetchPublicationSummary,
+      staleTime: 15_000,
+    }),
+
+  /** The scopes: what each branch publishes or keeps private, per channel. */
+  publicationScopes: () =>
+    queryOptions({
+      queryKey: ["diffusion", "scopes"],
+      queryFn: () => fetchPublicationScopes(),
+      staleTime: 15_000,
+    }),
+
+  /** The batches, newest first. */
+  publicationBatches: () =>
+    queryOptions({
+      queryKey: ["diffusion", "batches"],
+      queryFn: () => fetchPublicationBatches(),
+      staleTime: 15_000,
+    }),
+
+  /**
    * The CSV map and its limits.
    *
    * Static for a running API — a deploy changes it — so it is fetched with the screen and kept for
@@ -718,6 +775,7 @@ export const queries = {
     fingerprint?: string,
     origin?: string,
     trial?: boolean,
+    channel?: string,
   ) =>
     queryOptions({
       queryKey: [
@@ -728,9 +786,20 @@ export const queries = {
         fingerprint ?? "",
         origin ?? "",
         trial === undefined ? "" : String(trial),
+        channel ?? "",
         offset,
       ],
-      queryFn: () => fetchSystemRuns({ worker, origin, status, fingerprint, trial, limit: RUNS_PAGE_SIZE, offset }),
+      queryFn: () =>
+        fetchSystemRuns({
+          worker,
+          origin,
+          channel,
+          status,
+          fingerprint,
+          trial,
+          limit: RUNS_PAGE_SIZE,
+          offset,
+        }),
       staleTime: 10_000,
       placeholderData: (previous) => previous,
     }),

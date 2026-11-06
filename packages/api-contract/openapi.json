@@ -1963,16 +1963,11 @@
           },
           "key": {
             "$ref": "#/components/schemas/QueueKey"
-          },
-          "route": {
-            "description": "Screen that resolves the queue, already filtered.",
-            "type": "string"
           }
         },
         "required": [
           "count",
-          "key",
-          "route"
+          "key"
         ],
         "title": "CurationQueue",
         "type": "object"
@@ -2037,6 +2032,333 @@
           "ok"
         ],
         "title": "DatabaseHealthDTO",
+        "type": "object"
+      },
+      "DatasetArtifact": {
+        "properties": {
+          "bytes": {
+            "minimum": 0.0,
+            "type": "integer"
+          },
+          "format": {
+            "enum": [
+              "json",
+              "ndjson",
+              "csv"
+            ],
+            "type": "string"
+          },
+          "path": {
+            "maxLength": 200,
+            "minLength": 1,
+            "type": "string"
+          },
+          "records": {
+            "minimum": 0.0,
+            "type": "integer"
+          },
+          "sha256": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "bytes",
+          "format",
+          "path",
+          "records",
+          "sha256"
+        ],
+        "title": "DatasetArtifact",
+        "type": "object"
+      },
+      "DatasetInstitution": {
+        "properties": {
+          "contact_email": {
+            "maxLength": 254,
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "name": {
+            "maxLength": 200,
+            "minLength": 1,
+            "type": "string"
+          },
+          "url": {
+            "oneOf": [
+              {
+                "format": "url",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "DatasetInstitution",
+        "type": "object"
+      },
+      "DatasetLicense": {
+        "properties": {
+          "attribution": {
+            "maxLength": 2000,
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "id": {
+            "enum": [
+              "CC0-1.0",
+              "CC-BY-4.0",
+              "CC-BY-SA-4.0",
+              "custom"
+            ],
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 200,
+            "minLength": 1,
+            "type": "string"
+          },
+          "url": {
+            "oneOf": [
+              {
+                "format": "url",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ],
+        "title": "DatasetLicense",
+        "type": "object"
+      },
+      "DatasetManifest": {
+        "properties": {
+          "api_url": {
+            "oneOf": [
+              {
+                "format": "url",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "artifacts": {
+            "items": {
+              "$ref": "#/components/schemas/DatasetArtifact"
+            },
+            "minItems": 1,
+            "type": "array"
+          },
+          "field_map": {
+            "default": "field-map.json",
+            "maxLength": 200,
+            "minLength": 1,
+            "type": "string"
+          },
+          "generated_at": {
+            "description": "datetime with the constraint that the value must have timezone info",
+            "format": "date-time",
+            "type": "string"
+          },
+          "institution": {
+            "$ref": "#/components/schemas/DatasetInstitution"
+          },
+          "license": {
+            "$ref": "#/components/schemas/DatasetLicense"
+          },
+          "openapi_url": {
+            "oneOf": [
+              {
+                "format": "url",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "previous_snapshot_id": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "readme": {
+            "default": "README.md",
+            "maxLength": 200,
+            "minLength": 1,
+            "type": "string"
+          },
+          "record_count": {
+            "minimum": 0.0,
+            "type": "integer"
+          },
+          "removals": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "schema_version": {
+            "const": "1.0",
+            "type": "string"
+          },
+          "snapshot_id": {
+            "type": "string"
+          },
+          "software": {
+            "$ref": "#/components/schemas/DatasetSoftware"
+          }
+        },
+        "required": [
+          "api_url",
+          "artifacts",
+          "generated_at",
+          "institution",
+          "license",
+          "openapi_url",
+          "record_count",
+          "removals",
+          "schema_version",
+          "snapshot_id",
+          "software"
+        ],
+        "title": "DatasetManifest",
+        "type": "object"
+      },
+      "DatasetPreviewDTO": {
+        "properties": {
+          "artifacts": {
+            "items": {
+              "$ref": "#/components/schemas/DatasetArtifact"
+            },
+            "type": "array"
+          },
+          "destination": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "previous_snapshot_id": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "ready": {
+            "type": "boolean"
+          },
+          "reason": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "record_count": {
+            "type": "integer"
+          },
+          "removals": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "snapshot_id": {
+            "type": "string"
+          },
+          "unchanged": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "artifacts",
+          "destination",
+          "previous_snapshot_id",
+          "ready",
+          "reason",
+          "record_count",
+          "removals",
+          "snapshot_id",
+          "unchanged"
+        ],
+        "title": "DatasetPreviewDTO",
+        "type": "object"
+      },
+      "DatasetSoftware": {
+        "properties": {
+          "license": {
+            "maxLength": 50,
+            "minLength": 1,
+            "type": "string"
+          },
+          "license_url": {
+            "format": "url",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 100,
+            "minLength": 1,
+            "type": "string"
+          },
+          "source_url": {
+            "format": "url",
+            "type": "string"
+          },
+          "version": {
+            "maxLength": 50,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "license",
+          "license_url",
+          "name",
+          "source_url",
+          "version"
+        ],
+        "title": "DatasetSoftware",
         "type": "object"
       },
       "DescriptionLevelCreateRequest": {
@@ -2223,12 +2545,362 @@
         "title": "DescriptionLevelUpdateRequest",
         "type": "object"
       },
+      "DiffusionCapability": {
+        "description": "How a channel leaves the archive: read live on every request, or exported by a run.",
+        "enum": [
+          "LIVE",
+          "EXPORT"
+        ],
+        "title": "DiffusionCapability",
+        "type": "string"
+      },
+      "DiffusionChannelDTO": {
+        "properties": {
+          "active_run_id": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "active_run_status": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/WorkerRunStatus"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "capability": {
+            "$ref": "#/components/schemas/DiffusionCapability"
+          },
+          "code": {
+            "type": "string"
+          },
+          "config": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "config_fields": {
+            "items": {
+              "$ref": "#/components/schemas/DiffusionConfigFieldDTO"
+            },
+            "type": "array"
+          },
+          "configured": {
+            "description": "Se o canal foi adicionado (existe uma linha na tabela).",
+            "type": "boolean"
+          },
+          "description": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "label": {
+            "type": "string"
+          },
+          "last_run_at": {
+            "oneOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "last_run_id": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "last_run_status": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/WorkerRunStatus"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "options": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "schedule": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/DiffusionScheduleDTO"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "updated_at": {
+            "oneOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "updated_by": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "capability",
+          "code",
+          "configured",
+          "description",
+          "enabled",
+          "label"
+        ],
+        "title": "DiffusionChannelDTO",
+        "type": "object"
+      },
+      "DiffusionChannelListResponse": {
+        "properties": {
+          "channels": {
+            "items": {
+              "$ref": "#/components/schemas/DiffusionChannelDTO"
+            },
+            "type": "array"
+          },
+          "generated_at": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "generated_at"
+        ],
+        "title": "DiffusionChannelListResponse",
+        "type": "object"
+      },
+      "DiffusionChannelUpdateRequest": {
+        "properties": {
+          "config": {
+            "description": "A configuração do canal, validada pelo modelo dele (a identidade do site).",
+            "oneOf": [
+              {
+                "additionalProperties": {},
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "enabled": {
+            "oneOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "options": {
+            "description": "A política de execução de um canal de exportação; vazia em um canal LIVE.",
+            "oneOf": [
+              {
+                "additionalProperties": {},
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [],
+        "title": "DiffusionChannelUpdateRequest",
+        "type": "object"
+      },
+      "DiffusionConfigFieldDTO": {
+        "properties": {
+          "default": {},
+          "help": {
+            "type": "string"
+          },
+          "kind": {
+            "default": "text",
+            "enum": [
+              "text",
+              "number",
+              "boolean"
+            ],
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "required": {
+            "default": false,
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "help",
+          "label",
+          "name"
+        ],
+        "title": "DiffusionConfigFieldDTO",
+        "type": "object"
+      },
+      "DiffusionScheduleDTO": {
+        "properties": {
+          "cron": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "last_enqueued_at": {
+            "oneOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "last_skipped_at": {
+            "oneOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "next_run_at": {
+            "oneOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "timezone": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "updated_at": {
+            "oneOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "updated_by": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [],
+        "title": "DiffusionScheduleDTO",
+        "type": "object"
+      },
+      "DiffusionScheduleRequest": {
+        "properties": {
+          "cron": {
+            "description": "Cinco campos: minuto, hora, dia, mês, semana.",
+            "maxLength": 120,
+            "minLength": 1,
+            "type": "string"
+          },
+          "timezone": {
+            "description": "Zona IANA; o padrão é DEFAULT_TIMEZONE.",
+            "maxLength": 64,
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "cron"
+        ],
+        "title": "DiffusionScheduleRequest",
+        "type": "object"
+      },
       "DocumentAncestorSummary": {
         "properties": {
           "description_id": {
             "type": "string"
           },
           "level": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "level_code": {
             "oneOf": [
               {
                 "type": "string"
@@ -2619,6 +3291,13 @@
               }
             ]
           },
+          "channels": {
+            "description": "Os canais que carregam o registro.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
           "children_count": {
             "default": 0,
             "type": "integer"
@@ -2742,6 +3421,16 @@
             ]
           },
           "level": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "level_code": {
             "oneOf": [
               {
                 "type": "string"
@@ -2952,7 +3641,7 @@
             "type": "array"
           },
           "thumbnail_url": {
-            "description": "Where the browser reads the miniature, or ``None`` when the source had no image to store.\n\nDerived on the server from ``storage_thumbnail_uri`` and **never** assembled by the client:\nthe SPA binds this string to an ``<img>``, so it does not know the bucket and cannot drift\nfrom the route. The bytes themselves come from the authenticated route, which answers 404\nwhen the object is gone; the screen shows \"imagem indisponível\" instead of a broken image.",
+            "description": "Where the browser reads the miniature, or ``None`` when there is nothing to serve.\n\nDerived on the server from ``storage_thumbnail_uri`` and **never** assembled by the client:\nthe SPA binds this string to an ``<img>``, so it does not know the bucket and cannot drift\nfrom the route. The bytes themselves come from the authenticated route, which answers 404\nwhen the object is gone; the screen shows \"imagem indisponível\" instead of a broken image.\n\n**An object-backed field is advertised only when ``storage_configured()``.** An installation\nwithout the four ``S3_*`` settings stores no URI of its own — but a database copied from one\nthat had storage still carries them, and advertising those URLs would make a page of\ntwenty-five rows issue twenty-five requests for objects this installation cannot read. The\nrule applies to every future object-backed field (#198), not only to this one.",
             "oneOf": [
               {
                 "type": "string"
@@ -3201,17 +3890,6 @@
             "oneOf": [
               {
                 "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "is_published": {
-            "description": "Decisão de difusão, ortogonal ao status de revisão. Publicar não bloqueia a IA de continuar melhorando o registro; aprovar, sim.",
-            "oneOf": [
-              {
-                "type": "boolean"
               },
               {
                 "type": "null"
@@ -7676,6 +8354,16 @@
               }
             ]
           },
+          "level_code": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "title": {
             "oneOf": [
               {
@@ -7756,6 +8444,16 @@
       },
       "PublicDocumentSummary": {
         "properties": {
+          "access_conditions": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "ancestors": {
             "items": {
               "$ref": "#/components/schemas/PublicAncestorSummary"
@@ -7766,8 +8464,28 @@
             "default": 0,
             "type": "integer"
           },
+          "date_expression": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "description_id": {
             "type": "string"
+          },
+          "dimension_support": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "document_date": {
             "oneOf": [
@@ -7816,6 +8534,16 @@
               }
             ]
           },
+          "level_code": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "macro_categories": {
             "items": {
               "$ref": "#/components/schemas/PublicMacroCategorySummary"
@@ -7846,16 +8574,6 @@
             ]
           },
           "scope_content": {
-            "oneOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "storage_thumbnail_uri": {
             "oneOf": [
               {
                 "type": "string"
@@ -7929,6 +8647,93 @@
         "title": "PublicMacroCategorySummary",
         "type": "object"
       },
+      "PublicSiteConfig": {
+        "properties": {
+          "allow_indexing": {
+            "default": true,
+            "description": "Se os buscadores podem indexar o site público.",
+            "type": "boolean"
+          },
+          "contact_email": {
+            "description": "O endereço que o visitante usa para falar com a instituição.",
+            "maxLength": 254,
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "institution_name": {
+            "description": "O nome da instituição responsável pelo acervo.",
+            "maxLength": 200,
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "locale": {
+            "default": "pt-BR",
+            "description": "O idioma do site público. O aplicativo pode oferecer apenas pt-BR primeiro.",
+            "enum": [
+              "pt-BR",
+              "en"
+            ],
+            "type": "string"
+          },
+          "logo_url": {
+            "oneOf": [
+              {
+                "format": "url",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "public_base_url": {
+            "oneOf": [
+              {
+                "format": "url",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "site_description": {
+            "description": "Uma frase sobre o acervo, para a página inicial do site.",
+            "maxLength": 500,
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "site_title": {
+            "description": "O título que o site público mostra no cabeçalho.",
+            "maxLength": 200,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "site_title"
+        ],
+        "title": "PublicSiteConfig",
+        "type": "object"
+      },
       "PublicTagSummary": {
         "properties": {
           "name": {
@@ -7945,8 +8750,541 @@
         "title": "PublicTagSummary",
         "type": "object"
       },
+      "PublicationAction": {
+        "description": "The four writes a publication can be; the ledger stores the value verbatim.",
+        "enum": [
+          "PUBLISH",
+          "EXCLUDE",
+          "REVOKE",
+          "UNEXCLUDE"
+        ],
+        "title": "PublicationAction",
+        "type": "string"
+      },
+      "PublicationApplyRequest": {
+        "properties": {
+          "request": {
+            "$ref": "#/components/schemas/PublicationRequest"
+          },
+          "token": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "request",
+          "token"
+        ],
+        "title": "PublicationApplyRequest",
+        "type": "object"
+      },
+      "PublicationBatchDTO": {
+        "properties": {
+          "action": {
+            "$ref": "#/components/schemas/PublicationAction"
+          },
+          "applied_count": {
+            "default": 0,
+            "type": "integer"
+          },
+          "batch_id": {
+            "type": "integer"
+          },
+          "channels": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "note": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "requested_by": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "selection": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "skipped_count": {
+            "default": 0,
+            "type": "integer"
+          },
+          "undone_at": {
+            "oneOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "undone_by": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "action",
+          "batch_id",
+          "created_at"
+        ],
+        "title": "PublicationBatchDTO",
+        "type": "object"
+      },
+      "PublicationBatchListDTO": {
+        "properties": {
+          "batches": {
+            "items": {
+              "$ref": "#/components/schemas/PublicationBatchDTO"
+            },
+            "type": "array"
+          },
+          "generated_at": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "generated_at"
+        ],
+        "title": "PublicationBatchListDTO",
+        "type": "object"
+      },
+      "PublicationChannelPreviewDTO": {
+        "properties": {
+          "actionable": {
+            "default": true,
+            "description": "Se o gesto escreveria algo neste canal; falso para um escopo que já existe ou está bloqueado.",
+            "type": "boolean"
+          },
+          "code": {
+            "type": "string"
+          },
+          "eligible": {
+            "type": "integer"
+          },
+          "label": {
+            "type": "string"
+          },
+          "sample": {
+            "items": {
+              "$ref": "#/components/schemas/PublicationSampleDTO"
+            },
+            "type": "array"
+          },
+          "skipped": {
+            "$ref": "#/components/schemas/PublicationSkippedDTO"
+          }
+        },
+        "required": [
+          "code",
+          "eligible",
+          "label"
+        ],
+        "title": "PublicationChannelPreviewDTO",
+        "type": "object"
+      },
+      "PublicationCountsDTO": {
+        "properties": {
+          "approved_without_channel": {
+            "default": 0,
+            "type": "integer"
+          },
+          "enabled_channels": {
+            "default": 0,
+            "type": "integer"
+          },
+          "in_channels": {
+            "default": 0,
+            "type": "integer"
+          },
+          "in_review": {
+            "default": 0,
+            "type": "integer"
+          },
+          "site": {
+            "default": 0,
+            "type": "integer"
+          }
+        },
+        "required": [],
+        "title": "PublicationCountsDTO",
+        "type": "object"
+      },
+      "PublicationItemDTO": {
+        "properties": {
+          "channels": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "description_id": {
+            "type": "string"
+          },
+          "document_date": {
+            "oneOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "level": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "description_id",
+          "title"
+        ],
+        "title": "PublicationItemDTO",
+        "type": "object"
+      },
+      "PublicationMode": {
+        "default": "BRANCH",
+        "description": "Whether the gesture names a branch (a node) or a selection (up to 200 records).",
+        "enum": [
+          "BRANCH",
+          "RECORDS"
+        ],
+        "title": "PublicationMode",
+        "type": "string"
+      },
+      "PublicationPageDTO": {
+        "properties": {
+          "counts": {
+            "$ref": "#/components/schemas/PublicationCountsDTO"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PublicationItemDTO"
+            },
+            "type": "array"
+          },
+          "limit": {
+            "default": 50,
+            "type": "integer"
+          },
+          "offset": {
+            "default": 0,
+            "type": "integer"
+          },
+          "total": {
+            "default": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "counts"
+        ],
+        "title": "PublicationPageDTO",
+        "type": "object"
+      },
+      "PublicationPreviewDTO": {
+        "properties": {
+          "channels": {
+            "items": {
+              "$ref": "#/components/schemas/PublicationChannelPreviewDTO"
+            },
+            "type": "array"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "token": {
+            "type": "string"
+          },
+          "total_eligible": {
+            "default": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "expires_at",
+          "token"
+        ],
+        "title": "PublicationPreviewDTO",
+        "type": "object"
+      },
+      "PublicationRequest": {
+        "properties": {
+          "action": {
+            "$ref": "#/components/schemas/PublicationAction"
+          },
+          "channel_codes": {
+            "description": "Os canais do gesto, por código.",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 20,
+            "minItems": 1,
+            "type": "array"
+          },
+          "description_ids": {
+            "description": "Os registros escolhidos, quando o modo é RECORDS (no máximo 200).",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 200,
+            "type": "array"
+          },
+          "include_descendants": {
+            "default": true,
+            "description": "Se o ramo inclui os descendentes.",
+            "type": "boolean"
+          },
+          "mode": {
+            "$ref": "#/components/schemas/PublicationMode"
+          },
+          "node_id": {
+            "description": "O nó do ramo, quando o modo é BRANCH.",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "note": {
+            "description": "Por que o curador decidiu; fica no lote.",
+            "maxLength": 2000,
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "action",
+          "channel_codes"
+        ],
+        "title": "PublicationRequest",
+        "type": "object"
+      },
+      "PublicationSampleDTO": {
+        "properties": {
+          "description_id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "description_id",
+          "title"
+        ],
+        "title": "PublicationSampleDTO",
+        "type": "object"
+      },
+      "PublicationScopeDTO": {
+        "properties": {
+          "approved_count": {
+            "default": 0,
+            "type": "integer"
+          },
+          "channel_code": {
+            "type": "string"
+          },
+          "channel_label": {
+            "type": "string"
+          },
+          "covered_count": {
+            "default": 0,
+            "type": "integer"
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "created_by": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "include_descendants": {
+            "type": "boolean"
+          },
+          "kind": {
+            "enum": [
+              "INCLUSION",
+              "EXCLUSION"
+            ],
+            "type": "string"
+          },
+          "node_id": {
+            "type": "string"
+          },
+          "node_path": {
+            "type": "string"
+          },
+          "node_title": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "note": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "scope_id": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "channel_code",
+          "channel_label",
+          "created_at",
+          "include_descendants",
+          "kind",
+          "node_id",
+          "node_path",
+          "scope_id"
+        ],
+        "title": "PublicationScopeDTO",
+        "type": "object"
+      },
+      "PublicationScopeListDTO": {
+        "properties": {
+          "generated_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "scopes": {
+            "items": {
+              "$ref": "#/components/schemas/PublicationScopeDTO"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "generated_at"
+        ],
+        "title": "PublicationScopeListDTO",
+        "type": "object"
+      },
+      "PublicationSkippedDTO": {
+        "properties": {
+          "already_covered": {
+            "default": 0,
+            "type": "integer"
+          },
+          "excluded": {
+            "default": 0,
+            "type": "integer"
+          },
+          "missing": {
+            "default": 0,
+            "type": "integer"
+          },
+          "no_scope": {
+            "default": 0,
+            "type": "integer"
+          },
+          "not_approved": {
+            "default": 0,
+            "type": "integer"
+          },
+          "not_covered": {
+            "default": 0,
+            "type": "integer"
+          }
+        },
+        "required": [],
+        "title": "PublicationSkippedDTO",
+        "type": "object"
+      },
+      "PublicationUndoDTO": {
+        "properties": {
+          "batch_id": {
+            "type": "integer"
+          },
+          "restored": {
+            "default": 0,
+            "type": "integer"
+          },
+          "skipped": {
+            "default": 0,
+            "type": "integer"
+          },
+          "undone_at": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "batch_id",
+          "undone_at"
+        ],
+        "title": "PublicationUndoDTO",
+        "type": "object"
+      },
       "QueueKey": {
-        "description": "\n    The stable identity of a queue on the home screen.\n\n    The contract carries the key, not the card's copy: the SPA resolves the label and the one-line\n    description from it (ADR 0020 §5), so the copy pass and its gate can see the first screen. The\n    values are the identity of an outcome, so they never change once released.\n    ",
+        "description": "\n    The stable identity of a queue on the home screen.\n\n    The contract carries the key, not the card's copy or its destination: the SPA resolves the\n    label, the one-line description and the screen from it (ADR 0020 §5, ADR 0021), so the copy\n    pass and its gate can see the first screen. The values are the identity of an outcome, so they\n    never change once released.\n    ",
         "enum": [
           "hierarchy_orphans",
           "hierarchy_plans",
@@ -8035,7 +9373,8 @@
           "PASSWORD_CHANGE_REQUIRED",
           "USER_PASSWORD_RESET",
           "USER_SESSIONS_REVOKED",
-          "SESSION_REVOKED"
+          "SESSION_REVOKED",
+          "PUBLIC_RATE_LIMITED"
         ],
         "title": "RouteMessageCode",
         "type": "string"
@@ -10354,6 +11693,17 @@
               }
             ]
           },
+          "channel_code": {
+            "description": "O canal de difusão que esta execução de exportação escreveu; nulo em qualquer outro worker, inclusive na ingestão, cujo eixo é a origem (ADR 0023).",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "config": {
             "additionalProperties": {},
             "description": "Configuração resolvida (preset já mesclado com os overrides), para o registro não mudar de sentido quando um preset mudar no código.",
@@ -10571,6 +11921,17 @@
           },
           "cancel_requested_by": {
             "description": "Quem pediu o cancelamento; nulo quando o pedido veio de um sinal do processo, não do painel.",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "channel_code": {
+            "description": "O canal de difusão que esta execução de exportação escreveu; nulo em qualquer outro worker, inclusive na ingestão, cujo eixo é a origem (ADR 0023).",
             "oneOf": [
               {
                 "type": "string"
@@ -11482,6 +12843,7 @@
           "unit": {
             "enum": [
               "origin",
+              "channel",
               "staging",
               "document",
               "tag",
@@ -11804,7 +13166,7 @@
   },
   "info": {
     "title": "Scrinalia API",
-    "version": "1.7.0"
+    "version": "1.8.0"
   },
   "openapi": "3.1.0",
   "paths": {
@@ -12085,6 +13447,1019 @@
         "summary": "GetInbox",
         "tags": [
           "Curation"
+        ]
+      }
+    },
+    "/api/v1/diffusion/channels": {
+      "get": {
+        "deprecated": false,
+        "operationId": "ApiV1DiffusionChannelsListChannels",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DiffusionChannelListResponse"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          }
+        },
+        "summary": "ListChannels",
+        "tags": [
+          "Diffusion"
+        ]
+      }
+    },
+    "/api/v1/diffusion/channels/{code}": {
+      "get": {
+        "deprecated": false,
+        "operationId": "ApiV1DiffusionChannelsCodeGetChannel",
+        "parameters": [
+          {
+            "deprecated": false,
+            "in": "path",
+            "name": "code",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DiffusionChannelDTO"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "GetChannel",
+        "tags": [
+          "Diffusion"
+        ]
+      },
+      "patch": {
+        "deprecated": false,
+        "operationId": "ApiV1DiffusionChannelsCodeUpdateChannel",
+        "parameters": [
+          {
+            "deprecated": false,
+            "in": "path",
+            "name": "code",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DiffusionChannelUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DiffusionChannelDTO"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "UpdateChannel",
+        "tags": [
+          "Diffusion"
+        ]
+      }
+    },
+    "/api/v1/diffusion/channels/{code}/preview": {
+      "post": {
+        "deprecated": false,
+        "operationId": "ApiV1DiffusionChannelsCodePreviewPreviewChannel",
+        "parameters": [
+          {
+            "deprecated": false,
+            "in": "path",
+            "name": "code",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DatasetPreviewDTO"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "PreviewChannel",
+        "tags": [
+          "Diffusion"
+        ]
+      }
+    },
+    "/api/v1/diffusion/channels/{code}/runs": {
+      "post": {
+        "deprecated": false,
+        "operationId": "ApiV1DiffusionChannelsCodeRunsTriggerRun",
+        "parameters": [
+          {
+            "deprecated": false,
+            "in": "path",
+            "name": "code",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkerRunDTO"
+                }
+              }
+            },
+            "description": "Document created, URL follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "TriggerRun",
+        "tags": [
+          "Diffusion"
+        ]
+      }
+    },
+    "/api/v1/diffusion/channels/{code}/schedule": {
+      "delete": {
+        "deprecated": false,
+        "operationId": "ApiV1DiffusionChannelsCodeScheduleDeleteSchedule",
+        "parameters": [
+          {
+            "deprecated": false,
+            "in": "path",
+            "name": "code",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DiffusionChannelDTO"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "DeleteSchedule",
+        "tags": [
+          "Diffusion"
+        ]
+      },
+      "put": {
+        "deprecated": false,
+        "operationId": "ApiV1DiffusionChannelsCodeSchedulePutSchedule",
+        "parameters": [
+          {
+            "deprecated": false,
+            "in": "path",
+            "name": "code",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DiffusionScheduleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DiffusionChannelDTO"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "PutSchedule",
+        "tags": [
+          "Diffusion"
+        ]
+      }
+    },
+    "/api/v1/diffusion/publications": {
+      "get": {
+        "deprecated": false,
+        "operationId": "ApiV1DiffusionPublicationsListPublications",
+        "parameters": [
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "publication_state",
+            "required": false,
+            "schema": {
+              "default": "uncovered",
+              "enum": [
+                "covered",
+                "uncovered"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "node_id",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "channel_code",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "type": "integer"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicationPageDTO"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "ListPublications",
+        "tags": [
+          "Diffusion"
+        ]
+      },
+      "post": {
+        "deprecated": false,
+        "operationId": "ApiV1DiffusionPublicationsApply",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PublicationApplyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicationBatchDTO"
+                }
+              }
+            },
+            "description": "Document created, URL follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "Apply",
+        "tags": [
+          "Diffusion"
+        ]
+      }
+    },
+    "/api/v1/diffusion/publications/batches": {
+      "get": {
+        "deprecated": false,
+        "operationId": "ApiV1DiffusionPublicationsBatchesListBatches",
+        "parameters": [
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "type": "integer"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicationBatchListDTO"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "ListBatches",
+        "tags": [
+          "Diffusion"
+        ]
+      }
+    },
+    "/api/v1/diffusion/publications/batches/{batch_id}/undo": {
+      "post": {
+        "deprecated": false,
+        "operationId": "ApiV1DiffusionPublicationsBatchesBatchIdUndoUndo",
+        "parameters": [
+          {
+            "deprecated": false,
+            "in": "path",
+            "name": "batch_id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicationUndoDTO"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "Undo",
+        "tags": [
+          "Diffusion"
+        ]
+      }
+    },
+    "/api/v1/diffusion/publications/preview": {
+      "post": {
+        "deprecated": false,
+        "operationId": "ApiV1DiffusionPublicationsPreviewPreview",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PublicationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicationPreviewDTO"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "Preview",
+        "tags": [
+          "Diffusion"
+        ]
+      }
+    },
+    "/api/v1/diffusion/publications/summary": {
+      "get": {
+        "deprecated": false,
+        "operationId": "ApiV1DiffusionPublicationsSummarySummary",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicationCountsDTO"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          }
+        },
+        "summary": "Summary",
+        "tags": [
+          "Diffusion"
+        ]
+      }
+    },
+    "/api/v1/diffusion/scopes": {
+      "get": {
+        "deprecated": false,
+        "operationId": "ApiV1DiffusionScopesListScopes",
+        "parameters": [
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "channel_code",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicationScopeListDTO"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "ListScopes",
+        "tags": [
+          "Diffusion"
         ]
       }
     },
@@ -15356,6 +17731,51 @@
         ]
       }
     },
+    "/api/v1/public/dataset": {
+      "get": {
+        "deprecated": false,
+        "operationId": "ApiV1PublicDatasetGetDataset",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DatasetManifest"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          }
+        },
+        "summary": "GetDataset",
+        "tags": [
+          "Public"
+        ]
+      }
+    },
+    "/api/v1/public/dataset/download": {
+      "get": {
+        "deprecated": false,
+        "operationId": "ApiV1PublicDatasetDownloadDownloadDataset",
+        "responses": {
+          "200": {
+            "content": {
+              "application/zip": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "The current open dataset snapshot as a ZIP, with the manifest and the field map."
+          }
+        },
+        "summary": "DownloadDataset",
+        "tags": [
+          "Public"
+        ]
+      }
+    },
     "/api/v1/public/documents": {
       "get": {
         "deprecated": false,
@@ -15673,6 +18093,29 @@
           }
         },
         "summary": "GetPublished",
+        "tags": [
+          "Public"
+        ]
+      }
+    },
+    "/api/v1/public/site": {
+      "get": {
+        "deprecated": false,
+        "operationId": "ApiV1PublicSiteGetSite",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicSiteConfig"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          }
+        },
+        "summary": "GetSite",
         "tags": [
           "Public"
         ]
@@ -16776,6 +19219,24 @@
             "deprecated": false,
             "in": "query",
             "name": "origin",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "channel",
             "required": false,
             "schema": {
               "oneOf": [

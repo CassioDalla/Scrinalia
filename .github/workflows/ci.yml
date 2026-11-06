@@ -4,6 +4,11 @@ on:
   push:
     branches: [main, dev]
   pull_request:
+  # The application image is built **by hand**, and that trigger exists for the ``image`` job below:
+  # Actions -> CI -> Run workflow, on the branch that matters (``dev`` before a release). It is not
+  # part of the pull-request gate on purpose — the build is minutes and installs the whole Python
+  # and spaCy environment, and the issue that asked for the gate (#255) allows the cheaper shape.
+  workflow_dispatch:
 
 # Least privilege by default. A workflow that only reads the repository should not carry a token that
 # can write to it, and a third-party action that turns malicious cannot escalate what it was not given.
@@ -28,7 +33,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Install uv
-        uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
       - name: Run ruff (lint)
         run: uvx ruff@0.16.10 check .
       - name: Run ruff (format check)
@@ -57,16 +62,14 @@ jobs:
     name: Dependency advisories
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    # Non-blocking on purpose, for now: the lock can carry advisories the project has not triaged, and
-    # a job that is red on day one only teaches people to ignore it. Promote it to blocking once the
-    # list is clean.
-    continue-on-error: true
+    # Blocking since #261: an advisory is either fixed by a floor in the lock or recorded beside the
+    # job with a date and a reason, so a new one fails the pull request instead of being ignored.
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - name: Install uv
-        uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
       - name: Python advisories (the runtime surface only)
         # Three decisions in one command:
         # ``--no-dev`` — what ships in the product, not the development environment. A dev-only
@@ -96,7 +99,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Install uv
-        uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
       - name: zizmor
         # ``--persona=pedantic`` so an action tag or an unpinned image is a finding and not a
         # suggestion: the workflow is what runs with the repository's token.
@@ -173,7 +176,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Install uv
-        uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
         with:
           python-version: "3.12"
           enable-cache: true
@@ -190,6 +193,16 @@ jobs:
           uv run python -m scrinalia.api.dump_openapi > /tmp/openapi.json
           if ! diff -u packages/api-contract/openapi.json /tmp/openapi.json; then
             echo "::error::packages/api-contract/openapi.json está desatualizado. Rode: uv run python -m scrinalia.api.dump_openapi > packages/api-contract/openapi.json && bun run --cwd apps/curator codegen"
+            exit 1
+          fi
+      - name: Check the dataset contract is up to date
+        # The open dataset (#214) is a public contract too: the schema and the field map are
+        # generated from the models and committed, so a change that does not regenerate them fails
+        # here instead of reaching a consumer with a stale field map.
+        run: |
+          uv run python -m scrinalia.domains.diffusion.dump_dataset_contract --output /tmp/dataset-contract
+          if ! diff -ru packages/dataset-contract/v1 /tmp/dataset-contract; then
+            echo "::error::packages/dataset-contract/v1 está desatualizado. Rode: bun run contract"
             exit 1
           fi
       - name: Type check
@@ -245,6 +258,62 @@ jobs:
       - name: Build
         run: bun run --cwd apps/curator build
 
+  image:
+    name: Application image (Docker)
+    runs-on: ubuntu-latest
+    # Manual, and only manual: this job runs when the workflow is dispatched from Actions, on the
+    # branch chosen in the Run workflow dropdown (``dev`` before a release), and on nothing else.
+    # #255 allows the cheaper shape, and the measurement is the argument: 3m49s for the job, a
+    # 4.19 GB image, and the GitHub Actions layer cache added more than twelve minutes of upload on
+    # top of a three-minute build. It is the long pole because a cold build installs the whole
+    # Python environment (torch, transformers, spaCy), the 542 MB spaCy pipeline wheel, compiles
+    # psycopg2 from source and builds the SPA.
+    if: github.event_name == 'workflow_dispatch'
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: The compose file validates
+        # The file the install guide ships, resolved the way an operator's Compose resolves it, and
+        # before the expensive build: a typo in it then fails in seconds instead of in minutes.
+        run: docker compose -f docker-compose.yml config -q
+
+      - name: Build the application image
+        # Plain ``docker build``: for a manual, occasional run the layer cache is not worth its
+        # weight — the GitHub Actions backend was measured to upload several GB and stretch the
+        # build step past twelve minutes, and a hosted runner has no local layers to reuse.
+        run: docker build -t scrinalia-app:ci .
+
+      - name: The application composes inside the image
+        # The entrypoint's ``alembic upgrade head`` needs a database, so this bypasses the entrypoint
+        # and proves the application layer: the imports the server performs at start-up, against the
+        # environment the image actually ships.
+        run: |
+          docker run --rm --entrypoint python scrinalia-app:ci \
+            -c "import scrinalia.asgi; scrinalia.asgi.create_app()"
+
+      - name: The image carries the SPA build and the migration revisions
+        # A stale ``COPY`` is the failure that would otherwise reach an installer: ``create_app()``
+        # mounts the SPA only when ``apps/curator/dist`` exists (an image without it starts and
+        # serves an API with no UI), and a missing ``migrations/`` only surfaces when the entrypoint
+        # runs Alembic against a real database. Assert the files, not just the import.
+        run: |
+          docker run --rm -i --entrypoint python scrinalia-app:ci - <<'PY'
+          from pathlib import Path
+
+          required = [
+              Path("/app/apps/curator/dist/index.html"),
+              Path("/app/alembic.ini"),
+              Path("/app/migrations/env.py"),
+          ]
+          missing = [str(path) for path in required if not path.is_file()]
+          assert not missing, f"missing from the image: {missing}"
+          assert any(Path("/app/migrations/versions").glob("*.py")), "no migration revision in the image"
+          print("the image carries the SPA build and the migrations")
+          PY
+
   docs:
     name: Documentation (strict build)
     runs-on: ubuntu-latest
@@ -258,7 +327,7 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       - name: Install uv
-        uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
       - name: Build the site
         # ``--strict`` so a broken link or a malformed block fails like a broken import does.
         #

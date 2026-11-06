@@ -410,6 +410,21 @@ export type IngestionOption = components["schemas"]["IngestionOptionDTO"];
 export type OriginConfigField = components["schemas"]["OriginConfigFieldDTO"];
 export type ManualIngestionRequest = components["schemas"]["ManualIngestionRequest"];
 export type ManualIngestionResponse = components["schemas"]["ManualIngestionResponse"];
+/**
+ * A diffusion channel: where the published archive leaves (#213, ADR 0023).
+ *
+ * The definition and its lifecycle arrive in the same DTO because the operator screen reads them
+ * together: `configured` is what tells "never added" apart from "paused", and `config_fields` is the
+ * metadata the generic form renders. The capability decides what the card offers — a `LIVE` channel
+ * has no run and no agenda.
+ */
+export type DiffusionChannel = components["schemas"]["DiffusionChannelDTO"];
+export type DiffusionChannelList = components["schemas"]["DiffusionChannelListResponse"];
+export type DiffusionCapability = components["schemas"]["DiffusionCapability"];
+export type DiffusionConfigField = components["schemas"]["DiffusionConfigFieldDTO"];
+export type DiffusionChannelUpdateRequest = components["schemas"]["DiffusionChannelUpdateRequest"];
+export type DiffusionScheduleRequest = components["schemas"]["DiffusionScheduleRequest"];
+export type DatasetPreview = components["schemas"]["DatasetPreviewDTO"];
 /** The CSV import's map, its bounded rows and its per-row report (#191). */
 export type CsvImportSpecResponse = components["schemas"]["CsvImportSpecResponse"];
 export type CsvImportRequest = components["schemas"]["CsvImportRequest"];
@@ -1759,6 +1774,162 @@ export async function triggerIngestionRun(code: string, body: IngestionRunReques
     await client.POST("/api/v1/ingestion/origins/{code}/runs", {
       params: { path: { code } },
       body,
+    }),
+  );
+}
+
+// --- The diffusion channels: where the published archive leaves ------------------------------
+
+/**
+ * Every definition the package ships, configured or not — one request for the whole screen.
+ *
+ * The add picker filters `configured` instead of the API keeping a second "available" list, so the
+ * two cannot disagree about what is still addable.
+ */
+export async function listDiffusionChannels(): Promise<DiffusionChannelList> {
+  return unwrap<DiffusionChannelList>(await client.GET("/api/v1/diffusion/channels"));
+}
+
+/**
+ * Saves the channel's lifecycle and its own configuration; the agenda has its own call.
+ *
+ * The body is partial by design: a pause sends only `enabled`, and the configuration form sends
+ * only `config`. The configuration is validated by the channel's model, so a typo is a 422 here
+ * instead of a JSONB the site discovers when it tries to render.
+ */
+export async function updateDiffusionChannel(
+  code: string,
+  body: DiffusionChannelUpdateRequest,
+): Promise<DiffusionChannel> {
+  return unwrap<DiffusionChannel>(
+    await client.PATCH("/api/v1/diffusion/channels/{code}", {
+      params: { path: { code } },
+      body,
+    }),
+  );
+}
+
+/** Creates or replaces the agenda of an export channel; a live channel refuses it. */
+export async function saveDiffusionSchedule(
+  code: string,
+  body: DiffusionScheduleRequest,
+): Promise<DiffusionChannel> {
+  return unwrap<DiffusionChannel>(
+    await client.PUT("/api/v1/diffusion/channels/{code}/schedule", {
+      params: { path: { code } },
+      body,
+    }),
+  );
+}
+
+/** Removes the agenda; the channel keeps its configuration and the runs it already created. */
+export async function deleteDiffusionSchedule(code: string): Promise<DiffusionChannel> {
+  return unwrap<DiffusionChannel>(
+    await client.DELETE("/api/v1/diffusion/channels/{code}/schedule", { params: { path: { code } } }),
+  );
+}
+
+/**
+ * Enqueues one export run of the channel and answers the ``QUEUED`` row.
+ *
+ * No body: the run repeats the channel's saved run policy, which the ledger pins in the row. The
+ * channel is the run's axis, which is why this is the channel's call and not the generic worker
+ * trigger — a ``WorkerRunRequest`` has no channel to name.
+ */
+export async function triggerDiffusionRun(code: string): Promise<WorkerRun> {
+  return unwrap<WorkerRun>(
+    await client.POST("/api/v1/diffusion/channels/{code}/runs", { params: { path: { code } } }),
+  );
+}
+
+/** The dry run of an export channel (ADR 0024): what a run would write, without writing. */
+export async function previewDiffusionChannel(code: string): Promise<DatasetPreview> {
+  return unwrap<DatasetPreview>(
+    await client.POST("/api/v1/diffusion/channels/{code}/preview", { params: { path: { code } } }),
+  );
+}
+
+// --- The publication gesture: resolve, preview, apply, undo (#251) ---------------------------
+
+export type PublicationAction = components["schemas"]["PublicationAction"];
+export type PublicationMode = components["schemas"]["PublicationMode"];
+export type PublicationRequest = components["schemas"]["PublicationRequest"];
+export type PublicationApplyRequest = components["schemas"]["PublicationApplyRequest"];
+export type PublicationSample = components["schemas"]["PublicationSampleDTO"];
+export type PublicationSkipped = components["schemas"]["PublicationSkippedDTO"];
+export type PublicationChannelPreview = components["schemas"]["PublicationChannelPreviewDTO"];
+export type PublicationPreview = components["schemas"]["PublicationPreviewDTO"];
+export type PublicationCounts = components["schemas"]["PublicationCountsDTO"];
+export type PublicationItem = components["schemas"]["PublicationItemDTO"];
+export type PublicationPage = components["schemas"]["PublicationPageDTO"];
+export type PublicationScope = components["schemas"]["PublicationScopeDTO"];
+export type PublicationScopeList = components["schemas"]["PublicationScopeListDTO"];
+export type PublicationBatch = components["schemas"]["PublicationBatchDTO"];
+export type PublicationBatchList = components["schemas"]["PublicationBatchListDTO"];
+export type PublicationUndo = components["schemas"]["PublicationUndoDTO"];
+
+/**
+ * The page's list: what a channel carries, or the approved that no channel carries.
+ *
+ * ``publication_state`` is the API's name for the filter — ``state`` is reserved by the framework —
+ * and the counts travel with either page, from the same definition the home card reads.
+ */
+export async function fetchPublications(params: {
+  state: "covered" | "uncovered";
+  nodeId?: string;
+  channelCode?: string;
+  limit?: number;
+  offset?: number;
+}): Promise<PublicationPage> {
+  return unwrap<PublicationPage>(
+    await client.GET("/api/v1/diffusion/publications", {
+      params: {
+        query: {
+          publication_state: params.state,
+          node_id: params.nodeId,
+          channel_code: params.channelCode,
+          limit: params.limit,
+          offset: params.offset,
+        },
+      },
+    }),
+  );
+}
+
+/** The four numbers without a page: the header repeats them and the home card reads them. */
+export async function fetchPublicationSummary(): Promise<PublicationCounts> {
+  return unwrap<PublicationCounts>(await client.GET("/api/v1/diffusion/publications/summary"));
+}
+
+/** The active positive and negative scopes, with their node and their counts. */
+export async function fetchPublicationScopes(channelCode?: string): Promise<PublicationScopeList> {
+  return unwrap<PublicationScopeList>(
+    await client.GET("/api/v1/diffusion/scopes", { params: { query: { channel_code: channelCode } } }),
+  );
+}
+
+/** Resolves the gesture per channel and writes nothing; the token is what the apply echoes. */
+export async function previewPublication(body: PublicationRequest): Promise<PublicationPreview> {
+  return unwrap<PublicationPreview>(await client.POST("/api/v1/diffusion/publications/preview", { body }));
+}
+
+/** Writes the scopes and the batch; a stale token answers 409 and the page previews again. */
+export async function applyPublication(body: PublicationApplyRequest): Promise<PublicationBatch> {
+  return unwrap<PublicationBatch>(await client.POST("/api/v1/diffusion/publications", { body }));
+}
+
+/** The publication history, newest first. */
+export async function fetchPublicationBatches(limit = 50, offset = 0): Promise<PublicationBatchList> {
+  return unwrap<PublicationBatchList>(
+    await client.GET("/api/v1/diffusion/publications/batches", { params: { query: { limit, offset } } }),
+  );
+}
+
+/** Reverts the batch entry by entry and reports what it left alone. */
+export async function undoPublicationBatch(batchId: number): Promise<PublicationUndo> {
+  return unwrap<PublicationUndo>(
+    await client.POST("/api/v1/diffusion/publications/batches/{batch_id}/undo", {
+      params: { path: { batch_id: batchId } },
     }),
   );
 }

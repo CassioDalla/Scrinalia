@@ -90,6 +90,196 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/diffusion/channels": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** ListChannels */
+        get: operations["ApiV1DiffusionChannelsListChannels"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/diffusion/channels/{code}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** GetChannel */
+        get: operations["ApiV1DiffusionChannelsCodeGetChannel"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** UpdateChannel */
+        patch: operations["ApiV1DiffusionChannelsCodeUpdateChannel"];
+        trace?: never;
+    };
+    "/api/v1/diffusion/channels/{code}/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** PreviewChannel */
+        post: operations["ApiV1DiffusionChannelsCodePreviewPreviewChannel"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/diffusion/channels/{code}/runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** TriggerRun */
+        post: operations["ApiV1DiffusionChannelsCodeRunsTriggerRun"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/diffusion/channels/{code}/schedule": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** PutSchedule */
+        put: operations["ApiV1DiffusionChannelsCodeSchedulePutSchedule"];
+        post?: never;
+        /** DeleteSchedule */
+        delete: operations["ApiV1DiffusionChannelsCodeScheduleDeleteSchedule"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/diffusion/publications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** ListPublications */
+        get: operations["ApiV1DiffusionPublicationsListPublications"];
+        put?: never;
+        /** Apply */
+        post: operations["ApiV1DiffusionPublicationsApply"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/diffusion/publications/batches": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** ListBatches */
+        get: operations["ApiV1DiffusionPublicationsBatchesListBatches"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/diffusion/publications/batches/{batch_id}/undo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Undo */
+        post: operations["ApiV1DiffusionPublicationsBatchesBatchIdUndoUndo"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/diffusion/publications/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Preview */
+        post: operations["ApiV1DiffusionPublicationsPreviewPreview"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/diffusion/publications/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Summary */
+        get: operations["ApiV1DiffusionPublicationsSummarySummary"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/diffusion/scopes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** ListScopes */
+        get: operations["ApiV1DiffusionScopesListScopes"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/documents": {
         parameters: {
             query?: never;
@@ -707,6 +897,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/public/dataset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** GetDataset */
+        get: operations["ApiV1PublicDatasetGetDataset"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/public/dataset/download": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** DownloadDataset */
+        get: operations["ApiV1PublicDatasetDownloadDownloadDataset"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/public/documents": {
         parameters: {
             query?: never;
@@ -733,6 +957,23 @@ export interface paths {
         };
         /** GetPublished */
         get: operations["ApiV1PublicDocumentsDescriptionIdGetPublished"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/public/site": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** GetSite */
+        get: operations["ApiV1PublicSiteGetSite"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2798,8 +3039,6 @@ export interface components {
             /** @description How many items are waiting; zero is a valid answer. */
             count: number;
             key: components["schemas"]["QueueKey"];
-            /** @description Screen that resolves the queue, already filtered. */
-            route: string;
         };
         /** DatabaseHealthDTO */
         DatabaseHealthDTO: {
@@ -2809,6 +3048,75 @@ export interface components {
             ok: boolean;
             staging_records?: number | null;
             tags?: number | null;
+        };
+        /** DatasetArtifact */
+        DatasetArtifact: {
+            bytes: number;
+            /** @enum {string} */
+            format: "json" | "ndjson" | "csv";
+            path: string;
+            records: number;
+            sha256: string;
+        };
+        /** DatasetInstitution */
+        DatasetInstitution: {
+            contact_email?: string | null;
+            name: string;
+            url?: string | null;
+        };
+        /** DatasetLicense */
+        DatasetLicense: {
+            attribution?: string | null;
+            /** @enum {string} */
+            id: "CC0-1.0" | "CC-BY-4.0" | "CC-BY-SA-4.0" | "custom";
+            name: string;
+            url?: string | null;
+        };
+        /** DatasetManifest */
+        DatasetManifest: {
+            api_url: string | null;
+            artifacts: components["schemas"]["DatasetArtifact"][];
+            /** @default field-map.json */
+            field_map: string;
+            /**
+             * Format: date-time
+             * @description datetime with the constraint that the value must have timezone info
+             */
+            generated_at: string;
+            institution: components["schemas"]["DatasetInstitution"];
+            license: components["schemas"]["DatasetLicense"];
+            openapi_url: string | null;
+            previous_snapshot_id?: string | null;
+            /** @default README.md */
+            readme: string;
+            record_count: number;
+            removals: string[];
+            /** @constant */
+            schema_version: "1.0";
+            snapshot_id: string;
+            software: components["schemas"]["DatasetSoftware"];
+        };
+        /** DatasetPreviewDTO */
+        DatasetPreviewDTO: {
+            artifacts: components["schemas"]["DatasetArtifact"][];
+            destination: string | null;
+            previous_snapshot_id: string | null;
+            ready: boolean;
+            reason: string | null;
+            record_count: number;
+            removals: string[];
+            snapshot_id: string;
+            unchanged: boolean;
+        };
+        /** DatasetSoftware */
+        DatasetSoftware: {
+            license: string;
+            /** Format: url */
+            license_url: string;
+            name: string;
+            /** Format: url */
+            source_url: string;
+            version: string;
         };
         /** DescriptionLevelCreateRequest */
         DescriptionLevelCreateRequest: {
@@ -2856,10 +3164,91 @@ export interface components {
             name?: string | null;
             requires_parent?: boolean | null;
         };
+        /**
+         * DiffusionCapability
+         * @description How a channel leaves the archive: read live on every request, or exported by a run.
+         * @enum {string}
+         */
+        DiffusionCapability: "LIVE" | "EXPORT";
+        /** DiffusionChannelDTO */
+        DiffusionChannelDTO: {
+            active_run_id?: number | null;
+            active_run_status?: components["schemas"]["WorkerRunStatus"] | null;
+            capability: components["schemas"]["DiffusionCapability"];
+            code: string;
+            config?: {
+                [key: string]: unknown;
+            };
+            config_fields?: components["schemas"]["DiffusionConfigFieldDTO"][];
+            /** @description Se o canal foi adicionado (existe uma linha na tabela). */
+            configured: boolean;
+            description: string;
+            enabled: boolean;
+            label: string;
+            last_run_at?: string | null;
+            last_run_id?: number | null;
+            last_run_status?: components["schemas"]["WorkerRunStatus"] | null;
+            options?: {
+                [key: string]: unknown;
+            };
+            schedule?: components["schemas"]["DiffusionScheduleDTO"] | null;
+            updated_at?: string | null;
+            updated_by?: string | null;
+        };
+        /** DiffusionChannelListResponse */
+        DiffusionChannelListResponse: {
+            channels?: components["schemas"]["DiffusionChannelDTO"][];
+            /** Format: date-time */
+            generated_at: string;
+        };
+        /** DiffusionChannelUpdateRequest */
+        DiffusionChannelUpdateRequest: {
+            /** @description A configuração do canal, validada pelo modelo dele (a identidade do site). */
+            config?: {
+                [key: string]: unknown;
+            } | null;
+            enabled?: boolean | null;
+            /** @description A política de execução de um canal de exportação; vazia em um canal LIVE. */
+            options?: {
+                [key: string]: unknown;
+            } | null;
+        };
+        /** DiffusionConfigFieldDTO */
+        DiffusionConfigFieldDTO: {
+            default?: unknown;
+            help: string;
+            /**
+             * @default text
+             * @enum {string}
+             */
+            kind: "text" | "number" | "boolean";
+            label: string;
+            name: string;
+            /** @default false */
+            required: boolean;
+        };
+        /** DiffusionScheduleDTO */
+        DiffusionScheduleDTO: {
+            cron?: string | null;
+            last_enqueued_at?: string | null;
+            last_skipped_at?: string | null;
+            next_run_at?: string | null;
+            timezone?: string | null;
+            updated_at?: string | null;
+            updated_by?: string | null;
+        };
+        /** DiffusionScheduleRequest */
+        DiffusionScheduleRequest: {
+            /** @description Cinco campos: minuto, hora, dia, mês, semana. */
+            cron: string;
+            /** @description Zona IANA; o padrão é DEFAULT_TIMEZONE. */
+            timezone?: string | null;
+        };
         /** DocumentAncestorSummary */
         DocumentAncestorSummary: {
             description_id: string;
             level?: string | null;
+            level_code?: string | null;
             title?: string | null;
         };
         /** DocumentDeletionDTO */
@@ -2945,6 +3334,8 @@ export interface components {
             appraisal_destruction?: string | null;
             archivist_notes?: string | null;
             arrangement?: string | null;
+            /** @description Os canais que carregam o registro. */
+            channels?: string[];
             /** @default 0 */
             children_count: number;
             conservation_notes?: string | null;
@@ -2964,6 +3355,7 @@ export interface components {
             is_published: boolean;
             language_name?: string | null;
             level?: string | null;
+            level_code?: string | null;
             level_id?: number | null;
             macro_categories?: components["schemas"]["DocumentMacroCategorySummary"][];
             original_title: string;
@@ -2989,12 +3381,18 @@ export interface components {
             suggested_final_title?: string | null;
             tags?: components["schemas"]["DocumentTagSummary"][];
             /**
-             * @description Where the browser reads the miniature, or ``None`` when the source had no image to store.
+             * @description Where the browser reads the miniature, or ``None`` when there is nothing to serve.
              *
              *     Derived on the server from ``storage_thumbnail_uri`` and **never** assembled by the client:
              *     the SPA binds this string to an ``<img>``, so it does not know the bucket and cannot drift
              *     from the route. The bytes themselves come from the authenticated route, which answers 404
              *     when the object is gone; the screen shows "imagem indisponível" instead of a broken image.
+             *
+             *     **An object-backed field is advertised only when ``storage_configured()``.** An installation
+             *     without the four ``S3_*`` settings stores no URI of its own — but a database copied from one
+             *     that had storage still carries them, and advertising those URLs would make a page of
+             *     twenty-five rows issue twenty-five requests for objects this installation cannot read. The
+             *     rule applies to every future object-backed field (#198), not only to this one.
              */
             readonly thumbnail_url: string | null;
             typology?: string | null;
@@ -3040,8 +3438,6 @@ export interface components {
             finding_aids?: string | null;
             /** @description ISAD(G) 3.6.1 — notas gerais. */
             general_notes?: string | null;
-            /** @description Decisão de difusão, ortogonal ao status de revisão. Publicar não bloqueia a IA de continuar melhorando o registro; aprovar, sim. */
-            is_published?: boolean | null;
             /** @description Idioma. */
             language_name?: string | null;
             /** @description Nível de descrição: id no catálogo (GET /api/v1/hierarchy/levels). A grafia livre saiu do contrato quando a coluna de texto virou chave estrangeira. */
@@ -4143,6 +4539,7 @@ export interface components {
         PublicAncestorSummary: {
             description_id: string;
             level?: string | null;
+            level_code?: string | null;
             title?: string | null;
         };
         /** PublicDocumentFacets */
@@ -4162,21 +4559,24 @@ export interface components {
         };
         /** PublicDocumentSummary */
         PublicDocumentSummary: {
+            access_conditions?: string | null;
             ancestors?: components["schemas"]["PublicAncestorSummary"][];
             /** @default 0 */
             children_count: number;
+            date_expression?: string | null;
             description_id: string;
+            dimension_support?: string | null;
             document_date?: string | null;
             entities?: components["schemas"]["PublicEntitySummary"][];
             final_title?: string | null;
             language_name?: string | null;
             level?: string | null;
+            level_code?: string | null;
             macro_categories?: components["schemas"]["PublicMacroCategorySummary"][];
             original_title: string;
             producers?: string | null;
             reference_code?: string | null;
             scope_content?: string | null;
-            storage_thumbnail_uri?: string | null;
             tags?: components["schemas"]["PublicTagSummary"][];
             typology?: string | null;
         };
@@ -4192,18 +4592,214 @@ export interface components {
             name: string;
             tag_count: number;
         };
+        /** PublicSiteConfig */
+        PublicSiteConfig: {
+            /**
+             * @description Se os buscadores podem indexar o site público.
+             * @default true
+             */
+            allow_indexing: boolean;
+            /** @description O endereço que o visitante usa para falar com a instituição. */
+            contact_email?: string | null;
+            /** @description O nome da instituição responsável pelo acervo. */
+            institution_name?: string | null;
+            /**
+             * @description O idioma do site público. O aplicativo pode oferecer apenas pt-BR primeiro.
+             * @default pt-BR
+             * @enum {string}
+             */
+            locale: "pt-BR" | "en";
+            logo_url?: string | null;
+            public_base_url?: string | null;
+            /** @description Uma frase sobre o acervo, para a página inicial do site. */
+            site_description?: string | null;
+            /** @description O título que o site público mostra no cabeçalho. */
+            site_title: string;
+        };
         /** PublicTagSummary */
         PublicTagSummary: {
             name: string;
             tag_id: number;
         };
         /**
+         * PublicationAction
+         * @description The four writes a publication can be; the ledger stores the value verbatim.
+         * @enum {string}
+         */
+        PublicationAction: "PUBLISH" | "EXCLUDE" | "REVOKE" | "UNEXCLUDE";
+        /** PublicationApplyRequest */
+        PublicationApplyRequest: {
+            request: components["schemas"]["PublicationRequest"];
+            token: string;
+        };
+        /** PublicationBatchDTO */
+        PublicationBatchDTO: {
+            action: components["schemas"]["PublicationAction"];
+            /** @default 0 */
+            applied_count: number;
+            batch_id: number;
+            channels?: string[];
+            /** Format: date-time */
+            created_at: string;
+            note?: string | null;
+            requested_by?: string | null;
+            selection?: {
+                [key: string]: unknown;
+            };
+            /** @default 0 */
+            skipped_count: number;
+            undone_at?: string | null;
+            undone_by?: string | null;
+        };
+        /** PublicationBatchListDTO */
+        PublicationBatchListDTO: {
+            batches?: components["schemas"]["PublicationBatchDTO"][];
+            /** Format: date-time */
+            generated_at: string;
+        };
+        /** PublicationChannelPreviewDTO */
+        PublicationChannelPreviewDTO: {
+            /**
+             * @description Se o gesto escreveria algo neste canal; falso para um escopo que já existe ou está bloqueado.
+             * @default true
+             */
+            actionable: boolean;
+            code: string;
+            eligible: number;
+            label: string;
+            sample?: components["schemas"]["PublicationSampleDTO"][];
+            skipped?: components["schemas"]["PublicationSkippedDTO"];
+        };
+        /** PublicationCountsDTO */
+        PublicationCountsDTO: {
+            /** @default 0 */
+            approved_without_channel: number;
+            /** @default 0 */
+            enabled_channels: number;
+            /** @default 0 */
+            in_channels: number;
+            /** @default 0 */
+            in_review: number;
+            /** @default 0 */
+            site: number;
+        };
+        /** PublicationItemDTO */
+        PublicationItemDTO: {
+            channels?: string[];
+            description_id: string;
+            document_date?: string | null;
+            level?: string | null;
+            title: string;
+        };
+        /**
+         * PublicationMode
+         * @description Whether the gesture names a branch (a node) or a selection (up to 200 records).
+         * @default BRANCH
+         * @enum {string}
+         */
+        PublicationMode: "BRANCH" | "RECORDS";
+        /** PublicationPageDTO */
+        PublicationPageDTO: {
+            counts: components["schemas"]["PublicationCountsDTO"];
+            items?: components["schemas"]["PublicationItemDTO"][];
+            /** @default 50 */
+            limit: number;
+            /** @default 0 */
+            offset: number;
+            /** @default 0 */
+            total: number;
+        };
+        /** PublicationPreviewDTO */
+        PublicationPreviewDTO: {
+            channels?: components["schemas"]["PublicationChannelPreviewDTO"][];
+            /** Format: date-time */
+            expires_at: string;
+            token: string;
+            /** @default 0 */
+            total_eligible: number;
+        };
+        /** PublicationRequest */
+        PublicationRequest: {
+            action: components["schemas"]["PublicationAction"];
+            /** @description Os canais do gesto, por código. */
+            channel_codes: string[];
+            /** @description Os registros escolhidos, quando o modo é RECORDS (no máximo 200). */
+            description_ids?: string[];
+            /**
+             * @description Se o ramo inclui os descendentes.
+             * @default true
+             */
+            include_descendants: boolean;
+            mode?: components["schemas"]["PublicationMode"];
+            /** @description O nó do ramo, quando o modo é BRANCH. */
+            node_id?: string | null;
+            /** @description Por que o curador decidiu; fica no lote. */
+            note?: string | null;
+        };
+        /** PublicationSampleDTO */
+        PublicationSampleDTO: {
+            description_id: string;
+            title: string;
+        };
+        /** PublicationScopeDTO */
+        PublicationScopeDTO: {
+            /** @default 0 */
+            approved_count: number;
+            channel_code: string;
+            channel_label: string;
+            /** @default 0 */
+            covered_count: number;
+            /** Format: date-time */
+            created_at: string;
+            created_by?: string | null;
+            include_descendants: boolean;
+            /** @enum {string} */
+            kind: "INCLUSION" | "EXCLUSION";
+            node_id: string;
+            node_path: string;
+            node_title?: string | null;
+            note?: string | null;
+            scope_id: number;
+        };
+        /** PublicationScopeListDTO */
+        PublicationScopeListDTO: {
+            /** Format: date-time */
+            generated_at: string;
+            scopes?: components["schemas"]["PublicationScopeDTO"][];
+        };
+        /** PublicationSkippedDTO */
+        PublicationSkippedDTO: {
+            /** @default 0 */
+            already_covered: number;
+            /** @default 0 */
+            excluded: number;
+            /** @default 0 */
+            missing: number;
+            /** @default 0 */
+            no_scope: number;
+            /** @default 0 */
+            not_approved: number;
+            /** @default 0 */
+            not_covered: number;
+        };
+        /** PublicationUndoDTO */
+        PublicationUndoDTO: {
+            batch_id: number;
+            /** @default 0 */
+            restored: number;
+            /** @default 0 */
+            skipped: number;
+            /** Format: date-time */
+            undone_at: string;
+        };
+        /**
          * QueueKey
          * @description The stable identity of a queue on the home screen.
          *
-         *         The contract carries the key, not the card's copy: the SPA resolves the label and the one-line
-         *         description from it (ADR 0020 §5), so the copy pass and its gate can see the first screen. The
-         *         values are the identity of an outcome, so they never change once released.
+         *         The contract carries the key, not the card's copy or its destination: the SPA resolves the
+         *         label, the one-line description and the screen from it (ADR 0020 §5, ADR 0021), so the copy
+         *         pass and its gate can see the first screen. The values are the identity of an outcome, so they
+         *         never change once released.
          * @enum {string}
          */
         QueueKey: "hierarchy_orphans" | "hierarchy_plans" | "tag_merge_proposals" | "cross_domain_conflicts" | "subject_low_confidence" | "orphan_subject_tags" | "typology_low_confidence" | "anomalies" | "unreviewed_documents";
@@ -4234,7 +4830,7 @@ export interface components {
          *         things and a translation catalogue needs to tell them apart.
          * @enum {string}
          */
-        RouteMessageCode: "CLEANING_RULE_CREATED" | "CLEANING_RULE_DEACTIVATED" | "CLEANING_RULE_ACTIVATED" | "TEXT_TEMPLATE_SUGGESTED" | "TEXT_TEMPLATE_CREATED" | "TEXT_TEMPLATE_UPDATED" | "TEXT_TEMPLATE_DELETED" | "DOCUMENT_DELETED" | "MANUAL_INGESTION_QUEUED" | "MANUAL_INGESTION_STAGED" | "CSV_IMPORT_QUEUED" | "CSV_IMPORT_STAGED" | "CSV_IMPORT_REFUSED" | "WORKER_RUN_CANCELLED" | "WORKER_RUN_CANCEL_REQUESTED" | "WORKER_RUN_CANCEL_ALREADY_REQUESTED" | "TAG_MERGE_PROPOSAL_DECIDED" | "TAG_MERGE_UNDONE" | "TAG_STOPWORDS_BANNED" | "TAG_STOPWORDS_REMOVED" | "TAG_STOPWORDS_MATCH_UPDATED" | "TAG_STOPWORD_PURGE_DONE" | "TAG_STOPWORD_PURGE_UNDONE" | "SUBJECT_EXCLUSIONS_ADDED" | "SUBJECT_EXCLUSIONS_BLOCKED" | "SUBJECT_EXCLUSIONS_PARTIAL" | "SUBJECT_EXCLUSIONS_REMOVED" | "MACRO_CLUSTERING_INSUFFICIENT_TEXTS" | "NER_EXCLUSIONS_ADDED" | "NER_EXCLUSIONS_REMOVED" | "NER_PURGE_DONE" | "NER_PURGE_UNDONE" | "ORPHAN_ENTITIES_PURGED" | "ENTITY_RECLASSIFIED" | "ENTITY_DELETED" | "ENTITY_RENAMED" | "ENTITY_MERGE_UNDONE" | "CONFLICT_RESOLVED" | "CONFLICT_BATCH_RESOLVED" | "SESSION_ENDED" | "PASSWORD_CHANGED" | "PASSWORD_CHANGE_REQUIRED" | "USER_PASSWORD_RESET" | "USER_SESSIONS_REVOKED" | "SESSION_REVOKED";
+        RouteMessageCode: "CLEANING_RULE_CREATED" | "CLEANING_RULE_DEACTIVATED" | "CLEANING_RULE_ACTIVATED" | "TEXT_TEMPLATE_SUGGESTED" | "TEXT_TEMPLATE_CREATED" | "TEXT_TEMPLATE_UPDATED" | "TEXT_TEMPLATE_DELETED" | "DOCUMENT_DELETED" | "MANUAL_INGESTION_QUEUED" | "MANUAL_INGESTION_STAGED" | "CSV_IMPORT_QUEUED" | "CSV_IMPORT_STAGED" | "CSV_IMPORT_REFUSED" | "WORKER_RUN_CANCELLED" | "WORKER_RUN_CANCEL_REQUESTED" | "WORKER_RUN_CANCEL_ALREADY_REQUESTED" | "TAG_MERGE_PROPOSAL_DECIDED" | "TAG_MERGE_UNDONE" | "TAG_STOPWORDS_BANNED" | "TAG_STOPWORDS_REMOVED" | "TAG_STOPWORDS_MATCH_UPDATED" | "TAG_STOPWORD_PURGE_DONE" | "TAG_STOPWORD_PURGE_UNDONE" | "SUBJECT_EXCLUSIONS_ADDED" | "SUBJECT_EXCLUSIONS_BLOCKED" | "SUBJECT_EXCLUSIONS_PARTIAL" | "SUBJECT_EXCLUSIONS_REMOVED" | "MACRO_CLUSTERING_INSUFFICIENT_TEXTS" | "NER_EXCLUSIONS_ADDED" | "NER_EXCLUSIONS_REMOVED" | "NER_PURGE_DONE" | "NER_PURGE_UNDONE" | "ORPHAN_ENTITIES_PURGED" | "ENTITY_RECLASSIFIED" | "ENTITY_DELETED" | "ENTITY_RENAMED" | "ENTITY_MERGE_UNDONE" | "CONFLICT_RESOLVED" | "CONFLICT_BATCH_RESOLVED" | "SESSION_ENDED" | "PASSWORD_CHANGED" | "PASSWORD_CHANGE_REQUIRED" | "USER_PASSWORD_RESET" | "USER_SESSIONS_REVOKED" | "SESSION_REVOKED" | "PUBLIC_RATE_LIMITED";
         /** RouteResponse */
         RouteResponse: {
             code: components["schemas"]["RouteMessageCode"];
@@ -4908,6 +5504,8 @@ export interface components {
             cancel_requested_at?: string | null;
             /** @description Quem pediu o cancelamento; nulo quando o pedido veio de um sinal do processo, não do painel. */
             cancel_requested_by?: string | null;
+            /** @description O canal de difusão que esta execução de exportação escreveu; nulo em qualquer outro worker, inclusive na ingestão, cujo eixo é a origem (ADR 0023). */
+            channel_code?: string | null;
             /** @description Configuração resolvida (preset já mesclado com os overrides), para o registro não mudar de sentido quando um preset mudar no código. */
             config?: {
                 [key: string]: unknown;
@@ -4961,6 +5559,8 @@ export interface components {
             cancel_requested_at?: string | null;
             /** @description Quem pediu o cancelamento; nulo quando o pedido veio de um sinal do processo, não do painel. */
             cancel_requested_by?: string | null;
+            /** @description O canal de difusão que esta execução de exportação escreveu; nulo em qualquer outro worker, inclusive na ingestão, cujo eixo é a origem (ADR 0023). */
+            channel_code?: string | null;
             /** @description Configuração resolvida (preset já mesclado com os overrides), para o registro não mudar de sentido quando um preset mudar no código. */
             config?: {
                 [key: string]: unknown;
@@ -5196,7 +5796,7 @@ export interface components {
             settings: components["schemas"]["WorkerSettingsDTO"];
             stamp_breakdown?: components["schemas"]["WorkerStampBreakdownDTO"] | null;
             /** @enum {string} */
-            unit: "origin" | "staging" | "document" | "tag" | "pair";
+            unit: "origin" | "channel" | "staging" | "document" | "tag" | "pair";
         };
         /** WorkerTrialConfigDTO */
         WorkerTrialConfigDTO: {
@@ -5468,6 +6068,507 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CurationInbox"];
+                };
+            };
+        };
+    };
+    ApiV1DiffusionChannelsListChannels: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DiffusionChannelListResponse"];
+                };
+            };
+        };
+    };
+    ApiV1DiffusionChannelsCodeGetChannel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DiffusionChannelDTO"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                        status_code: number;
+                    };
+                };
+            };
+        };
+    };
+    ApiV1DiffusionChannelsCodeUpdateChannel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DiffusionChannelUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DiffusionChannelDTO"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                        status_code: number;
+                    };
+                };
+            };
+        };
+    };
+    ApiV1DiffusionChannelsCodePreviewPreviewChannel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DatasetPreviewDTO"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                        status_code: number;
+                    };
+                };
+            };
+        };
+    };
+    ApiV1DiffusionChannelsCodeRunsTriggerRun: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Document created, URL follows */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkerRunDTO"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                        status_code: number;
+                    };
+                };
+            };
+        };
+    };
+    ApiV1DiffusionChannelsCodeSchedulePutSchedule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DiffusionScheduleRequest"];
+            };
+        };
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DiffusionChannelDTO"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                        status_code: number;
+                    };
+                };
+            };
+        };
+    };
+    ApiV1DiffusionChannelsCodeScheduleDeleteSchedule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DiffusionChannelDTO"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                        status_code: number;
+                    };
+                };
+            };
+        };
+    };
+    ApiV1DiffusionPublicationsListPublications: {
+        parameters: {
+            query?: {
+                publication_state?: "covered" | "uncovered";
+                node_id?: string | null;
+                channel_code?: string | null;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicationPageDTO"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                        status_code: number;
+                    };
+                };
+            };
+        };
+    };
+    ApiV1DiffusionPublicationsApply: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PublicationApplyRequest"];
+            };
+        };
+        responses: {
+            /** @description Document created, URL follows */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicationBatchDTO"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                        status_code: number;
+                    };
+                };
+            };
+        };
+    };
+    ApiV1DiffusionPublicationsBatchesListBatches: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicationBatchListDTO"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                        status_code: number;
+                    };
+                };
+            };
+        };
+    };
+    ApiV1DiffusionPublicationsBatchesBatchIdUndoUndo: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                batch_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicationUndoDTO"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                        status_code: number;
+                    };
+                };
+            };
+        };
+    };
+    ApiV1DiffusionPublicationsPreviewPreview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PublicationRequest"];
+            };
+        };
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicationPreviewDTO"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                        status_code: number;
+                    };
+                };
+            };
+        };
+    };
+    ApiV1DiffusionPublicationsSummarySummary: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicationCountsDTO"];
+                };
+            };
+        };
+    };
+    ApiV1DiffusionScopesListScopes: {
+        parameters: {
+            query?: {
+                channel_code?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicationScopeListDTO"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                        status_code: number;
+                    };
                 };
             };
         };
@@ -6971,6 +8072,46 @@ export interface operations {
             };
         };
     };
+    ApiV1PublicDatasetGetDataset: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DatasetManifest"];
+                };
+            };
+        };
+    };
+    ApiV1PublicDatasetDownloadDownloadDataset: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The current open dataset snapshot as a ZIP, with the manifest and the field map. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/zip": string;
+                };
+            };
+        };
+    };
     ApiV1PublicDocumentsListPublished: {
         parameters: {
             query?: {
@@ -7051,6 +8192,26 @@ export interface operations {
                         } | unknown[];
                         status_code: number;
                     };
+                };
+            };
+        };
+    };
+    ApiV1PublicSiteGetSite: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicSiteConfig"];
                 };
             };
         };
@@ -7620,6 +8781,7 @@ export interface operations {
             query?: {
                 worker?: string | null;
                 origin?: string | null;
+                channel?: string | null;
                 status?: components["schemas"]["WorkerRunStatus"] | null;
                 fingerprint?: string | null;
                 trial?: boolean | null;

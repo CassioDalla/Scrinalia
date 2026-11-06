@@ -15,12 +15,13 @@ three-layer pipeline, and enriches them with named entities, typologies and subj
 categories. Every AI decision is advisory: an archivist reviews and approves, and approved
 documents are locked against further automatic rewrites.
 
-> **Status:** `1.7.0`. The curator surface is complete: the pipeline, the AI workers, the review
-> governance, the authentication and the 28 screens are in place, and the documentation covers
-> install, operation, curation and the data model. The curator UI is a React SPA (`apps/curator/`)
-> served by the API; the HTTP API is the stable contract, and the TypeScript client is generated from
-> it. The public diffusion site (`apps/public/`) is planned — the public projection and its routes
-> already exist on the API, and nothing is published by default.
+> **Status:** `1.8.0`. The curator surface is complete: the pipeline, the AI workers, the review
+> governance, the authentication and the 31 screens are in place, and the documentation covers
+> install, operation, curation, diffusion and the data model. The curator UI is a React SPA
+> (`apps/curator/`) served by the API; the HTTP API is the stable contract, and the TypeScript client
+> is generated from it. Public diffusion is a channel registry: the built-in public site and the open
+> dataset, with scopes, a preview and a ledger. The public site application (`apps/public/`) is still
+> ahead — the projection and the routes exist on the API, and nothing is published by default.
 
 ## How it works
 

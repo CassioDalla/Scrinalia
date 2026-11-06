@@ -129,6 +129,22 @@ class Settings(BaseSettings):
     #: the public origin it is reached by. See ``origin_guard``.
     AUTH_TRUSTED_ORIGINS: str = ""
 
+    #: A per-address brake on the public diffusion surface — ``/api/v1/public/*`` — which answers
+    #: without a session. ``PUBLIC_RATE_LIMIT_MAX`` requests per
+    #: ``PUBLIC_RATE_LIMIT_WINDOW_SECONDS`` from one client address answer 429. It lives in the
+    #: process, like the sign-in brake, so it resets on restart and ``uvicorn --workers N``
+    #: multiplies the effective ceiling by N; the durable, global ceiling belongs to the reverse
+    #: proxy, and the install guide states both sides of that boundary (ADR 0025).
+    PUBLIC_RATE_LIMIT_MAX: int = 120
+    PUBLIC_RATE_LIMIT_WINDOW_SECONDS: int = 60
+
+    #: ``Strict-Transport-Security`` on every response, in seconds of ``max-age``. ``0`` disables
+    #: the header and is the default on purpose: a plain-HTTP installation on a LAN must not claim
+    #: HTTPS. A deployment reached over HTTPS sets it (31536000 is the usual year). ``includeSubDomains``
+    #: is never emitted — it would bind every sibling subdomain of the host, which is not this
+    #: application's decision to take.
+    SECURITY_HSTS_SECONDS: int = 0
+
     # Observability
     LOG_DIR: str = "logs"
     LOG_LEVEL: str = "INFO"
@@ -172,3 +188,27 @@ def resolve_ollama_host(explicit: str | None = None) -> str:
 
 
 settings = get_settings()
+
+
+def missing_storage_settings() -> list[str]:
+    """
+    Names of the object-storage settings this installation has not set.
+
+    The **one** definition of "the storage is configured", read by the health probe, by ``S3Storage``
+    and by the read view that advertises an object-backed URL. It was checked in two places before
+    — ``system_health.probe_storage`` and ``S3Storage._require_configuration`` — and the two could
+    disagree about an empty credential. A missing setting of any of the four means no object can be
+    served, so a field backed by one must not be advertised at all.
+    """
+    values = {
+        "S3_ENDPOINT_URL": settings.S3_ENDPOINT_URL,
+        "S3_BUCKET_NAME": settings.S3_BUCKET_NAME,
+        "S3_ACCESS_KEY": settings.S3_ACCESS_KEY,
+        "S3_SECRET_KEY": settings.S3_SECRET_KEY,
+    }
+    return [name for name, value in values.items() if not value]
+
+
+def storage_configured() -> bool:
+    """Whether every setting the object storage needs is present; the read view's predicate."""
+    return not missing_storage_settings()

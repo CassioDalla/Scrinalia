@@ -16,7 +16,7 @@ from datetime import UTC, datetime
 import requests
 from sqlalchemy import func, select, text
 
-from scrinalia.core.config import DEFAULT_OLLAMA_HOST, settings
+from scrinalia.core.config import DEFAULT_OLLAMA_HOST, missing_storage_settings, settings
 from scrinalia.core.database import create_session
 from scrinalia.domains.archive.models import ArchiveDocument, ArchiveEntity, ArchiveTag
 from scrinalia.domains.archive.schemas.system_schema import (
@@ -104,14 +104,20 @@ def probe_storage() -> StorageHealthDTO:
     """Whether the bucket the thumbnails go to is reachable."""
     endpoint = settings.S3_ENDPOINT_URL
     bucket = settings.S3_BUCKET_NAME
+    access_key = settings.S3_ACCESS_KEY
+    secret_key = settings.S3_SECRET_KEY
 
-    if not endpoint or not bucket or settings.S3_ACCESS_KEY is None or settings.S3_SECRET_KEY is None:
+    # The predicate is shared with ``S3Storage`` and the read view: "configured" has one definition,
+    # so the panel cannot call configured what the reader refuses (and the other way round). The
+    # ``None`` tests after it only narrow the settings for the client below.
+    missing = missing_storage_settings()
+    if missing or endpoint is None or bucket is None or access_key is None or secret_key is None:
         return StorageHealthDTO(
             configured=False,
             ok=False,
             endpoint=endpoint,
             bucket=bucket,
-            detail="S3 não configurado: faltam endpoint, bucket ou credenciais.",
+            detail=f"S3 não configurado: falta {', '.join(missing)}.",
         )
 
     try:
@@ -129,8 +135,8 @@ def probe_storage() -> StorageHealthDTO:
         client = boto3.client(
             "s3",
             endpoint_url=endpoint,
-            aws_access_key_id=settings.S3_ACCESS_KEY.get_secret_value(),
-            aws_secret_access_key=settings.S3_SECRET_KEY.get_secret_value(),
+            aws_access_key_id=access_key.get_secret_value(),
+            aws_secret_access_key=secret_key.get_secret_value(),
             config=Config(
                 signature_version="s3v4",
                 connect_timeout=NETWORK_TIMEOUT_SECONDS,

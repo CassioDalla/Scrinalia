@@ -62,7 +62,16 @@ export type CollectionSearch = {
   offset?: number;
 };
 
-const REVIEW_STATUSES = Object.keys(REVIEW_STATUS_LABEL) as ArchiveReviewStatus[];
+/**
+ * The statuses the URL may carry.
+ *
+ * Read from the tone map and not from the label map: the labels are a `Proxy` over the locale
+ * catalogue (ADR 0020), and `Object.keys` on a proxy with no `ownKeys` trap answers `[]`. That empty
+ * list silently dropped every `?status=`, including the `PENDING_AI` the inbox's "unreviewed"
+ * card sends. The tone map is a literal `Record<ArchiveReviewStatus, …>`, so the type system keeps
+ * it exhaustive.
+ */
+const REVIEW_STATUSES = Object.keys(REVIEW_STATUS_TONE) as ArchiveReviewStatus[];
 
 export function validateCollectionSearch(search: Record<string, unknown>): CollectionSearch {
   return {

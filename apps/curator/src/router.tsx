@@ -11,6 +11,8 @@ import { DeletionsRoute, validateDeletionsSearch } from "@/routes/DeletionsRoute
 import { DiagnosticsRoute, validateDiagnosticsSearch } from "@/routes/DiagnosticsRoute";
 import { DiscoverRoute } from "@/routes/DiscoverRoute";
 import { DocumentRoute } from "@/routes/DocumentRoute";
+import { DiffusionChannelsRoute } from "@/routes/DiffusionChannelsRoute";
+import { DiffusionRoute, validateDiffusionSearch } from "@/routes/DiffusionRoute";
 import { EntitiesRoute, validateEntitiesSearch } from "@/routes/EntitiesRoute";
 import { InboxRoute } from "@/routes/InboxRoute";
 import { LevelsRoute } from "@/routes/LevelsRoute";
@@ -18,6 +20,7 @@ import { NerExclusionsRoute } from "@/routes/NerExclusionsRoute";
 import { NewDescriptionRoute, validateNewDescriptionSearch } from "@/routes/NewDescriptionRoute";
 import { NotFoundRoute } from "@/routes/NotFoundRoute";
 import { OriginsRoute } from "@/routes/OriginsRoute";
+import { PasswordRoute } from "@/routes/PasswordRoute";
 import { PlanRoute, validatePlanSearch } from "@/routes/PlanRoute";
 import { SettingsRoute, validateSettingsSearch } from "@/routes/SettingsRoute";
 import { SubjectExclusionsRoute, validateSubjectExclusionsSearch } from "@/routes/SubjectExclusionsRoute";
@@ -260,6 +263,33 @@ const originsRoute = createRoute({
   component: OriginsRoute,
 });
 
+/**
+ * The other half of the archive's outside: where the published collection can go.
+ *
+ * A card of `/configuracoes`, under *Operação*, and not a top-level entry: adding and configuring a
+ * channel is the installation's distribution, decided once, while the *publication* itself is the
+ * dossier's checkbox under `CURATE` (#213, ADR 0023). The path lives under the landing so the
+ * Configurações entry stays marked while the operator is here.
+ */
+const diffusionChannelsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/configuracoes/difusao",
+  component: DiffusionChannelsRoute,
+});
+
+/**
+ * Difusão: what the curator publishes, with the preview and the ledger.
+ *
+ * A top-level path beside ``/acervo`` because the decision is about the collection's exposure, not
+ * about one description; the dossier links here and the menu carries it under Acervo.
+ */
+const diffusionRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/difusao",
+  component: DiffusionRoute,
+  validateSearch: validateDiffusionSearch,
+});
+
 /*
  * The old path of the entry screen, kept as a redirect so a shared link and the guides that named it
  * do not break (#205). It is a route without a screen: the copy gate lists it in
@@ -325,6 +355,19 @@ const usersRoute = createRoute({
 });
 
 /**
+ * The account's own password, with an address.
+ *
+ * It was a content swap from the session footer: no URL, and Back did not close it. The route is
+ * reached from the account menu, and after the change the form returns to the inbox. The forced
+ * change stays in the shell — until it happens there is no screen to navigate to.
+ */
+const passwordRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/conta/senha",
+  component: PasswordRoute,
+});
+
+/**
  * What the workers are configured to be, apart from what they are doing.
  *
  * The other half of the split: `/sistema/workers` answers the machine's question (queues, pending
@@ -364,11 +407,14 @@ export const router = createRouter({
     anomaliesRoute,
     systemWorkersRoute,
     originsRoute,
+    diffusionChannelsRoute,
+  diffusionRoute,
     legacyNewDescriptionRoute,
     legacySystemRunsRoute,
     systemHealthRoute,
     settingsRoute,
     usersRoute,
+    passwordRoute,
     workerSettingsRoute,
   ]),
   defaultPreload: "intent",

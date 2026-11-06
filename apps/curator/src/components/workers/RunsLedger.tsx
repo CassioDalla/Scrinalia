@@ -56,6 +56,7 @@ const RUN_STATUSES: readonly WorkerRunStatus[] = [
 export type SystemRunsSearch = {
   worker?: string;
   origin?: string;
+  channel?: string;
   status?: WorkerRunStatus;
   fingerprint?: string;
   run?: number;
@@ -68,6 +69,7 @@ export function validateSystemRunsSearch(search: Record<string, unknown>): Syste
   return {
     worker: asString(search.worker),
     origin: asString(search.origin),
+    channel: asString(search.channel),
     status: asEnum(search.status, RUN_STATUSES),
     fingerprint: asString(search.fingerprint),
     run: run !== undefined && run > 0 ? run : undefined,
@@ -97,7 +99,15 @@ export function RunsLedger({
   const messages = useCopy();
   const offset = search.offset ?? 0;
   const page = useQuery({
-    ...queries.systemRuns(search.worker, search.status, offset, search.fingerprint, search.origin),
+    ...queries.systemRuns(
+      search.worker,
+      search.status,
+      offset,
+      search.fingerprint,
+      search.origin,
+      undefined,
+      search.channel,
+    ),
     // A queued or running entry is the only reason the ledger changes by itself.
     refetchInterval: (query) => (query.state.data?.items?.some(isActiveRun) ? 5_000 : false),
   });
@@ -116,6 +126,15 @@ export function RunsLedger({
   // a run of `ingestion` says *which* origin it processed instead of only its worker name.
   const origins = useQuery({
     ...queries.ingestionOrigins(),
+    staleTime: 5 * 60_000,
+    refetchInterval: false,
+  });
+
+  // The channel vocabulary is the diffusion screen's read, for the same reason: a run of
+  // `diffusion` names the channel it wrote. The picker lists the configured ones; a channel whose
+  // definition left the registry stays reachable through the URL, which is what the badge shows.
+  const channels = useQuery({
+    ...queries.diffusionChannels(),
     staleTime: 5 * 60_000,
     refetchInterval: false,
   });
@@ -171,6 +190,21 @@ export function RunsLedger({
           </Select>
 
           <Select
+            className="max-w-56"
+            value={search.channel ?? ""}
+            onChange={(event) => patch({ channel: event.target.value || undefined })}
+          >
+            <option value="">{messages.pages.runs.allChannels}</option>
+            {(channels.data?.channels ?? [])
+              .filter((channel) => channel.configured)
+              .map((channel) => (
+                <option key={channel.code} value={channel.code}>
+                  {channel.label}
+                </option>
+              ))}
+          </Select>
+
+          <Select
             className="max-w-48"
             value={search.status ?? ""}
             onChange={(event) => patch({ status: (event.target.value || undefined) as WorkerRunStatus | undefined })}
@@ -183,12 +217,18 @@ export function RunsLedger({
             ))}
           </Select>
 
-          {search.worker || search.origin || search.status || search.fingerprint ? (
+          {search.worker || search.origin || search.channel || search.status || search.fingerprint ? (
             <Button
               size="sm"
               variant="ghost"
               onClick={() =>
-                patch({ worker: undefined, origin: undefined, status: undefined, fingerprint: undefined })
+                patch({
+                  worker: undefined,
+                  origin: undefined,
+                  channel: undefined,
+                  status: undefined,
+                  fingerprint: undefined,
+                })
               }
             >
               {messages.pages.runs.clearFilters}
@@ -241,6 +281,9 @@ export function RunsLedger({
                       <span className="font-mono text-[11px] text-(--color-muted)">{run.worker_name}</span>
                       {run.origin_code ? (
                         <Badge tone="accent">{fill(messages.pages.runs.originBadge, { code: run.origin_code })}</Badge>
+                      ) : null}
+                      {run.channel_code ? (
+                        <Badge tone="accent">{fill(messages.pages.runs.channelBadge, { code: run.channel_code })}</Badge>
                       ) : null}
                       {run.trial ? (
                         <Badge tone="accent" title={messages.pages.runs.trialBadgeTitle}>

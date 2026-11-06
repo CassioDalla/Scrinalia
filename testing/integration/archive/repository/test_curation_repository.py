@@ -22,7 +22,7 @@ def test_an_empty_collection_reports_every_queue_at_zero(db_session) -> None:
     """
     counts = CurationRepository(db_session).count_pending()
 
-    assert set(counts) == {key for key, *_ in QUEUE_CATALOGUE}
+    assert set(counts) == set(QUEUE_CATALOGUE)
     assert set(counts.values()) == {0}
 
 
@@ -163,12 +163,12 @@ def test_only_the_human_queue_of_a_conflict_is_counted(db_session) -> None:
     assert CurationRepository(db_session).count_queue(AnomalyType.CROSS_DOMAIN_COLLISION) == 1
 
 
-def test_the_inbox_serialises_every_queue_with_a_key_and_a_route(db_session) -> None:
-    """The contract the front consumes: a key, a number and where to go; the copy is the SPA's."""
+def test_the_inbox_serialises_every_queue_with_a_key_and_a_count(db_session) -> None:
+    """The contract the front consumes: a key and a number; the copy and the route are the SPA's."""
     from scrinalia.domains.archive.services.curation_service import CurationService
 
     inbox = CurationService(CurationRepository(db_session)).inbox()
 
     assert len(inbox.queues) == len(QUEUE_CATALOGUE)
-    assert all(queue.key and queue.route.startswith("/") for queue in inbox.queues)
+    assert all(queue.key for queue in inbox.queues)
     assert inbox.generated_at is not None

@@ -16,6 +16,7 @@ from sqlalchemy.engine import Connection, Dialect, Engine
 from sqlalchemy.orm import Session
 
 from scrinalia.api.dependencies import provide_login_rate_limiter
+from scrinalia.api.public_rate_limit import reset_public_rate_limiter
 from scrinalia.asgi import create_app
 from scrinalia.core.base import Base
 from scrinalia.core.config import get_settings
@@ -31,6 +32,12 @@ from scrinalia.domains.archive.models import (
 )
 from scrinalia.domains.archive.schemas import ArchiveEntityDTO
 from scrinalia.domains.archive.schemas.document_schema import ArchiveDocumentDTO
+from scrinalia.domains.diffusion.coverage import (
+    CREATE_COVERAGE_VIEW_SQL,
+    CREATE_EXCLUSIONS_VIEW_SQL,
+    DROP_COVERAGE_VIEW_SQL,
+    DROP_EXCLUSIONS_VIEW_SQL,
+)
 from scrinalia.domains.identity.domain.credentials import _decoy_hash, _hasher, hash_password, normalize_email
 from scrinalia.domains.identity.domain.permissions import Role
 from scrinalia.domains.identity.models import AuthUser
@@ -38,6 +45,7 @@ from scrinalia.domains.identity.repository import SessionRepository, UserReposit
 from scrinalia.domains.identity.repository.login_attempt_repo import LoginAttemptRecorder
 from scrinalia.domains.identity.services import AuthService
 from scrinalia.domains.ingestion import models as ingest_model
+from scrinalia.metadata import load_all_models
 from testing.reference_vocabulary import ARRANGEMENT_TERMS, COLLECTION_TERMS
 
 # Dynamically discover the absolute path of the 'tests' folder
@@ -216,13 +224,30 @@ def engine():
         conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
         _create_migration_owned_enum_types(conn)
 
+    # ``load_all_models`` is the one definition of the model packages; calling it before
+    # ``create_all`` keeps a new domain's table in the test schema without a side-effect import
+    # in this module.
+    load_all_models()
+
     # Creates all tables based on your Models
     Base.metadata.create_all(bind=engine)
+
+    # ``create_all`` does not create views, and the two views are *the* definition of what a channel
+    # exposes (ADR 0023). The statements are the current constants, and the unit test pins the last
+    # migration to them, so the suite cannot pass against a predicate production does not have.
+    with engine.begin() as conn:
+        conn.execute(text(CREATE_EXCLUSIONS_VIEW_SQL))
+        conn.execute(text(CREATE_COVERAGE_VIEW_SQL))
 
     yield engine
 
     # At the end of all tests, drop the tables — and the types `drop_all` does not own, so the
     # migrations CI applies to this same database afterwards meet the clean schema they expect.
+    # The views go first: ``DROP TABLE`` refuses while they still depend on the documents, and the
+    # coverage view depends on the exclusions view.
+    with engine.begin() as conn:
+        conn.execute(text(DROP_COVERAGE_VIEW_SQL))
+        conn.execute(text(DROP_EXCLUSIONS_VIEW_SQL))
     Base.metadata.drop_all(bind=engine)
     _drop_migration_owned_enum_types(engine)
     engine.dispose()
@@ -374,9 +399,10 @@ def api_client(api_uses_test_db, api_app) -> Generator[TestClient, None, None]:
     and a test about the open surface (the diffusion routes, the health probes, the login itself) gets
     the honest thing — a client that has not signed in.
     """
-    # The sign-in brake is process-wide by design, so a fresh window per test keeps one test's
-    # logins from counting against the next one's — and lets the rate-limit test set the ceiling.
+    # The two brakes are process-wide by design, so a fresh window per test keeps one test's
+    # requests from counting against the next one's — and lets the rate-limit tests set the ceiling.
     provide_login_rate_limiter.cache_clear()
+    reset_public_rate_limiter()
     with TestClient(app=api_app) as test_client:
         yield test_client  # type: ignore[misc]
 

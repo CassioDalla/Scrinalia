@@ -21,6 +21,10 @@ sources:
   - src/scrinalia/api/controllers/health_controller.py
   - src/scrinalia/api/controllers/setup_controller.py
   - src/scrinalia/api/spa.py
+  - src/scrinalia/api/security_headers.py
+  - src/scrinalia/api/public_rate_limit.py
+  - src/scrinalia/api/rate_limit.py
+  - src/scrinalia/asgi.py
   - src/scrinalia/domains/archive/workers/runner_daemon.py
   - src/scrinalia/domains/identity/cli.py
   - src/scrinalia/domains/ingestion/sources.py
@@ -32,6 +36,7 @@ sources:
   - docs/adr/0009-authentication-and-authorization.md
   - docs/adr/0014-the-workers-leave-the-api.md
   - docs/adr/0011-first-run-setup-without-an-open-door.md
+  - docs/adr/0025-the-security-policy-lives-in-the-application.md
 ---
 
 # Installing and deploying
@@ -284,7 +289,9 @@ After the migration, a fresh installation has **no configured source**: `ingesti
 
 The API is then at `http://localhost:8000/`, the UI at the same address and the OpenAPI document at
 `/schema/swagger`. `--reload` belongs to development (`bun run api:dev`), not to an installation.
-Before exposing the instance, set `AUTH_COOKIE_SECURE` — see [HTTPS](#https).
+Before exposing the instance, set `AUTH_COOKIE_SECURE` — see [HTTPS](#https) — and
+`SECURITY_HSTS_SECONDS` if every visitor reaches it over HTTPS — see
+[Security headers and the public surface](#security-headers-and-the-public-surface).
 
 ## Environment variables
 
@@ -327,6 +334,9 @@ every command and by the row on the ingestion screen; there is no default origin
 | `AUTH_LOGIN_RATE_MAX` | `20` | sign-in attempts allowed per client address in the window; a process-local brake, not the durable defence |
 | `AUTH_LOGIN_RATE_WINDOW_SECONDS` | `300` | the window those attempts are counted over |
 | `AUTH_TRUSTED_ORIGINS` | empty | extra origins accepted on a mutating request, comma-separated; needed when a reverse proxy rewrites `Host` |
+| `PUBLIC_RATE_LIMIT_MAX` | `120` | requests one client address may make to `/api/v1/public/*` in the window; a process-local brake, multiplied by `uvicorn --workers` |
+| `PUBLIC_RATE_LIMIT_WINDOW_SECONDS` | `60` | the window those requests are counted over |
+| `SECURITY_HSTS_SECONDS` | `0` | `Strict-Transport-Security: max-age=…` on every response; `0` disables it, which is the right default for a plain-HTTP installation |
 | `LOG_DIR` | `logs` | directory of the loguru sinks (`critical.log`, `ui_stream.jsonl`); created if missing |
 | `LOG_LEVEL` | `INFO` | console and structured-stream level |
 | `DEBUG` | `false` | reports the debug flag on the system diagnostic; it is shown, not used to switch logging |
@@ -414,6 +424,52 @@ is listed there, comma-separated. Reads are never checked, and a request with no
 CLI) is accepted. Because the API serves the UI from its own origin there is no CORS configuration
 to write; forward the original `Host` through the proxy, or declare the public origin here.
 
+## Security headers and the public surface
+
+The application sends the header set itself, on every response (ADR 0025). The reverse proxy
+terminates TLS and **must not duplicate** the set: two CSPs or two `X-Frame-Options` are combined by
+the browser, and a page that breaks then has no single configuration to look at.
+
+| Header | What it says |
+| --- | --- |
+| `Content-Security-Policy` | only this origin: `script-src 'self'` (the built SPA is one external module script), `style-src 'self' 'unsafe-inline'` (six screens compute a `style` attribute), `frame-ancestors 'none'` |
+| `X-Content-Type-Options` | `nosniff`, on every response |
+| `Referrer-Policy` | `no-referrer` |
+| `X-Frame-Options` | `DENY`, for browsers that predate `frame-ancestors` |
+| `Strict-Transport-Security` | `max-age=<SECURITY_HSTS_SECONDS>`, **only** when the setting is positive |
+
+`SECURITY_HSTS_SECONDS` is `0` by default, for the same reason `AUTH_COOKIE_SECURE` is `false`: a
+plain-HTTP installation must not claim HTTPS. Set it to `31536000` only when every visitor reaches
+the host over HTTPS. `includeSubDomains` and `preload` are never emitted — they bind names outside
+this application, and a browser keeps them after the next configuration change.
+
+The `/schema` pages are the one documented exception to the CSP: Swagger, Redoc, RapiDoc and
+Stoplight load their bundles from CDNs and then run an inline initialiser, so the policy stops at
+that prefix. They still receive the other headers. The document itself is `/schema/openapi.json`.
+
+### The public surface's brake
+
+`/api/v1/public/*` is the surface that answers without a session, and it is limited per client
+address: `PUBLIC_RATE_LIMIT_MAX` requests per `PUBLIC_RATE_LIMIT_WINDOW_SECONDS` (120 per 60 s by
+default) answer **429** with `Retry-After`, `code: PUBLIC_RATE_LIMITED` and the API's usual sentence
+in the request's language. The curator surface and `/health/*` are not counted.
+
+**This limit is per process.** It resets on restart, and `uvicorn --workers N` multiplies the
+effective ceiling by N. A deployment that needs one global or durable ceiling configures it at the
+reverse proxy; the two are complementary, not alternatives.
+
+**The counted address is the one ASGI sees.** Behind a proxy that is the proxy itself unless uvicorn
+is told to trust its forwarding header:
+
+```bash
+uvicorn main:app --host 0.0.0.0 --port 8000 \
+    --proxy-headers --forwarded-allow-ips=172.18.0.2
+```
+
+Name the proxy's address, never `*`, unless the API is unreachable except through that proxy: with
+`*`, any client can set `X-Forwarded-For` and choose its own bucket. Without the flags every visitor
+shares the proxy's window, which turns a per-address brake into a site-wide one.
+
 ## Deploying the container image
 
 The container is the alternative to the bare-metal sequence above, and it packages what the code
@@ -430,6 +486,14 @@ docker compose --profile app logs -f scheduler
 
 The `app` service is behind the `app` profile on purpose, so `docker compose up -d` — and therefore
 `bun run dev` — keeps starting the infrastructure alone.
+
+The `image` job in `.github/workflows/ci.yml` builds and checks this image **on demand**, not on
+every pull request: Actions → CI → *Run workflow*, on the branch that matters (`dev` before a
+release). The build takes minutes and installs the whole Python and spaCy environment, so it runs
+when someone asks for it. It runs `create_app()` inside the image, checks that the SPA build, the
+Alembic configuration and the migration revisions are present, and resolves the file above with
+`docker compose -f docker-compose.yml config -q`. Run it before a release: a `Dockerfile` that
+stopped building fails there, not at the next installer's `docker compose up`.
 
 The profile also carries a `runner` service and a `scheduler` service: the same image, no published
 port, the worker module as the runner's entrypoint and the scheduler module as the scheduler's. It is the CPU shape of a single-host installation; a GPU host runs the image on that
@@ -509,6 +573,16 @@ in a read.
 
 What lives there today is the `thumbnail` worker's JPEGs, under `thumbnails/`. The database stores
 the resulting `s3://bucket/key` reference in `storage_thumbnail_uri`.
+
+Storage is optional for everything except the miniature. An installation with none of the four
+settings starts and serves every screen; the read view advertises no `thumbnail_url` (it is `null`
+even for a row that carries a `storage_thumbnail_uri`, as a database copied from an installation
+that had storage does), so the collection and the dossier draw the "sem imagem" placeholder and the
+browser issues no thumbnail request. `GET /api/v1/documents/{id}/thumbnail` answers **404** for
+such an installation — a request that arrives is a stale link, and the API does not read the bucket,
+build a client or log a stack trace per image. The health panel reports `storage.configured = false`
+and names the settings that are missing. The CSV import, the manual entry and every worker that does
+not touch the bucket run the same.
 
 ## Backup and restore
 
@@ -605,12 +679,15 @@ resolves to `gemma_4b_local` with the reason on the screen instead of taking the
 
 ### The bucket does not answer
 
-The panel distinguishes the two cases: `storage.configured = false` means endpoint, bucket or
-credentials are missing, and `configured = true, ok = false` means the configuration is there and
-`HEAD` on the bucket failed. The `thumbnail` worker is the only consumer of the bucket, so the rest
-of the pipeline continues. Bring the bucket up **before** running that worker: a document whose
-upload raises is stamped `thumbnail_failed`, a permanent-failure mark the queue honours, so a
-transient storage outage during a run leaves those documents excluded from every later run. Correct
+The panel distinguishes the two cases. `storage.configured = false` means endpoint, bucket or
+credentials are missing: the installation has no thumbnails at all, so the screens show the
+placeholder without asking for an image and the missing settings are named in the detail.
+`configured = true, ok = false` means the configuration is there and `HEAD` on the bucket failed:
+the screens keep their URLs, the image request reaches the API and the answer is a 503 the screen
+draws as "indisponível". The `thumbnail` worker is the only consumer of the bucket, so the rest of
+the pipeline continues. Bring the bucket up **before** running that worker: a document whose upload
+raises is stamped `thumbnail_failed`, a permanent-failure mark the queue honours, so a transient
+storage outage during a run leaves those documents excluded from every later run. Correct
 `S3_ENDPOINT_URL`/`S3_BUCKET_NAME`/`S3_ACCESS_KEY`/`S3_SECRET_KEY`, confirm the bucket exists, and
 check reachability from the process doing the upload — inside a container, `localhost` is the
 container.
