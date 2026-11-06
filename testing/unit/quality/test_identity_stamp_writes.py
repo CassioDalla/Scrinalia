@@ -212,15 +212,19 @@ def _forbidden_writes(tree: ast.AST) -> list[tuple[int, str]]:
                 literal = _invalid_constant(stamp_name, node.value, constants)
                 if literal is not None:
                     findings.append((node.lineno, f"execution_log[{stamp_name}.key] = {literal!r} bypasses mark_value"))
-        elif isinstance(node, ast.AugAssign) and isinstance(node.op, ast.BitOr) and isinstance(node.value, ast.Dict):
-            if _is_execution_log(node.target):
-                for line, dict_stamp, literal in _bad_dict_entries(node.value, aliases, constants):
-                    findings.append(
-                        (
-                            line,
-                            f"execution_log |= {{..., {dict_stamp}.key: {literal!r}}} bypasses mark_value",
-                        )
+        elif (
+            isinstance(node, ast.AugAssign)
+            and isinstance(node.op, ast.BitOr)
+            and isinstance(node.value, ast.Dict)
+            and _is_execution_log(node.target)
+        ):
+            for line, dict_stamp, literal in _bad_dict_entries(node.value, aliases, constants):
+                findings.append(
+                    (
+                        line,
+                        f"execution_log |= {{..., {dict_stamp}.key: {literal!r}}} bypasses mark_value",
                     )
+                )
 
     return sorted(findings)
 
