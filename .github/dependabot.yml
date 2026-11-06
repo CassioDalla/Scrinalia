@@ -1,18 +1,17 @@
-# Dependabot: the update PRs, and what is deliberately not listed.
+# Dependabot: the update PRs, and what each ecosystem covers.
 #
-# Two ecosystems are configured. The third — the SPA's `bun.lock` — is **not**, and that is a
-# decision rather than an oversight: an `npm` entry would open pull requests that change
-# `package.json` without touching `bun.lock`, and CI installs with `--frozen-lockfile`, so every one
-# of them would fail. The front needs an updater that reads `bun.lock` (Renovate does; Dependabot's
-# support for it is still partial) — a gap that is still open.
+# Three ecosystems are configured. The third — the SPA's `bun.lock` — is the `bun` entry: Dependabot
+# supports the text lockfile (Bun >= 1.1.39) for version updates against `dev`, so a version PR
+# carries `package.json` and `bun.lock` together — the thing an `npm` entry could not do, and what
+# `--frozen-lockfile` in CI requires. It does **not** offer security updates for Bun, so an advisory
+# in the front-end lock reaches the project through the `Dependency advisories` job in `ci.yml`.
 version: 2
 
 updates:
-  # Both ecosystems carry `target-branch: dev`, because `dev` is the integration branch and `main`
+  # The ecosystems carry `target-branch: dev`, because `dev` is the integration branch and `main`
   # only moves at a release. With the version updates arriving on `main`, `dev` stops being "the next
-  # release" and has to be fast-forwarded — measured: it fell behind and needed one. The option is
-  # version-updates only, and security updates always use the default branch, so an urgent fix is not
-  # delayed by the cycle.
+  # release" and has to be fast-forwarded — measured: it fell behind and needed one. `target-branch`
+  # is a version-updates option: security updates use the default branch, and Bun has none at all.
   #
   # The actions pinned by SHA in `.github/workflows/` never update themselves: pinning is what makes
   # a compromised tag unable to run, and Dependabot is what makes the pins move forward instead of
@@ -48,5 +47,21 @@ updates:
       prefix: "chore(deps)"
     groups:
       python:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+
+  # The SPA's lock. One entry at the root, because `apps/*` is a workspace of the single `bun.lock`
+  # Dependabot reads here. The group stays minor and patch for the same reason as Python — a major
+  # deserves its own PR.
+  - package-ecosystem: "bun"
+    directory: "/"
+    target-branch: "dev"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(deps)"
+    groups:
+      frontend:
         patterns: ["*"]
         update-types: ["minor", "patch"]
