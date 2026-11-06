@@ -65,3 +65,14 @@ updates:
       frontend:
         patterns: ["*"]
         update-types: ["minor", "patch"]
+    # TypeScript 7 is the native port and it does not ship the compiler API: importing
+    # `typescript` resolves to `lib/version.cjs`, so `ts.factory` and `ts.SyntaxKind` are gone.
+    # typescript-eslint 8 refuses 7.0 at load time — support is tracked for the new 7.1 API — and
+    # openapi-typescript 7.13 declares `typescript ^5.x`. Measured on #294: the bump broke codegen
+    # (`ts.factory` undefined), lint (the typescript-eslint guard) and `tsc` (`baseUrl` removed); the
+    # SPA's own sources did type-check under 7 once `paths` stopped depending on `baseUrl`. The major
+    # stays out until the tools import the 7.1 API; then delete this rule and let the bot open the PR
+    # again.
+    ignore:
+      - dependency-name: "typescript"
+        versions: [">=7.0.0"]
