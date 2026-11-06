@@ -1207,6 +1207,7 @@ export const en: typeof pt = {
     expandMenu: "Expand the menu",
     collapseMenu: "Collapse the menu",
     mainMenu: "Main menu",
+    account: "Account",
     changePassword: "Change password",
     close: "Close",
     signOut: "Sign out",
@@ -1404,6 +1405,10 @@ export const en: typeof pt = {
     users: {
       label: "Users",
       hint: "Accounts, roles and sessions",
+    },
+    password: {
+      label: "Change password",
+      hint: "Update the account password",
     },
     dossier: {
       label: "Description",

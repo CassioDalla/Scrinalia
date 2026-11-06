@@ -3302,3 +3302,22 @@ with short or full shas, and part of a `## <date> — <title>` entry.
 - **Not verified:** the public site (#46) does not exist yet, so the CSP was exercised against the
   curator SPA only; HSTS was exercised by the tests, not by a browser over HTTPS; and the proxy's
   forwarded-header configuration is documented, not run against a real proxy.
+
+## 2026-11-06 — the session footer's account menu (#262)
+
+- **Range:** `3b74cbd..8f667dd`
+- **Pages:**
+  - `guides/curate.md` — **updated**: the account popover holds the email, **Trocar senha** and the
+    language; the collapsed rail keeps the avatar as the trigger and one sign-out icon; the voluntary
+    password change is the `/conta/senha` screen; the router count is corrected to the measured 31.
+  - `guides/curate.pt.md` — **updated**: the same text in the operator's Portuguese.
+  - `guides/install.md` — **no-change**: the page already names the account menu as the place where
+    the interface language is chosen, and no setting, install step or deployment surface moved.
+  - `guides/install.pt.md` — **no-change**: the Portuguese page says the same and is still true.
+- **Rendered:** the expanded and collapsed rail with the account popover open in `pt-BR` and `en`,
+  and `/conta/senha`, with the headless shell at 1280×900 against the built SPA and a throwaway mock
+  API. The language switch was exercised through the select in the browser; the `PATCH /auth/me` body
+  is pinned by `apps/curator/tests/sessionFooter.test.tsx`.
+- **Not verified:** a real API session and the password write itself. The render server answered
+  `/setup/status` and `/auth/me` and was removed afterwards; the form's submit is exercised only by
+  the existing `PasswordChangeForm`, not by this change's tests.

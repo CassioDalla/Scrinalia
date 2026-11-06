@@ -20,6 +20,7 @@ import { NerExclusionsRoute } from "@/routes/NerExclusionsRoute";
 import { NewDescriptionRoute, validateNewDescriptionSearch } from "@/routes/NewDescriptionRoute";
 import { NotFoundRoute } from "@/routes/NotFoundRoute";
 import { OriginsRoute } from "@/routes/OriginsRoute";
+import { PasswordRoute } from "@/routes/PasswordRoute";
 import { PlanRoute, validatePlanSearch } from "@/routes/PlanRoute";
 import { SettingsRoute, validateSettingsSearch } from "@/routes/SettingsRoute";
 import { SubjectExclusionsRoute, validateSubjectExclusionsSearch } from "@/routes/SubjectExclusionsRoute";
@@ -354,6 +355,19 @@ const usersRoute = createRoute({
 });
 
 /**
+ * The account's own password, with an address.
+ *
+ * It was a content swap from the session footer: no URL, and Back did not close it. The route is
+ * reached from the account menu, and after the change the form returns to the inbox. The forced
+ * change stays in the shell — until it happens there is no screen to navigate to.
+ */
+const passwordRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/conta/senha",
+  component: PasswordRoute,
+});
+
+/**
  * What the workers are configured to be, apart from what they are doing.
  *
  * The other half of the split: `/sistema/workers` answers the machine's question (queues, pending
@@ -400,6 +414,7 @@ export const router = createRouter({
     systemHealthRoute,
     settingsRoute,
     usersRoute,
+    passwordRoute,
     workerSettingsRoute,
   ]),
   defaultPreload: "intent",
