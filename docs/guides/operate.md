@@ -488,12 +488,14 @@ tombstone, so a consumer that misses a run compares two snapshots. A rerun over 
 computes the same `snapshot_id` and writes **nothing** — the run succeeds without a new directory, and
 the manifests differ only in `generated_at` while the data files carry no timestamp at all.
 
-Nothing on this page publishes. `is_published` is the record's permission to leave, edited on the
-dossier under `CURATE`; the channel is where it goes, and the two are independent. The public site's
-identity — title, description, institution, contact, logo, locale, public address and indexing — is
-what the application reads before its first document query: `GET /api/v1/public/site` answers **404**
-until the channel exists and is enabled, so a missing row and a pause are the same fact to a visitor.
-Enabling the channel does not install the public application (#46).
+Nothing on this page publishes. `is_published` is derived from the channel coverage: a record is
+published when a channel's scope covers it, and the coverage is a read
+(`archive_document_channels`), not a checkbox on the dossier; the channel is where it goes, and the
+two answers are independent. The public site's identity — title, description, institution, contact,
+logo, locale, public address and indexing — is what the application reads before its first document
+query: `GET /api/v1/public/site` answers **404** until the channel exists and is enabled, so a
+missing row and a pause are the same fact to a visitor. Enabling the channel does not install the
+public application (#46).
 
 ### The manual entry
 
@@ -1109,7 +1111,7 @@ UNION ALL SELECT 'typology_v2', count(*)::text FROM archive_documents WHERE exec
 UNION ALL SELECT 'macro_v1 (tags)', count(*)::text FROM archive_tags WHERE execution_log ? 'worker_macro_category_v1'
 UNION ALL SELECT 'embedding_v1', count(*)::text FROM archive_documents WHERE execution_log ? 'worker_embedding_v1'
 UNION ALL SELECT 'quality_validator_v1', count(*)::text FROM archive_documents WHERE execution_log ? 'worker_quality_validator_v1'
-UNION ALL SELECT 'publicados', count(*)::text FROM archive_documents WHERE is_published
+UNION ALL SELECT 'publicados', count(DISTINCT description_id)::text FROM archive_document_channels
 UNION ALL SELECT 'revisões humanas', count(*)::text FROM archive_document_revisions;"
 ```
 
