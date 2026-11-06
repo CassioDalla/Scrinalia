@@ -49,9 +49,10 @@ armadilhas de arquitetura estão no
 ## Decisões e situação
 
 As [decisões de arquitetura](adr/index.md) explicam por que o sistema é como é, incluindo as
-alternativas que foram medidas e descartadas. **O Scrinalia está na 1.7**: o pipeline, os workers de
-IA, a governança da revisão, a autenticação e a superfície de curadoria estão completos, e a
-superfície de difusão pública existe sem site na frente dela ainda. As
+alternativas que foram medidas e descartadas. **O Scrinalia está na 1.8**: o pipeline, os workers de
+IA, a governança da revisão, a autenticação e a superfície de curadoria estão completos, e a difusão
+pública é um registro de canais — o site público embutido e o conjunto de dados aberto — com o
+aplicativo do site ainda à frente. As
 [issues abertas](https://github.com/CassioDalla/Scrinalia/issues) carregam o trabalho que falta, os
 limites aceitos de propósito estão no
 [guia de operação](guides/operate.md#limites-conhecidos-e-trade-offs-aceitos), e o
