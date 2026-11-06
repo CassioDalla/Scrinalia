@@ -62,10 +62,8 @@ jobs:
     name: Dependency advisories
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    # Non-blocking on purpose, for now: the lock can carry advisories the project has not triaged, and
-    # a job that is red on day one only teaches people to ignore it. Promote it to blocking once the
-    # list is clean.
-    continue-on-error: true
+    # Blocking since #261: an advisory is either fixed by a floor in the lock or recorded beside the
+    # job with a date and a reason, so a new one fails the pull request instead of being ignored.
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

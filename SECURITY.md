@@ -38,6 +38,14 @@ This is a small project maintained on a best-effort basis, with no security team
   to stay anonymous) once a release contains it. If you plan to publish your own write-up, tell us
   and we will agree on a date.
 
+## Dependency advisories
+
+Dependencies are part of the attack surface, so the `Dependency advisories` job in
+`.github/workflows/ci.yml` is the dependency gate. It runs `pip-audit` over the exported runtime lock
+and `bun audit` over `bun.lock`, and a failing run blocks the pull request. A finding is either
+fixed by raising the floor in `pyproject.toml` or `package.json`, or recorded beside the job with the
+date and the reason it was accepted; a new advisory still fails the run.
+
 ## Supported versions
 
 There is no long-term-support line yet. Security fixes land on `main` and in the **latest release**;
