@@ -177,6 +177,10 @@ const screens: Record<ScreenId, ScreenCopy> = {
       label: "Usuários",
       hint: "Contas, papéis e sessões",
     },
+    password: {
+      label: "Trocar senha",
+      hint: "Atualizar a senha da conta",
+    },
     dossier: {
       label: "Descrição",
       hint: "O dossiê de uma descrição",
@@ -1383,6 +1387,7 @@ export const pt = {
     expandMenu: "Expandir o menu",
     collapseMenu: "Recolher o menu",
     mainMenu: "Menu principal",
+    account: "Conta",
     changePassword: "Trocar senha",
     close: "Fechar",
     signOut: "Sair",

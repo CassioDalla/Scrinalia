@@ -12,16 +12,22 @@ import { useCopy } from "@/i18n/context";
  * Two situations, one form, and the difference is ``forced``: the CLI creates the first administrator
  * with a password it printed to a terminal, and that password must not become the account's permanent
  * one — so the shell shows this **instead of** the screens until it is replaced. The other way in is
- * voluntary, from the sidebar, which is what somebody does when they suspect the old password is known.
+ * voluntary, from the account menu, on its own route (``/conta/senha``), which is what somebody does
+ * when they suspect the old password is known.
+ *
+ * ``showTitle`` is false on that route: the page's heading already says "Trocar senha", and the form
+ * repeats it only when it stands alone — the forced screen, which has no ``PageHeader``.
  *
  * The API ends every *other* session when the password changes and keeps this one, so nobody is
  * logged out of the screen they are standing on.
  */
 export function PasswordChangeForm({
   forced = false,
+  showTitle = true,
   onDone,
 }: {
   forced?: boolean;
+  showTitle?: boolean;
   onDone?: () => void;
 }) {
   const copy = useCopy();
@@ -51,7 +57,7 @@ export function PasswordChangeForm({
           change.mutate();
         }}
       >
-        <p className="text-base font-semibold">{copy.auth.password.title}</p>
+        {showTitle ? <p className="text-base font-semibold">{copy.auth.password.title}</p> : null}
         <p className="pb-5 text-sm text-(--color-muted)">
           {forced ? copy.auth.password.forced : copy.auth.password.voluntary}
         </p>

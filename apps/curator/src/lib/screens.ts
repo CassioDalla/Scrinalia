@@ -54,6 +54,7 @@ export type ScreenId =
   | "health"
   | "settings"
   | "users"
+  | "password"
   | "dossier";
 
 export type Screen = {
@@ -93,5 +94,6 @@ export const SCREENS = {
   health: { path: "/sistema/diagnostico" },
   settings: { path: "/configuracoes" },
   users: { path: "/configuracoes/usuarios" },
+  password: { path: "/conta/senha" },
   dossier: { path: "/acervo/$descriptionId", dynamicTitle: true },
 } as const satisfies Record<ScreenId, Screen>;

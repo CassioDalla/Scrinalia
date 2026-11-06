@@ -7,6 +7,7 @@ sources:
   - apps/curator/src/components/workers/**
   - apps/curator/src/components/layout/LoginForm.tsx
   - apps/curator/src/components/layout/PasswordChangeForm.tsx
+  - apps/curator/src/components/layout/SessionFooter.tsx
   - apps/curator/src/routes/**
   - apps/curator/src/lib/permissions.ts
   - apps/curator/src/lib/screens.ts
@@ -42,11 +43,11 @@ the client generated from the OpenAPI contract. The screens are declared in
 and the page's own heading all read, so the three cannot disagree (*One name per screen, one verb per
 action*, below). The menu has **17 entries**: the screens nobody opens in the middle of cataloguing —
 the arrangement plan, the catalogues, the worker panel, the run ledger, the diagnostics and the
-accounts — are cards of `/configuracoes` rather than menu entries (*Configurações*, below). One route
-is not reached from the menu either: the description's own dossier, `/acervo/$descriptionId`, comes
-from the list and from the tree. The router therefore declares **27 screens**. The menu itself can be
-collapsed to icons, which is a presentation choice and not a permission one — *The menu collapses to
-icons*, below.
+accounts — are cards of `/configuracoes` rather than menu entries (*Configurações*, below). Two routes
+are not reached from the menu either: the description's own dossier, `/acervo/$descriptionId`, comes
+from the list and from the tree, and the voluntary password change, `/conta/senha`, comes from the
+account menu. The router therefore declares **31 screens**. The menu itself can be collapsed to icons,
+which is a presentation choice and not a permission one — *The menu collapses to icons*, below.
 
 Two cross-cutting pages are worth reading with this one: [Data model](data-model.md) for what the
 ledgers and the tables mean, and [Installation and deployment](install.md) for the schema, the
@@ -228,11 +229,18 @@ which clears the flag). The refusal does not depend on the screen: a script hold
 was printed to a terminal, or typed by an administrator, gets the same sentence and no access to the
 collection. The change opens the rest of the API in the same session.
 
+The voluntary change is its own screen, `/conta/senha`, reached from **Trocar senha** in the account
+popover. The route gives the screen an address and makes Back the ordinary way out; the account menu
+closes when the action is chosen. The API keeps the session that changed the password and ends the
+others, and the screen returns to the inbox when the change succeeds. The forced change above is not a
+route: until the temporary password is replaced, there is no screen to return to.
+
 ### The interface speaks two languages
 
 The curatorial interface is written in Portuguese and English, and the choice belongs to the
 **account**, not to the installation: *Automático*, *Português* and *English* sit in the account
-footer of the menu. A fresh account starts on *Automático*, which is stored as "no choice" and
+popover, opened from the footer of the menu. The current value is shown as text and the three choices
+stay one click away. A fresh account starts on *Automático*, which is stored as "no choice" and
 follows the browser — `pt*` opens in Portuguese, `en*` in English, anything else in Portuguese, the
 installation's language. After sign-in the account's choice wins, because a shared workstation must
 not hand one archivist the previous one's language.
@@ -354,7 +362,8 @@ Collapsed, every entry keeps its icon; the label stays the link's accessible nam
 carries label and hint, so the hint is hidden and never truncated. The active entry keeps the accent
 colour, the group headings become hairlines, and the accordion is off — a heading with no label in a
 64px column is a click that says nothing — so all sixteen entries show at once. The session footer
-folds into the account's initial plus two icon buttons.
+folds into the account's initial and the sign-out icon: the avatar is the trigger and opens the same
+account popover, where the email, the password and the language live.
 
 The wordmark leaves the menu but not the page: the attribution renders at the foot of **every**
 screen (`AttributionFooter`, ADR 0006), including the three that come before a session — the first-run

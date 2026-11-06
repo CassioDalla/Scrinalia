@@ -15,10 +15,11 @@ o cartão de configurações e o título da própria página leem, então os tr�
 (*Um nome por tela, um verbo por ação*, abaixo). O menu tem **17 entradas**: as telas que ninguém
 abre no meio da catalogação — o plano de arranjo, os catálogos, o painel de workers, o ledger de
 execuções, os diagnósticos e as contas — são cartões de `/configuracoes`, não itens de menu
-(*Configurações*, abaixo). Uma rota também não vem do menu: a ficha da descrição,
-`/acervo/$descriptionId`, é alcançada pela lista e pela árvore. O roteador, por isso, declara **26
-telas**. O próprio menu pode ser recolhido a ícones, o que é uma escolha de apresentação e não de
-permissão — *O menu se recolhe a ícones*, abaixo.
+(*Configurações*, abaixo). Duas rotas também não vêm do menu: a ficha da descrição,
+`/acervo/$descriptionId`, é alcançada pela lista e pela árvore, e a troca de senha voluntária,
+`/conta/senha`, vem do menu da conta. O roteador, por isso, declara **31 telas**. O próprio menu pode
+ser recolhido a ícones, o que é uma escolha de apresentação e não de permissão — *O menu se recolhe a
+ícones*, abaixo.
 
 Vale ler duas páginas junto com esta: [Modelo de dados](data-model.md) para o que os ledgers e as
 tabelas significam, e [Instalação e implantação](install.md) para o esquema, as contas e a
@@ -200,14 +201,20 @@ depende da tela: um script com a senha que foi impressa num terminal, ou digitad
 administrador, recebe a mesma frase e nenhum acesso ao acervo. A troca abre o resto da API na mesma
 sessão.
 
+A troca voluntária tem tela própria, `/conta/senha`, alcançada por **Trocar senha** no menu da
+conta. A rota dá endereço à tela e faz do Back a saída comum; o menu da conta fecha quando a ação é
+escolhida. A API mantém a sessão que trocou a senha e encerra as outras, e a tela volta para o Início
+quando a escrita termina. A troca forçada acima não é rota: até a senha temporária ser substituída,
+não há tela para onde voltar.
+
 ### A interface fala duas línguas
 
 A interface de curadoria é escrita em português e inglês, e a escolha é da **conta**, não da
-instalação: *Automático*, *Português* e *English* ficam no rodapé da conta, no menu. Uma conta nova
-começa em *Automático*, que é guardado como "nenhuma escolha" e segue o navegador — `pt*` abre em
-português, `en*` em inglês e todo o resto em português, a língua da instalação. Depois de entrar, a
-escolha da conta vence: uma estação compartilhada não pode entregar a um arquivista a língua do
-anterior.
+instalação: *Automático*, *Português* e *English* ficam no menu da conta, aberto pelo rodapé do menu.
+O valor atual aparece como texto e as três escolhas ficam a um clique. Uma conta nova começa em
+*Automático*, que é guardado como "nenhuma escolha" e segue o navegador — `pt*` abre em português,
+`en*` em inglês e todo o resto em português, a língua da instalação. Depois de entrar, a escolha da
+conta vence: uma estação compartilhada não pode entregar a um arquivista a língua do anterior.
 
 A língua não é uma preferência de cliente pintada sobre um servidor em português: toda requisição
 leva `Accept-Language`, e a API compõe a sua `message` — a confirmação de uma escrita e a recusa de
@@ -327,7 +334,8 @@ Recolhido, cada entrada mantém o ícone; o rótulo continua sendo o nome acess�
 carrega rótulo e dica, de modo que a dica fica escondida e nunca cortada. A entrada ativa mantém a cor
 de destaque, os títulos de grupo viram filetes e o acordeão fica desligado — um título sem rótulo numa
 coluna de 64px é um clique que não diz nada —, então as dezesseis entradas aparecem de uma vez. O
-rodapé de sessão vira a inicial da conta mais dois botões de ícone.
+rodapé de sessão vira a inicial da conta e o botão de sair: a inicial é o gatilho e abre o mesmo menu
+da conta, onde ficam o e-mail, a senha e o idioma.
 
 O nome da atribuição sai do menu, mas não da página: a atribuição é renderizada no pé de **toda** tela
 (`AttributionFooter`, ADR 0006), incluindo as três que vêm antes de uma sessão — a configuração inicial,
