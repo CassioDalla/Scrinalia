@@ -9373,7 +9373,8 @@
           "PASSWORD_CHANGE_REQUIRED",
           "USER_PASSWORD_RESET",
           "USER_SESSIONS_REVOKED",
-          "SESSION_REVOKED"
+          "SESSION_REVOKED",
+          "PUBLIC_RATE_LIMITED"
         ],
         "title": "RouteMessageCode",
         "type": "string"

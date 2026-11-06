@@ -186,12 +186,11 @@ class DocumentController(Controller):
         return Response(
             content=body,
             media_type=media_type,
-            headers={
-                "Cache-Control": "private, max-age=300",
-                # The worker writes JPEG, and a bucket whose metadata says otherwise must not make
-                # this origin serve a type the browser would interpret as markup.
-                "X-Content-Type-Options": "nosniff",
-            },
+            # ``X-Content-Type-Options`` is not repeated here: the security-header middleware sets
+            # it on every response, and a second definition is the one that can drift from it. The
+            # bucket's metadata must not make this origin serve a type the browser would interpret
+            # as markup, which is exactly what that global header guarantees.
+            headers={"Cache-Control": "private, max-age=300"},
         )
 
     @get("/{description_id:str}/revisions", opt={"access": Access.AUTHENTICATED}, sync_to_thread=True)

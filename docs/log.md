@@ -3275,3 +3275,30 @@ with short or full shas, and part of a `## <date> — <title>` entry.
   service, and with a real package at the service layer (`execute` then `dataset_package`); they were
   not exercised end-to-end through HTTP against a real snapshot. The download's ZIP members are
   asserted in the service test.
+
+## 2026-11-05 — the public surface's security policy (#259)
+
+- **Range:** `deb9bfb..ccafa47`
+- **Pages:**
+  - `guides/install.md` — **updated**: the three settings in the variable table, the new "Security
+    headers and the public surface" section (the header set, the HSTS opt-in and why it defaults to
+    `0`, the `/schema` exemption, the per-process brake and the proxy's forwarded-header flags) and
+    the pointer from the install sequence.
+  - `guides/install.pt.md` — **updated**: the same rows and section, in the operator's Portuguese.
+  - `adr/0025-the-security-policy-lives-in-the-application.md` — **created**: the application owns
+    the header set and the per-process brake, the proxy terminates TLS, `/schema` is the documented
+    CSP exception, and the alternatives (proxy-owned policy, nonce CSP, vendored UIs, a shared
+    limiter store) are recorded with why they lost.
+  - `adr/index.md` — **updated**: the link to 0025, and `mkdocs.yml` its nav entry.
+  - `guides/operate.md` — **no-change**: the only source that moved since the page was last touched
+    was `.github/workflows/ci.yml` (the `setup-uv` version bump), which changes no command, runner or
+    panel the page describes.
+- **Rendered:** the login screen of the built SPA served by `uvicorn main:app` under the new CSP
+  (headless shell, 1280×900), with the PT Serif wordmark and the attribution footer; the dumped DOM
+  contains the form and its text, so the module script and the linked stylesheet ran, and Chromium's
+  stderr log carried no CSP refusal. The public 429 was measured on the same server with
+  `PUBLIC_RATE_LIMIT_MAX=2`: two `200`s, then `429` with `Retry-After: 60`, `PUBLIC_RATE_LIMITED`, the
+  Portuguese sentence and `X-Request-ID`.
+- **Not verified:** the public site (#46) does not exist yet, so the CSP was exercised against the
+  curator SPA only; HSTS was exercised by the tests, not by a browser over HTTPS; and the proxy's
+  forwarded-header configuration is documented, not run against a real proxy.
