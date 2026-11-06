@@ -129,6 +129,22 @@ class Settings(BaseSettings):
     #: the public origin it is reached by. See ``origin_guard``.
     AUTH_TRUSTED_ORIGINS: str = ""
 
+    #: A per-address brake on the public diffusion surface — ``/api/v1/public/*`` — which answers
+    #: without a session. ``PUBLIC_RATE_LIMIT_MAX`` requests per
+    #: ``PUBLIC_RATE_LIMIT_WINDOW_SECONDS`` from one client address answer 429. It lives in the
+    #: process, like the sign-in brake, so it resets on restart and ``uvicorn --workers N``
+    #: multiplies the effective ceiling by N; the durable, global ceiling belongs to the reverse
+    #: proxy, and the install guide states both sides of that boundary (ADR 0025).
+    PUBLIC_RATE_LIMIT_MAX: int = 120
+    PUBLIC_RATE_LIMIT_WINDOW_SECONDS: int = 60
+
+    #: ``Strict-Transport-Security`` on every response, in seconds of ``max-age``. ``0`` disables
+    #: the header and is the default on purpose: a plain-HTTP installation on a LAN must not claim
+    #: HTTPS. A deployment reached over HTTPS sets it (31536000 is the usual year). ``includeSubDomains``
+    #: is never emitted — it would bind every sibling subdomain of the host, which is not this
+    #: application's decision to take.
+    SECURITY_HSTS_SECONDS: int = 0
+
     # Observability
     LOG_DIR: str = "logs"
     LOG_LEVEL: str = "INFO"

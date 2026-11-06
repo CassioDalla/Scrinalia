@@ -9,15 +9,17 @@ an oversight: the durable guarantee is the account lockout, which is a column an
 while this is a brake that resets with the process. A shared store (Redis) would be a new piece of
 infrastructure for a system that is meant to be installed offline by one institution, and the API is
 single-process by design (ADR 0004). The day that changes, this moves with the executor.
+
+The window itself is ``api/rate_limit.py``'s, shared with the public surface's brake: the two differ
+in what they count and in what a refusal becomes, never in how the window slides.
 """
 
 from __future__ import annotations
 
-import threading
 import time
-from collections import defaultdict, deque
 from collections.abc import Callable
 
+from scrinalia.api.rate_limit import SlidingWindowLimiter
 from scrinalia.core.config import get_settings
 from scrinalia.core.i18n import refusal
 from scrinalia.domains.identity.exceptions import TooManyLoginAttemptsError
@@ -27,9 +29,7 @@ class LoginRateLimiter:
     """A sliding window of sign-in attempts per client address. Thread-safe."""
 
     def __init__(self, clock: Callable[[], float] = time.monotonic) -> None:
-        self._clock = clock
-        self._hits: dict[str, deque[float]] = defaultdict(deque)
-        self._lock = threading.Lock()
+        self._window = SlidingWindowLimiter(clock)
 
     def check(self, address: str) -> None:
         """
@@ -40,20 +40,14 @@ class LoginRateLimiter:
         slides, so a client that waits is served again without an administrator's help.
         """
         settings = get_settings()
-        window = max(1, settings.AUTH_LOGIN_RATE_WINDOW_SECONDS)
-        ceiling = max(1, settings.AUTH_LOGIN_RATE_MAX)
-        now = self._clock()
-
-        with self._lock:
-            hits = self._hits[address]
-            cutoff = now - window
-            while hits and hits[0] <= cutoff:
-                hits.popleft()
-            if len(hits) >= ceiling:
-                raise TooManyLoginAttemptsError(refusal("auth.too_many_attempts"))
-            hits.append(now)
+        retry_after = self._window.hit(
+            address,
+            ceiling=settings.AUTH_LOGIN_RATE_MAX,
+            window_seconds=settings.AUTH_LOGIN_RATE_WINDOW_SECONDS,
+        )
+        if retry_after is not None:
+            raise TooManyLoginAttemptsError(refusal("auth.too_many_attempts"))
 
     def reset(self) -> None:
         """Forgets every window. Used by the tests, and by nothing in production."""
-        with self._lock:
-            self._hits.clear()
+        self._window.reset()

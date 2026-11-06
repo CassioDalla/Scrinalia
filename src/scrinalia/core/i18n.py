@@ -159,6 +159,11 @@ REFUSALS: dict[str, dict[Locale, str]] = {
         Locale.PT_BR: "Troque a senha temporária antes de usar o sistema.",
         Locale.EN: "Change the temporary password before using the system.",
     },
+    # --- The public surface --------------------------------------------------------------------
+    "public.rate_limited": {
+        Locale.PT_BR: "Muitas requisições deste endereço. Aguarde alguns instantes.",
+        Locale.EN: "Too many requests from this address. Wait a moment.",
+    },
     # --- The last-resort handlers ------------------------------------------------------------
     "security.integrity_error": {
         Locale.PT_BR: "Conflito estrutural no banco de dados. Operação abortada.",

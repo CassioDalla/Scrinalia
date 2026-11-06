@@ -255,7 +255,9 @@ Depois da migração, uma instalação nova tem **nenhuma origem configurada**: 
 
 A API fica em `http://localhost:8000/`, a interface no mesmo endereço e o documento OpenAPI em
 `/schema/swagger`. O `--reload` é de desenvolvimento (`bun run api:dev`), não de uma instalação.
-Antes de expor a instância, defina o `AUTH_COOKIE_SECURE` — veja [HTTPS](#https).
+Antes de expor a instância, defina o `AUTH_COOKIE_SECURE` — veja [HTTPS](#https) — e o
+`SECURITY_HSTS_SECONDS` se todo visitante a alcança por HTTPS — veja
+[Cabeçalhos de segurança e a superfície pública](#cabecalhos-de-seguranca-e-a-superficie-publica).
 
 ## Variáveis de ambiente
 
@@ -296,6 +298,9 @@ pipeline, não o boot — a origem é uma linha em `ingestion_origins` e os `PUB
 | `AUTH_LOGIN_RATE_MAX` | `20` | tentativas de acesso permitidas por endereço de cliente na janela; um freio local ao processo, não a defesa durável |
 | `AUTH_LOGIN_RATE_WINDOW_SECONDS` | `300` | a janela em que essas tentativas são contadas |
 | `AUTH_TRUSTED_ORIGINS` | vazio | origens extras aceitas em requisição de escrita, separadas por vírgula; necessárias quando um proxy reverso reescreve o `Host` |
+| `PUBLIC_RATE_LIMIT_MAX` | `120` | requisições que um endereço de cliente pode fazer a `/api/v1/public/*` na janela; um freio local ao processo, multiplicado por `uvicorn --workers` |
+| `PUBLIC_RATE_LIMIT_WINDOW_SECONDS` | `60` | a janela em que essas requisições são contadas |
+| `SECURITY_HSTS_SECONDS` | `0` | `Strict-Transport-Security: max-age=…` em toda resposta; `0` o desliga, que é o padrão certo para uma instalação em HTTP puro |
 | `LOG_DIR` | `logs` | diretório dos sinks do loguru (`critical.log`, `ui_stream.jsonl`); criado se não existir |
 | `LOG_LEVEL` | `INFO` | nível do console e do fluxo estruturado |
 | `DEBUG` | `false` | informa o sinalizador de depuração no diagnóstico do sistema; ele é exibido, não usado para trocar o log |
@@ -382,6 +387,53 @@ proxy reverso que reescreve o `Host` faz toda escrita parecer de outra origem, a
 pública esteja listada ali, separada por vírgulas. Leituras nunca são conferidas, e uma requisição
 sem `Origin` (curl, a CLI) é aceita. Como a API serve a interface da própria origem, não há CORS a
 configurar; encaminhe o `Host` original pelo proxy, ou declare a origem pública aqui.
+
+## Cabeçalhos de segurança e a superfície pública
+
+A aplicação envia o conjunto de cabeçalhos ela mesma, em toda resposta (ADR 0025). O proxy reverso
+termina o TLS e **não deve duplicar** o conjunto: dois CSPs ou dois `X-Frame-Options` são combinados
+pelo navegador, e uma página que quebra deixa de ter uma configuração única para conferir.
+
+| Cabeçalho | O que ele diz |
+| --- | --- |
+| `Content-Security-Policy` | só esta origem: `script-src 'self'` (o SPA compilado é um único script de módulo externo), `style-src 'self' 'unsafe-inline'` (seis telas calculam um atributo `style`), `frame-ancestors 'none'` |
+| `X-Content-Type-Options` | `nosniff`, em toda resposta |
+| `Referrer-Policy` | `no-referrer` |
+| `X-Frame-Options` | `DENY`, para navegadores anteriores ao `frame-ancestors` |
+| `Strict-Transport-Security` | `max-age=<SECURITY_HSTS_SECONDS>`, **só** quando a configuração é positiva |
+
+O `SECURITY_HSTS_SECONDS` é `0` por padrão, pelo mesmo motivo que o `AUTH_COOKIE_SECURE` é `false`:
+uma instalação em HTTP puro não pode afirmar HTTPS. Defina `31536000` só quando todo visitante alcança
+o host por HTTPS. `includeSubDomains` e `preload` nunca são emitidos — eles prendem nomes fora desta
+aplicação, e o navegador os mantém depois da próxima mudança de configuração.
+
+As páginas em `/schema` são a única exceção documentada ao CSP: Swagger, Redoc, RapiDoc e Stoplight
+carregam seus pacotes de CDNs e depois rodam um inicializador inline, então a política para nesse
+prefixo. Elas continuam recebendo os outros cabeçalhos. O documento em si é `/schema/openapi.json`.
+
+### O freio da superfície pública
+
+`/api/v1/public/*` é a superfície que responde sem sessão, e ela é limitada por endereço de cliente:
+`PUBLIC_RATE_LIMIT_MAX` requisições por `PUBLIC_RATE_LIMIT_WINDOW_SECONDS` (120 por 60 s por padrão)
+respondem **429** com `Retry-After`, `code: PUBLIC_RATE_LIMITED` e a frase de sempre da API no idioma
+da requisição. A superfície do curador e `/health/*` não são contadas.
+
+**Este limite é por processo.** Ele zera no reinício, e `uvicorn --workers N` multiplica o teto
+efetivo por N. Uma implantação que precisa de um teto global ou durável configura isso no proxy
+reverso; os dois são complementares, não alternativas.
+
+**O endereço contado é o que o ASGI vê.** Atrás de um proxy, é o próprio proxy, a menos que o uvicorn
+seja instruído a confiar no cabeçalho de encaminhamento:
+
+```bash
+uvicorn main:app --host 0.0.0.0 --port 8000 \
+    --proxy-headers --forwarded-allow-ips=172.18.0.2
+```
+
+Nomeie o endereço do proxy, nunca `*`, a menos que a API seja inalcançável a não ser por ele: com
+`*`, qualquer cliente pode definir `X-Forwarded-For` e escolher o próprio balde. Sem as opções, todo
+visitante compartilha a janela do proxy, o que transforma um freio por endereço em um freio do site
+inteiro.
 
 ## Implantação em contêiner
 

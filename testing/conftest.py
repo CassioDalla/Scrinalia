@@ -16,6 +16,7 @@ from sqlalchemy.engine import Connection, Dialect, Engine
 from sqlalchemy.orm import Session
 
 from scrinalia.api.dependencies import provide_login_rate_limiter
+from scrinalia.api.public_rate_limit import reset_public_rate_limiter
 from scrinalia.asgi import create_app
 from scrinalia.core.base import Base
 from scrinalia.core.config import get_settings
@@ -398,9 +399,10 @@ def api_client(api_uses_test_db, api_app) -> Generator[TestClient, None, None]:
     and a test about the open surface (the diffusion routes, the health probes, the login itself) gets
     the honest thing — a client that has not signed in.
     """
-    # The sign-in brake is process-wide by design, so a fresh window per test keeps one test's
-    # logins from counting against the next one's — and lets the rate-limit test set the ceiling.
+    # The two brakes are process-wide by design, so a fresh window per test keeps one test's
+    # requests from counting against the next one's — and lets the rate-limit tests set the ceiling.
     provide_login_rate_limiter.cache_clear()
+    reset_public_rate_limiter()
     with TestClient(app=api_app) as test_client:
         yield test_client  # type: ignore[misc]
 

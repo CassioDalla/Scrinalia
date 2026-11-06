@@ -122,6 +122,11 @@ class RouteMessageCode(enum.StrEnum):
     #: One session of one account was ended.
     SESSION_REVOKED = "SESSION_REVOKED"
 
+    # --- The public surface -------------------------------------------------------------------
+    #: The address spent its window on ``/api/v1/public/*``. The refusal carries ``Retry-After`` and
+    #: the window slides, so it is a brake and not a ban.
+    PUBLIC_RATE_LIMITED = "PUBLIC_RATE_LIMITED"
+
 
 class RouteResponse(BaseModel):
     """
